@@ -3,9 +3,14 @@ url = "https://pypi.python.org/simple"
 verify_ssl = true
 name = "pypi"
 
-[packages]
-
 [dev-packages]
 
 [requires]
 python_version = "3.7"
+
+[packages]
+eth-account = "*"
+
+[packages.e1839a8]
+path = "."
+editable = true
