@@ -9,3 +9,5 @@ except DistributionNotFound:
     __version__ = 'unknown'
 finally:
     del get_distribution, DistributionNotFound
+
+from .main import create_post, create_aggregate
