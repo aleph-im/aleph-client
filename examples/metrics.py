@@ -8,7 +8,10 @@ import psutil
 import platform
 # import socket
 import time
-from aleph_client import get_address, create_aggregate, create_post
+from aleph_client.main import create_aggregate, create_post
+
+# from aleph_client.chains.nuls1 import NULSAccount, get_fallback_account
+from aleph_client.chains.ethereum import ETHAccount, get_fallback_account
 
 
 def get_sysinfo():
@@ -49,9 +52,9 @@ def get_cpu_cores():
     return [c._asdict() for c in psutil.cpu_times_percent(0, percpu=True)]
 
 
-def send_metrics(metrics):
+def send_metrics(account, metrics):
     # metric_payload = {}
-    return create_aggregate('metrics', metrics, channel='SYSINFO')
+    return create_aggregate(account, 'metrics', metrics, channel='SYSINFO')
 
 
 def collect_metrics():
@@ -64,9 +67,10 @@ def collect_metrics():
 
 
 def main():
+    account = get_fallback_account()
     while True:
         metrics = collect_metrics()
-        ret = send_metrics(metrics)
+        ret = send_metrics(account, metrics)
         print("sent", ret['item_hash'])
         time.sleep(10)
 
