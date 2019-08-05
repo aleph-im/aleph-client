@@ -3,8 +3,7 @@ aleph-client
 ============
 
 
-Add a short description here!
-
+Work in progress, not useable yet!
 
 Description
 ===========
