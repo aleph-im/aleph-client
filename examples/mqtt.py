@@ -60,7 +60,7 @@ def on_message(client, userdata, msg):
     
     
 async def gateway(loop, host='api1.aleph.im', port=1883, ca_cert=None,
-                  pkey=None, keepalive=60, transport='tcp', auth={}):
+                  pkey=None, keepalive=60, transport='tcp', auth=None):
     
     if pkey is None:
         pkey = get_fallback_private_key()
@@ -68,11 +68,11 @@ async def gateway(loop, host='api1.aleph.im', port=1883, ca_cert=None,
     account = ETHAccount(private_key=pkey)
     state = dict()
     client = aiomqtt.Client(loop,
-                            userdata={'account': account, 'state': state,
-                                      'auth': auth},
+                            userdata={'account': account, 'state': state},
                             transport=transport)
     client.on_connect = on_connect
     client.on_message = on_message
+    
     if ca_cert is not None:
         client.tls_set(ca_cert)
     if auth is not None:
@@ -109,7 +109,7 @@ def main(host, port, user, password, use_tls=False, ca_cert=None, pkey=None):
             ca_cert = certifi.where()
             print(ca_cert)
         
-    loop.run_until_complete(gateway(loop, host, port, ca_cert, pkey=pkey, auth=auth))
+    loop.run_until_complete(gateway(loop, host, port, ca_cert=ca_cert, pkey=pkey, auth=auth))
 
 
 if __name__ == '__main__':
