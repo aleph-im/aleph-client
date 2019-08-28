@@ -44,9 +44,8 @@ def on_connect(client, userdata, flags, rc):
 def on_message(client, userdata, msg):
     # return create_aggregate(account, 'metrics', metrics, channel='SYSINFO')
     state = userdata['state']
-    parts = msg.topic.split('/')[1:]
+    parts = msg.topic.strip('/').split('/')
     curp = state
-    pos = -1
     for part in parts[:-1]:
         if not isinstance(curp.get(part, None), dict):
             curp[part] = {}
