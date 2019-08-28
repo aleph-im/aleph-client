@@ -77,9 +77,9 @@ async def gateway(loop, host='api1.aleph.im', port=1883, ca_cert=None,
         client.tls_set(ca_cert)
     if auth is not None:
         client.username_pw_set(**auth)
+    client.loop_start()
 
     await client.connect(host, port, keepalive)
-    client.loop_start()
     # client.loop_forever()
     while True:
         await asyncio.sleep(10)
