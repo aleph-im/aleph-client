@@ -3,7 +3,6 @@
 # -*- coding: utf-8 -*-
 
 import os
-import psutil
 # import requests
 import platform
 # import socket
@@ -86,7 +85,7 @@ async def gateway(loop, host='api1.aleph.im', port=1883, ca_cert=None,
     if auth is not None:
         client.username_pw_set(**auth)
         
-    asyncio.create_task(client.loop_forever())
+    asyncio.ensure_future(client.loop_forever())
 
     await client.connect(host, port, keepalive)
     # client.loop_forever()
