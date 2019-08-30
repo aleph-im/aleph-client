@@ -6,7 +6,7 @@ import requests
 import json
 import hashlib
 
-DEFAULT_SERVER = "https://apitest.aleph.im"
+DEFAULT_SERVER = "https://api1.aleph.im"
 
 
 
