@@ -35,6 +35,12 @@ def send_metrics(account, metrics):
     return create_aggregate(account, 'metrics', metrics, channel='SYSINFO')
 
 
+def on_disconnect(client, userdata, rc):
+    if rc != 0:
+        print("Unexpected MQTT disconnection. Will auto-reconnect")
+        
+    client.reconnect()
+        
 # The callback for when the client receives a CONNACK response from the server.
 def on_connect(client, userdata, flags, rc):
     print("Connected with result code "+str(rc))
@@ -47,6 +53,7 @@ def on_connect(client, userdata, flags, rc):
 # The callback for when a PUBLISH message is received from the server.
 def on_message(client, userdata, msg):
     # return create_aggregate(account, 'metrics', metrics, channel='SYSINFO')
+    userdata['received'] = True
     state = userdata['state']
     parts = msg.topic.strip('/').split('/')
     curp = state
@@ -58,34 +65,40 @@ def on_message(client, userdata, msg):
     curp[parts[-1]] = get_input_data(msg.payload)
     print(parts, msg.payload)
     
-    
 async def gateway(loop, host='api1.aleph.im', port=1883, ca_cert=None,
-                  pkey=None, keepalive=60, transport='tcp', auth=None):
+                  pkey=None, keepalive=10, transport='tcp', auth=None):
     
     if pkey is None:
         pkey = get_fallback_private_key()
         
     account = ETHAccount(private_key=pkey)
     state = dict()
+    userdata = {'account': account, 'state': state, 'received': False}
     client = aiomqtt.Client(loop,
-                            userdata={'account': account, 'state': state},
+                            userdata=userdata,
                             transport=transport)
     client.on_connect = on_connect
+    client.on_disconnect = on_disconnect
     client.on_message = on_message
     
     if ca_cert is not None:
         client.tls_set(ca_cert)
     if auth is not None:
         client.username_pw_set(**auth)
-    client.loop_start()
+        
+    asyncio.create_task(client.loop_forever())
 
     await client.connect(host, port, keepalive)
     # client.loop_forever()
     while True:
         await asyncio.sleep(10)
+        if not userdata['received']:
+            await client.reconnect()
+            
         for key, value in state.items():
             ret = create_aggregate(account, key, value, channel='IOT_TEST')
             print("sent", ret['item_hash'])
+            userdata['received'] = False
 
 
 @click.command()
