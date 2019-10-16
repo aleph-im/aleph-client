@@ -1,4 +1,4 @@
-from secp256k1 import PrivateKey, PublicKey
+from coincurve import PrivateKey, PublicKey
 # In case we don't want to bother with handling private key ourselves
 # do an ugly and insecure write and read from disk to this file.
 PRIVATE_KEY_FILE = 'device.key'
@@ -12,8 +12,8 @@ def get_verification_buffer(message):
 
 
 def get_public_key(private_key):
-    privkey = PrivateKey(private_key, raw=True)
-    return privkey.pubkey.serialize()
+    privkey = PrivateKey(private_key)
+    return privkey.public_key.format()
 
 class BaseAccount:
     CHAIN = None
@@ -33,7 +33,7 @@ class BaseAccount:
 # Start of the ugly stuff
 def generate_key():
     privkey = PrivateKey()
-    return privkey.private_key
+    return privkey.secret
 
 
 def get_fallback_private_key():
