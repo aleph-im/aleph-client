@@ -313,7 +313,6 @@ class NULSAccount(BaseAccount):
         self.chain_id = chain_id
     
     def sign_message(self, message):
-        print(message)
         sig = NulsSignature.sign_message(self.private_key,
                                          get_verification_buffer(message))
         message['signature'] = sig.serialize().hex()

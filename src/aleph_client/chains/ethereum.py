@@ -14,7 +14,6 @@ class ETHAccount(BaseAccount):
         msghash = encode_defunct(text=get_verification_buffer(message).decode('utf-8'))
         sig = self._account.sign_message(msghash)
         message['signature'] = sig['signature'].hex()
-        print(message)
         return message
     
     def get_address(self):
