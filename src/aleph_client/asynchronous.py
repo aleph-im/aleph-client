@@ -91,8 +91,10 @@ async def submit(account, content, message_type, channel='IOT_TEST',
       'time': time.time()
     }
     
-    if inline:
-        message['item_content'] = json.dumps(content, separators=(',',':'))
+    item_content = json.dumps(content, separators=(',',':'))
+    
+    if inline and (len(item_content) < 100000):
+        message['item_content'] = item_content
         h = hashlib.sha256()
         h.update(message['item_content'].encode('utf-8'))
         message['item_hash'] = h.hexdigest()
