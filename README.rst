@@ -2,17 +2,31 @@
 aleph-client
 ============
 
-
-Work in progress, not useable yet!
+Python Client for the aleph.im network.
 
 Description
 ===========
 
 A longer description of your project goes here...
 
+Installation for development
+============================
 
-Note
-====
+If you want NULS2 support you will need to install nuls2-python (currently only available on github):
 
-This project has been set up using PyScaffold 3.2.1. For details and usage
-information on PyScaffold see https://pyscaffold.org/.
+```
+$ pip install git+https://github.com/aleph-im/nuls2-python.git
+```
+
+To install from source and still be able to modify the source code:
+
+```
+$ pip install -e .
+or
+$ python setup.py develop
+```
+
+# python setup.py 
+
+Build
+=====
