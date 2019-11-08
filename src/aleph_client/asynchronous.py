@@ -99,7 +99,7 @@ async def submit(account, content, message_type, channel='IOT_TEST',
         h.update(message['item_content'].encode('utf-8'))
         message['item_hash'] = h.hexdigest()
     else:
-        message['item_hash'] = ipfs_push(content, api_server=api_server)
+        message['item_hash'] = await ipfs_push(content, api_server=api_server)
         
     message = account.sign_message(message)
     await broadcast(message, session=session, api_server=api_server)
