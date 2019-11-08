@@ -29,4 +29,6 @@ Another example setting the private key manually:
 
     from aleph_client.chains.ethereum import EthereumAccount
 
-    account = EthereumAccount()
+    prv = bytes.fromhex("xxxxxx")
+
+    account = EthereumAccount(prv)
