@@ -66,7 +66,9 @@ except Exception as e:
 extensions = ['sphinx.ext.autodoc', 'sphinx.ext.intersphinx', 'sphinx.ext.todo',
               'sphinx.ext.autosummary', 'sphinx.ext.viewcode', 'sphinx.ext.coverage',
               'sphinx.ext.doctest', 'sphinx.ext.ifconfig', 'sphinx.ext.mathjax',
-              'sphinx.ext.napoleon']
+              'sphinx.ext.napoleon', 'sphinxcontrib.plantuml']
+
+# plantuml = 'java -jar docs/plantuml.jar'
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
@@ -141,8 +143,24 @@ html_theme = 'alabaster'
 # further.  For a list of options available for each theme, see the
 # documentation.
 html_theme_options = {
-    'sidebar_width': '300px',
-    'page_width': '1200px'
+    #'sidebar_width': '300px',
+    #'page_width': '1200px'
+    'logo': 'logo.svg',
+    'description': 'Aleph Network Client',
+    'github_user': 'aleph-im',
+    'github_repo': 'aleph-client',
+    'github_button': True,
+    'github_type': 'star',
+    'github_banner': True,
+    'travis_button': True,
+    'codecov_button': True,
+    'pre_bg': '#FFF6E5',
+    'note_bg': '#E5ECD1',
+    'note_border': '#BFCF8C',
+    'body_text': '#482C0A',
+    'sidebar_text': '#49443E',
+    'sidebar_header': '#4B4032',
+    'sidebar_collapse': False,
 }
 
 # Add any paths that contain custom themes here, relative to this directory.
@@ -162,7 +180,7 @@ else:
 
 # The name of an image file (relative to this directory) to place at the top
 # of the sidebar.
-# html_logo = ""
+html_logo = "logo.svg"
 
 # The name of an image file (within the static path) to use as favicon of the
 # docs.  This file should be a Windows icon file (.ico) being 16x16 or 32x32
@@ -236,7 +254,7 @@ latex_elements = {
 # (source start file, target name, title, author, documentclass [howto/manual]).
 latex_documents = [
   ('index', 'user_guide.tex', u'aleph-client Documentation',
-   u'Jonathan Schemoul', 'manual'),
+   u'Aleph.im', 'manual'),
 ]
 
 # The name of an image file (relative to this directory) to place at the top of
