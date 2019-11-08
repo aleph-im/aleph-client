@@ -32,6 +32,7 @@ Contents
    content/account
    content/aggregates
    content/posts
+   content/async_notes
    
    License <license>
    Authors <authors>
