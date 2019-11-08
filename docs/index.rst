@@ -22,17 +22,21 @@ This is the documentation of **aleph-client**.
     you include documentation from docstrings. Docstrings can be written in
     `Google style`_ (recommended!), `NumPy style`_ and `classical style`_.
 
-
 Contents
 ========
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 3
 
+   content/introduction
+   content/account
+   content/aggregates
+   content/posts
+   
    License <license>
    Authors <authors>
    Changelog <changelog>
-   Module Reference <api/modules>
+   Module Reference <api/aleph_client>
 
 
 Indices and tables
