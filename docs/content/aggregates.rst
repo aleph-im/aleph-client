@@ -33,7 +33,7 @@ asynchronous version (assumes you already have an account instanciated):
 
 .. code-block:: python3
 
-    >>> from aleph_client.main import create_aggregate
+    >>> from aleph_client.main import create_aggregate, fetch_aggregate
     >>> create_aggregate(
     ...    account, 'testkey', {'a': 1, 'b': 2}, channel='MY_CHANNEL')
     >>> fetch_aggregate(account.get_address(), 'testkey')

@@ -27,8 +27,22 @@ Another example setting the private key manually:
 
 .. code-block:: python3
 
-    from aleph_client.chains.ethereum import EthereumAccount
+    from aleph_client.chains.ethereum import ETHAccount
 
     prv = bytes.fromhex("xxxxxx")
 
-    account = EthereumAccount(prv)
+    account = ETHAccount(prv)
+
+Depending on account provider, the key can be passed as an hex string.
+It's the case for Ethereum:
+
+.. code-block:: python3
+
+    >>> from aleph_client.chains.ethereum import ETHAccount
+    >>> account = ETHAccount("0x0000000000000000000000000000000000000000000000000000000000000001")
+    >>> account.get_address()
+    '0x7E5F4552091A69125d5DfCb7b8C2659029395Bdf'
+
+.. WARNING::
+    Do not use this dummy private key, it's just an example!
+
