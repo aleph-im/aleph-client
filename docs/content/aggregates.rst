@@ -29,18 +29,23 @@ Mutate aggregate
 To mutate an aggregate you need to call the create_aggregate function (it will create
 an AGGREGATE type message for you and submit it). You need a valid account to do so.
 
-asynchronous version:
+asynchronous version (assumes you already have an account instanciated):
 
 .. code-block:: python3
 
-    from aleph_client.main import create_aggregate
-        create_aggregate(account)
+    >>> from aleph_client.main import create_aggregate
+    >>> create_aggregate(
+    ...    account, 'testkey', {'a': 1, 'b': 2}, channel='MY_CHANNEL')
+    >>> fetch_aggregate(account.get_address(), 'testkey')
+    {'a': 1, 'b': 2}
+    >>> create_aggregate(
+    ...    account, 'testkey', {'a': 2, 'c': 4}, channel='MY_CHANNEL')
+    >>> fetch_aggregate(account.get_address(), 'testkey')
+    {'a': 2, 'b': 2, 'c': 4}
 
-Asynchronous version:
+Asynchronous version is very similar:
 
 .. code-block:: python3
 
-    import aiohttp
     from aleph_client.asynchronous import create_aggregate
-    async with aiohttp.ClientSession() as session:
-        await create_aggregate()
+    await create_aggregate(...)
