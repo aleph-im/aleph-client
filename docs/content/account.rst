@@ -15,6 +15,9 @@ If you don't want to handle the private key yourself, you can use the
 If this file isn't found, it will try to create a new key file with a random
 key.
 
+Ethereum
+********
+
 Example using Ethereum:
 
 .. code-block:: python3
@@ -46,3 +49,26 @@ It's the case for Ethereum:
 .. WARNING::
     Do not use this dummy private key, it's just an example!
 
+NULS
+****
+
+The NULS provider is very similar.
+
+Fallback account:
+
+.. code-block:: python3
+
+    from aleph_client.chains.nuls2 import get_fallback_account
+
+    account = get_fallback_account()
+
+From a private key:
+
+.. code-block:: python3
+
+    >>> from aleph_client.chains.nuls2 import NULSAccount
+    >>> account = NULSAccount(
+    ...    bytes.fromhex(
+    ...    "0000000000000000000000000000000000000000000000000000000000000001"))
+    >>> account.get_address()
+    'NULSd6Hgb53vAd7ZMoA2E17DUTT4C1nGrJVpn'
