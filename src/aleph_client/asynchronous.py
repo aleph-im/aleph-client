@@ -118,3 +118,42 @@ async def fetch_aggregate(address, key, session=None, api_server=DEFAULT_SERVER)
         return (await resp.json()).get('data', dict()).get(key)
 
 sync_fetch_aggregate = wrap_async(fetch_aggregate)
+
+
+async def get_posts(pagination=200, page=1, types=None,
+                    refs=None, addresses=None, tags=None, hashes=None,
+                    channels=None, start_date=None, end_date=None,
+                    session=None, api_server=DEFAULT_SERVER):
+    if session is None:
+        session = await get_fallback_session()
+        
+    params = dict(
+        pagination=pagination,
+        page=page
+    )
+    
+    if types is not None:
+        params['types'] = ','.join(types)
+    if refs is not None:
+        params['refs'] = ','.join(refs)
+    if addresses is not None:
+        params['addresses'] = ','.join(addresses)
+    if tags is not None:
+        params['tags'] = ','.join(tags)
+    if hashes is not None:
+        params['hashes'] = ','.join(tags)
+        
+    if start_date is not None:
+        if hasattr(start_date, 'timestamp'):
+            start_date = start_date.timestamp()
+        params['start_date'] = start_date
+    if end_date is not None:
+        if hasattr(end_date, 'timestamp'):
+            end_date = end_date.timestamp()
+        params['end_date'] = end_date
+        
+    async with session.get("%s/api/v0/posts.json" % (
+        api_server
+    ), params=params) as resp:
+        return (await resp.json())
+    
