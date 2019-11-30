@@ -79,8 +79,9 @@ Actual content sent by regular users can currently be of two types:
 
     object Store <<message content>> {
         address : text <<address>>
-        item_type : same spec than for Message (note: does not support inline)
-        item_hash : same spec than for Message
+        item_type : same than Message.item_type
+                    (note: does not support inline)
+        item_hash : same than Message.item_hash
         time : timestamp
     }
 
