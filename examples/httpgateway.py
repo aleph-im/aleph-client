@@ -25,13 +25,14 @@ async def hello(request):
     return web.Response(text="Hello, world")
 
 
-@routes.post('/p/{device}')
-async def device_post(request):
+@routes.post('/p/{source}')
+async def source_post(request):
     # print(await request.text())
     data = await request.post()
     data = dict(data.copy().items())
 
     secret = data.pop('secret', None)
+    data['source'] = request.match_info['source']
 
     if app['secret'] is not None:
         if secret != app['secret']:
@@ -41,10 +42,9 @@ async def device_post(request):
                               'event', channel=app['channel'],
                               api_server='https://api2.aleph.im')
 
-    print(value)
-
     return web.json_response({'status': 'success',
                               'item_hash': value['item_hash']})
+    
 
 @click.command()
 @click.option('--host', default='localhost',
