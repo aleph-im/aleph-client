@@ -25,7 +25,7 @@ All data transfered over the aleph.im network are aleph messages.
         entity Message {
             .. Message info ..
             *type : text
-            one of: POST, AGGREGATE
+            one of: POST, AGGREGATE, STORE
             *channel : text
             (channel of the message, one application ideally has one channel)
             *time : timestamp
@@ -36,12 +36,14 @@ All data transfered over the aleph.im network are aleph messages.
             -- Content --
             *item_hash <<hash>>
             if IPFS: multihash of json serialization of content
+            if internal storage: hash of the content (sha256 only for now)
             if inline: hash of item_content using hash_type (sha256 only for now)
             *item_content : text <<json>>
             mandatory if of inline type, json serialization of the message
             #item_type : text (optional)
-            one of: IPFS, inline.
-            default: IPFS if no item_content, inline if there is
+            one of: 'ipfs', 'inline', 'storage'.
+            default: 'ipfs' if no item_content and hash length 56,
+                     'storage' if length 64, 'inline' if there is an item_content.
             #hash_type : text (optional)
             default: sha256 (only supported value for now)
         }
@@ -75,7 +77,16 @@ Actual content sent by regular users can currently be of two types:
         time : timestamp
     }
 
+    object Store <<message content>> {
+        address : text <<address>>
+        item_type : same than Message.item_type
+                    (note: does not support inline)
+        item_hash : same than Message.item_hash
+        time : timestamp
+    }
+
 
     Message ||--o| Aggregate
     Message ||--o| Post
+    Message ||--o| Store
    @enduml
