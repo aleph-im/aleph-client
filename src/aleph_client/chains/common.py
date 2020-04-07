@@ -35,6 +35,7 @@ class BaseAccount:
     def decrypt(self, content):
         if self.CURVE == "secp256k1":
             value = decrypt(self.private_key, content)
+            return value
         else:
             raise NotImplementedError
 
