@@ -1,4 +1,5 @@
 from coincurve import PrivateKey, PublicKey
+from ecies import decrypt
 # In case we don't want to bother with handling private key ourselves
 # do an ugly and insecure write and read from disk to this file.
 PRIVATE_KEY_FILE = 'device.key'
@@ -17,6 +18,7 @@ def get_public_key(private_key):
 
 class BaseAccount:
     CHAIN = None
+    CURVE = None
     
     def __init__(self):
         raise NotImplementedError
@@ -29,6 +31,12 @@ class BaseAccount:
     
     def get_public_key(self):
         raise NotImplementedError
+
+    def decrypt(self, content):
+        if self.CURVE == "secp256k1":
+            value = decrypt(self.private_key, content)
+        else:
+            raise NotImplementedError
 
 # Start of the ugly stuff
 def generate_key():

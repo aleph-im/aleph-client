@@ -307,6 +307,7 @@ def get_address(public_key=None, private_key=None, chain_id=261):
 
 class NULSAccount(BaseAccount):
     CHAIN = "NULS"
+    CURVE = "secp256k1"
     
     def __init__(self, private_key=None, chain_id=8964):
         self.private_key = private_key
