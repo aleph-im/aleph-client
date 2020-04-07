@@ -6,6 +6,8 @@ from eth_account import Account
 
 class ETHAccount(BaseAccount):
     CHAIN = "ETH"
+    CURVE = "secp256k1"
+    
     def __init__(self, private_key=None):
         self.private_key = private_key
         self._account = Account.from_key(self.private_key)
