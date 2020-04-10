@@ -22,7 +22,7 @@ class ETHAccount(BaseAccount):
         return self._account.address
     
     def get_public_key(self):
-        return get_public_key(private_key=self.private_key)
+        return "0x" + get_public_key(private_key=self._account.key).hex()
     
 def get_fallback_account():
     return ETHAccount(private_key=get_fallback_private_key())
