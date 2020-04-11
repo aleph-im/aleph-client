@@ -34,6 +34,44 @@ async def ipfs_push(content, session=None, api_server=DEFAULT_SERVER):
 
 sync_ipfs_push = wrap_async(ipfs_push)
 
+
+async def storage_push(content, session=None, api_server=DEFAULT_SERVER):
+    if session is None:
+        session = await get_fallback_session()
+        
+    async with session.post("%s/api/v0/storage/add_json" % api_server,
+                            json=content) as resp:
+        return (await resp.json()).get('hash')
+
+sync_storage_push = wrap_async(storage_push)
+
+
+async def ipfs_push_file(fileobject, session=None, api_server=DEFAULT_SERVER):
+    if session is None:
+        session = await get_fallback_session()
+
+    data = aiohttp.FormData()
+    data.add_field('file', fileobject)
+        
+    async with session.post("%s/api/v0/ipfs/add_file" % api_server,
+                            data=data) as resp:
+        return (await resp.json()).get('hash')
+
+sync_ipfs_push_file = wrap_async(ipfs_push_file)
+
+async def storage_push_file(fileobject, session=None, api_server=DEFAULT_SERVER):
+    if session is None:
+        session = await get_fallback_session()
+
+    data = aiohttp.FormData()
+    data.add_field('file', fileobject)
+        
+    async with session.post("%s/api/v0/storage/add_file" % api_server,
+                            data=data) as resp:
+        return (await resp.json()).get('hash')
+
+sync_storage_push_file = wrap_async(storage_push_file)
+
 async def broadcast(message, session=None, api_server=DEFAULT_SERVER):
     if session is None:
         session = await get_fallback_session()
@@ -79,9 +117,36 @@ async def create_aggregate(account, key, content, address=None,
 
 sync_create_aggregate = wrap_async(create_aggregate)
 
+async def create_store(account, address=None, fileobject=None, file_hash=None,
+                       storage_engine="storage", 
+                       channel='TEST', session=None, api_server=DEFAULT_SERVER):
+    if address is None:
+        address = account.get_address()
+
+    if file_hash is None:
+        if fileobject is None:
+            raise ValueError("Please specify at least a fileobject or a file_hash")
+
+        if storage_engine == "storage":
+            file_hash = await storage_push_file(fileobject, session=session, api_server=api_server)
+        elif storage_engine == "ipfs":
+            file_hash = await ipfs_push_file(fileobject, session=session, api_server=api_server)
+
+    store_content = {
+        'address': address,
+        'item_type': storage_engine,
+        'item_hash': file_hash,
+        'time': time.time()
+    }
+    return await submit(account, store_content, 'STORE', channel=channel,
+                        api_server=api_server, session=session, inline=True)
+
+sync_create_store = wrap_async(create_store)
+
 
 async def submit(account, content, message_type, channel='IOT_TEST',
-                 api_server=DEFAULT_SERVER, session=None, inline=True):    
+                 api_server=DEFAULT_SERVER, storage_engine="storage",
+                 session=None, inline=True):    
     message = {
       #'item_hash': ipfs_hash,
       'chain': account.CHAIN,
@@ -99,7 +164,10 @@ async def submit(account, content, message_type, channel='IOT_TEST',
         h.update(message['item_content'].encode('utf-8'))
         message['item_hash'] = h.hexdigest()
     else:
-        message['item_hash'] = await ipfs_push(content, api_server=api_server)
+        if storage_engine == "ipfs":
+            message['item_hash'] = await ipfs_push(content, api_server=api_server)
+        else: # storage
+            message['item_hash'] = await storage_push(content, api_server=api_server)
         
     message = account.sign_message(message)
     await broadcast(message, session=session, api_server=api_server)
