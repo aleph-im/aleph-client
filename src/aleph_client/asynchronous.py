@@ -171,6 +171,9 @@ async def submit(account, content, message_type, channel='IOT_TEST',
         
     message = account.sign_message(message)
     await broadcast(message, session=session, api_server=api_server)
+    
+    # let's add the content to the object so users can access it.
+    message['content'] = content
     return message
 
 sync_submit = wrap_async(submit)
