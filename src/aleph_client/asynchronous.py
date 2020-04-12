@@ -84,7 +84,7 @@ async def broadcast(message, session=None, api_server=DEFAULT_SERVER):
 sync_broadcast = wrap_async(broadcast)
 
 
-async def create_post(account, post_content, post_type, address=None,
+async def create_post(account, post_content, post_type, ref=None, address=None,
                       channel='TEST', session=None, api_server=DEFAULT_SERVER):        
     if address is None:
         address = account.get_address()
@@ -95,6 +95,9 @@ async def create_post(account, post_content, post_type, address=None,
         'content': post_content,
         'time': time.time()
     }
+    if ref is not None:
+        post['ref'] = ref
+
     return await submit(account, post, 'POST', channel=channel,
                         api_server=api_server, session=session)
 
