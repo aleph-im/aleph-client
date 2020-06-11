@@ -85,7 +85,8 @@ sync_broadcast = wrap_async(broadcast)
 
 
 async def create_post(account, post_content, post_type, ref=None, address=None,
-                      channel='TEST', session=None, api_server=DEFAULT_SERVER):        
+                      channel='TEST', session=None, api_server=DEFAULT_SERVER,
+                      inline=True, storage_engine="storage"):        
     if address is None:
         address = account.get_address()
 
@@ -99,7 +100,8 @@ async def create_post(account, post_content, post_type, ref=None, address=None,
         post['ref'] = ref
 
     return await submit(account, post, 'POST', channel=channel,
-                        api_server=api_server, session=session)
+                        api_server=api_server, session=session,
+                        inline=inline, storage_engine=storage_engine)
 
 sync_create_post = wrap_async(create_post)
 
