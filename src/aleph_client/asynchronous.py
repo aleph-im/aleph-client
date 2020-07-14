@@ -233,3 +233,4 @@ async def get_posts(pagination=200, page=1, types=None,
     ), params=params) as resp:
         return (await resp.json())
     
+sync_get_posts = wrap_async(get_posts)

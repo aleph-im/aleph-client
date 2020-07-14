@@ -7,4 +7,5 @@ from .asynchronous import (sync_ipfs_push as ipfs_push,
                            sync_create_aggregate as create_aggregate,
                            sync_create_store as create_store,
                            sync_submit as submit,
-                           sync_fetch_aggregate as fetch_aggregate)
+                           sync_fetch_aggregate as fetch_aggregate,
+                           sync_get_posts as get_posts)
