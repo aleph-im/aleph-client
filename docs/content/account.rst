@@ -70,6 +70,9 @@ Another example setting the mnemonics manually:
 
     account = DOTAccount("payment shy team bargain chest fold bless artwork identify breeze pelican category")
 
+.. WARNING::
+    Do not use this dummy private key, it's just an example!
+
 You can also change the address_type (0 for polkadot, 2 for canary, 42 generic...).
 
 .. code-block:: python3
