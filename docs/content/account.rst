@@ -49,6 +49,43 @@ It's the case for Ethereum:
 .. WARNING::
     Do not use this dummy private key, it's just an example!
 
+Polkadot / Substrate
+********************
+
+DOT/Substrate accounts are a bit different. You pass them mnemonics, and optionally an address_type.
+
+Example using Substrate (if you already used a fallback on ethereum or nuls, you might consider deleting the private key file):
+
+.. code-block:: python3
+
+    from aleph_client.chains.substrate import get_fallback_account
+
+    account = get_fallback_account()
+
+Another example setting the mnemonics manually:
+
+.. code-block:: python3
+
+    from aleph_client.chains.substrate import DOTAccount
+
+    account = DOTAccount("payment shy team bargain chest fold bless artwork identify breeze pelican category")
+
+You can also change the address_type (0 for polkadot, 2 for canary, 42 generic...).
+
+.. code-block:: python3
+
+    >>> from aleph_client.chains.substrate import DOTAccount
+    >>> account = DOTAccount("payment shy team bargain chest fold bless artwork identify breeze pelican category")
+    >>> account.get_address()
+    '5CGNMKCscqN2QNcT7Jtuz23ab7JUxh8wTEtXhECZLJn5vCGX'
+    >>> account = DOTAccount("payment shy team bargain chest fold bless artwork identify breeze pelican category",
+    ...                      address_type=0)
+    >>> account.get_address()
+    '1CfVeTwUcdVqucy4wwv8AsjSjJ8ezh5Xjd1rXButPoc6WJY'
+
+.. WARNING::
+    Do not use this dummy private key, it's just an example!
+
 NULS
 ****
 

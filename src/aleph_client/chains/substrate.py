@@ -12,7 +12,8 @@ class DOTAccount(BaseAccount):
     def __init__(self, mnemonics=None, address_type=42):
         self.mnemonics = mnemonics
         self.address_type = address_type
-        self._account = Keypair.create_from_mnemonic(self.mnemonics)
+        self._account = Keypair.create_from_mnemonic(self.mnemonics,
+                                                     address_type=address_type)
     
     def sign_message(self, message):
         verif = get_verification_buffer(message).decode('utf-8')
