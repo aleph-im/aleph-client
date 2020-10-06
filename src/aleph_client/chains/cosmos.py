@@ -50,7 +50,7 @@ class CSDKAccount(BaseAccount):
         self.hrp = hrp
     
     def sign_message(self, message):
-        verif = get_verification_buffer(message).decode('utf-8')
+        verif = get_verification_string(message)
         
         privkey = ecdsa.SigningKey.from_string(self.private_key, curve=ecdsa.SECP256k1)
         signature_compact = privkey.sign_deterministic(
