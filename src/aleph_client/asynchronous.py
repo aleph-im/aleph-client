@@ -196,6 +196,18 @@ async def fetch_aggregate(address, key, session=None, api_server=DEFAULT_SERVER)
 sync_fetch_aggregate = wrap_async(fetch_aggregate)
 
 
+async def fetch_aggregates(address, session=None, api_server=DEFAULT_SERVER):
+    if session is None:
+        session = await get_fallback_session()
+        
+    async with session.get("%s/api/v0/aggregates/%s.json" % (
+        api_server, address
+    )) as resp:
+        return (await resp.json()).get('data', dict())
+
+sync_fetch_aggregates = wrap_async(fetch_aggregates)
+
+
 async def get_posts(pagination=200, page=1, types=None,
                     refs=None, addresses=None, tags=None, hashes=None,
                     channels=None, start_date=None, end_date=None,
