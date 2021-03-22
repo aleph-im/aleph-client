@@ -221,6 +221,8 @@ async def get_posts(pagination=200, page=1, types=None,
         params['tags'] = ','.join(tags)
     if hashes is not None:
         params['hashes'] = ','.join(hashes)
+    if channels is not None:
+        params['channels'] = ','.join(channels)
         
     if start_date is not None:
         if hasattr(start_date, 'timestamp'):

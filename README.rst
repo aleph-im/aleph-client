@@ -14,6 +14,14 @@ Description
 
 A longer description of your project goes here...
 
+Installation
+============
+
+Using pip and `PyPI <https://pypi.org/project/aleph-client/>`_:
+
+    $ pip install aleph-client
+
+
 Installation for development
 ============================
 
