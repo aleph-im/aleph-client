@@ -123,7 +123,7 @@ async def create_aggregate(account, key, content, address=None,
 sync_create_aggregate = wrap_async(create_aggregate)
 
 async def create_store(account, address=None, file_content=None, file_hash=None,
-                       storage_engine="storage", 
+                       storage_engine="storage", extra_fields=None
                        channel='TEST', session=None, api_server=DEFAULT_SERVER):
     if address is None:
         address = account.get_address()
@@ -143,6 +143,9 @@ async def create_store(account, address=None, file_content=None, file_hash=None,
         'item_hash': file_hash,
         'time': time.time()
     }
+    if extra_fields is not None:
+        store_content.update(extra_fields)
+        
     return await submit(account, store_content, 'STORE', channel=channel,
                         api_server=api_server, session=session, inline=True)
 
