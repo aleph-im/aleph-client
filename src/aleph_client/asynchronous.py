@@ -239,3 +239,47 @@ async def get_posts(pagination=200, page=1, types=None,
         return (await resp.json())
     
 sync_get_posts = wrap_async(get_posts)
+
+
+async def get_messages(pagination=200, page=1, message_type=None,
+                       content_types=None, refs=None, addresses=None,
+                       tags=None, hashes=None, channels=None, start_date=None,
+                       end_date=None, session=None, api_server=DEFAULT_SERVER):
+    if session is None:
+        session = await get_fallback_session()
+        
+    params = dict(
+        pagination=pagination,
+        page=page
+    )
+    
+    if message_type is not None:
+        params['msgType'] = message_type
+    if content_types is not None:
+        params['contentTypes'] = ','.join(content_types)
+    if refs is not None:
+        params['refs'] = ','.join(refs)
+    if addresses is not None:
+        params['addresses'] = ','.join(addresses)
+    if tags is not None:
+        params['tags'] = ','.join(tags)
+    if hashes is not None:
+        params['hashes'] = ','.join(hashes)
+    if channels is not None:
+        params['channels'] = ','.join(channels)
+        
+    if start_date is not None:
+        if hasattr(start_date, 'timestamp'):
+            start_date = start_date.timestamp()
+        params['start_date'] = start_date
+    if end_date is not None:
+        if hasattr(end_date, 'timestamp'):
+            end_date = end_date.timestamp()
+        params['end_date'] = end_date
+        
+    async with session.get("%s/api/v0/messages.json" % (
+        api_server
+    ), params=params) as resp:
+        return (await resp.json())
+    
+sync_get_messages = wrap_async(get_messages)
