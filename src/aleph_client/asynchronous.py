@@ -30,6 +30,7 @@ async def ipfs_push(content, session=None, api_server=DEFAULT_SERVER):
         
     async with session.post("%s/api/v0/ipfs/add_json" % api_server,
                             json=content) as resp:
+        resp.raise_for_status()
         return (await resp.json()).get('hash')
 
 sync_ipfs_push = wrap_async(ipfs_push)
@@ -41,6 +42,7 @@ async def storage_push(content, session=None, api_server=DEFAULT_SERVER):
         
     async with session.post("%s/api/v0/storage/add_json" % api_server,
                             json=content) as resp:
+        resp.raise_for_status()
         return (await resp.json()).get('hash')
 
 sync_storage_push = wrap_async(storage_push)
@@ -55,6 +57,7 @@ async def ipfs_push_file(file_content, session=None, api_server=DEFAULT_SERVER):
         
     async with session.post("%s/api/v0/ipfs/add_file" % api_server,
                             data=data) as resp:
+        resp.raise_for_status()
         return (await resp.json()).get('hash')
 
 sync_ipfs_push_file = wrap_async(ipfs_push_file)
@@ -68,6 +71,7 @@ async def storage_push_file(file_content, session=None, api_server=DEFAULT_SERVE
         
     async with session.post("%s/api/v0/storage/add_file" % api_server,
                             data=data) as resp:
+        resp.raise_for_status()
         return (await resp.json()).get('hash')
 
 sync_storage_push_file = wrap_async(storage_push_file)
@@ -79,6 +83,7 @@ async def broadcast(message, session=None, api_server=DEFAULT_SERVER):
     async with session.post("%s/api/v0/ipfs/pubsub/pub" % api_server,
                             json={'topic': 'ALEPH-TEST',
                                'data': json.dumps(message)}) as resp:
+        resp.raise_for_status()
         return (await resp.json()).get('value')
 
 sync_broadcast = wrap_async(broadcast)
@@ -236,6 +241,7 @@ async def get_posts(pagination=200, page=1, types=None,
     async with session.get("%s/api/v0/posts.json" % (
         api_server
     ), params=params) as resp:
+        resp.raise_for_status()
         return (await resp.json())
     
 sync_get_posts = wrap_async(get_posts)
@@ -280,6 +286,7 @@ async def get_messages(pagination=200, page=1, message_type=None,
     async with session.get("%s/api/v0/messages.json" % (
         api_server
     ), params=params) as resp:
+        resp.raise_for_status()
         return (await resp.json())
     
 sync_get_messages = wrap_async(get_messages)
