@@ -9,4 +9,3 @@ WORKDIR /opt/aleph-client/
 COPY . .
 
 RUN pip install -e .[testing,ethereum]
-RUN pytest
