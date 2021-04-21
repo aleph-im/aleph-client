@@ -32,7 +32,7 @@ async def ipfs_push(content, session=None, api_server=DEFAULT_SERVER):
         session = await get_fallback_session()
 
     async with session.post(
-        "%s/api/v0/ipfs/add_json" % api_server, json=content
+        f"{api_server}/api/v0/ipfs/add_json", json=content
     ) as resp:
         resp.raise_for_status()
         return (await resp.json()).get("hash")
@@ -46,7 +46,7 @@ async def storage_push(content, session=None, api_server=DEFAULT_SERVER):
         session = await get_fallback_session()
 
     async with session.post(
-        "%s/api/v0/storage/add_json" % api_server, json=content
+        f"{api_server}/api/v0/storage/add_json", json=content
     ) as resp:
         resp.raise_for_status()
         return (await resp.json()).get("hash")
@@ -62,7 +62,7 @@ async def ipfs_push_file(file_content, session=None, api_server=DEFAULT_SERVER):
     data = aiohttp.FormData()
     data.add_field("file", file_content)
 
-    async with session.post("%s/api/v0/ipfs/add_file" % api_server, data=data) as resp:
+    async with session.post(f"{api_server}/api/v0/ipfs/add_file", data=data) as resp:
         resp.raise_for_status()
         return (await resp.json()).get("hash")
 
@@ -78,7 +78,7 @@ async def storage_push_file(file_content, session=None, api_server=DEFAULT_SERVE
     data.add_field("file", file_content)
 
     async with session.post(
-        "%s/api/v0/storage/add_file" % api_server, data=data
+        f"{api_server}/api/v0/storage/add_file", data=data
     ) as resp:
         resp.raise_for_status()
         return (await resp.json()).get("hash")
@@ -92,7 +92,7 @@ async def broadcast(message, session=None, api_server=DEFAULT_SERVER):
         session = await get_fallback_session()
 
     async with session.post(
-        "%s/api/v0/ipfs/pubsub/pub" % api_server,
+        f"{api_server}/api/v0/ipfs/pubsub/pub",
         json={"topic": "ALEPH-TEST", "data": json.dumps(message)},
     ) as resp:
         resp.raise_for_status()
@@ -265,7 +265,7 @@ async def fetch_aggregate(address, key, session=None, api_server=DEFAULT_SERVER)
         session = await get_fallback_session()
 
     async with session.get(
-        "%s/api/v0/aggregates/%s.json?keys=%s" % (api_server, address, key)
+        f"{api_server}/api/v0/aggregates/{address}.json?keys={key}"
     ) as resp:
         return (await resp.json()).get("data", dict()).get(key)
 
@@ -315,7 +315,7 @@ async def get_posts(
         params["end_date"] = end_date
 
     async with session.get(
-        "%s/api/v0/posts.json" % (api_server), params=params
+        f"{api_server}/api/v0/posts.json", params=params
     ) as resp:
         resp.raise_for_status()
         return await resp.json()
@@ -369,7 +369,7 @@ async def get_messages(
         params["end_date"] = end_date
 
     async with session.get(
-        "%s/api/v0/messages.json" % (api_server), params=params
+        f"{api_server}/api/v0/messages.json", params=params
     ) as resp:
         resp.raise_for_status()
         return await resp.json()

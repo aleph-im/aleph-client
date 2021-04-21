@@ -18,7 +18,7 @@ LOGGER = logging.getLogger("NULS")
 
 PLACE_HOLDER = b"\xFF\xFF\xFF\xFF"
 B58_DIGITS = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
-MESSAGE_TEMPLATE = b"\x18NULS Signed Message:\n%s"
+MESSAGE_TEMPLATE = "\x18NULS Signed Message:\n{}"
 
 
 class VarInt:
@@ -163,7 +163,7 @@ def b58_decode(s):
     for c in s:
         n *= 58
         if c not in B58_DIGITS:
-            raise ValueError("Character %r is not a valid base58 character" % c)
+            raise ValueError(f"Character '{c}' is not a valid base58 character")
         digit = B58_DIGITS.index(c)
         n += digit
 
@@ -262,7 +262,7 @@ class NulsSignature(BaseNulsData):
         message = VarInt(len(message)).encode() + message
         item.pub_key = privkey.pubkey.serialize()
         # item.digest_bytes = digest_bytes
-        sig_check = privkey.ecdsa_sign(MESSAGE_TEMPLATE % message)
+        sig_check = privkey.ecdsa_sign(MESSAGE_TEMPLATE.format(message).encode())
         item.sig_ser = privkey.ecdsa_serialize(sig_check)
         return item
 
@@ -279,10 +279,10 @@ class NulsSignature(BaseNulsData):
     def verify(self, message):
         pub = PublicKey(self.pub_key, raw=True)
         message = VarInt(len(message)).encode() + message
-        # LOGGER.debug("Comparing with %r" % (MESSAGE_TEMPLATE % message))
+        # LOGGER.debug("Comparing with %r" % (MESSAGE_TEMPLATE.format(message).encode()))
         try:
             sig_raw = pub.ecdsa_deserialize(self.sig_ser)
-            good = pub.ecdsa_verify(MESSAGE_TEMPLATE % message, sig_raw)
+            good = pub.ecdsa_verify(MESSAGE_TEMPLATE.format(message).encode(), sig_raw)
         except Exception:
             LOGGER.exception("Verification failed")
             good = False
