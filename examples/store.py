@@ -21,19 +21,18 @@ async def do_upload(account, engine, channel, filename=None, file_hash=None):
         print(filename, account.get_address())
         if filename:
             try:
-                f = open(filename, "rb")
-                # Do something with the file
-                content = f.read()
-                if len(content) > 4 * 1024 * 1024 and engine == 'STORAGE':
-                    print("File too big for native STORAGE engine")
-                    return
-                result = await create_store(account, file_content=content,
-                                            channel=channel, storage_engine=engine.lower(), session=session)
+                with open(filename, "rb") as f:
+                    # Do something with the file
+                    content = f.read()
+                    if len(content) > 4 * 1024 * 1024 and engine == 'STORAGE':
+                        print("File too big for native STORAGE engine")
+                        return
+                    result = await create_store(account, file_content=content,
+                                                channel=channel, storage_engine=engine.lower(), session=session)
             except IOError:
                 print("File not accessible")
-            finally:
-                f.close()
-                
+                raise
+
         elif file_hash:
             result = await create_store(account, file_hash=file_hash,
                                         channel=channel, storage_engine=engine.lower(), session=session)
