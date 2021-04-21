@@ -58,12 +58,12 @@ def main(filename, pkey=None, storage_engine="IPFS", channel="TEST"):
     
     upload_filename = None
     upload_hash = None
-    
-    if len(filename) == 48 and filename.startswith("Q") and storage_engine == "IPFS":
+
+    if 46 <= len(filename) <= 48 and filename.startswith("Q") and storage_engine == "IPFS":
         upload_hash = filename
     else:
         upload_filename = filename
-    
+
     asyncio.run(do_upload(account, storage_engine, channel, filename=upload_filename, file_hash=upload_hash))
 
 
