@@ -1,0 +1,29 @@
+name: Build source and wheel packages
+
+on: push
+
+jobs:
+  build:
+    runs-on: ubuntu-20.04
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Install required system packages
+        run: |
+          sudo apt-get update
+          sudo apt-get -y upgrade
+          sudo apt-get install -y libsecp256k1-dev
+
+      - name: Install required Python packages
+        run: |
+          python3 -m pip install --upgrade build
+          python3 -m pip install --user --upgrade twine
+
+      - name: Build source and wheel packages
+        run: |
+          python3 -m build
+
+      - name: Install the Python wheel
+        run: |
+          python3 -m pip install dist/aleph_client-*.whl
