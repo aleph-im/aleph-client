@@ -3,6 +3,7 @@
 from binascii import hexlify
 import time
 from datetime import datetime
+from functools import lru_cache
 from typing import Optional, Iterable, Union, Any, Dict
 
 import aiohttp
@@ -16,14 +17,10 @@ from aleph_client.chains.common import BaseAccount
 
 DEFAULT_SERVER = "https://api1.aleph.im"
 
-FALLBACK_SESSION = None
 
-
-async def get_fallback_session() -> ClientSession:
-    global FALLBACK_SESSION
-    if FALLBACK_SESSION is None:
-        FALLBACK_SESSION = aiohttp.ClientSession()
-    return FALLBACK_SESSION
+@lru_cache
+def get_fallback_session() -> ClientSession:
+    return aiohttp.ClientSession()
 
 
 def wrap_async(func):
@@ -36,7 +33,7 @@ def wrap_async(func):
 
 async def ipfs_push(content, session: Optional[ClientSession]=None,
                     api_server: str=DEFAULT_SERVER) -> str:
-    session = session or await get_fallback_session()
+    session = session or get_fallback_session()
 
     async with session.post(
         f"{api_server}/api/v0/ipfs/add_json", json=content
@@ -50,7 +47,7 @@ sync_ipfs_push = wrap_async(ipfs_push)
 
 async def storage_push(content, session: Optional[ClientSession]=None,
                        api_server: str=DEFAULT_SERVER) -> str:
-    session = session or await get_fallback_session()
+    session = session or get_fallback_session()
 
     async with session.post(
         f"{api_server}/api/v0/storage/add_json", json=content
@@ -64,7 +61,7 @@ sync_storage_push = wrap_async(storage_push)
 
 async def ipfs_push_file(file_content, session: Optional[ClientSession]=None,
                          api_server: str=DEFAULT_SERVER) -> str:
-    session = session or await get_fallback_session()
+    session = session or get_fallback_session()
 
     data = aiohttp.FormData()
     data.add_field("file", file_content)
@@ -79,7 +76,7 @@ sync_ipfs_push_file = wrap_async(ipfs_push_file)
 
 async def storage_push_file(file_content, session: Optional[ClientSession]=None,
                             api_server: str=DEFAULT_SERVER) -> str:
-    session = session or await get_fallback_session()
+    session = session or get_fallback_session()
 
     data = aiohttp.FormData()
     data.add_field("file", file_content)
@@ -96,7 +93,7 @@ sync_storage_push_file = wrap_async(storage_push_file)
 
 async def broadcast(message, session: Optional[ClientSession]=None,
                     api_server: str=DEFAULT_SERVER):
-    session = session or await get_fallback_session()
+    session = session or get_fallback_session()
 
     async with session.post(
         f"{api_server}/api/v0/ipfs/pubsub/pub",
@@ -268,7 +265,7 @@ sync_submit = wrap_async(submit)
 
 async def fetch_aggregate(address: str, key, session: Optional[ClientSession]=None,
                           api_server: str=DEFAULT_SERVER):
-    session = session or await get_fallback_session()
+    session = session or get_fallback_session()
 
     async with session.get(
         f"{api_server}/api/v0/aggregates/{address}.json?keys={key}"
@@ -277,6 +274,23 @@ async def fetch_aggregate(address: str, key, session: Optional[ClientSession]=No
 
 
 sync_fetch_aggregate = wrap_async(fetch_aggregate)
+
+
+async def fetch_aggregates(address: str, keys: Optional[Iterable[str]] = None,
+                           session: Optional[ClientSession]=None,
+                           api_server: str=DEFAULT_SERVER) -> Dict[str, Dict]:
+    session = session or get_fallback_session()
+
+    keys_str = ','.join(keys) if keys else ''
+    query_string = f"?keys={keys_str}" if keys else ''
+
+    async with session.get(
+        f"{api_server}/api/v0/aggregates/{address}.json{query_string}"
+    ) as resp:
+        return (await resp.json()).get("data", dict())
+
+
+sync_fetch_aggregates = wrap_async(fetch_aggregates)
 
 
 async def get_posts(
@@ -293,7 +307,7 @@ async def get_posts(
     session: Optional[ClientSession]=None,
     api_server: str=DEFAULT_SERVER,
 ):
-    session = session or await get_fallback_session()
+    session = session or get_fallback_session()
 
     params: Dict[str, Any] = dict(pagination=pagination, page=page)
 
@@ -344,7 +358,7 @@ async def get_messages(
     session: Optional[ClientSession]=None,
     api_server: str=DEFAULT_SERVER,
 ) -> Dict[str, Any]:
-    session = session or await get_fallback_session()
+    session = session or get_fallback_session()
 
     params: Dict[str, Any] = dict(pagination=pagination, page=page)
 
