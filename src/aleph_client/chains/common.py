@@ -1,3 +1,6 @@
+from abc import abstractmethod
+from typing import Union, Optional
+
 from coincurve import PrivateKey, PublicKey
 from ecies import decrypt
 
@@ -19,24 +22,25 @@ def get_public_key(private_key):
 
 
 class BaseAccount:
-    CHAIN = None
-    CURVE = None
+    CHAIN: str
+    CURVE: str
+    private_key: Union[str, bytes]
 
-    def __init__(self):
-        raise NotImplementedError
-
+    @abstractmethod
     def sign_message(self, message):
         raise NotImplementedError
 
+    @abstractmethod
     def get_address(self):
         raise NotImplementedError
 
+    @abstractmethod
     def get_public_key(self):
         raise NotImplementedError
 
-    def decrypt(self, content):
+    def decrypt(self, content) -> bytes:
         if self.CURVE == "secp256k1":
-            value = decrypt(self.private_key, content)
+            value: bytes = decrypt(self.private_key, content)
             return value
         else:
             raise NotImplementedError
@@ -48,7 +52,8 @@ def generate_key():
     return privkey.secret
 
 
-def get_fallback_private_key():
+def get_fallback_private_key() -> bytes:
+    private_key: bytes
     try:
         with open(PRIVATE_KEY_FILE, "rb") as prvfile:
             private_key = prvfile.read()
