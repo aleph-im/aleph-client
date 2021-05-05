@@ -2,17 +2,23 @@
 """
 from binascii import hexlify
 import time
+from typing import Optional
+
 import aiohttp
 import asyncio
 import json
 import hashlib
 
+from aleph_client.chains.common import BaseAccount
+from aleph_message import Message
+
 DEFAULT_SERVER = "https://api1.aleph.im"
+DEFAULT_SERVER = "http://163.172.70.92:4024"
 
 FALLBACK_SESSION = None
 
 
-async def get_fallback_session():
+async def get_fallback_session() -> aiohttp.ClientSession:
     global FALLBACK_SESSION
     if FALLBACK_SESSION is None:
         FALLBACK_SESSION = aiohttp.ClientSession()
@@ -87,9 +93,10 @@ async def storage_push_file(file_content, session=None, api_server=DEFAULT_SERVE
 sync_storage_push_file = wrap_async(storage_push_file)
 
 
-async def broadcast(message, session=None, api_server=DEFAULT_SERVER):
-    if session is None:
-        session = await get_fallback_session()
+async def broadcast(message: dict, session: Optional[aiohttp.ClientSession]=None,
+                    api_server=DEFAULT_SERVER):
+
+    session: aiohttp.ClientSession = session or await get_fallback_session()
 
     async with session.post(
         f"{api_server}/api/v0/ipfs/pubsub/pub",
@@ -103,7 +110,7 @@ sync_broadcast = wrap_async(broadcast)
 
 
 async def create_post(
-    account,
+    account: BaseAccount,
     post_content,
     post_type,
     ref=None,
@@ -218,7 +225,7 @@ sync_create_store = wrap_async(create_store)
 
 
 async def submit(
-    account,
+    account: BaseAccount,
     content,
     message_type,
     channel="IOT_TEST",
@@ -227,34 +234,34 @@ async def submit(
     session=None,
     inline=True,
 ):
-    message = {
+    message = Message(
         #'item_hash': ipfs_hash,
-        "chain": account.CHAIN,
-        "channel": channel,
-        "sender": account.get_address(),
-        "type": message_type,
-        "time": time.time(),
-    }
+        chain= account.CHAIN,
+        channel=channel,
+        sender=account.get_address(),
+        type=message_type,
+        time=time.time(),
+    )
 
     item_content = json.dumps(content, separators=(",", ":"))
 
     if inline and (len(item_content) < 100000):
-        message["item_content"] = item_content
+        message.item_content = item_content
         h = hashlib.sha256()
-        h.update(message["item_content"].encode("utf-8"))
-        message["item_hash"] = h.hexdigest()
+        h.update(message.item_content.encode("utf-8"))
+        message.item_hash = h.hexdigest()
     else:
         if storage_engine == "ipfs":
-            message["item_hash"] = await ipfs_push(content, api_server=api_server)
+            message.item_hash = await ipfs_push(content, api_server=api_server)
         else:  # storage
-            message["item_hash"] = await storage_push(content, api_server=api_server)
+            message.item_hash = await storage_push(content, api_server=api_server)
 
-    message = account.sign_message(message)
-    await broadcast(message, session=session, api_server=api_server)
+    message_dict: dict = account.sign_message(message.dict())
+    await broadcast(message_dict, session=session, api_server=api_server)
 
     # let's add the content to the object so users can access it.
-    message["content"] = content
-    return message
+    message_dict["content"] = content
+    return message_dict
 
 
 sync_submit = wrap_async(submit)
