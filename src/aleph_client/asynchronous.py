@@ -31,13 +31,12 @@ def wrap_async(func):
     return func_caller
 
 
-async def ipfs_push(content, session: Optional[ClientSession]=None,
-                    api_server: str=DEFAULT_SERVER) -> str:
+async def ipfs_push(
+    content, session: Optional[ClientSession] = None, api_server: str = DEFAULT_SERVER
+) -> str:
     session = session or get_fallback_session()
 
-    async with session.post(
-        f"{api_server}/api/v0/ipfs/add_json", json=content
-    ) as resp:
+    async with session.post(f"{api_server}/api/v0/ipfs/add_json", json=content) as resp:
         resp.raise_for_status()
         return (await resp.json()).get("hash")
 
@@ -45,8 +44,9 @@ async def ipfs_push(content, session: Optional[ClientSession]=None,
 sync_ipfs_push = wrap_async(ipfs_push)
 
 
-async def storage_push(content, session: Optional[ClientSession]=None,
-                       api_server: str=DEFAULT_SERVER) -> str:
+async def storage_push(
+    content, session: Optional[ClientSession] = None, api_server: str = DEFAULT_SERVER
+) -> str:
     session = session or get_fallback_session()
 
     async with session.post(
@@ -59,8 +59,11 @@ async def storage_push(content, session: Optional[ClientSession]=None,
 sync_storage_push = wrap_async(storage_push)
 
 
-async def ipfs_push_file(file_content, session: Optional[ClientSession]=None,
-                         api_server: str=DEFAULT_SERVER) -> str:
+async def ipfs_push_file(
+    file_content,
+    session: Optional[ClientSession] = None,
+    api_server: str = DEFAULT_SERVER,
+) -> str:
     session = session or get_fallback_session()
 
     data = aiohttp.FormData()
@@ -74,16 +77,17 @@ async def ipfs_push_file(file_content, session: Optional[ClientSession]=None,
 sync_ipfs_push_file = wrap_async(ipfs_push_file)
 
 
-async def storage_push_file(file_content, session: Optional[ClientSession]=None,
-                            api_server: str=DEFAULT_SERVER) -> str:
+async def storage_push_file(
+    file_content,
+    session: Optional[ClientSession] = None,
+    api_server: str = DEFAULT_SERVER,
+) -> str:
     session = session or get_fallback_session()
 
     data = aiohttp.FormData()
     data.add_field("file", file_content)
 
-    async with session.post(
-        f"{api_server}/api/v0/storage/add_file", data=data
-    ) as resp:
+    async with session.post(f"{api_server}/api/v0/storage/add_file", data=data) as resp:
         resp.raise_for_status()
         return (await resp.json()).get("hash")
 
@@ -91,8 +95,9 @@ async def storage_push_file(file_content, session: Optional[ClientSession]=None,
 sync_storage_push_file = wrap_async(storage_push_file)
 
 
-async def broadcast(message, session: Optional[ClientSession]=None,
-                    api_server: str=DEFAULT_SERVER):
+async def broadcast(
+    message, session: Optional[ClientSession] = None, api_server: str = DEFAULT_SERVER
+):
     session = session or get_fallback_session()
 
     async with session.post(
@@ -111,12 +116,12 @@ async def create_post(
     post_content,
     post_type: str,
     ref=None,
-    address: Optional[str]=None,
-    channel: str="TEST",
-    session: Optional[ClientSession]=None,
-    api_server: str=DEFAULT_SERVER,
-    inline: bool=True,
-    storage_engine: str="storage",
+    address: Optional[str] = None,
+    channel: str = "TEST",
+    session: Optional[ClientSession] = None,
+    api_server: str = DEFAULT_SERVER,
+    inline: bool = True,
+    storage_engine: str = "storage",
 ):
     address = address or account.get_address()
 
@@ -148,10 +153,10 @@ async def create_aggregate(
     account: BaseAccount,
     key,
     content,
-    address: Optional[str]=None,
-    channel: str="TEST",
-    session: Optional[ClientSession]=None,
-    api_server: str=DEFAULT_SERVER,
+    address: Optional[str] = None,
+    channel: str = "TEST",
+    session: Optional[ClientSession] = None,
+    api_server: str = DEFAULT_SERVER,
 ):
     address = address or account.get_address()
 
@@ -172,13 +177,13 @@ sync_create_aggregate = wrap_async(create_aggregate)
 async def create_store(
     account: BaseAccount,
     address=None,
-    file_content: Optional[bytes]=None,
-    file_hash: Optional[str]=None,
+    file_content: Optional[bytes] = None,
+    file_hash: Optional[str] = None,
     storage_engine="storage",
-    extra_fields: Optional[dict]=None,
-    channel: str="TEST",
-    session: Optional[ClientSession]=None,
-    api_server: str=DEFAULT_SERVER,
+    extra_fields: Optional[dict] = None,
+    channel: str = "TEST",
+    session: Optional[ClientSession] = None,
+    api_server: str = DEFAULT_SERVER,
 ):
     address = address or account.get_address()
 
@@ -224,11 +229,11 @@ async def submit(
     account: BaseAccount,
     content: dict,
     message_type: str,
-    channel: str="IOT_TEST",
-    api_server: str=DEFAULT_SERVER,
-    storage_engine: str="storage",
-    session: Optional[ClientSession]=None,
-    inline: bool=True,
+    channel: str = "IOT_TEST",
+    api_server: str = DEFAULT_SERVER,
+    storage_engine: str = "storage",
+    session: Optional[ClientSession] = None,
+    inline: bool = True,
 ):
     message: Dict[str, Any] = {
         #'item_hash': ipfs_hash,
@@ -263,8 +268,12 @@ async def submit(
 sync_submit = wrap_async(submit)
 
 
-async def fetch_aggregate(address: str, key, session: Optional[ClientSession]=None,
-                          api_server: str=DEFAULT_SERVER):
+async def fetch_aggregate(
+    address: str,
+    key,
+    session: Optional[ClientSession] = None,
+    api_server: str = DEFAULT_SERVER,
+):
     session = session or get_fallback_session()
 
     async with session.get(
@@ -276,13 +285,16 @@ async def fetch_aggregate(address: str, key, session: Optional[ClientSession]=No
 sync_fetch_aggregate = wrap_async(fetch_aggregate)
 
 
-async def fetch_aggregates(address: str, keys: Optional[Iterable[str]] = None,
-                           session: Optional[ClientSession]=None,
-                           api_server: str=DEFAULT_SERVER) -> Dict[str, Dict]:
+async def fetch_aggregates(
+    address: str,
+    keys: Optional[Iterable[str]] = None,
+    session: Optional[ClientSession] = None,
+    api_server: str = DEFAULT_SERVER,
+) -> Dict[str, Dict]:
     session = session or get_fallback_session()
 
-    keys_str = ','.join(keys) if keys else ''
-    query_string = f"?keys={keys_str}" if keys else ''
+    keys_str = ",".join(keys) if keys else ""
+    query_string = f"?keys={keys_str}" if keys else ""
 
     async with session.get(
         f"{api_server}/api/v0/aggregates/{address}.json{query_string}"
@@ -294,18 +306,18 @@ sync_fetch_aggregates = wrap_async(fetch_aggregates)
 
 
 async def get_posts(
-    pagination: int=200,
-    page: int=1,
-    types: Optional[Iterable[str]]=None,
-    refs: Optional[Iterable[str]]=None,
-    addresses: Optional[Iterable[str]]=None,
-    tags: Optional[Iterable[str]]=None,
-    hashes: Optional[Iterable[str]]=None,
-    channels: Optional[Iterable[str]]=None,
-    start_date: Optional[Union[datetime, float]]=None,
-    end_date: Optional[Union[datetime, float]]=None,
-    session: Optional[ClientSession]=None,
-    api_server: str=DEFAULT_SERVER,
+    pagination: int = 200,
+    page: int = 1,
+    types: Optional[Iterable[str]] = None,
+    refs: Optional[Iterable[str]] = None,
+    addresses: Optional[Iterable[str]] = None,
+    tags: Optional[Iterable[str]] = None,
+    hashes: Optional[Iterable[str]] = None,
+    channels: Optional[Iterable[str]] = None,
+    start_date: Optional[Union[datetime, float]] = None,
+    end_date: Optional[Union[datetime, float]] = None,
+    session: Optional[ClientSession] = None,
+    api_server: str = DEFAULT_SERVER,
 ):
     session = session or get_fallback_session()
 
@@ -333,9 +345,7 @@ async def get_posts(
             end_date = end_date.timestamp()
         params["end_date"] = end_date
 
-    async with session.get(
-        f"{api_server}/api/v0/posts.json", params=params
-    ) as resp:
+    async with session.get(f"{api_server}/api/v0/posts.json", params=params) as resp:
         resp.raise_for_status()
         return await resp.json()
 
@@ -344,19 +354,19 @@ sync_get_posts = wrap_async(get_posts)
 
 
 async def get_messages(
-    pagination: int=200,
-    page: int=1,
-    message_type: Optional[str]=None,
-    content_types: Optional[Iterable[str]]=None,
-    refs: Optional[Iterable[str]]=None,
-    addresses: Optional[Iterable[str]]=None,
-    tags: Optional[Iterable[str]]=None,
-    hashes: Optional[Iterable[str]]=None,
-    channels: Optional[Iterable[str]]=None,
-    start_date: Optional[Union[datetime, float]]=None,
-    end_date: Optional[Union[datetime, float]]=None,
-    session: Optional[ClientSession]=None,
-    api_server: str=DEFAULT_SERVER,
+    pagination: int = 200,
+    page: int = 1,
+    message_type: Optional[str] = None,
+    content_types: Optional[Iterable[str]] = None,
+    refs: Optional[Iterable[str]] = None,
+    addresses: Optional[Iterable[str]] = None,
+    tags: Optional[Iterable[str]] = None,
+    hashes: Optional[Iterable[str]] = None,
+    channels: Optional[Iterable[str]] = None,
+    start_date: Optional[Union[datetime, float]] = None,
+    end_date: Optional[Union[datetime, float]] = None,
+    session: Optional[ClientSession] = None,
+    api_server: str = DEFAULT_SERVER,
 ) -> Dict[str, Any]:
     session = session or get_fallback_session()
 
@@ -386,9 +396,7 @@ async def get_messages(
             end_date = end_date.timestamp()
         params["end_date"] = end_date
 
-    async with session.get(
-        f"{api_server}/api/v0/messages.json", params=params
-    ) as resp:
+    async with session.get(f"{api_server}/api/v0/messages.json", params=params) as resp:
         resp.raise_for_status()
         return await resp.json()
 
