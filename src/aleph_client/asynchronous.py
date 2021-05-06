@@ -1,5 +1,6 @@
 """ This is the simplest aleph network client available.
 """
+from os import getenv
 from binascii import hexlify
 import time
 from datetime import datetime
@@ -15,7 +16,7 @@ from aiohttp import ClientSession
 
 from aleph_client.chains.common import BaseAccount
 
-DEFAULT_SERVER = "https://api1.aleph.im"
+DEFAULT_SERVER: str = getenv("ALEPH_API_SERVER", "https://api1.aleph.im")
 
 
 @lru_cache
