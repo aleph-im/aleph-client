@@ -2,7 +2,7 @@
 """
 import struct
 import hashlib
-from secp256k1 import PrivateKey, PublicKey
+from coincurve import PrivateKey, PublicKey
 from binascii import hexlify, unhexlify
 from .common import (
     get_public_key,
@@ -244,6 +244,17 @@ class NulsSignature(BaseNulsData):
 
     @classmethod
     def sign_data(cls, pri_key, digest_bytes):
+        privkey = PrivateKey.from_hex(pri_key)
+        # we expect to have a private key as bytes. unhexlify it before passing.
+        item = cls()
+        item.pub_key = privkey.public_key.format()
+        item.digest_bytes = digest_bytes
+        item.sig_ser = privkey.sign(digest_bytes)
+        return item
+
+    @classmethod
+    def sign_data_deprecated(cls, pri_key, digest_bytes):
+        # TODO: Test compatibility and remove
         privkey = PrivateKey(
             pri_key, raw=True
         )  # we expect to have a private key as bytes. unhexlify it before passing.
@@ -256,6 +267,18 @@ class NulsSignature(BaseNulsData):
 
     @classmethod
     def sign_message(cls, pri_key, message):
+        # we expect to have a private key as bytes. unhexlify it before passing
+        privkey = PrivateKey(pri_key)
+        item = cls()
+        message = VarInt(len(message)).encode() + message
+        item.pub_key = privkey.public_key.format()
+        # item.digest_bytes = digest_bytes
+        item.sig_ser = privkey.sign(MESSAGE_TEMPLATE.format(message).encode())
+        return item
+
+    @classmethod
+    def sign_message_deprecated(cls, pri_key, message):
+        # TODO: Test compatibility and remove
         # we expect to have a private key as bytes. unhexlify it before passing
         privkey = PrivateKey(pri_key, raw=True)
         item = cls()
@@ -277,12 +300,11 @@ class NulsSignature(BaseNulsData):
             return output
 
     def verify(self, message):
-        pub = PublicKey(self.pub_key, raw=True)
+        pub = PublicKey(self.pub_key)
         message = VarInt(len(message)).encode() + message
         # LOGGER.debug("Comparing with %r" % (MESSAGE_TEMPLATE.format(message).encode()))
         try:
-            sig_raw = pub.ecdsa_deserialize(self.sig_ser)
-            good = pub.ecdsa_verify(MESSAGE_TEMPLATE.format(message).encode(), sig_raw)
+            good = pub.verify(self.sig_ser, MESSAGE_TEMPLATE.format(message).encode())
         except Exception:
             LOGGER.exception("Verification failed")
             good = False
