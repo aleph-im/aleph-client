@@ -16,12 +16,14 @@ from aiohttp import ClientSession
 
 from aleph_client.chains.common import BaseAccount
 
-DEFAULT_SERVER: str = getenv("ALEPH_API_SERVER", "https://api1.aleph.im")
+DEFAULT_SERVER: str = getenv("ALEPH_API_HOST", "https://api1.aleph.im")
+API_UNIX_SOCKET: Optional[str] = getenv("ALEPH_API_UNIX_SOCKET")
 
 
 @lru_cache
 def get_fallback_session() -> ClientSession:
-    return aiohttp.ClientSession()
+    connector = aiohttp.UnixConnector(path=API_UNIX_SOCKET) if API_UNIX_SOCKET else None
+    return aiohttp.ClientSession(connector=connector)
 
 
 def wrap_async(func):
