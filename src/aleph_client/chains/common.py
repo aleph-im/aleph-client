@@ -1,7 +1,7 @@
 from abc import abstractmethod
 from typing import Union, Dict
 
-from coincurve import PrivateKey, PublicKey
+from coincurve import PrivateKey
 from ecies import decrypt
 
 # In case we don't want to bother with handling private key ourselves

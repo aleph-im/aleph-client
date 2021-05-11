@@ -2,3 +2,7 @@
 **/__pycache__
 
 /.idea
+/.git
+/.github
+/.eggs
+

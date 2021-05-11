@@ -2,6 +2,9 @@
 """
 import struct
 import hashlib
+from typing import Optional
+
+import secp256k1
 from coincurve import PrivateKey, PublicKey
 from binascii import hexlify, unhexlify
 from .common import (
@@ -225,13 +228,24 @@ class BaseNulsData:
 
 class NulsSignature(BaseNulsData):
     ALG_TYPE = 0  # only one for now...
+    pub_key: Optional
+    digest_bytes: Optional
+    sig_ser: Optional
+    ecc_type: Optional
 
     def __init__(self, data=None):
         self.pub_key = None
         self.digest_bytes = None
         self.sig_ser = None
+        self.ecc_type = None
         if data is not None:
             self.parse(data)
+
+    def __eq__(self, other: 'NulsSignature'):
+        return all(((self.pub_key == other.pub_key),
+                    (self.digest_bytes == other.digest_bytes),
+                    (self.sig_ser == other.sig_ser),
+                    (self.ecc_type == other.ecc_type)))
 
     def parse(self, buffer, cursor=0):
         pos, self.pub_key = read_by_length(buffer, cursor)
@@ -243,8 +257,8 @@ class NulsSignature(BaseNulsData):
         return cursor
 
     @classmethod
-    def sign_data(cls, pri_key, digest_bytes):
-        privkey = PrivateKey.from_hex(pri_key)
+    def sign_data(cls, pri_key: bytes, digest_bytes: bytes):
+        privkey = PrivateKey(pri_key)
         # we expect to have a private key as bytes. unhexlify it before passing.
         item = cls()
         item.pub_key = privkey.public_key.format()
@@ -253,20 +267,21 @@ class NulsSignature(BaseNulsData):
         return item
 
     @classmethod
-    def sign_data_deprecated(cls, pri_key, digest_bytes):
+    def sign_data_deprecated(cls, pri_key: bytes, digest_bytes: bytes):
         # TODO: Test compatibility and remove
-        privkey = PrivateKey(
+        privkey = secp256k1.PrivateKey(
             pri_key, raw=True
         )  # we expect to have a private key as bytes. unhexlify it before passing.
         item = cls()
         item.pub_key = privkey.pubkey.serialize()
         item.digest_bytes = digest_bytes
         sig_check = privkey.ecdsa_sign(digest_bytes, raw=True)
+        print('sig_check', sig_check)
         item.sig_ser = privkey.ecdsa_serialize(sig_check)
         return item
 
     @classmethod
-    def sign_message(cls, pri_key, message):
+    def sign_message(cls, pri_key: bytes, message):
         # we expect to have a private key as bytes. unhexlify it before passing
         privkey = PrivateKey(pri_key)
         item = cls()
@@ -277,10 +292,10 @@ class NulsSignature(BaseNulsData):
         return item
 
     @classmethod
-    def sign_message_deprecated(cls, pri_key, message):
+    def sign_message_deprecated(cls, pri_key: bytes, message):
         # TODO: Test compatibility and remove
         # we expect to have a private key as bytes. unhexlify it before passing
-        privkey = PrivateKey(pri_key, raw=True)
+        privkey = secp256k1.PrivateKey(pri_key, raw=True)
         item = cls()
         message = VarInt(len(message)).encode() + message
         item.pub_key = privkey.pubkey.serialize()
@@ -305,6 +320,19 @@ class NulsSignature(BaseNulsData):
         # LOGGER.debug("Comparing with %r" % (MESSAGE_TEMPLATE.format(message).encode()))
         try:
             good = pub.verify(self.sig_ser, MESSAGE_TEMPLATE.format(message).encode())
+        except Exception:
+            LOGGER.exception("Verification failed")
+            good = False
+        return good
+
+    def verify_deprecated(self, message):
+        pub = secp256k1.PublicKey(self.pub_key, raw=True)
+        message = VarInt(len(message)).encode() + message
+        print('message', message)
+        # LOGGER.debug("Comparing with %r" % (MESSAGE_TEMPLATE.format(message).encode()))
+        try:
+            sig_raw = pub.ecdsa_deserialize(self.sig_ser)
+            good = pub.ecdsa_verify(MESSAGE_TEMPLATE.format(message).encode(), sig_raw)
         except Exception:
             LOGGER.exception("Verification failed")
             good = False
