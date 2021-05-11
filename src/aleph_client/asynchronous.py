@@ -1,26 +1,46 @@
 """ This is the simplest aleph network client available.
 """
-from os import getenv
-from binascii import hexlify
+import asyncio
+import hashlib
+import json
 import time
+from abc import abstractmethod
 from datetime import datetime
 from functools import lru_cache
-from typing import Optional, Iterable, Union, Any, Dict
+from os import getenv
+from typing import Optional, Iterable, Union, Any, Dict, Protocol
 
 import aiohttp
-import asyncio
-import json
-import hashlib
-
 from aiohttp import ClientSession
-
-from aleph_client.chains.common import BaseAccount
 
 DEFAULT_SERVER: str = getenv("ALEPH_API_HOST", "https://api1.aleph.im")
 API_UNIX_SOCKET: Optional[str] = getenv("ALEPH_API_UNIX_SOCKET")
 
 
-@lru_cache
+# Use a protocol to avoid importing crypto libraries
+class Account(Protocol):
+    CHAIN: str
+    CURVE: str
+    private_key: Union[str, bytes]
+
+    @abstractmethod
+    def sign_message(self, message: Dict) -> Dict:
+        ...
+
+    @abstractmethod
+    def get_address(self) -> str:
+        ...
+
+    @abstractmethod
+    def get_public_key(self) -> str:
+        ...
+
+    @abstractmethod
+    def decrypt(self, content) -> bytes:
+        ...
+
+
+@lru_cache()
 def get_fallback_session() -> ClientSession:
     connector = aiohttp.UnixConnector(path=API_UNIX_SOCKET) if API_UNIX_SOCKET else None
     return aiohttp.ClientSession(connector=connector)
@@ -115,7 +135,7 @@ sync_broadcast = wrap_async(broadcast)
 
 
 async def create_post(
-    account: BaseAccount,
+    account: Account,
     post_content,
     post_type: str,
     ref=None,
@@ -153,7 +173,7 @@ sync_create_post = wrap_async(create_post)
 
 
 async def create_aggregate(
-    account: BaseAccount,
+    account: Account,
     key,
     content,
     address: Optional[str] = None,
@@ -178,7 +198,7 @@ sync_create_aggregate = wrap_async(create_aggregate)
 
 
 async def create_store(
-    account: BaseAccount,
+    account: Account,
     address=None,
     file_content: Optional[bytes] = None,
     file_hash: Optional[str] = None,
@@ -229,7 +249,7 @@ sync_create_store = wrap_async(create_store)
 
 
 async def submit(
-    account: BaseAccount,
+    account: Account,
     content: dict,
     message_type: str,
     channel: str = "IOT_TEST",

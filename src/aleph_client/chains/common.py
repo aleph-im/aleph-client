@@ -1,5 +1,5 @@
 from abc import abstractmethod
-from typing import Union, Optional
+from typing import Union, Dict
 
 from coincurve import PrivateKey, PublicKey
 from ecies import decrypt
@@ -27,15 +27,15 @@ class BaseAccount:
     private_key: Union[str, bytes]
 
     @abstractmethod
-    def sign_message(self, message):
+    def sign_message(self, message: Dict) -> Dict:
         raise NotImplementedError
 
     @abstractmethod
-    def get_address(self):
+    def get_address(self) -> str:
         raise NotImplementedError
 
     @abstractmethod
-    def get_public_key(self):
+    def get_public_key(self) -> str:
         raise NotImplementedError
 
     def decrypt(self, content) -> bytes:
@@ -47,7 +47,7 @@ class BaseAccount:
 
 
 # Start of the ugly stuff
-def generate_key():
+def generate_key() -> bytes:
     privkey = PrivateKey()
     return privkey.secret
 
