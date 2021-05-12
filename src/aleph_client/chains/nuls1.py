@@ -4,7 +4,6 @@ import struct
 import hashlib
 from typing import Optional
 
-import secp256k1
 from coincurve import PrivateKey, PublicKey
 from binascii import hexlify, unhexlify
 from .common import (
@@ -263,21 +262,7 @@ class NulsSignature(BaseNulsData):
         item = cls()
         item.pub_key = privkey.public_key.format()
         item.digest_bytes = digest_bytes
-        item.sig_ser = privkey.sign(digest_bytes)
-        return item
-
-    @classmethod
-    def sign_data_deprecated(cls, pri_key: bytes, digest_bytes: bytes):
-        # TODO: Test compatibility and remove
-        privkey = secp256k1.PrivateKey(
-            pri_key, raw=True
-        )  # we expect to have a private key as bytes. unhexlify it before passing.
-        item = cls()
-        item.pub_key = privkey.pubkey.serialize()
-        item.digest_bytes = digest_bytes
-        sig_check = privkey.ecdsa_sign(digest_bytes, raw=True)
-        print('sig_check', sig_check)
-        item.sig_ser = privkey.ecdsa_serialize(sig_check)
+        item.sig_ser = privkey.sign(digest_bytes, hasher=None)
         return item
 
     @classmethod
@@ -289,19 +274,6 @@ class NulsSignature(BaseNulsData):
         item.pub_key = privkey.public_key.format()
         # item.digest_bytes = digest_bytes
         item.sig_ser = privkey.sign(MESSAGE_TEMPLATE.format(message).encode())
-        return item
-
-    @classmethod
-    def sign_message_deprecated(cls, pri_key: bytes, message):
-        # TODO: Test compatibility and remove
-        # we expect to have a private key as bytes. unhexlify it before passing
-        privkey = secp256k1.PrivateKey(pri_key, raw=True)
-        item = cls()
-        message = VarInt(len(message)).encode() + message
-        item.pub_key = privkey.pubkey.serialize()
-        # item.digest_bytes = digest_bytes
-        sig_check = privkey.ecdsa_sign(MESSAGE_TEMPLATE.format(message).encode())
-        item.sig_ser = privkey.ecdsa_serialize(sig_check)
         return item
 
     def serialize(self, with_length=False):
@@ -320,19 +292,6 @@ class NulsSignature(BaseNulsData):
         # LOGGER.debug("Comparing with %r" % (MESSAGE_TEMPLATE.format(message).encode()))
         try:
             good = pub.verify(self.sig_ser, MESSAGE_TEMPLATE.format(message).encode())
-        except Exception:
-            LOGGER.exception("Verification failed")
-            good = False
-        return good
-
-    def verify_deprecated(self, message):
-        pub = secp256k1.PublicKey(self.pub_key, raw=True)
-        message = VarInt(len(message)).encode() + message
-        print('message', message)
-        # LOGGER.debug("Comparing with %r" % (MESSAGE_TEMPLATE.format(message).encode()))
-        try:
-            sig_raw = pub.ecdsa_deserialize(self.sig_ser)
-            good = pub.ecdsa_verify(MESSAGE_TEMPLATE.format(message).encode(), sig_raw)
         except Exception:
             LOGGER.exception("Verification failed")
             good = False
