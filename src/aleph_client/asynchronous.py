@@ -8,7 +8,8 @@ from abc import abstractmethod
 from datetime import datetime
 from functools import lru_cache
 from os import getenv
-from typing import Optional, Iterable, Union, Any, Dict, Protocol
+from typing import Optional, Iterable, Union, Any, Dict
+from typing_extensions import Protocol  # Python < 3.8
 
 import aiohttp
 from aiohttp import ClientSession
