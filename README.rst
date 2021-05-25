@@ -9,10 +9,6 @@ Documentation (albeit still vastly incomplete as it is a work in progress) can b
 
     $ python setup.py docs
 
-Description
-===========
-
-A longer description of your project goes here...
 
 Installation
 ============
@@ -35,6 +31,3 @@ To install from source and still be able to modify the source code:
     $ pip install -e .
     or
     $ python setup.py develop
-
-Build
-=====
