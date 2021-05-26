@@ -6,6 +6,7 @@ import logging
 import os.path
 from enum import Enum
 from typing import Optional, Dict
+from zipfile import ZipFile, BadZipFile
 
 import typer
 from typer import echo
@@ -180,7 +181,19 @@ def program(
         private_key: Optional[str] = None,
         private_key_file: Optional[str] = None,
 ):
-    """Register a program to run on Aleph.im virtual machines."""
+    """Register a program to run on Aleph.im virtual machines from a zip archive."""
+
+    # Check that the file is a zip archive
+    try:
+        with open(path, "rb") as archive_file:
+            with ZipFile(archive_file, 'r') as archive:
+                if not archive.namelist():
+                    echo("No file in the archive.")
+                    raise typer.Exit(3)
+    except BadZipFile:
+        echo("Invalid zip archive")
+        raise typer.Exit(3)
+
     account = _load_account(private_key, private_key_file)
 
     runtime = input("Ref of runtime if not default ?") \
