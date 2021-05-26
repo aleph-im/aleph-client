@@ -13,7 +13,8 @@ from typer import echo
 from aleph_client.asynchronous import (
     get_fallback_session,
     sync_create_store,
-    sync_create_post,
+    sync_create_post, sync_create_program,
+    StorageEnum,
 )
 from aleph_client.chains.common import get_fallback_private_key
 from aleph_client.chains.ethereum import ETHAccount
@@ -24,11 +25,6 @@ app = typer.Typer()
 
 class KindEnum(str, Enum):
     json = "json"
-
-
-class StorageEnum(str, Enum):
-    ipfs = "ipfs"
-    storage = "storage"
 
 
 def _input_multiline() -> str:
@@ -116,7 +112,7 @@ def post(
 
 @app.command()
 def upload(
-    file_path: str,
+    path: str,
     channel: str = "TEST",
     private_key: Optional[str] = None,
     private_key_file: Optional[str] = None,
@@ -126,11 +122,11 @@ def upload(
     account = _load_account(private_key, private_key_file)
 
     try:
-        if not os.path.isfile(file_path):
-            print(f"Error: File not found: '{file_path}'")
+        if not os.path.isfile(path):
+            print(f"Error: File not found: '{path}'")
             raise typer.Exit(code=1)
 
-        with open(file_path, "rb") as fd:
+        with open(path, "rb") as fd:
             logger.debug("Reading file")
             # TODO: Read in lazy mode instead of copying everything in memory
             file_content = fd.read()
@@ -171,6 +167,61 @@ def pin(
         )
         logger.debug("Upload finished")
         echo(f"{json.dumps(result, indent=4)}")
+    finally:
+        # Prevent aiohttp unclosed connector warning
+        asyncio.get_event_loop().run_until_complete(get_fallback_session().close())
+
+
+@app.command()
+def program(
+        path: str,
+        entrypoint: str,
+        channel: str = "TEST",
+        private_key: Optional[str] = None,
+        private_key_file: Optional[str] = None,
+):
+    """Register a program to run on Aleph.im virtual machines."""
+    account = _load_account(private_key, private_key_file)
+
+    runtime = input("Ref of runtime if not default ?") \
+              or "f02ad1718a514d7ba381070c3d831e1abc2d7caee5a7d9825f541937f98d3771"
+    data = input("Ref of additional data to pass to the program ?") \
+           or None
+
+    try:
+        # Upload the source code
+        with open(path, "rb") as fd:
+            logger.debug("Reading file")
+            # TODO: Read in lazy mode instead of copying everything in memory
+            file_content = fd.read()
+            storage_engine = (
+                StorageEnum.ipfs if len(file_content) > 4 * 1024 * 1024 else StorageEnum.storage
+            )
+            logger.debug("Uploading file")
+            result = sync_create_store(
+                account=account,
+                file_content=file_content,
+                storage_engine=storage_engine,
+                channel=channel,
+            )
+            logger.debug("Upload finished")
+            echo(f"{json.dumps(result, indent=4)}")
+            echo("-----")
+            program_ref = result["item_hash"]
+
+        # Register the program
+        result = sync_create_program(
+            account=account,
+            program_ref=program_ref,
+            entrypoint=entrypoint,
+            runtime=runtime,
+            data_ref=data,
+            storage_engine=StorageEnum.storage,
+            channel=channel,
+        )
+        logger.debug("Upload finished")
+        echo(f"{json.dumps(result, indent=4)}")
+
     finally:
         # Prevent aiohttp unclosed connector warning
         asyncio.get_event_loop().run_until_complete(get_fallback_session().close())
