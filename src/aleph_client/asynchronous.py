@@ -7,6 +7,7 @@ import logging
 import time
 from abc import abstractmethod
 from datetime import datetime
+from enum import Enum
 from functools import lru_cache
 from os import getenv
 from typing import Optional, Iterable, Union, Any, Dict
@@ -19,6 +20,11 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_SERVER: str = getenv("ALEPH_API_HOST", "https://api1.aleph.im")
 API_UNIX_SOCKET: Optional[str] = getenv("ALEPH_API_UNIX_SOCKET")
+
+
+class StorageEnum(str, Enum):
+    ipfs = "ipfs"
+    storage = "storage"
 
 
 # Use a protocol to avoid importing crypto libraries
@@ -257,6 +263,98 @@ async def create_store(
 
 
 sync_create_store = wrap_async(create_store)
+
+
+async def create_program(
+        account: Account,
+        program_ref: str,
+        entrypoint: str,
+        runtime: str,
+        data_ref: Optional[str] = None,
+        storage_engine: StorageEnum = StorageEnum.storage,
+        channel: str = "TEST",
+        address: Optional[str] = None,
+        session: Optional[ClientSession] = None,
+        api_server: str = DEFAULT_SERVER,
+):
+    address = address or account.get_address()
+
+    # TODO: Check that program_ref, runtime and data_ref exist
+
+    content = {
+        "type": "vm-function",
+        "address": address,
+        "code": {
+            "encoding": "zip",
+            "entrypoint": entrypoint,
+            "ref": program_ref,
+            "allow_amend": False,
+        },
+        "on": {
+            "http": True,
+        },
+        "environment": {
+            "reproducible": False,
+            "internet": True,
+            "aleph_api": True,
+        },
+        "resources": {
+            "vcpus": 1,
+            "memory": 128,
+            "seconds": 30,
+        },
+        "runtime": {
+            "ref": runtime,
+            "allow_amend": False,
+        },
+        "data": {
+            "encoding": "zip",
+            "mount": "/data",
+            "ref": data_ref,
+            "allow_amend": False,
+        } if data_ref else None,
+        "time": time.time(),
+    }
+
+    if content["data"] is None:
+        del content["data"]
+
+    return await submit(
+        account=account,
+        content=content,
+        message_type="PROGRAM",
+        channel=channel,
+        api_server=api_server,
+        storage_engine=StorageEnum.storage,
+        session=session,
+        inline=True,
+    )
+
+
+def sync_create_program(
+        account: Account,
+        program_ref: str,
+        entrypoint: str,
+        runtime: str,
+        data_ref: Optional[str] = None,
+        storage_engine: StorageEnum = StorageEnum.storage,
+        channel: str = "TEST",
+        address: Optional[str] = None,
+        session: Optional[ClientSession] = None,
+        api_server: str = DEFAULT_SERVER,
+):
+    return wrap_async(create_program)(
+        account=account,
+        program_ref=program_ref,
+        entrypoint=entrypoint,
+        runtime=runtime,
+        data_ref=data_ref,
+        storage_engine=storage_engine,
+        channel=channel,
+        address=address,
+        session=session,
+        api_server=api_server
+    )
 
 
 async def submit(
