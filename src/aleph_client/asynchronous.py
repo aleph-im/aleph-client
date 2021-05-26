@@ -16,6 +16,8 @@ from typing_extensions import Protocol  # Python < 3.8
 import aiohttp
 from aiohttp import ClientSession
 
+from aleph_message.models.program import ProgramContent  # type: ignore
+
 logger = logging.getLogger(__name__)
 
 DEFAULT_SERVER: str = getenv("ALEPH_API_HOST", "https://api1.aleph.im")
@@ -281,9 +283,10 @@ async def create_program(
 
     # TODO: Check that program_ref, runtime and data_ref exist
 
-    content = {
+    content = ProgramContent(**{
         "type": "vm-function",
         "address": address,
+        "allow_amend": False,
         "code": {
             "encoding": "zip",
             "entrypoint": entrypoint,
@@ -306,6 +309,7 @@ async def create_program(
         "runtime": {
             "ref": runtime,
             "allow_amend": False,
+            "comment": "Aleph Alpine Linux with Python 3.8",
         },
         "data": {
             "encoding": "zip",
@@ -314,14 +318,11 @@ async def create_program(
             "allow_amend": False,
         } if data_ref else None,
         "time": time.time(),
-    }
-
-    if content["data"] is None:
-        del content["data"]
+    })
 
     return await submit(
         account=account,
-        content=content,
+        content=content.dict(),
         message_type="PROGRAM",
         channel=channel,
         api_server=api_server,
