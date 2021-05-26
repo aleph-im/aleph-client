@@ -3,6 +3,7 @@
 import asyncio
 import hashlib
 import json
+import logging
 import time
 from abc import abstractmethod
 from datetime import datetime
@@ -13,6 +14,8 @@ from typing_extensions import Protocol  # Python < 3.8
 
 import aiohttp
 from aiohttp import ClientSession
+
+logger = logging.getLogger(__name__)
 
 DEFAULT_SERVER: str = getenv("ALEPH_API_HOST", "https://api1.aleph.im")
 API_UNIX_SOCKET: Optional[str] = getenv("ALEPH_API_UNIX_SOCKET")
@@ -127,9 +130,16 @@ async def broadcast(
     async with session.post(
         f"{api_server}/api/v0/ipfs/pubsub/pub",
         json={"topic": "ALEPH-TEST", "data": json.dumps(message)},
-    ) as resp:
-        resp.raise_for_status()
-        return (await resp.json()).get("value")
+    ) as response:
+        response.raise_for_status()
+        result = await response.json()
+        if result["status"] == "warning":
+            if 'failed' in result:
+                # Requires recent version of Pyaleph
+                logger.warning(f"Message failed to publish on {result.get('failed')}")
+            else:
+                logger.warning(f"Message failed to publish on IPFS and/or P2P")
+        return (result).get("value")
 
 
 sync_broadcast = wrap_async(broadcast)
