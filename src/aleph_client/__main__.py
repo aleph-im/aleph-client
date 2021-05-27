@@ -30,7 +30,7 @@ class KindEnum(str, Enum):
 
 def _input_multiline() -> str:
     """Prompt the user for a multiline input."""
-    print("Enter/Paste your content. Ctrl-D or Ctrl-Z ( windows ) to save it.")
+    echo("Enter/Paste your content. Ctrl-D or Ctrl-Z ( windows ) to save it.")
     contents = ""
     while True:
         try:
@@ -56,9 +56,10 @@ def _load_account(
             private_key: bytes = pk_fd.read()
         return ETHAccount(private_key)
     else:
-        logger.info("Generating fallback private key")
         private_key = get_fallback_private_key()
-        return ETHAccount(private_key=private_key)
+        account: ETHAccount = ETHAccount(private_key=private_key)
+        logger.info(f"Generated fallback private key with address {account.get_address()}")
+        return account
 
 
 @app.command()
@@ -77,7 +78,7 @@ def post(
 
     if path:
         if not os.path.isfile(path):
-            print(f"Error: File not found: '{path}'")
+            echo(f"Error: File not found: '{path}'")
             raise typer.Exit(code=1)
 
         file_size = os.path.getsize(path)
@@ -124,7 +125,7 @@ def upload(
 
     try:
         if not os.path.isfile(path):
-            print(f"Error: File not found: '{path}'")
+            echo(f"Error: File not found: '{path}'")
             raise typer.Exit(code=1)
 
         with open(path, "rb") as fd:
@@ -180,6 +181,9 @@ def program(
         channel: str = "TEST",
         private_key: Optional[str] = None,
         private_key_file: Optional[str] = None,
+        print_messages: bool = False,
+        print_code_message: bool = False,
+        print_program_message: bool = False,
 ):
     """Register a program to run on Aleph.im virtual machines from a zip archive."""
 
@@ -196,8 +200,11 @@ def program(
 
     account = _load_account(private_key, private_key_file)
 
-    runtime = input("Ref of runtime if not default ?") \
-              or "f02ad1718a514d7ba381070c3d831e1abc2d7caee5a7d9825f541937f98d3771"
+    runtime = input("Ref of runtime if not default ?")
+    if not runtime:
+        runtime = "7162a3b9f8ca870fc06bafb3e9b14553304327bc78c7f53a4cee9445879e4fab"
+        echo(f"Using default runtime {runtime}")
+
     data = input("Ref of additional data to pass to the program ?") \
            or None
 
@@ -218,8 +225,8 @@ def program(
                 channel=channel,
             )
             logger.debug("Upload finished")
-            echo(f"{json.dumps(result, indent=4)}")
-            echo("-----")
+            if print_messages or print_code_message:
+                echo(f"{json.dumps(result, indent=4)}")
             program_ref = result["item_hash"]
 
         # Register the program
@@ -233,7 +240,14 @@ def program(
             channel=channel,
         )
         logger.debug("Upload finished")
-        echo(f"{json.dumps(result, indent=4)}")
+        if print_messages or print_program_message:
+            echo(f"{json.dumps(result, indent=4)}")
+
+        echo(f"Your program has been uploaded on Aleph .\n\n"
+             f"Available on:\n  https://aleph.sh/vm/{result['item_hash']}\n"
+             "Visualise on:\n  https://explorer.aleph.im/address/"
+             f"{result['chain']}/{result['sender']}/message/PROGRAM/{result['item_hash']}\n"
+             )
 
     finally:
         # Prevent aiohttp unclosed connector warning
@@ -243,5 +257,6 @@ def program(
 if __name__ == "__main__":
     logging.basicConfig(
         level=logging.INFO,
+        format="%(levelname)s: %(message)s"
     )
     app()
