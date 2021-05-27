@@ -14,6 +14,7 @@ Contents
    content/account
    content/aggregates
    content/posts
+   content/cli
    content/async_notes
    
    License <license>
