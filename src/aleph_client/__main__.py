@@ -5,6 +5,7 @@ import json
 import logging
 import os.path
 from enum import Enum
+from shutil import make_archive
 from typing import Optional, Dict
 from zipfile import ZipFile, BadZipFile
 
@@ -187,16 +188,28 @@ def program(
 ):
     """Register a program to run on Aleph.im virtual machines from a zip archive."""
 
+    path = os.path.abspath(path)
+
+    # Create a zip archive from a directory
+    if os.path.isdir(path):
+        logger.debug("Creating zip archive...")
+        make_archive(path, 'zip', path)
+        path = path + '.zip'
+
     # Check that the file is a zip archive
-    try:
-        with open(path, "rb") as archive_file:
-            with ZipFile(archive_file, 'r') as archive:
-                if not archive.namelist():
-                    echo("No file in the archive.")
-                    raise typer.Exit(3)
-    except BadZipFile:
-        echo("Invalid zip archive")
-        raise typer.Exit(3)
+    if os.path.isfile(path):
+        try:
+            with open(path, "rb") as archive_file:
+                with ZipFile(archive_file, 'r') as archive:
+                    if not archive.namelist():
+                        echo("No file in the archive.")
+                        raise typer.Exit(3)
+        except BadZipFile:
+            echo("Invalid zip archive")
+            raise typer.Exit(3)
+    else:
+        echo("No such file or directory")
+        raise typer.Exit(4)
 
     account = _load_account(private_key, private_key_file)
 

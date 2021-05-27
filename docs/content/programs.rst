@@ -24,13 +24,11 @@ to create your first program and test it using uvicorn.
 Running on Aleph.im
 -------------------
 
-Copy your program in a Zip archive, named ``my-app.zip`` for the example.
-
-Then use the :ref:`cli` to upload your program:
+Use the :ref:`cli` to upload your program (here named ``my_app``):
 
 .. code-block:: bash
 
-    python3 -m aleph_client program my-app.zip main:app
+    python3 -m aleph_client program ./my_app/ main:app
 
 The command will output two URLs:
 
