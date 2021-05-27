@@ -14,6 +14,7 @@ Contents
    content/account
    content/aggregates
    content/posts
+   content/programs
    content/cli
    content/async_notes
    
