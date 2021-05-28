@@ -4,6 +4,7 @@ import asyncio
 import json
 import logging
 import os.path
+from base64 import b32encode, b16decode
 from enum import Enum
 from shutil import make_archive
 from typing import Optional, Dict
@@ -256,10 +257,15 @@ def program(
         if print_messages or print_program_message:
             echo(f"{json.dumps(result, indent=4)}")
 
+        hash: str = result['item_hash']
+        hash_base32 = b32encode(b16decode(hash.upper())).strip(b'=').lower().decode()
+
         echo(f"Your program has been uploaded on Aleph .\n\n"
-             f"Available on:\n  https://aleph.sh/vm/{result['item_hash']}\n"
+             "Available on:\n"
+             f"  https://aleph.sh/vm/{hash}\n"
+             f"  https://{hash_base32}.aleph.sh/\n"
              "Visualise on:\n  https://explorer.aleph.im/address/"
-             f"{result['chain']}/{result['sender']}/message/PROGRAM/{result['item_hash']}\n"
+             f"{result['chain']}/{result['sender']}/message/PROGRAM/{hash}\n"
              )
 
     finally:
