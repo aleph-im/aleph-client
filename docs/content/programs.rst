@@ -24,11 +24,15 @@ to create your first program and test it using uvicorn.
 Running on Aleph.im
 -------------------
 
-Use the :ref:`cli` to upload your program (here named ``my_app``):
+Use the :ref:`cli` to upload your program.
+
+In this example, we will upload the
+`example_fastapi_2 example from Aleph-VM
+<https://github.com/aleph-im/aleph-vm/tree/main/examples/example_fastapi_2>`_.
 
 .. code-block:: bash
 
-    python3 -m aleph_client program ./my_app/ main:app
+    python3 -m aleph_client program /tmp/aleph-vm/examples/example_fastapi_2 __init__:app
 
 The command will output two URLs:
 
