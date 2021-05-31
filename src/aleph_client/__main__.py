@@ -21,6 +21,7 @@ from aleph_client.asynchronous import (
 )
 from aleph_client.chains.common import get_fallback_private_key
 from aleph_client.chains.ethereum import ETHAccount
+from .conf import settings
 
 logger = logging.getLogger(__name__)
 app = typer.Typer()
@@ -69,8 +70,8 @@ def post(
     path: Optional[str] = None,
     type: str = "test",
     channel: str = "TEST",
-    private_key: Optional[str] = None,
-    private_key_file: Optional[str] = None,
+    private_key: Optional[str] = settings.PRIVATE_KEY_STRING,
+    private_key_file: Optional[str] = settings.PRIVATE_KEY_FILE,
 ):
     """Post a message on Aleph.im."""
 
@@ -118,8 +119,8 @@ def post(
 def upload(
     path: str,
     channel: str = "TEST",
-    private_key: Optional[str] = None,
-    private_key_file: Optional[str] = None,
+    private_key: Optional[str] = settings.PRIVATE_KEY_STRING,
+    private_key_file: Optional[str] = settings.PRIVATE_KEY_FILE,
 ):
     """Upload and store a file on Aleph.im."""
 
@@ -155,8 +156,8 @@ def upload(
 def pin(
     hash: str,
     channel: str = "TEST",
-    private_key: Optional[str] = None,
-    private_key_file: Optional[str] = None,
+    private_key: Optional[str] = settings.PRIVATE_KEY_STRING,
+    private_key_file: Optional[str] = settings.PRIVATE_KEY_FILE,
 ):
     """Persist a file from IPFS on Aleph.im."""
 
@@ -181,8 +182,8 @@ def program(
         path: str,
         entrypoint: str,
         channel: str = "TEST",
-        private_key: Optional[str] = None,
-        private_key_file: Optional[str] = None,
+        private_key: Optional[str] = settings.PRIVATE_KEY_STRING,
+        private_key_file: Optional[str] = settings.PRIVATE_KEY_FILE,
         print_messages: bool = False,
         print_code_message: bool = False,
         print_program_message: bool = False,
