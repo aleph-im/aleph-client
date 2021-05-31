@@ -13,14 +13,14 @@ from zipfile import ZipFile, BadZipFile
 import typer
 from typer import echo
 
-from aleph_client.asynchronous import (
+from .asynchronous import (
     get_fallback_session,
     sync_create_store,
     sync_create_post, sync_create_program,
     StorageEnum,
 )
-from aleph_client.chains.common import get_fallback_private_key
-from aleph_client.chains.ethereum import ETHAccount
+from .chains.common import get_fallback_private_key
+from .chains.ethereum import ETHAccount
 from .conf import settings
 
 logger = logging.getLogger(__name__)
