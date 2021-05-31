@@ -9,7 +9,7 @@ from abc import abstractmethod
 from datetime import datetime
 from enum import Enum
 from functools import lru_cache
-from os import getenv
+from .conf import settings
 from typing import Optional, Iterable, Union, Any, Dict
 from typing_extensions import Protocol  # Python < 3.8
 
@@ -19,9 +19,6 @@ from aiohttp import ClientSession
 from aleph_message.models.program import ProgramContent  # type: ignore
 
 logger = logging.getLogger(__name__)
-
-DEFAULT_SERVER: str = getenv("ALEPH_API_HOST", "https://api1.aleph.im")
-API_UNIX_SOCKET: Optional[str] = getenv("ALEPH_API_UNIX_SOCKET")
 
 
 class StorageEnum(str, Enum):
@@ -54,8 +51,11 @@ class Account(Protocol):
 
 @lru_cache()
 def get_fallback_session() -> ClientSession:
-    connector = aiohttp.UnixConnector(path=API_UNIX_SOCKET) if API_UNIX_SOCKET else None
-    return aiohttp.ClientSession(connector=connector)
+    if settings.API_UNIX_SOCKET:
+        connector = aiohttp.UnixConnector(path=settings.API_UNIX_SOCKET)
+        return aiohttp.ClientSession(connector=connector)
+    else:
+        return aiohttp.ClientSession()
 
 
 def wrap_async(func):
@@ -67,7 +67,7 @@ def wrap_async(func):
 
 
 async def ipfs_push(
-    content, session: Optional[ClientSession] = None, api_server: str = DEFAULT_SERVER
+    content, session: Optional[ClientSession] = None, api_server: str = settings.API_HOST
 ) -> str:
     session = session or get_fallback_session()
 
@@ -80,7 +80,7 @@ sync_ipfs_push = wrap_async(ipfs_push)
 
 
 async def storage_push(
-    content, session: Optional[ClientSession] = None, api_server: str = DEFAULT_SERVER
+    content, session: Optional[ClientSession] = None, api_server: str = settings.API_HOST
 ) -> str:
     session = session or get_fallback_session()
 
@@ -97,7 +97,7 @@ sync_storage_push = wrap_async(storage_push)
 async def ipfs_push_file(
     file_content,
     session: Optional[ClientSession] = None,
-    api_server: str = DEFAULT_SERVER,
+    api_server: str = settings.API_HOST,
 ) -> str:
     session = session or get_fallback_session()
 
@@ -115,7 +115,7 @@ sync_ipfs_push_file = wrap_async(ipfs_push_file)
 async def storage_push_file(
     file_content,
     session: Optional[ClientSession] = None,
-    api_server: str = DEFAULT_SERVER,
+    api_server: str = settings.API_HOST,
 ) -> str:
     session = session or get_fallback_session()
 
@@ -131,7 +131,7 @@ sync_storage_push_file = wrap_async(storage_push_file)
 
 
 async def broadcast(
-    message, session: Optional[ClientSession] = None, api_server: str = DEFAULT_SERVER
+    message, session: Optional[ClientSession] = None, api_server: str = settings.API_HOST
 ):
     session = session or get_fallback_session()
 
@@ -161,7 +161,7 @@ async def create_post(
     address: Optional[str] = None,
     channel: str = "TEST",
     session: Optional[ClientSession] = None,
-    api_server: str = DEFAULT_SERVER,
+    api_server: str = settings.API_HOST,
     inline: bool = True,
     storage_engine: str = "storage",
 ):
@@ -198,7 +198,7 @@ async def create_aggregate(
     address: Optional[str] = None,
     channel: str = "TEST",
     session: Optional[ClientSession] = None,
-    api_server: str = DEFAULT_SERVER,
+    api_server: str = settings.API_HOST,
 ):
     address = address or account.get_address()
 
@@ -225,7 +225,7 @@ async def create_store(
     extra_fields: Optional[dict] = None,
     channel: str = "TEST",
     session: Optional[ClientSession] = None,
-    api_server: str = DEFAULT_SERVER,
+    api_server: str = settings.API_HOST,
 ):
     address = address or account.get_address()
 
@@ -277,7 +277,7 @@ async def create_program(
         channel: str = "TEST",
         address: Optional[str] = None,
         session: Optional[ClientSession] = None,
-        api_server: str = DEFAULT_SERVER,
+        api_server: str = settings.API_HOST,
 ):
     address = address or account.get_address()
 
@@ -342,7 +342,7 @@ def sync_create_program(
         channel: str = "TEST",
         address: Optional[str] = None,
         session: Optional[ClientSession] = None,
-        api_server: str = DEFAULT_SERVER,
+        api_server: str = settings.API_HOST,
 ):
     return wrap_async(create_program)(
         account=account,
@@ -363,7 +363,7 @@ async def submit(
     content: dict,
     message_type: str,
     channel: str = "IOT_TEST",
-    api_server: str = DEFAULT_SERVER,
+    api_server: str = settings.API_HOST,
     storage_engine: str = "storage",
     session: Optional[ClientSession] = None,
     inline: bool = True,
@@ -405,7 +405,7 @@ async def fetch_aggregate(
     address: str,
     key,
     session: Optional[ClientSession] = None,
-    api_server: str = DEFAULT_SERVER,
+    api_server: str = settings.API_HOST,
 ):
     session = session or get_fallback_session()
 
@@ -422,7 +422,7 @@ async def fetch_aggregates(
     address: str,
     keys: Optional[Iterable[str]] = None,
     session: Optional[ClientSession] = None,
-    api_server: str = DEFAULT_SERVER,
+    api_server: str = settings.API_HOST,
 ) -> Dict[str, Dict]:
     session = session or get_fallback_session()
 
@@ -450,7 +450,7 @@ async def get_posts(
     start_date: Optional[Union[datetime, float]] = None,
     end_date: Optional[Union[datetime, float]] = None,
     session: Optional[ClientSession] = None,
-    api_server: str = DEFAULT_SERVER,
+    api_server: str = settings.API_HOST,
 ):
     session = session or get_fallback_session()
 
@@ -499,7 +499,7 @@ async def get_messages(
     start_date: Optional[Union[datetime, float]] = None,
     end_date: Optional[Union[datetime, float]] = None,
     session: Optional[ClientSession] = None,
-    api_server: str = DEFAULT_SERVER,
+    api_server: str = settings.API_HOST,
 ) -> Dict[str, Any]:
     session = session or get_fallback_session()
 
