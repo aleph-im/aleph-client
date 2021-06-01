@@ -19,8 +19,9 @@ from .asynchronous import (
     sync_create_post, sync_create_program,
     StorageEnum,
 )
-from .chains.common import get_fallback_private_key
+from .chains.common import get_fallback_private_key, BaseAccount
 from .chains.ethereum import ETHAccount
+from .chains.remote import RemoteAccount
 from .conf import settings
 
 logger = logging.getLogger(__name__)
@@ -46,7 +47,7 @@ def _input_multiline() -> str:
 
 def _load_account(
     private_key_str: Optional[str] = None, private_key_file: Optional[str] = None
-) -> ETHAccount:
+) -> BaseAccount:
     """Load private key from a file"""
 
     if private_key_str:
@@ -59,10 +60,17 @@ def _load_account(
             private_key: bytes = pk_fd.read()
         return ETHAccount(private_key)
     else:
-        private_key = get_fallback_private_key()
-        account: ETHAccount = ETHAccount(private_key=private_key)
-        logger.info(f"Generated fallback private key with address {account.get_address()}")
-        return account
+        if settings.REMOTE_CRYPTO_HOST:
+            logger.debug("Using remote account")
+            loop = asyncio.get_event_loop()
+            return loop.run_until_complete(RemoteAccount.from_crypto_host(
+                host=settings.REMOTE_CRYPTO_HOST,
+                unix_socket=settings.REMOTE_CRYPTO_UNIX_SOCKET))
+        else:
+            private_key = get_fallback_private_key()
+            account: ETHAccount = ETHAccount(private_key=private_key)
+            logger.info(f"Generated fallback private key with address {account.get_address()}")
+            return account
 
 
 @app.command()
