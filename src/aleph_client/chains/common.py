@@ -27,7 +27,7 @@ class BaseAccount:
     private_key: Union[str, bytes]
 
     @abstractmethod
-    def sign_message(self, message: Dict) -> Dict:
+    async def sign_message(self, message: Dict) -> Dict:
         raise NotImplementedError
 
     @abstractmethod
@@ -38,7 +38,7 @@ class BaseAccount:
     def get_public_key(self) -> str:
         raise NotImplementedError
 
-    def decrypt(self, content) -> bytes:
+    async def decrypt(self, content) -> bytes:
         if self.CURVE == "secp256k1":
             value: bytes = decrypt(self.private_key, content)
             return value

@@ -33,7 +33,7 @@ class Account(Protocol):
     private_key: Union[str, bytes]
 
     @abstractmethod
-    def sign_message(self, message: Dict) -> Dict:
+    async def sign_message(self, message: Dict) -> Dict:
         ...
 
     @abstractmethod
@@ -45,7 +45,7 @@ class Account(Protocol):
         ...
 
     @abstractmethod
-    def decrypt(self, content) -> bytes:
+    async def decrypt(self, content) -> bytes:
         ...
 
 
@@ -390,7 +390,7 @@ async def submit(
         else:  # storage
             message["item_hash"] = await storage_push(content, api_server=api_server)
 
-    message = account.sign_message(message)
+    message = await account.sign_message(message)
     await broadcast(message, session=session, api_server=api_server)
 
     # let's add the content to the object so users can access it.
