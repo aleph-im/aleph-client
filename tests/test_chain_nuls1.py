@@ -1,7 +1,7 @@
-from coincurve import PrivateKey
-
+import pytest
 from aleph_client.chains.common import get_fallback_private_key
 from aleph_client.chains.nuls1 import NulsSignature
+from coincurve import PrivateKey
 
 SECRET = (
     b"\xc4\xfe\xe65\x96\x14\xb4:\r: \x05;\x12j\x9bJ"
@@ -9,7 +9,8 @@ SECRET = (
 )
 
 
-def test_sign_data():
+@pytest.mark.asyncio
+async def test_sign_data():
     private_key = PrivateKey(SECRET)
 
     sign: NulsSignature = NulsSignature.sign_data(
@@ -23,11 +24,12 @@ def test_sign_data():
     assert sign.ecc_type == None
 
 
-def test_sign_message():
+@pytest.mark.asyncio
+async def test_sign_message():
     private_key = PrivateKey(SECRET)
     message = b"GOOD"
 
-    sign: NulsSignature = NulsSignature.sign_message(
+    sign: NulsSignature = await NulsSignature.sign_message(
         pri_key=private_key.secret, message=message
     )
 
@@ -40,11 +42,12 @@ def test_sign_message():
     assert sign.ecc_type == None
 
 
-def test_verify():
+@pytest.mark.asyncio
+async def test_verify():
     private_key = PrivateKey(SECRET)
     message = b"GOOD"
 
-    sign: NulsSignature = NulsSignature.sign_message(
+    sign: NulsSignature = await NulsSignature.sign_message(
         pri_key=private_key.secret, message=message
     )
 

@@ -1,3 +1,4 @@
+import pytest
 from dataclasses import dataclass, asdict
 
 from aleph_client.chains.ethereum import ETHAccount, get_fallback_account
@@ -18,11 +19,12 @@ def test_get_fallback_account():
     assert account._account.address
 
 
-def test_ETHAccount():
+@pytest.mark.asyncio
+async def test_ETHAccount():
     account: ETHAccount = get_fallback_account()
 
     message = Message("ETH", "SomeSender", "SomeType", "ItemHash")
-    signed = account.sign_message(asdict(message))
+    signed = await account.sign_message(asdict(message))
     assert signed["signature"]
     assert len(signed["signature"]) == 132
 

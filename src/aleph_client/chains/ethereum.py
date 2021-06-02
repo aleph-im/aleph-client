@@ -21,7 +21,7 @@ class ETHAccount(BaseAccount):
         self.private_key = private_key
         self._account = Account.from_key(self.private_key)
 
-    def sign_message(self, message: Dict) -> Dict:
+    async def sign_message(self, message: Dict) -> Dict:
         """Sign a message inplace.
         """
         msghash = encode_defunct(text=get_verification_buffer(message).decode("utf-8"))

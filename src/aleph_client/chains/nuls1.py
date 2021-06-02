@@ -266,7 +266,7 @@ class NulsSignature(BaseNulsData):
         return item
 
     @classmethod
-    def sign_message(cls, pri_key: bytes, message):
+    async def sign_message(cls, pri_key: bytes, message):
         # we expect to have a private key as bytes. unhexlify it before passing
         privkey = PrivateKey(pri_key)
         item = cls()
@@ -344,7 +344,7 @@ class NULSAccount(BaseAccount):
         self.private_key = private_key
         self.chain_id = chain_id
 
-    def sign_message(self, message):
+    async def sign_message(self, message):
         sig = NulsSignature.sign_message(
             self.private_key, get_verification_buffer(message)
         )

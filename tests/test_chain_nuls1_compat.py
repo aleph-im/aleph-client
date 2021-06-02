@@ -3,6 +3,7 @@
 This file tests that both implementations returns identical results.
 """
 
+import pytest
 import secp256k1
 from coincurve import PrivateKey
 
@@ -73,7 +74,8 @@ def test_sign_data_deprecated():
     assert sign_deprecated
 
 
-def test_compare_sign_data():
+@pytest.mark.asyncio
+async def test_compare_sign_data():
     private_key = PrivateKey(SECRET)
 
     sign: NulsSignature = NulsSignature.sign_data(
@@ -91,11 +93,12 @@ def test_compare_sign_data():
     assert sign == sign_deprecated
 
 
-def test_compare_sign_message():
+@pytest.mark.asyncio
+async def test_compare_sign_message():
     private_key = PrivateKey(SECRET)
     message = b"GOOD"
 
-    sign: NulsSignature = NulsSignature.sign_message(
+    sign: NulsSignature = await NulsSignature.sign_message(
         pri_key=private_key.secret, message=message
     )
 
@@ -110,11 +113,12 @@ def test_compare_sign_message():
     assert sign == sign_deprecated
 
 
-def test_verify():
+@pytest.mark.asyncio
+async def test_verify():
     private_key = PrivateKey(SECRET)
     message = b"GOOD"
 
-    sign: NulsSignatureSecp256k1 = NulsSignatureSecp256k1.sign_message(
+    sign: NulsSignatureSecp256k1 = await NulsSignatureSecp256k1.sign_message(
         pri_key=private_key.secret, message=message
     )
 
