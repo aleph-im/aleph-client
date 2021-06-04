@@ -10,6 +10,7 @@ class Settings(BaseSettings):
     API_UNIX_SOCKET: Optional[str] = None
     REMOTE_CRYPTO_HOST: Optional[str] = None
     REMOTE_CRYPTO_UNIX_SOCKET: Optional[str] = None
+    ADDRESS_TO_USE: Optional[str] = None
 
     DEFAULT_VM_MEMORY: int = 128
 
