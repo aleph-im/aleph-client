@@ -26,6 +26,18 @@ class BaseAccount:
     CURVE: str
     private_key: Union[str, bytes]
 
+    def _setup_sender(self, message: Dict) -> Dict:
+        """Set the sender of the message as the account's public key.
+        If a sender is already specified, check that it matches the account's public key.
+        """
+        if not message.get("sender"):
+            message["sender"] = self.get_address()
+            return message
+        elif message["sender"] == self.get_address():
+            return message
+        else:
+            raise ValueError("Message sender does not match the account's public key.")
+
     @abstractmethod
     async def sign_message(self, message: Dict) -> Dict:
         raise NotImplementedError

@@ -57,6 +57,8 @@ class CSDKAccount(BaseAccount):
         self.hrp = hrp
 
     async def sign_message(self, message):
+        message = self._setup_sender(message)
+
         verif = get_verification_string(message)
 
         privkey = ecdsa.SigningKey.from_string(self.private_key, curve=ecdsa.SECP256k1)

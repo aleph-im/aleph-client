@@ -345,9 +345,12 @@ class NULSAccount(BaseAccount):
         self.chain_id = chain_id
 
     async def sign_message(self, message):
+        message = self._setup_sender(message)
+
         sig = NulsSignature.sign_message(
             self.private_key, get_verification_buffer(message)
         )
+
         message["signature"] = sig.serialize().hex()
         return message
 

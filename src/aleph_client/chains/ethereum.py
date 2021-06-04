@@ -24,8 +24,11 @@ class ETHAccount(BaseAccount):
     async def sign_message(self, message: Dict) -> Dict:
         """Sign a message inplace.
         """
+        message = self._setup_sender(message)
+
         msghash = encode_defunct(text=get_verification_buffer(message).decode("utf-8"))
         sig = self._account.sign_message(msghash)
+
         message["signature"] = sig["signature"].hex()
         return message
 
