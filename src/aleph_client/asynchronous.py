@@ -278,6 +278,7 @@ async def create_program(
         address: Optional[str] = None,
         session: Optional[ClientSession] = None,
         api_server: str = settings.API_HOST,
+        memory: int = settings.DEFAULT_VM_MEMORY,
 ):
     address = address or account.get_address()
 
@@ -303,7 +304,7 @@ async def create_program(
         },
         "resources": {
             "vcpus": 1,
-            "memory": 128,
+            "memory": memory,
             "seconds": 30,
         },
         "runtime": {
@@ -343,6 +344,7 @@ def sync_create_program(
         address: Optional[str] = None,
         session: Optional[ClientSession] = None,
         api_server: str = settings.API_HOST,
+        memory: int = settings.DEFAULT_VM_MEMORY,
 ):
     return wrap_async(create_program)(
         account=account,
@@ -354,7 +356,8 @@ def sync_create_program(
         channel=channel,
         address=address,
         session=session,
-        api_server=api_server
+        api_server=api_server,
+        memory=memory,
     )
 
 

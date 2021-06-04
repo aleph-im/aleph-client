@@ -190,6 +190,7 @@ def program(
         path: str,
         entrypoint: str,
         channel: str = "TEST",
+        memory: int = settings.DEFAULT_VM_MEMORY,
         private_key: Optional[str] = settings.PRIVATE_KEY_STRING,
         private_key_file: Optional[str] = settings.PRIVATE_KEY_FILE,
         print_messages: bool = False,
@@ -261,6 +262,7 @@ def program(
             data_ref=data,
             storage_engine=StorageEnum.storage,
             channel=channel,
+            memory=memory,
         )
         logger.debug("Upload finished")
         if print_messages or print_program_message:

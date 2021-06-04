@@ -11,6 +11,8 @@ class Settings(BaseSettings):
     REMOTE_CRYPTO_HOST: Optional[str] = None
     REMOTE_CRYPTO_UNIX_SOCKET: Optional[str] = None
 
+    DEFAULT_VM_MEMORY: int = 128
+
     class Config:
         env_prefix = "ALEPH_"
         case_sensitive = False
