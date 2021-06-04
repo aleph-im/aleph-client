@@ -23,7 +23,7 @@ def test_get_fallback_account():
 async def test_ETHAccount():
     account: ETHAccount = get_fallback_account()
 
-    message = Message("ETH", "SomeSender", "SomeType", "ItemHash")
+    message = Message("ETH", account.get_address(), "SomeType", "ItemHash")
     signed = await account.sign_message(asdict(message))
     assert signed["signature"]
     assert len(signed["signature"]) == 132

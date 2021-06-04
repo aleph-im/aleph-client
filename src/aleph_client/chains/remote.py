@@ -59,7 +59,9 @@ class RemoteAccount(BaseAccount):
         )
 
     def __del__(self):
-        self._session.close()
+        asyncio.get_event_loop().run_until_complete(
+            self._session.close()
+        )
 
     @property
     def private_key(self):

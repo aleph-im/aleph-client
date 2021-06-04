@@ -41,6 +41,8 @@ class NULSAccount(BaseAccount):
     async def sign_message(self, message):
         # sig = NulsSignature.sign_message(self.private_key,
         #                                  get_verification_buffer(message))
+        message = self._setup_sender(message)
+
         sig = sign_recoverable_message(
             self.private_key, get_verification_buffer(message)
         )

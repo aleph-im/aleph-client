@@ -22,6 +22,7 @@ class DOTAccount(BaseAccount):
         )
 
     async def sign_message(self, message):
+        message = self._setup_sender(message)
         verif = get_verification_buffer(message).decode("utf-8")
         sig = {"curve": self.CURVE, "data": self._account.sign(verif)}
         message["signature"] = json.dumps(sig)
