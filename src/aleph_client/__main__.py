@@ -226,7 +226,7 @@ def program(
 
     runtime = input("Ref of runtime if not default ?")
     if not runtime:
-        runtime = "7162a3b9f8ca870fc06bafb3e9b14553304327bc78c7f53a4cee9445879e4fab"
+        runtime = settings.DEFAULT_RUNTIME_ID
         echo(f"Using default runtime {runtime}")
 
     data = input("Ref of additional data to pass to the program ?") \
@@ -286,7 +286,7 @@ def program(
 
 if __name__ == "__main__":
     logging.basicConfig(
-        level=logging.INFO,
+        level=logging.DEBUG,
         format="%(levelname)s: %(message)s"
     )
     app()
