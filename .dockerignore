@@ -4,4 +4,4 @@
 /.idea
 /.github
 /.eggs
-
+**/.mypy_cache
