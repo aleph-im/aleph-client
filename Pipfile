@@ -14,6 +14,7 @@ eth-account = "*"
 paho-mqtt = "*"
 click = "*"
 certifi = "*"
+python-magic = "*"
 
 [packages.e1839a8]
 path = "."

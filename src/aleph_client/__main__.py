@@ -152,6 +152,7 @@ def upload(
                 file_content=file_content,
                 storage_engine=storage_engine,
                 channel=channel,
+                guess_mime_type=True,
             )
             logger.debug("Upload finished")
             echo(f"{json.dumps(result, indent=4)}")

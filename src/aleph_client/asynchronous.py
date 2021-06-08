@@ -9,6 +9,15 @@ from abc import abstractmethod
 from datetime import datetime
 from enum import Enum
 from functools import lru_cache
+
+logger = logging.getLogger(__name__)
+
+try:
+    import magic  # type:ignore
+except ImportError:
+    logger.warning("Could not import library 'magic'")
+    magic = None  # type:ignore
+
 from .conf import settings
 from typing import Optional, Iterable, Union, Any, Dict
 from typing_extensions import Protocol  # Python < 3.8
@@ -19,7 +28,6 @@ from aiohttp import ClientSession
 from aleph_message.models.program import ProgramContent  # type: ignore
 
 logger = logging.getLogger(__name__)
-
 
 class StorageEnum(str, Enum):
     ipfs = "ipfs"
@@ -221,6 +229,7 @@ async def create_store(
     address=settings.ADDRESS_TO_USE,
     file_content: Optional[bytes] = None,
     file_hash: Optional[str] = None,
+    guess_mime_type: bool = False,
     storage_engine="storage",
     extra_fields: Optional[dict] = None,
     channel: str = "TEST",
@@ -228,6 +237,7 @@ async def create_store(
     api_server: str = settings.API_HOST,
 ):
     address = address or account.get_address()
+    extra_fields = extra_fields or {}
 
     if file_hash is None:
         if file_content is None:
@@ -243,6 +253,11 @@ async def create_store(
             )
         else:
             raise ValueError(f"Unknown storage engine: '{storage_engine}'")
+
+    if magic is None:
+        pass
+    elif guess_mime_type is True and "mime_type" not in extra_fields:
+        extra_fields["mime_type"] = magic.from_buffer(file_content, mime=True)
 
     store_content = {
         "address": address,

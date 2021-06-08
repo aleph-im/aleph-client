@@ -8,7 +8,7 @@ RUN pip install --upgrade pip
 
 # Preinstall dependencies for faster steps
 RUN pip install --upgrade secp256k1 coincurve aiohttp eciespy
-RUN pip install --upgrade pytest pytest-cov pytest-asyncio mypy
+RUN pip install --upgrade pytest pytest-cov pytest-asyncio mypy python-magic
 RUN pip install --upgrade eth_account>=0.4.0
 
 RUN mkdir /opt/aleph-client/
