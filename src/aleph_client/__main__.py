@@ -129,6 +129,7 @@ def upload(
     channel: str = "TEST",
     private_key: Optional[str] = settings.PRIVATE_KEY_STRING,
     private_key_file: Optional[str] = settings.PRIVATE_KEY_FILE,
+    ref: Optional[str] = None
 ):
     """Upload and store a file on Aleph.im."""
 
@@ -153,6 +154,7 @@ def upload(
                 storage_engine=storage_engine,
                 channel=channel,
                 guess_mime_type=True,
+                ref=ref,
             )
             logger.debug("Upload finished")
             echo(f"{json.dumps(result, indent=4)}")

@@ -27,7 +27,6 @@ from aiohttp import ClientSession
 
 from aleph_message.models.program import ProgramContent  # type: ignore
 
-logger = logging.getLogger(__name__)
 
 class StorageEnum(str, Enum):
     ipfs = "ipfs"
@@ -230,6 +229,7 @@ async def create_store(
     file_content: Optional[bytes] = None,
     file_hash: Optional[str] = None,
     guess_mime_type: bool = False,
+    ref: Optional[str] = None,
     storage_engine="storage",
     extra_fields: Optional[dict] = None,
     channel: str = "TEST",
@@ -258,6 +258,9 @@ async def create_store(
         pass
     elif guess_mime_type is True and "mime_type" not in extra_fields:
         extra_fields["mime_type"] = magic.from_buffer(file_content, mime=True)
+
+    if ref:
+        extra_fields["ref"] = ref
 
     store_content = {
         "address": address,
