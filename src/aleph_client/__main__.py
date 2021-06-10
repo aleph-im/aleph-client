@@ -169,6 +169,7 @@ def pin(
     channel: str = "TEST",
     private_key: Optional[str] = settings.PRIVATE_KEY_STRING,
     private_key_file: Optional[str] = settings.PRIVATE_KEY_FILE,
+    ref: Optional[str] = None,
 ):
     """Persist a file from IPFS on Aleph.im."""
 
@@ -180,6 +181,7 @@ def pin(
             file_hash=hash,
             storage_engine="ipfs",
             channel=channel,
+            ref=ref,
         )
         logger.debug("Upload finished")
         echo(f"{json.dumps(result, indent=4)}")
