@@ -47,4 +47,5 @@ MANIFEST
 
 # Per-project virtualenvs
 .venv*/
-examples/device.key
+**/device.key
+
