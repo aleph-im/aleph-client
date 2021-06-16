@@ -39,3 +39,10 @@ class VmCache:
         async with self.session.delete(f"{settings.API_HOST}/cache/{key}") as resp:
             resp.raise_for_status()
             return await resp.json()
+
+    async def keys(self, pattern: str = '*'):
+        if not re.match(r'^[\w?*^\-]+$', pattern):
+            raise ValueError("Patterh may only contain letters, numbers, underscore, ?, *, ^, -")
+        async with self.session.get(f"{settings.API_HOST}/cache/?pattern={pattern}") as resp:
+            resp.raise_for_status()
+            return await resp.json()
