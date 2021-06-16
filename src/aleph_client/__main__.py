@@ -11,6 +11,7 @@ from typing import Optional, Dict
 from zipfile import ZipFile, BadZipFile
 
 import typer
+from aleph_message.models.program import Encoding
 from typer import echo
 
 from .asynchronous import (
@@ -208,12 +209,22 @@ def program(
 
     # Create a zip archive from a directory
     if os.path.isdir(path):
-        logger.debug("Creating zip archive...")
-        make_archive(path, 'zip', path)
-        path = path + '.zip'
-
-    # Check that the file is a zip archive
-    if os.path.isfile(path):
+        if settings.CODE_USES_SQUASHFS:
+            logger.debug("Creating squashfs archive...")
+            os.system(f"mksquashfs {path} {path}.squashfs")
+            path = f"{path}.squashfs"
+            assert os.path.isfile(path)
+            encoding = Encoding.squashfs
+        else:
+            logger.debug("Creating zip archive...")
+            make_archive(path, 'zip', path)
+            path = path + '.zip'
+            encoding = Encoding.zip
+    elif path.endswith(".squashfs"):
+        encoding = Encoding.squashfs
+    elif os.path.isfile(path):
+        # Check that the file is a zip archive
+        encoding = Encoding.zip
         try:
             with open(path, "rb") as archive_file:
                 with ZipFile(archive_file, 'r') as archive:
@@ -234,10 +245,14 @@ def program(
         runtime = settings.DEFAULT_RUNTIME_ID
         echo(f"Using default runtime {runtime}")
 
-    data = input("Ref of additional data to pass to the program ?") \
-           or None
+    data_ref = input("Ref of additional data to pass to the program ?") \
+               or None
 
     try:
+        if not os.path.isfile(path):
+            echo(f"Error: File not found: '{path}'")
+            raise typer.Exit(code=1)
+
         # Upload the source code
         with open(path, "rb") as fd:
             logger.debug("Reading file")
@@ -252,6 +267,8 @@ def program(
                 file_content=file_content,
                 storage_engine=storage_engine,
                 channel=channel,
+                guess_mime_type=True,
+                ref=None,
             )
             logger.debug("Upload finished")
             if print_messages or print_code_message:
@@ -264,10 +281,11 @@ def program(
             program_ref=program_ref,
             entrypoint=entrypoint,
             runtime=runtime,
-            data_ref=data,
+            data_ref=data_ref,
             storage_engine=StorageEnum.storage,
             channel=channel,
             memory=memory,
+            encoding=encoding,
         )
         logger.debug("Upload finished")
         if print_messages or print_program_message:

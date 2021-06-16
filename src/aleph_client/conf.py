@@ -15,6 +15,8 @@ class Settings(BaseSettings):
     DEFAULT_RUNTIME_ID: str = "2e42d027a072042f91d8dd39999c8b4a684aeeda475712f2136e55f54a898fc5"
     DEFAULT_VM_MEMORY: int = 128
 
+    CODE_USES_SQUASHFS: bool = True
+
     class Config:
         env_prefix = "ALEPH_"
         case_sensitive = False
