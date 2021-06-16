@@ -25,7 +25,7 @@ from typing_extensions import Protocol  # Python < 3.8
 import aiohttp
 from aiohttp import ClientSession
 
-from aleph_message.models.program import ProgramContent  # type: ignore
+from aleph_message.models.program import ProgramContent, Encoding  # type: ignore
 
 
 class StorageEnum(str, Enum):
@@ -297,6 +297,7 @@ async def create_program(
         session: Optional[ClientSession] = None,
         api_server: str = settings.API_HOST,
         memory: int = settings.DEFAULT_VM_MEMORY,
+        encoding: Encoding = Encoding.zip,
 ):
     address = address or account.get_address()
 
@@ -307,7 +308,7 @@ async def create_program(
         "address": address,
         "allow_amend": False,
         "code": {
-            "encoding": "zip",
+            "encoding": encoding,
             "entrypoint": entrypoint,
             "ref": program_ref,
             "use_latest": True,
@@ -363,6 +364,7 @@ def sync_create_program(
         session: Optional[ClientSession] = None,
         api_server: str = settings.API_HOST,
         memory: int = settings.DEFAULT_VM_MEMORY,
+        encoding: Encoding = Encoding.zip,
 ):
     return wrap_async(create_program)(
         account=account,
@@ -376,6 +378,7 @@ def sync_create_program(
         session=session,
         api_server=api_server,
         memory=memory,
+        encoding=encoding,
     )
 
 
