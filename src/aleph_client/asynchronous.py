@@ -341,7 +341,7 @@ async def create_program(
 
     return await submit(
         account=account,
-        content=content.dict(),
+        content=content.dict(exclude_none=True),
         message_type="PROGRAM",
         channel=channel,
         api_server=api_server,
