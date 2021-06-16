@@ -310,7 +310,7 @@ async def create_program(
             "encoding": "zip",
             "entrypoint": entrypoint,
             "ref": program_ref,
-            "allow_amend": False,
+            "use_latest": True,
         },
         "on": {
             "http": True,
@@ -327,14 +327,14 @@ async def create_program(
         },
         "runtime": {
             "ref": runtime,
-            "allow_amend": False,
+            "use_latest": True,
             "comment": "Aleph Alpine Linux with Python 3.8",
         },
         "data": {
             "encoding": "zip",
             "mount": "/data",
             "ref": data_ref,
-            "allow_amend": False,
+            "use_latest": True,
         } if data_ref else None,
         "time": time.time(),
     })
