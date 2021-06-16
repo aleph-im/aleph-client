@@ -345,7 +345,7 @@ async def create_program(
         message_type="PROGRAM",
         channel=channel,
         api_server=api_server,
-        storage_engine=StorageEnum.storage,
+        storage_engine=storage_engine,
         session=session,
         inline=True,
     )
