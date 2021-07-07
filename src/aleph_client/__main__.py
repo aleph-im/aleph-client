@@ -203,6 +203,55 @@ def pin(
         asyncio.get_event_loop().run_until_complete(get_fallback_session().close())
 
 
+def yes_no_input(text: str, default: Optional[bool]=None):
+    while True:
+        if default is True:
+            response = input(f"{text} [Y/n] ")
+        elif default is False:
+            response = input(f"{text} [y/N] ")
+        else:
+            response = input(f"{text} ")
+
+        if response.lower() in ('y', 'yes'):
+            return True
+        elif response.lower() in ('n', 'no'):
+            return False
+        elif response == '' and default is not None:
+            return default
+        else:
+            if default is None:
+                print("Please enter 'y', 'yes', 'n' or 'no'")
+            else:
+                print("Please enter 'y', 'yes', 'n', 'no' or nothing")
+            continue
+
+
+def _prompt_for_volumes():
+    while yes_no_input("Add volume ?", default=False):
+        comment = input("Description: ") or None
+        mount = input("Mount: ")
+        persistent = yes_no_input("Persist on VM host ?", default=False)
+        if persistent:
+            name = input("Volume name: ")
+            size_mib = int(input("Size in MiB: "))
+            yield {
+                "comment": comment,
+                "mount": mount,
+                "name": name,
+                "persistence": "host",
+                "size_mib": size_mib,
+            }
+        else:
+            ref = input("Ref: ")
+            use_latest = yes_no_input("Use latest version ?", default=True)
+            yield {
+                "comment": comment,
+                "mount": mount,
+                "ref": ref,
+                "use_latest": use_latest,
+            }
+
+
 @app.command()
 def program(
         path: str,
@@ -250,11 +299,12 @@ def program(
     if not runtime:
         runtime = settings.DEFAULT_RUNTIME_ID
 
-    try:
-        if not os.path.isfile(path):
-            echo(f"Error: File not found: '{path}'")
-            raise typer.Exit(code=1)
+    volumes = []
+    for volume in _prompt_for_volumes():
+        volumes.append(volume)
+        print()
 
+    try:
         # Upload the source code
         with open(path, "rb") as fd:
             logger.debug("Reading file")
@@ -287,6 +337,7 @@ def program(
             channel=channel,
             memory=memory,
             encoding=encoding,
+            volumes=volumes,
         )
         logger.debug("Upload finished")
         if print_messages or print_program_message:
