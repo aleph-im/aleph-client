@@ -250,9 +250,6 @@ def program(
     if not runtime:
         runtime = settings.DEFAULT_RUNTIME_ID
 
-    data_ref = input("Ref of additional data to pass to the program ?") \
-               or None
-
     try:
         if not os.path.isfile(path):
             echo(f"Error: File not found: '{path}'")
@@ -286,7 +283,6 @@ def program(
             program_ref=program_ref,
             entrypoint=entrypoint,
             runtime=runtime,
-            data_ref=data_ref,
             storage_engine=StorageEnum.storage,
             channel=channel,
             memory=memory,
