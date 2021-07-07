@@ -19,7 +19,7 @@ except ImportError:
     magic = None  # type:ignore
 
 from .conf import settings
-from typing import Optional, Iterable, Union, Any, Dict
+from typing import Optional, Iterable, Union, Any, Dict, List
 from typing_extensions import Protocol  # Python < 3.8
 
 import aiohttp
@@ -298,7 +298,10 @@ async def create_program(
         api_server: str = settings.API_HOST,
         memory: int = settings.DEFAULT_VM_MEMORY,
         encoding: Encoding = Encoding.zip,
+        volumes: List[Dict] = None,
 ):
+    volumes = volumes if volumes is not None else []
+
     address = address or account.get_address()
 
     # TODO: Check that program_ref, runtime and data_ref exist
@@ -331,12 +334,19 @@ async def create_program(
             "use_latest": True,
             "comment": "Aleph Alpine Linux with Python 3.8",
         },
-        "data": {
-            "encoding": "zip",
-            "mount": "/data",
-            "ref": data_ref,
-            "use_latest": True,
-        } if data_ref else None,
+        "volumes": volumes,
+            # {
+            #     "mount": "/opt/venv",
+            #     "ref": "5f31b0706f59404fad3d0bff97ef89ddf24da4761608ea0646329362c662ba51",
+            #     "use_latest": False
+            # },
+            # {
+            #     "comment": "Working data persisted on the VM supervisor, not available on other nodes",
+            #     "mount": "/var/lib/sqlite",
+            #     "name": "database",
+            #     "persistence": "host",
+            #     "size_mib": 5
+            # }
         "time": time.time(),
     })
 
@@ -365,6 +375,7 @@ def sync_create_program(
         api_server: str = settings.API_HOST,
         memory: int = settings.DEFAULT_VM_MEMORY,
         encoding: Encoding = Encoding.zip,
+        volumes: List[Dict] = None,
 ):
     return wrap_async(create_program)(
         account=account,
@@ -379,6 +390,7 @@ def sync_create_program(
         api_server=api_server,
         memory=memory,
         encoding=encoding,
+        volumes=volumes,
     )
 
 
