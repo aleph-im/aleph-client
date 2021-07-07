@@ -13,6 +13,7 @@ from typing import Optional, Dict
 from zipfile import ZipFile, BadZipFile
 
 import typer
+from aleph_message.models import ProgramMessage, StoreMessage
 from aleph_message.models.program import Encoding
 from typer import echo
 
@@ -362,6 +363,78 @@ def program(
 
 
 @app.command()
+def update(
+        hash: str,
+        path: str,
+        private_key: Optional[str] = settings.PRIVATE_KEY_STRING,
+        private_key_file: Optional[str] = settings.PRIVATE_KEY_FILE,
+        print_message: bool = True,
+):
+    """Update the code of an existing program"""
+
+    account = _load_account(private_key, private_key_file)
+
+    try:
+        raw_program_message = sync_get_messages(hashes=[hash])
+        program_message = ProgramMessage(**raw_program_message['messages'][0])
+        code_ref = program_message.content.code.ref
+
+        raw_code_message = sync_get_messages(hashes=[code_ref])
+        code_message = StoreMessage(**raw_code_message['messages'][0])
+
+        # Create a zip archive from a directory
+        if os.path.isdir(path):
+            if settings.CODE_USES_SQUASHFS:
+                logger.debug("Creating squashfs archive...")
+                os.system(f"mksquashfs {path} {path}.squashfs")
+                path = f"{path}.squashfs"
+                assert os.path.isfile(path)
+                encoding = Encoding.squashfs
+            else:
+                logger.debug("Creating zip archive...")
+                make_archive(path, 'zip', path)
+                path = path + '.zip'
+                encoding = Encoding.zip
+        elif os.path.isfile(path):
+            if path.endswith(".squashfs") \
+                    or (magic and magic.from_file(path).startswith("Squashfs filesystem")):
+                encoding = Encoding.squashfs
+            elif _is_zip_valid(path):
+                encoding = Encoding.zip
+            else:
+                raise typer.Exit(3)
+        else:
+            echo("No such file or directory")
+            raise typer.Exit(4)
+
+        if encoding != program_message.content.code.encoding:
+            logger.error("Code must be encoded with the same encoding as the previous version")
+            raise typer.Exit(1)
+
+        # Upload the source code
+        with open(path, "rb") as fd:
+            logger.debug("Reading file")
+            # TODO: Read in lazy mode instead of copying everything in memory
+            file_content = fd.read()
+            logger.debug("Uploading file")
+            result = sync_create_store(
+                account=account,
+                file_content=file_content,
+                storage_engine=code_message.content.item_type,
+                channel=code_message.channel,
+                guess_mime_type=True,
+                ref=code_message.item_hash,
+            )
+            logger.debug("Upload finished")
+            if print_message:
+                echo(f"{json.dumps(result, indent=4)}")
+    finally:
+        # Prevent aiohttp unclosed connector warning
+        asyncio.get_event_loop().run_until_complete(get_fallback_session().close())
+
+
+
+@app.command()
 def edit(
         hash: str,
         private_key: Optional[str] = settings.PRIVATE_KEY_STRING,
@@ -373,7 +446,7 @@ def edit(
     existing = sync_get_messages(hashes=[hash])
     existing_message = existing['messages'][0]
 
-    editor = os.getenv('EDITOR')
+    editor: str = os.getenv('EDITOR', default='nano')
     with tempfile.NamedTemporaryFile(suffix='json') as fd:
         # Fill in message template
         fd.write(json.dumps(existing_message['content'], indent=4).encode())
