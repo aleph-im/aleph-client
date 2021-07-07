@@ -435,7 +435,7 @@ def update(
 
 
 @app.command()
-def edit(
+def amend(
         hash: str,
         private_key: Optional[str] = settings.PRIVATE_KEY_STRING,
         private_key_file: Optional[str] = settings.PRIVATE_KEY_FILE,
