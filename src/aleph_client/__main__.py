@@ -19,6 +19,7 @@ from .asynchronous import (
     sync_create_store,
     sync_create_post, sync_create_program,
     StorageEnum,
+    magic,
 )
 from .chains.common import get_fallback_private_key, BaseAccount
 from .chains.ethereum import ETHAccount
@@ -72,6 +73,17 @@ def _load_account(
             account: ETHAccount = ETHAccount(private_key=private_key)
             logger.info(f"Generated fallback private key with address {account.get_address()}")
             return account
+
+def _is_zip_valid(path: str):
+    try:
+        with open(path, "rb") as archive_file:
+            with ZipFile(archive_file, 'r') as archive:
+                if not archive.namelist():
+                    echo("No file in the archive.")
+        return True
+    except BadZipFile:
+        echo("Invalid zip archive")
+        return False
 
 
 @app.command()
@@ -220,19 +232,13 @@ def program(
             make_archive(path, 'zip', path)
             path = path + '.zip'
             encoding = Encoding.zip
-    elif path.endswith(".squashfs"):
-        encoding = Encoding.squashfs
     elif os.path.isfile(path):
-        # Check that the file is a zip archive
-        encoding = Encoding.zip
-        try:
-            with open(path, "rb") as archive_file:
-                with ZipFile(archive_file, 'r') as archive:
-                    if not archive.namelist():
-                        echo("No file in the archive.")
-                        raise typer.Exit(3)
-        except BadZipFile:
-            echo("Invalid zip archive")
+        if path.endswith(".squashfs") \
+                or (magic and magic.from_file(path).startswith("Squashfs filesystem")):
+            encoding = Encoding.squashfs
+        elif _is_zip_valid(path):
+            encoding = Encoding.zip
+        else:
             raise typer.Exit(3)
     else:
         echo("No such file or directory")
@@ -240,10 +246,9 @@ def program(
 
     account = _load_account(private_key, private_key_file)
 
-    runtime = input("Ref of runtime if not default ?")
+    runtime = input(f"Ref of runtime ? [{settings.DEFAULT_RUNTIME_ID}] ")
     if not runtime:
         runtime = settings.DEFAULT_RUNTIME_ID
-        echo(f"Using default runtime {runtime}")
 
     data_ref = input("Ref of additional data to pass to the program ?") \
                or None

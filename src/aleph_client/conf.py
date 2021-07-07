@@ -1,3 +1,4 @@
+from shutil import which
 from typing import Optional
 
 from pydantic import BaseSettings
@@ -15,7 +16,7 @@ class Settings(BaseSettings):
     DEFAULT_RUNTIME_ID: str = "bd79839bf96e595a06da5ac0b6ba51dea6f7e2591bb913deccded04d831d29f4"
     DEFAULT_VM_MEMORY: int = 128
 
-    CODE_USES_SQUASHFS: bool = True
+    CODE_USES_SQUASHFS: bool = which('mksquashfs') is not None  # True if command exists
 
     class Config:
         env_prefix = "ALEPH_"
