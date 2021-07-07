@@ -12,7 +12,7 @@ class Settings(BaseSettings):
     REMOTE_CRYPTO_UNIX_SOCKET: Optional[str] = None
     ADDRESS_TO_USE: Optional[str] = None
 
-    DEFAULT_RUNTIME_ID: str = "4ea78b56da35b154feb27228c78cd80fa9a2db18854fbf08cf5bb69bb3f48fba"
+    DEFAULT_RUNTIME_ID: str = "bd79839bf96e595a06da5ac0b6ba51dea6f7e2591bb913deccded04d831d29f4"
     DEFAULT_VM_MEMORY: int = 128
 
     CODE_USES_SQUASHFS: bool = True
