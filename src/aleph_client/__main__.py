@@ -4,6 +4,8 @@ import asyncio
 import json
 import logging
 import os.path
+import subprocess
+import tempfile
 from base64 import b32encode, b16decode
 from enum import Enum
 from shutil import make_archive
@@ -19,7 +21,7 @@ from .asynchronous import (
     sync_create_store,
     sync_create_post, sync_create_program,
     StorageEnum,
-    magic,
+    magic, sync_get_messages, sync_submit,
 )
 from .chains.common import get_fallback_private_key, BaseAccount
 from .chains.ethereum import ETHAccount
@@ -357,6 +359,42 @@ def program(
     finally:
         # Prevent aiohttp unclosed connector warning
         asyncio.get_event_loop().run_until_complete(get_fallback_session().close())
+
+
+@app.command()
+def edit(
+        hash: str,
+        private_key: Optional[str] = settings.PRIVATE_KEY_STRING,
+        private_key_file: Optional[str] = settings.PRIVATE_KEY_FILE,
+):
+    """Amend an existing Aleph message."""
+    account = _load_account(private_key, private_key_file)
+
+    existing = sync_get_messages(hashes=[hash])
+    existing_message = existing['messages'][0]
+
+    editor = os.getenv('EDITOR')
+    with tempfile.NamedTemporaryFile(suffix='json') as fd:
+        # Fill in message template
+        fd.write(json.dumps(existing_message['content'], indent=4).encode())
+        fd.seek(0)
+
+        # Launch editor
+        subprocess.run([editor, fd.name], check=True)
+
+        # Read new message
+        fd.seek(0)
+        new_message = fd.read()
+
+    new_content = json.loads(new_message)
+    new_content['ref'] = existing_message['item_hash']
+    print(new_content)
+    sync_submit(
+        account=account,
+        content=new_content,
+        message_type=existing_message['type'],
+        channel=existing_message['channel'],
+    )
 
 
 if __name__ == "__main__":
