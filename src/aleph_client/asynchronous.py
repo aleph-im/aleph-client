@@ -4,12 +4,15 @@ import asyncio
 import hashlib
 import json
 import logging
+import queue
 import threading
 import time
 from abc import abstractmethod
 from datetime import datetime
 from enum import Enum
 from functools import lru_cache
+
+from yarl import URL
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +23,7 @@ except ImportError:
     magic = None  # type:ignore
 
 from .conf import settings
-from typing import Optional, Iterable, Union, Any, Dict, List
+from typing import Optional, Iterable, Union, Any, Dict, List, AsyncIterable
 from typing_extensions import Protocol  # Python < 3.8
 
 import aiohttp
@@ -574,3 +577,97 @@ async def get_messages(
 
 
 sync_get_messages = wrap_async(get_messages)
+
+
+async def watch_messages(
+    pagination: int = 200,
+    page: int = 1,
+    message_type: Optional[str] = None,
+    content_types: Optional[Iterable[str]] = None,
+    refs: Optional[Iterable[str]] = None,
+    addresses: Optional[Iterable[str]] = None,
+    tags: Optional[Iterable[str]] = None,
+    hashes: Optional[Iterable[str]] = None,
+    channels: Optional[Iterable[str]] = None,
+    start_date: Optional[Union[datetime, float]] = None,
+    end_date: Optional[Union[datetime, float]] = None,
+    session: Optional[ClientSession] = None,
+    api_server: str = settings.API_HOST,
+) -> AsyncIterable[Dict[str, Any]]:
+    """
+    Iterate over current and future matching messages asynchronously.
+    """
+
+    session = session or get_fallback_session()
+
+    params: Dict[str, Any] = dict(pagination=pagination, page=page)
+
+    if message_type is not None:
+        params["msgType"] = message_type
+    if content_types is not None:
+        params["contentTypes"] = ",".join(content_types)
+    if refs is not None:
+        params["refs"] = ",".join(refs)
+    if addresses is not None:
+        params["addresses"] = ",".join(addresses)
+    if tags is not None:
+        params["tags"] = ",".join(tags)
+    if hashes is not None:
+        params["hashes"] = ",".join(hashes)
+    if channels is not None:
+        params["channels"] = ",".join(channels)
+
+    if start_date is not None:
+        if not isinstance(start_date, float) and hasattr(start_date, "timestamp"):
+            start_date = start_date.timestamp()
+        params["start_date"] = start_date
+    if end_date is not None:
+        if not isinstance(end_date, float) and hasattr(start_date, "timestamp"):
+            end_date = end_date.timestamp()
+        params["end_date"] = end_date
+
+    # FIXME:
+    #  We build the URL manually since aiohttp.ClientSession.ws_connect does not support
+    #  the `params` argument at the moment.
+    #  Upstream issue: https://github.com/aio-libs/aiohttp/issues/5868
+    #  Upstream pull request: https://github.com/aio-libs/aiohttp/pull/5869
+    url = URL(f"{api_server}/api/ws0/messages").with_query(params)
+
+    async with session.ws_connect(url) as ws:
+        logger.debug("Websocket connected")
+        async for msg in ws:
+            if msg.type == aiohttp.WSMsgType.TEXT:
+                if msg.data == 'close cmd':
+                    await ws.close()
+                    break
+                else:
+                    yield json.loads(msg.data)
+            elif msg.type == aiohttp.WSMsgType.ERROR:
+                break
+
+
+async def _run_watch_messages(coroutine: AsyncIterable, output_queue: queue.Queue):
+    """Forward messages from the coroutine to the synchronous queue"""
+    async for message in coroutine:
+        output_queue.put(message)
+
+
+def _start_run_watch_messages(output_queue: queue.Queue, args: List, kwargs: Dict):
+    """Thread entrypoint to run the `watch_messages` asynchronous generator in a thread.
+    """
+    watcher = watch_messages(*args, **kwargs)
+    runner = _run_watch_messages(watcher, output_queue)
+    asyncio.new_event_loop().run_until_complete(runner)
+
+
+def sync_watch_messages(*args, **kwargs):
+    """
+    Iterate over current and future matching messages synchronously.
+
+    Runs the `watch_messages` asynchronous generator in a thread.
+    """
+    output_queue = queue.Queue()
+    thread = threading.Thread(target=_start_run_watch_messages, args=(output_queue, args, kwargs))
+    thread.start()
+    while True:
+        yield output_queue.get()
