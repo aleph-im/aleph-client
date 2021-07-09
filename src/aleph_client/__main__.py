@@ -13,7 +13,7 @@ from typing import Optional, Dict
 from zipfile import ZipFile, BadZipFile
 
 import typer
-from aleph_message.models import ProgramMessage, StoreMessage
+from aleph_message.models import ProgramMessage, StoreMessage, Message
 from aleph_message.models.program import Encoding
 from typer import echo
 
@@ -22,7 +22,7 @@ from .asynchronous import (
     sync_create_store,
     sync_create_post, sync_create_program,
     StorageEnum,
-    magic, sync_get_messages, sync_submit,
+    magic, sync_get_messages, sync_submit, sync_watch_messages,
 )
 from .chains.common import get_fallback_private_key, BaseAccount
 from .chains.ethereum import ETHAccount
@@ -468,6 +468,20 @@ def amend(
         message_type=existing_message['type'],
         channel=existing_message['channel'],
     )
+
+
+@app.command()
+def watch(
+        ref: str,
+        indent: Optional[int] = None
+):
+    """Watch a hash for amends and print amend hashes"""
+
+    original_json = sync_get_messages(hashes=[ref])['messages'][0]
+    original = Message(**original_json)
+
+    for message in sync_watch_messages(refs=[ref], addresses=[original.content.address]):
+        print(json.dumps(message, indent=indent))
 
 
 if __name__ == "__main__":
