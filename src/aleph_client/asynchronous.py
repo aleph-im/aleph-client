@@ -4,6 +4,7 @@ import asyncio
 import hashlib
 import json
 import logging
+import threading
 import time
 from abc import abstractmethod
 from datetime import datetime
@@ -57,12 +58,17 @@ class Account(Protocol):
 
 
 @lru_cache()
-def get_fallback_session() -> ClientSession:
+def _get_fallback_session(thread_id: Optional[int]) -> ClientSession:
     if settings.API_UNIX_SOCKET:
         connector = aiohttp.UnixConnector(path=settings.API_UNIX_SOCKET)
         return aiohttp.ClientSession(connector=connector)
     else:
         return aiohttp.ClientSession()
+
+
+def get_fallback_session() -> ClientSession:
+    thread_id = threading.get_native_id()
+    return _get_fallback_session(thread_id=thread_id)
 
 
 def wrap_async(func):
