@@ -275,7 +275,7 @@ def program(
     if os.path.isdir(path):
         if settings.CODE_USES_SQUASHFS:
             logger.debug("Creating squashfs archive...")
-            os.system(f"mksquashfs {path} {path}.squashfs")
+            os.system(f"mksquashfs {path} {path}.squashfs -noappend")
             path = f"{path}.squashfs"
             assert os.path.isfile(path)
             encoding = Encoding.squashfs
@@ -386,7 +386,7 @@ def update(
         if os.path.isdir(path):
             if settings.CODE_USES_SQUASHFS:
                 logger.debug("Creating squashfs archive...")
-                os.system(f"mksquashfs {path} {path}.squashfs")
+                os.system(f"mksquashfs {path} {path}.squashfs -noappend")
                 path = f"{path}.squashfs"
                 assert os.path.isfile(path)
                 encoding = Encoding.squashfs
