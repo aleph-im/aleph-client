@@ -351,8 +351,8 @@ def program(
 
         echo(f"Your program has been uploaded on Aleph .\n\n"
              "Available on:\n"
-             f"  https://aleph.sh/vm/{hash}\n"
-             f"  https://{hash_base32}.aleph.sh/\n"
+             f"  {settings.VM_URL_PATH.format(hash=hash)}\n"
+             f"  {settings.VM_URL_HOST.format(hash_base32=hash_base32)}\n"
              "Visualise on:\n  https://explorer.aleph.im/address/"
              f"{result['chain']}/{result['sender']}/message/PROGRAM/{hash}\n"
              )
@@ -490,3 +490,4 @@ if __name__ == "__main__":
         format="%(levelname)s: %(message)s"
     )
     app()
+1

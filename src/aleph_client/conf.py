@@ -18,6 +18,9 @@ class Settings(BaseSettings):
 
     CODE_USES_SQUASHFS: bool = which('mksquashfs') is not None  # True if command exists
 
+    VM_URL_PATH = "https://aleph.sh/vm/{hash}"
+    VM_URL_HOST = "https://{hash_base32}.aleph.sh"
+
     class Config:
         env_prefix = "ALEPH_"
         case_sensitive = False
