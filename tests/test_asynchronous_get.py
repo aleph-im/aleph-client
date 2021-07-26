@@ -1,11 +1,11 @@
 import pytest
 from aleph_client.asynchronous import get_messages, fetch_aggregates, get_fallback_session, \
-    fetch_aggregate
+    fetch_aggregate, _get_fallback_session
 
 
 @pytest.mark.asyncio
 async def test_fetch_aggregate():
-    get_fallback_session.cache_clear()
+    _get_fallback_session.cache_clear()
 
     response = await fetch_aggregate(
         address="0xa1B3bb7d2332383D96b7796B908fB7f7F3c2Be10",
@@ -16,7 +16,7 @@ async def test_fetch_aggregate():
 
 @pytest.mark.asyncio
 async def test_fetch_aggregates():
-    get_fallback_session.cache_clear()
+    _get_fallback_session.cache_clear()
 
     response = await fetch_aggregates(
         address="0xa1B3bb7d2332383D96b7796B908fB7f7F3c2Be10"
@@ -27,7 +27,7 @@ async def test_fetch_aggregates():
 
 @pytest.mark.asyncio
 async def test_get_posts():
-    get_fallback_session.cache_clear()
+    _get_fallback_session.cache_clear()
 
     response = await get_messages(
         pagination=2,
@@ -63,7 +63,7 @@ async def test_get_posts():
 
 @pytest.mark.asyncio
 async def test_get_messages():
-    get_fallback_session.cache_clear()
+    _get_fallback_session.cache_clear()
 
     response = await get_messages(
         pagination=2,
