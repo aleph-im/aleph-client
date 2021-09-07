@@ -58,4 +58,4 @@ class AlephApp:
 
     def __getattr__(self, name):
         # Default all calls to the HTTP handler
-        return getattr(self.http_app, name=name)
+        return getattr(self.http_app, name)
