@@ -51,7 +51,9 @@ class AlephApp:
         elif scope['type'] == "aleph.message":
             for event_handler in self.event_handlers:
                 if event_handler.matches(scope):
-                    event_handler.handler(scope=scope, receive=receive, send=send)
+                    # event_handler.handler(scope=scope, receive=receive, send=send)
+                    result = event_handler.handler(event=scope)
+                    print('result', result)
         else:
             raise ValueError(f"Unknown scope type '{scope['type']}'")
 
