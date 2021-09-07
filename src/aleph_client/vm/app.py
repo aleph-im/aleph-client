@@ -48,7 +48,7 @@ class AlephApp:
                 return self.http_app(scope=scope, receive=receive, send=send)
             else:
                 raise ValueError("No HTTP app registered")
-        elif scope['type'] == "aleph.event":
+        elif scope['type'] == "aleph.message":
             for event_handler in self.event_handlers:
                 if event_handler.matches(scope):
                     event_handler.handler(scope=scope, receive=receive, send=send)
