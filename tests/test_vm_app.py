@@ -14,11 +14,11 @@ def test_app():
 
     # Call the app with an ASGI context
     scope = {
-        'type': "aleph.event",
+        'type': "aleph.message",
     }
 
     async def receive():
-        return {'type': 'aleph.event',
+        return {'type': 'aleph.message',
                 'body': b"BODY",
                 'more_body': False}
 
