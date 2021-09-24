@@ -307,12 +307,24 @@ async def create_program(
         memory: int = settings.DEFAULT_VM_MEMORY,
         encoding: Encoding = Encoding.zip,
         volumes: List[Dict] = None,
+        subscriptions: Optional[List[Dict]] = None,
 ):
     volumes = volumes if volumes is not None else []
 
     address = address or account.get_address()
 
     # TODO: Check that program_ref, runtime and data_ref exist
+
+    ## Register the different ways to trigger a VM
+    if subscriptions:
+        # Trigger on HTTP calls and on Aleph message subscriptions.
+        triggers = {
+            "http": True,
+            "message": subscriptions
+        }
+    else:
+        # Trigger on HTTP calls.
+        triggers = {"http": True}
 
     content = ProgramContent(**{
         "type": "vm-function",
@@ -324,9 +336,7 @@ async def create_program(
             "ref": program_ref,
             "use_latest": True,
         },
-        "on": {
-            "http": True,
-        },
+        "on": triggers,
         "environment": {
             "reproducible": False,
             "internet": True,
@@ -383,6 +393,7 @@ def sync_create_program(
         memory: int = settings.DEFAULT_VM_MEMORY,
         encoding: Encoding = Encoding.zip,
         volumes: List[Dict] = None,
+        subscriptions: Optional[List[Dict]] = None,
 ):
     return wrap_async(create_program)(
         account=account,
@@ -397,6 +408,7 @@ def sync_create_program(
         memory=memory,
         encoding=encoding,
         volumes=volumes,
+        subscriptions=subscriptions,
     )
 
 
