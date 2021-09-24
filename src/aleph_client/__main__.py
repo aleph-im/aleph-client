@@ -266,6 +266,7 @@ def program(
         print_messages: bool = False,
         print_code_message: bool = False,
         print_program_message: bool = False,
+        runtime: str = None,
 ):
     """Register a program to run on Aleph.im virtual machines from a zip archive."""
 
@@ -298,9 +299,9 @@ def program(
 
     account = _load_account(private_key, private_key_file)
 
-    runtime = input(f"Ref of runtime ? [{settings.DEFAULT_RUNTIME_ID}] ")
-    if not runtime:
-        runtime = settings.DEFAULT_RUNTIME_ID
+    runtime = (runtime
+               or input(f"Ref of runtime ? [{settings.DEFAULT_RUNTIME_ID}] ")
+               or settings.DEFAULT_RUNTIME_ID)
 
     volumes = []
     for volume in _prompt_for_volumes():
