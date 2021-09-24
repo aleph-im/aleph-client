@@ -267,6 +267,7 @@ def program(
         print_code_message: bool = False,
         print_program_message: bool = False,
         runtime: str = None,
+        beta: bool = False,
 ):
     """Register a program to run on Aleph.im virtual machines from a zip archive."""
 
@@ -309,7 +310,7 @@ def program(
         print()
 
     subscriptions: Optional[List[Dict]]
-    if yes_no_input("Subscribe to messages ?", default=False):
+    if beta and yes_no_input("Subscribe to messages ?", default=False):
         content_raw = _input_multiline()
         try:
             subscriptions = json.loads(content_raw)
