@@ -9,7 +9,7 @@ import tempfile
 from base64 import b32encode, b16decode
 from enum import Enum
 from shutil import make_archive
-from typing import Optional, Dict
+from typing import Optional, Dict, List
 from zipfile import ZipFile, BadZipFile
 
 import typer
@@ -308,6 +308,17 @@ def program(
         volumes.append(volume)
         print()
 
+    subscriptions: Optional[List[Dict]]
+    if yes_no_input("Subscribe to messages ?", default=False):
+        content_raw = _input_multiline()
+        try:
+            subscriptions = json.loads(content_raw)
+        except json.decoder.JSONDecodeError:
+            echo("Not valid JSON")
+            raise typer.Exit(code=2)
+    else:
+        subscriptions = None
+
     try:
         # Upload the source code
         with open(path, "rb") as fd:
@@ -342,6 +353,7 @@ def program(
             memory=memory,
             encoding=encoding,
             volumes=volumes,
+            subscriptions=subscriptions,
         )
         logger.debug("Upload finished")
         if print_messages or print_program_message:
