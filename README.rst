@@ -19,7 +19,7 @@ Requirements
 Some cryptographic functionalities use curve secp256k1 and require installing
 `libsecp256k1 <https://github.com/bitcoin-core/secp256k1>`_.
 
-    $ apt-get install -y libsecp256k1-dev
+    $ apt-get install -y python3-pip libsecp256k1-dev
 
 
 Installation
