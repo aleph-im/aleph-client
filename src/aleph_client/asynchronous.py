@@ -412,7 +412,7 @@ async def submit(
 
     item_content: str = json.dumps(content, separators=(",", ":"))
 
-    if inline and (len(item_content) < 100000):
+    if inline and (len(item_content) < 200000):
         message["item_content"] = item_content
         h = hashlib.sha256()
         h.update(message["item_content"].encode("utf-8"))
