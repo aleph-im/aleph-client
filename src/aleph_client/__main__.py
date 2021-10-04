@@ -9,11 +9,11 @@ import tempfile
 from base64 import b32encode, b16decode
 from enum import Enum
 from shutil import make_archive
-from typing import Optional, Dict
+from typing import Optional, Dict, List
 from zipfile import ZipFile, BadZipFile
 
 import typer
-from aleph_message.models import ProgramMessage, StoreMessage
+from aleph_message.models import ProgramMessage, StoreMessage, Message
 from aleph_message.models.program import Encoding
 from typer import echo
 
@@ -22,7 +22,7 @@ from .asynchronous import (
     sync_create_store,
     sync_create_post, sync_create_program,
     StorageEnum,
-    magic, sync_get_messages, sync_submit,
+    magic, sync_get_messages, sync_submit, sync_watch_messages,
 )
 from .chains.common import get_fallback_private_key, BaseAccount
 from .chains.ethereum import ETHAccount
@@ -266,6 +266,8 @@ def program(
         print_messages: bool = False,
         print_code_message: bool = False,
         print_program_message: bool = False,
+        runtime: str = None,
+        beta: bool = False,
 ):
     """Register a program to run on Aleph.im virtual machines from a zip archive."""
 
@@ -275,7 +277,7 @@ def program(
     if os.path.isdir(path):
         if settings.CODE_USES_SQUASHFS:
             logger.debug("Creating squashfs archive...")
-            os.system(f"mksquashfs {path} {path}.squashfs")
+            os.system(f"mksquashfs {path} {path}.squashfs -noappend")
             path = f"{path}.squashfs"
             assert os.path.isfile(path)
             encoding = Encoding.squashfs
@@ -298,14 +300,25 @@ def program(
 
     account = _load_account(private_key, private_key_file)
 
-    runtime = input(f"Ref of runtime ? [{settings.DEFAULT_RUNTIME_ID}] ")
-    if not runtime:
-        runtime = settings.DEFAULT_RUNTIME_ID
+    runtime = (runtime
+               or input(f"Ref of runtime ? [{settings.DEFAULT_RUNTIME_ID}] ")
+               or settings.DEFAULT_RUNTIME_ID)
 
     volumes = []
     for volume in _prompt_for_volumes():
         volumes.append(volume)
         print()
+
+    subscriptions: Optional[List[Dict]]
+    if beta and yes_no_input("Subscribe to messages ?", default=False):
+        content_raw = _input_multiline()
+        try:
+            subscriptions = json.loads(content_raw)
+        except json.decoder.JSONDecodeError:
+            echo("Not valid JSON")
+            raise typer.Exit(code=2)
+    else:
+        subscriptions = None
 
     try:
         # Upload the source code
@@ -341,6 +354,7 @@ def program(
             memory=memory,
             encoding=encoding,
             volumes=volumes,
+            subscriptions=subscriptions,
         )
         logger.debug("Upload finished")
         if print_messages or print_program_message:
@@ -351,8 +365,8 @@ def program(
 
         echo(f"Your program has been uploaded on Aleph .\n\n"
              "Available on:\n"
-             f"  https://aleph.sh/vm/{hash}\n"
-             f"  https://{hash_base32}.aleph.sh/\n"
+             f"  {settings.VM_URL_PATH.format(hash=hash)}\n"
+             f"  {settings.VM_URL_HOST.format(hash_base32=hash_base32)}\n"
              "Visualise on:\n  https://explorer.aleph.im/address/"
              f"{result['chain']}/{result['sender']}/message/PROGRAM/{hash}\n"
              )
@@ -386,7 +400,7 @@ def update(
         if os.path.isdir(path):
             if settings.CODE_USES_SQUASHFS:
                 logger.debug("Creating squashfs archive...")
-                os.system(f"mksquashfs {path} {path}.squashfs")
+                os.system(f"mksquashfs {path} {path}.squashfs -noappend")
                 path = f"{path}.squashfs"
                 assert os.path.isfile(path)
                 encoding = Encoding.squashfs
@@ -470,9 +484,24 @@ def amend(
     )
 
 
+@app.command()
+def watch(
+        ref: str,
+        indent: Optional[int] = None
+):
+    """Watch a hash for amends and print amend hashes"""
+
+    original_json = sync_get_messages(hashes=[ref])['messages'][0]
+    original = Message(**original_json)
+
+    for message in sync_watch_messages(refs=[ref], addresses=[original.content.address]):
+        print(json.dumps(message, indent=indent))
+
+
 if __name__ == "__main__":
     logging.basicConfig(
         level=logging.DEBUG,
         format="%(levelname)s: %(message)s"
     )
     app()
+1
