@@ -1,6 +1,7 @@
 import pytest
 from dataclasses import dataclass, asdict
 
+from aleph_client.chains.common import delete_private_key_file
 from aleph_client.chains.ethereum import ETHAccount, get_fallback_account
 
 @dataclass
@@ -12,6 +13,7 @@ class Message:
 
 
 def test_get_fallback_account():
+    delete_private_key_file()
     account: ETHAccount = get_fallback_account()
 
     assert account.CHAIN == "ETH"
