@@ -9,6 +9,7 @@ from nacl.signing import VerifyKey
 from aleph_client.chains.common import delete_private_key_file, get_verification_buffer
 from aleph_client.chains.sol import SOLAccount, get_fallback_account
 
+
 @dataclass
 class Message:
     chain: str
@@ -22,8 +23,10 @@ def test_get_fallback_account():
     account: SOLAccount = get_fallback_account()
 
     assert account.CHAIN == "SOL"
-    assert account.CURVE == "ed25519"
+    assert account.CURVE == "curve25519"
     assert account._signing_key.verify_key
+    assert type(account.private_key) == bytes
+    assert len(account.private_key) == 32
 
 
 @pytest.mark.asyncio
@@ -38,7 +41,7 @@ async def test_SOLAccount():
     address = message["sender"]
     assert address
     assert type(address) == str
-    assert len(address) == 44
+    # assert len(address) == 44  # can also be 43?
     signature = json.loads(message['signature'])
 
     pubkey = base58.b58decode(signature['publicKey'])
@@ -53,3 +56,17 @@ async def test_SOLAccount():
 
     assert verif == verification_buffer
     assert message['sender'] == signature['publicKey']
+
+
+@pytest.mark.asyncio
+async def test_decrypt_curve25516():
+    account: SOLAccount = get_fallback_account()
+
+    assert account.CURVE == "curve25519"
+    content = b"SomeContent"
+
+    encrypted = await account.encrypt(content)
+    assert type(encrypted) == bytes
+    decrypted = await account.decrypt(encrypted)
+    assert type(decrypted) == bytes
+    assert content == decrypted
