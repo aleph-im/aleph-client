@@ -55,6 +55,13 @@ class BaseAccount:
     def get_public_key(self) -> str:
         raise NotImplementedError
 
+    async def encrypt(self, content) -> bytes:
+        if self.CURVE == "secp256k1":
+            value: bytes = encrypt(self.get_public_key(), content)
+            return value
+        else:
+            raise NotImplementedError
+
     async def decrypt(self, content) -> bytes:
         if self.CURVE == "secp256k1":
             value: bytes = decrypt(self.private_key, content)
