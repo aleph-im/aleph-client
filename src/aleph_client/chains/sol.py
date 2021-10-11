@@ -2,6 +2,7 @@ import json
 from typing import Dict
 
 from nacl.signing import SigningKey
+from nacl.public import PublicKey, PrivateKey, SealedBox
 import base58
 
 from .common import (
@@ -18,12 +19,14 @@ def encode(item):
 
 class SOLAccount(BaseAccount):
     CHAIN = "SOL"
-    CURVE = "ed25519"
+    CURVE = "curve25519"
     _signing_key: SigningKey
+    _private_key: PrivateKey
 
     def __init__(self, private_key=None):
         self.private_key = private_key
         self._signing_key = SigningKey(self.private_key)
+        self._private_key = self._signing_key.to_curve25519_private_key()
 
     async def sign_message(self, message: Dict) -> Dict:
         """Sign a message inplace.
@@ -39,7 +42,15 @@ class SOLAccount(BaseAccount):
         return encode(self._signing_key.verify_key)
 
     def get_public_key(self) -> str:
-        return self.get_address()
+        return bytes(self._signing_key.verify_key.to_curve25519_public_key()).hex()
+
+    async def encrypt(self, content) -> bytes:
+        value: bytes = bytes(SealedBox(self._private_key.public_key).encrypt(content))
+        return value
+
+    async def decrypt(self, content) -> bytes:
+        value: bytes = SealedBox(self._private_key).decrypt(content)
+        return value
 
 
 def get_fallback_account() -> SOLAccount:

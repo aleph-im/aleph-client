@@ -3,11 +3,7 @@ from abc import abstractmethod
 from typing import Union, Dict
 
 from coincurve import PrivateKey
-from ecies import decrypt
-from nacl.public import (
-    Box as NaClBox,
-    PrivateKey as NaClPrivateKey
-)
+from ecies import decrypt, encrypt
 
 # In case we don't want to bother with handling private key ourselves
 # do an ugly and insecure write and read from disk to this file.
@@ -65,10 +61,6 @@ class BaseAccount:
     async def decrypt(self, content) -> bytes:
         if self.CURVE == "secp256k1":
             value: bytes = decrypt(self.private_key, content)
-            return value
-        elif self.CURVE == "ed25519":
-            pkey = NaClPrivateKey(self.private_key)
-            value: bytes = NaClBox(pkey, pkey.public_key).decode(content)
             return value
         else:
             raise NotImplementedError
