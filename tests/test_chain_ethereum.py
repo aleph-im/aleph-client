@@ -38,3 +38,17 @@ async def test_ETHAccount():
     pubkey = account.get_public_key()
     assert type(pubkey) == str
     assert len(pubkey) == 68
+
+
+@pytest.mark.asyncio
+async def test_decrypt_secp256k1():
+    account: ETHAccount = get_fallback_account()
+
+    assert account.CURVE == "secp256k1"
+    content = b"SomeContent"
+
+    encrypted = await account.encrypt(content)
+    assert type(encrypted) == bytes
+    decrypted = await account.decrypt(encrypted)
+    assert type(decrypted) == bytes
+    assert content == decrypted
