@@ -1,6 +1,7 @@
 import pytest
 from dataclasses import dataclass, asdict
 
+from aleph_client.chains.common import delete_private_key_file
 from aleph_client.chains.ethereum import ETHAccount, get_fallback_account
 
 @dataclass
@@ -12,6 +13,7 @@ class Message:
 
 
 def test_get_fallback_account():
+    delete_private_key_file()
     account: ETHAccount = get_fallback_account()
 
     assert account.CHAIN == "ETH"
@@ -36,3 +38,17 @@ async def test_ETHAccount():
     pubkey = account.get_public_key()
     assert type(pubkey) == str
     assert len(pubkey) == 68
+
+
+@pytest.mark.asyncio
+async def test_decrypt_secp256k1():
+    account: ETHAccount = get_fallback_account()
+
+    assert account.CURVE == "secp256k1"
+    content = b"SomeContent"
+
+    encrypted = await account.encrypt(content)
+    assert type(encrypted) == bytes
+    decrypted = await account.decrypt(encrypted)
+    assert type(decrypted) == bytes
+    assert content == decrypted

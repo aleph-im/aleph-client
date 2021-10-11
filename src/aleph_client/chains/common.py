@@ -1,8 +1,9 @@
+import os
 from abc import abstractmethod
 from typing import Union, Dict
 
 from coincurve import PrivateKey
-from ecies import decrypt
+from ecies import decrypt, encrypt
 
 # In case we don't want to bother with handling private key ourselves
 # do an ugly and insecure write and read from disk to this file.
@@ -50,6 +51,13 @@ class BaseAccount:
     def get_public_key(self) -> str:
         raise NotImplementedError
 
+    async def encrypt(self, content) -> bytes:
+        if self.CURVE == "secp256k1":
+            value: bytes = encrypt(self.get_public_key(), content)
+            return value
+        else:
+            raise NotImplementedError
+
     async def decrypt(self, content) -> bytes:
         if self.CURVE == "secp256k1":
             value: bytes = decrypt(self.private_key, content)
@@ -75,3 +83,7 @@ def get_fallback_private_key() -> bytes:
             prvfile.write(private_key)
 
     return private_key
+
+
+def delete_private_key_file():
+    os.remove(PRIVATE_KEY_FILE)
