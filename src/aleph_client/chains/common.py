@@ -86,4 +86,7 @@ def get_fallback_private_key() -> bytes:
 
 
 def delete_private_key_file():
-    os.remove(PRIVATE_KEY_FILE)
+    try:
+        os.remove(PRIVATE_KEY_FILE)
+    except FileNotFoundError:
+        pass
