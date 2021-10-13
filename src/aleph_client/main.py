@@ -9,6 +9,7 @@ from .asynchronous import (
     sync_create_store as create_store,
     sync_submit as submit,
     sync_fetch_aggregate as fetch_aggregate,
+    sync_fetch_aggregates as fetch_aggregates,
     sync_get_posts as get_posts,
     sync_get_messages as get_messages,
 )

@@ -10,4 +10,10 @@ except DistributionNotFound:
 finally:
     del get_distribution, DistributionNotFound
 
-from .main import create_post, create_aggregate
+from .main import (
+    create_post,
+    create_aggregate,
+    get_posts,
+    fetch_aggregate,
+    fetch_aggregates
+)
