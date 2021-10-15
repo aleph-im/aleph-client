@@ -484,8 +484,6 @@ async def get_messages(
 
 
 async def watch_messages(
-    pagination: int = 200,
-    page: int = 1,
     message_type: Optional[str] = None,
     content_types: Optional[Iterable[str]] = None,
     refs: Optional[Iterable[str]] = None,
@@ -504,7 +502,7 @@ async def watch_messages(
 
     session = session or get_fallback_session()
 
-    params: Dict[str, Any] = dict(pagination=pagination, page=page)
+    params: Dict[str, Any] = dict()
 
     if message_type is not None:
         params["msgType"] = message_type
