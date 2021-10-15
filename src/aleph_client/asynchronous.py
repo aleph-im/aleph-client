@@ -173,7 +173,7 @@ async def create_post(
     account: Account,
     post_content,
     post_type: str,
-    ref=None,
+    ref: Optional[str] = None,
     address: Optional[str] = settings.ADDRESS_TO_USE,
     channel: str = "TEST",
     session: Optional[ClientSession] = None,
