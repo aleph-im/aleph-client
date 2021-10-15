@@ -3,8 +3,10 @@
 
 import warnings
 
-warnings.warn("`aleph_client.main` is deprecated and will be removed. "
-              "Use `aleph_client.synchronous` instead.",
-              DeprecationWarning)
+warnings.warn(
+    "`aleph_client.main` is deprecated and will be removed. "
+    "Use `aleph_client.synchronous` instead.",
+    DeprecationWarning,
+)
 
 from .synchronous import *
