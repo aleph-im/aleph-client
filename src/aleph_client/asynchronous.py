@@ -115,9 +115,16 @@ async def broadcast(
         response.raise_for_status()
         result = await response.json()
         if result["status"] == "warning":
-            if "failed" in result:
+            if result.get("failed"):
                 # Requires recent version of Pyaleph
-                logger.warning(f"Message failed to publish on {result.get('failed')}")
+                if result["failed"] == ["p2p"]:
+                    logger.info(
+                        f"Message published on IPFS but failed to publish on P2P"
+                    )
+                else:
+                    logger.warning(
+                        f"Message published but failed on {result.get('failed')}"
+                    )
             else:
                 logger.warning(f"Message failed to publish on IPFS and/or P2P")
         return result.get("value")
