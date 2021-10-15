@@ -30,4 +30,4 @@ jobs:
 
       - name: MyPy in the Docker image
         run: |
-          docker run aleph-client:${GITHUB_REF##*/} mypy ./src/ --exclude chains --ignore-missing-imports
+          docker run aleph-client:${GITHUB_REF##*/} mypy ./src/ --ignore-missing-imports
