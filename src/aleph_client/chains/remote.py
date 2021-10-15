@@ -39,10 +39,12 @@ class RemoteAccount(BaseAccount):
     @classmethod
     async def from_crypto_host(
         cls,
-        host: str = settings.REMOTE_CRYPTO_HOST,
+        host: Optional[str] = settings.REMOTE_CRYPTO_HOST,
         unix_socket: Optional[str] = settings.REMOTE_CRYPTO_UNIX_SOCKET,
         session: Optional[ClientSession] = None,
     ):
+        if not host:
+            raise TypeError("from_crypto_host() missing require argument: 'host'")
 
         if not session:
             connector = aiohttp.UnixConnector(path=unix_socket) if unix_socket else None
