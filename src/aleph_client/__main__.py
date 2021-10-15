@@ -61,26 +61,32 @@ def _load_account(
         else:
             raise ValueError("Choose between a private key or a file, not both")
     elif private_key_file:
-        with open(private_key_file, 'rb') as pk_fd:
+        with open(private_key_file, "rb") as pk_fd:
             private_key: bytes = pk_fd.read()
         return ETHAccount(private_key)
     else:
         if settings.REMOTE_CRYPTO_HOST:
             logger.debug("Using remote account")
             loop = asyncio.get_event_loop()
-            return loop.run_until_complete(RemoteAccount.from_crypto_host(
-                host=settings.REMOTE_CRYPTO_HOST,
-                unix_socket=settings.REMOTE_CRYPTO_UNIX_SOCKET))
+            return loop.run_until_complete(
+                RemoteAccount.from_crypto_host(
+                    host=settings.REMOTE_CRYPTO_HOST,
+                    unix_socket=settings.REMOTE_CRYPTO_UNIX_SOCKET,
+                )
+            )
         else:
             private_key = get_fallback_private_key()
             account: ETHAccount = ETHAccount(private_key=private_key)
-            logger.info(f"Generated fallback private key with address {account.get_address()}")
+            logger.info(
+                f"Generated fallback private key with address {account.get_address()}"
+            )
             return account
+
 
 def _is_zip_valid(path: str):
     try:
         with open(path, "rb") as archive_file:
-            with ZipFile(archive_file, 'r') as archive:
+            with ZipFile(archive_file, "r") as archive:
                 if not archive.namelist():
                     echo("No file in the archive.")
         return True
@@ -145,7 +151,7 @@ def upload(
     channel: str = "TEST",
     private_key: Optional[str] = settings.PRIVATE_KEY_STRING,
     private_key_file: Optional[str] = settings.PRIVATE_KEY_FILE,
-    ref: Optional[str] = None
+    ref: Optional[str] = None,
 ):
     """Upload and store a file on Aleph.im."""
 
@@ -206,7 +212,7 @@ def pin(
         asyncio.get_event_loop().run_until_complete(get_fallback_session().close())
 
 
-def yes_no_input(text: str, default: Optional[bool]=None):
+def yes_no_input(text: str, default: Optional[bool] = None):
     while True:
         if default is True:
             response = input(f"{text} [Y/n] ")
@@ -215,11 +221,11 @@ def yes_no_input(text: str, default: Optional[bool]=None):
         else:
             response = input(f"{text} ")
 
-        if response.lower() in ('y', 'yes'):
+        if response.lower() in ("y", "yes"):
             return True
-        elif response.lower() in ('n', 'no'):
+        elif response.lower() in ("n", "no"):
             return False
-        elif response == '' and default is not None:
+        elif response == "" and default is not None:
             return default
         else:
             if default is None:
@@ -257,17 +263,17 @@ def _prompt_for_volumes():
 
 @app.command()
 def program(
-        path: str,
-        entrypoint: str,
-        channel: str = "TEST",
-        memory: int = settings.DEFAULT_VM_MEMORY,
-        private_key: Optional[str] = settings.PRIVATE_KEY_STRING,
-        private_key_file: Optional[str] = settings.PRIVATE_KEY_FILE,
-        print_messages: bool = False,
-        print_code_message: bool = False,
-        print_program_message: bool = False,
-        runtime: str = None,
-        beta: bool = False,
+    path: str,
+    entrypoint: str,
+    channel: str = "TEST",
+    memory: int = settings.DEFAULT_VM_MEMORY,
+    private_key: Optional[str] = settings.PRIVATE_KEY_STRING,
+    private_key_file: Optional[str] = settings.PRIVATE_KEY_FILE,
+    print_messages: bool = False,
+    print_code_message: bool = False,
+    print_program_message: bool = False,
+    runtime: str = None,
+    beta: bool = False,
 ):
     """Register a program to run on Aleph.im virtual machines from a zip archive."""
 
@@ -283,12 +289,13 @@ def program(
             encoding = Encoding.squashfs
         else:
             logger.debug("Creating zip archive...")
-            make_archive(path, 'zip', path)
-            path = path + '.zip'
+            make_archive(path, "zip", path)
+            path = path + ".zip"
             encoding = Encoding.zip
     elif os.path.isfile(path):
-        if path.endswith(".squashfs") \
-                or (magic and magic.from_file(path).startswith("Squashfs filesystem")):
+        if path.endswith(".squashfs") or (
+            magic and magic.from_file(path).startswith("Squashfs filesystem")
+        ):
             encoding = Encoding.squashfs
         elif _is_zip_valid(path):
             encoding = Encoding.zip
@@ -300,9 +307,11 @@ def program(
 
     account = _load_account(private_key, private_key_file)
 
-    runtime = (runtime
-               or input(f"Ref of runtime ? [{settings.DEFAULT_RUNTIME_ID}] ")
-               or settings.DEFAULT_RUNTIME_ID)
+    runtime = (
+        runtime
+        or input(f"Ref of runtime ? [{settings.DEFAULT_RUNTIME_ID}] ")
+        or settings.DEFAULT_RUNTIME_ID
+    )
 
     volumes = []
     for volume in _prompt_for_volumes():
@@ -327,7 +336,9 @@ def program(
             # TODO: Read in lazy mode instead of copying everything in memory
             file_content = fd.read()
             storage_engine = (
-                StorageEnum.ipfs if len(file_content) > 4 * 1024 * 1024 else StorageEnum.storage
+                StorageEnum.ipfs
+                if len(file_content) > 4 * 1024 * 1024
+                else StorageEnum.storage
             )
             logger.debug("Uploading file")
             result = synchronous.create_store(
@@ -360,16 +371,17 @@ def program(
         if print_messages or print_program_message:
             echo(f"{json.dumps(result, indent=4)}")
 
-        hash: str = result['item_hash']
-        hash_base32 = b32encode(b16decode(hash.upper())).strip(b'=').lower().decode()
+        hash: str = result["item_hash"]
+        hash_base32 = b32encode(b16decode(hash.upper())).strip(b"=").lower().decode()
 
-        echo(f"Your program has been uploaded on Aleph .\n\n"
-             "Available on:\n"
-             f"  {settings.VM_URL_PATH.format(hash=hash)}\n"
-             f"  {settings.VM_URL_HOST.format(hash_base32=hash_base32)}\n"
-             "Visualise on:\n  https://explorer.aleph.im/address/"
-             f"{result['chain']}/{result['sender']}/message/PROGRAM/{hash}\n"
-             )
+        echo(
+            f"Your program has been uploaded on Aleph .\n\n"
+            "Available on:\n"
+            f"  {settings.VM_URL_PATH.format(hash=hash)}\n"
+            f"  {settings.VM_URL_HOST.format(hash_base32=hash_base32)}\n"
+            "Visualise on:\n  https://explorer.aleph.im/address/"
+            f"{result['chain']}/{result['sender']}/message/PROGRAM/{hash}\n"
+        )
 
     finally:
         # Prevent aiohttp unclosed connector warning
@@ -378,11 +390,11 @@ def program(
 
 @app.command()
 def update(
-        hash: str,
-        path: str,
-        private_key: Optional[str] = settings.PRIVATE_KEY_STRING,
-        private_key_file: Optional[str] = settings.PRIVATE_KEY_FILE,
-        print_message: bool = True,
+    hash: str,
+    path: str,
+    private_key: Optional[str] = settings.PRIVATE_KEY_STRING,
+    private_key_file: Optional[str] = settings.PRIVATE_KEY_FILE,
+    print_message: bool = True,
 ):
     """Update the code of an existing program"""
 
@@ -390,11 +402,11 @@ def update(
 
     try:
         raw_program_message = synchronous.get_messages(hashes=[hash])
-        program_message = ProgramMessage(**raw_program_message['messages'][0])
+        program_message = ProgramMessage(**raw_program_message["messages"][0])
         code_ref = program_message.content.code.ref
 
         raw_code_message = synchronous.get_messages(hashes=[code_ref])
-        code_message = StoreMessage(**raw_code_message['messages'][0])
+        code_message = StoreMessage(**raw_code_message["messages"][0])
 
         # Create a zip archive from a directory
         if os.path.isdir(path):
@@ -406,12 +418,13 @@ def update(
                 encoding = Encoding.squashfs
             else:
                 logger.debug("Creating zip archive...")
-                make_archive(path, 'zip', path)
-                path = path + '.zip'
+                make_archive(path, "zip", path)
+                path = path + ".zip"
                 encoding = Encoding.zip
         elif os.path.isfile(path):
-            if path.endswith(".squashfs") \
-                    or (magic and magic.from_file(path).startswith("Squashfs filesystem")):
+            if path.endswith(".squashfs") or (
+                magic and magic.from_file(path).startswith("Squashfs filesystem")
+            ):
                 encoding = Encoding.squashfs
             elif _is_zip_valid(path):
                 encoding = Encoding.zip
@@ -422,7 +435,9 @@ def update(
             raise typer.Exit(4)
 
         if encoding != program_message.content.code.encoding:
-            logger.error("Code must be encoded with the same encoding as the previous version")
+            logger.error(
+                "Code must be encoded with the same encoding as the previous version"
+            )
             raise typer.Exit(1)
 
         # Upload the source code
@@ -447,23 +462,22 @@ def update(
         asyncio.get_event_loop().run_until_complete(get_fallback_session().close())
 
 
-
 @app.command()
 def amend(
-        hash: str,
-        private_key: Optional[str] = settings.PRIVATE_KEY_STRING,
-        private_key_file: Optional[str] = settings.PRIVATE_KEY_FILE,
+    hash: str,
+    private_key: Optional[str] = settings.PRIVATE_KEY_STRING,
+    private_key_file: Optional[str] = settings.PRIVATE_KEY_FILE,
 ):
     """Amend an existing Aleph message."""
     account = _load_account(private_key, private_key_file)
 
     existing = synchronous.get_messages(hashes=[hash])
-    existing_message = existing['messages'][0]
+    existing_message = existing["messages"][0]
 
-    editor: str = os.getenv('EDITOR', default='nano')
-    with tempfile.NamedTemporaryFile(suffix='json') as fd:
+    editor: str = os.getenv("EDITOR", default="nano")
+    with tempfile.NamedTemporaryFile(suffix="json") as fd:
         # Fill in message template
-        fd.write(json.dumps(existing_message['content'], indent=4).encode())
+        fd.write(json.dumps(existing_message["content"], indent=4).encode())
         fd.seek(0)
 
         # Launch editor
@@ -474,33 +488,29 @@ def amend(
         new_message = fd.read()
 
     new_content = json.loads(new_message)
-    new_content['ref'] = existing_message['item_hash']
+    new_content["ref"] = existing_message["item_hash"]
     print(new_content)
     synchronous.submit(
         account=account,
         content=new_content,
-        message_type=existing_message['type'],
-        channel=existing_message['channel'],
+        message_type=existing_message["type"],
+        channel=existing_message["channel"],
     )
 
 
 @app.command()
-def watch(
-        ref: str,
-        indent: Optional[int] = None
-):
+def watch(ref: str, indent: Optional[int] = None):
     """Watch a hash for amends and print amend hashes"""
 
-    original_json = synchronous.get_messages(hashes=[ref])['messages'][0]
+    original_json = synchronous.get_messages(hashes=[ref])["messages"][0]
     original = Message(**original_json)
 
-    for message in synchronous.watch_messages(refs=[ref], addresses=[original.content.address]):
+    for message in synchronous.watch_messages(
+        refs=[ref], addresses=[original.content.address]
+    ):
         print(json.dumps(message, indent=indent))
 
 
 if __name__ == "__main__":
-    logging.basicConfig(
-        level=logging.DEBUG,
-        format="%(levelname)s: %(message)s"
-    )
+    logging.basicConfig(level=logging.DEBUG, format="%(levelname)s: %(message)s")
     app()

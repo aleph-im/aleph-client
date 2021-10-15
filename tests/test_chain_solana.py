@@ -42,9 +42,9 @@ async def test_SOLAccount():
     assert address
     assert type(address) == str
     # assert len(address) == 44  # can also be 43?
-    signature = json.loads(message['signature'])
+    signature = json.loads(message["signature"])
 
-    pubkey = base58.b58decode(signature['publicKey'])
+    pubkey = base58.b58decode(signature["publicKey"])
     assert type(pubkey) == bytes
     assert len(pubkey) == 32
 
@@ -52,10 +52,12 @@ async def test_SOLAccount():
     verify_key = VerifyKey(pubkey)
     verification_buffer = get_verification_buffer(message)
     assert get_verification_buffer(initial_message) == verification_buffer
-    verif = verify_key.verify(verification_buffer, signature=base58.b58decode(signature['signature']))
+    verif = verify_key.verify(
+        verification_buffer, signature=base58.b58decode(signature["signature"])
+    )
 
     assert verif == verification_buffer
-    assert message['sender'] == signature['publicKey']
+    assert message["sender"] == signature["publicKey"]
 
 
 @pytest.mark.asyncio

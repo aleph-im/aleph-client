@@ -14,13 +14,11 @@ def test_app():
 
     # Call the app with an ASGI context
     scope = {
-        'type': "aleph.message",
+        "type": "aleph.message",
     }
 
     async def receive():
-        return {'type': 'aleph.message',
-                'body': b"BODY",
-                'more_body': False}
+        return {"type": "aleph.message", "body": b"BODY", "more_body": False}
 
     send_queue: asyncio.Queue = asyncio.Queue()
 

@@ -14,7 +14,7 @@ from .common import (
 
 
 def encode(item):
-    return base58.b58encode(bytes(item)).decode('ascii')
+    return base58.b58encode(bytes(item)).decode("ascii")
 
 
 class SOLAccount(BaseAccount):
@@ -29,12 +29,13 @@ class SOLAccount(BaseAccount):
         self._private_key = self._signing_key.to_curve25519_private_key()
 
     async def sign_message(self, message: Dict) -> Dict:
-        """Sign a message inplace.
-        """
+        """Sign a message inplace."""
         message = self._setup_sender(message)
         verif = get_verification_buffer(message)
-        sig = {"publicKey": self.get_address(),
-               "signature": encode(self._signing_key.sign(verif).signature)}
+        sig = {
+            "publicKey": self.get_address(),
+            "signature": encode(self._signing_key.sign(verif).signature),
+        }
         message["signature"] = json.dumps(sig)
         return message
 
