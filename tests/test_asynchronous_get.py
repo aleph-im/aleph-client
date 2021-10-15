@@ -1,6 +1,7 @@
 import pytest
-from aleph_client.asynchronous import get_messages, fetch_aggregates, get_fallback_session, \
-    fetch_aggregate, _get_fallback_session
+
+from aleph_client.asynchronous import get_messages, fetch_aggregates, fetch_aggregate, \
+    _get_fallback_session
 
 
 @pytest.mark.asyncio

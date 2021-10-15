@@ -19,11 +19,11 @@ from typer import echo
 
 from .asynchronous import (
     get_fallback_session,
-    sync_create_store,
-    sync_create_post, sync_create_program,
     StorageEnum,
-    magic, sync_get_messages, sync_submit, sync_watch_messages,
+    magic,
 )
+from . import synchronous
+
 from .chains.common import get_fallback_private_key, BaseAccount
 from .chains.ethereum import ETHAccount
 from .chains.remote import RemoteAccount
@@ -124,7 +124,7 @@ def post(
             raise typer.Exit(code=2)
 
     try:
-        result = sync_create_post(
+        result = synchronous.create_post(
             account=account,
             post_content=content,
             post_type=type,
@@ -164,7 +164,7 @@ def upload(
                 "ipfs" if len(file_content) > 4 * 1024 * 1024 else "storage"
             )
             logger.debug("Uploading file")
-            result = sync_create_store(
+            result = synchronous.create_store(
                 account=account,
                 file_content=file_content,
                 storage_engine=storage_engine,
@@ -192,7 +192,7 @@ def pin(
     account = _load_account(private_key, private_key_file)
 
     try:
-        result = sync_create_store(
+        result = synchronous.create_store(
             account=account,
             file_hash=hash,
             storage_engine="ipfs",
@@ -330,7 +330,7 @@ def program(
                 StorageEnum.ipfs if len(file_content) > 4 * 1024 * 1024 else StorageEnum.storage
             )
             logger.debug("Uploading file")
-            result = sync_create_store(
+            result = synchronous.create_store(
                 account=account,
                 file_content=file_content,
                 storage_engine=storage_engine,
@@ -344,7 +344,7 @@ def program(
             program_ref = result["item_hash"]
 
         # Register the program
-        result = sync_create_program(
+        result = synchronous.create_program(
             account=account,
             program_ref=program_ref,
             entrypoint=entrypoint,
@@ -389,11 +389,11 @@ def update(
     account = _load_account(private_key, private_key_file)
 
     try:
-        raw_program_message = sync_get_messages(hashes=[hash])
+        raw_program_message = synchronous.get_messages(hashes=[hash])
         program_message = ProgramMessage(**raw_program_message['messages'][0])
         code_ref = program_message.content.code.ref
 
-        raw_code_message = sync_get_messages(hashes=[code_ref])
+        raw_code_message = synchronous.get_messages(hashes=[code_ref])
         code_message = StoreMessage(**raw_code_message['messages'][0])
 
         # Create a zip archive from a directory
@@ -431,7 +431,7 @@ def update(
             # TODO: Read in lazy mode instead of copying everything in memory
             file_content = fd.read()
             logger.debug("Uploading file")
-            result = sync_create_store(
+            result = synchronous.create_store(
                 account=account,
                 file_content=file_content,
                 storage_engine=code_message.content.item_type,
@@ -457,7 +457,7 @@ def amend(
     """Amend an existing Aleph message."""
     account = _load_account(private_key, private_key_file)
 
-    existing = sync_get_messages(hashes=[hash])
+    existing = synchronous.get_messages(hashes=[hash])
     existing_message = existing['messages'][0]
 
     editor: str = os.getenv('EDITOR', default='nano')
@@ -476,7 +476,7 @@ def amend(
     new_content = json.loads(new_message)
     new_content['ref'] = existing_message['item_hash']
     print(new_content)
-    sync_submit(
+    synchronous.submit(
         account=account,
         content=new_content,
         message_type=existing_message['type'],
@@ -491,10 +491,10 @@ def watch(
 ):
     """Watch a hash for amends and print amend hashes"""
 
-    original_json = sync_get_messages(hashes=[ref])['messages'][0]
+    original_json = synchronous.get_messages(hashes=[ref])['messages'][0]
     original = Message(**original_json)
 
-    for message in sync_watch_messages(refs=[ref], addresses=[original.content.address]):
+    for message in synchronous.watch_messages(refs=[ref], addresses=[original.content.address]):
         print(json.dumps(message, indent=indent))
 
 
@@ -504,4 +504,3 @@ if __name__ == "__main__":
         format="%(levelname)s: %(message)s"
     )
     app()
-1

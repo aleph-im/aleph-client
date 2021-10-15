@@ -7,57 +7,28 @@ import logging
 import queue
 import threading
 import time
-from abc import abstractmethod
 from datetime import datetime
-from enum import Enum
 from functools import lru_cache
 
 from yarl import URL
+
+from aleph_client.types import Account, StorageEnum
 
 logger = logging.getLogger(__name__)
 
 try:
     import magic  # type:ignore
 except ImportError:
-    logger.warning("Could not import library 'magic'")
+    logger.info("Could not import library 'magic', MIME type detection disabled")
     magic = None  # type:ignore
 
 from .conf import settings
 from typing import Optional, Iterable, Union, Any, Dict, List, AsyncIterable
-from typing_extensions import Protocol  # Python < 3.8
 
 import aiohttp
 from aiohttp import ClientSession
 
 from aleph_message.models.program import ProgramContent, Encoding  # type: ignore
-
-
-class StorageEnum(str, Enum):
-    ipfs = "ipfs"
-    storage = "storage"
-
-
-# Use a protocol to avoid importing crypto libraries
-class Account(Protocol):
-    CHAIN: str
-    CURVE: str
-    private_key: Union[str, bytes]
-
-    @abstractmethod
-    async def sign_message(self, message: Dict) -> Dict:
-        ...
-
-    @abstractmethod
-    def get_address(self) -> str:
-        ...
-
-    @abstractmethod
-    def get_public_key(self) -> str:
-        ...
-
-    @abstractmethod
-    async def decrypt(self, content) -> bytes:
-        ...
 
 
 @lru_cache()
@@ -74,14 +45,6 @@ def get_fallback_session() -> ClientSession:
     return _get_fallback_session(thread_id=thread_id)
 
 
-def wrap_async(func):
-    def func_caller(*args, **kwargs):
-        loop = asyncio.get_event_loop()
-        return loop.run_until_complete(func(*args, **kwargs))
-
-    return func_caller
-
-
 async def ipfs_push(
     content, session: Optional[ClientSession] = None, api_server: str = settings.API_HOST
 ) -> str:
@@ -90,9 +53,6 @@ async def ipfs_push(
     async with session.post(f"{api_server}/api/v0/ipfs/add_json", json=content) as resp:
         resp.raise_for_status()
         return (await resp.json()).get("hash")
-
-
-sync_ipfs_push = wrap_async(ipfs_push)
 
 
 async def storage_push(
@@ -105,9 +65,6 @@ async def storage_push(
     ) as resp:
         resp.raise_for_status()
         return (await resp.json()).get("hash")
-
-
-sync_storage_push = wrap_async(storage_push)
 
 
 async def ipfs_push_file(
@@ -125,9 +82,6 @@ async def ipfs_push_file(
         return (await resp.json()).get("hash")
 
 
-sync_ipfs_push_file = wrap_async(ipfs_push_file)
-
-
 async def storage_push_file(
     file_content,
     session: Optional[ClientSession] = None,
@@ -141,9 +95,6 @@ async def storage_push_file(
     async with session.post(f"{api_server}/api/v0/storage/add_file", data=data) as resp:
         resp.raise_for_status()
         return (await resp.json()).get("hash")
-
-
-sync_storage_push_file = wrap_async(storage_push_file)
 
 
 async def broadcast(
@@ -163,10 +114,7 @@ async def broadcast(
                 logger.warning(f"Message failed to publish on {result.get('failed')}")
             else:
                 logger.warning(f"Message failed to publish on IPFS and/or P2P")
-        return (result).get("value")
-
-
-sync_broadcast = wrap_async(broadcast)
+        return result.get("value")
 
 
 async def create_post(
@@ -204,9 +152,6 @@ async def create_post(
     )
 
 
-sync_create_post = wrap_async(create_post)
-
-
 async def create_aggregate(
     account: Account,
     key,
@@ -227,9 +172,6 @@ async def create_aggregate(
         api_server=api_server,
         session=session,
     )
-
-
-sync_create_aggregate = wrap_async(create_aggregate)
 
 
 async def create_store(
@@ -289,9 +231,6 @@ async def create_store(
         session=session,
         inline=True,
     )
-
-
-sync_create_store = wrap_async(create_store)
 
 
 async def create_program(
@@ -380,38 +319,6 @@ async def create_program(
     )
 
 
-def sync_create_program(
-        account: Account,
-        program_ref: str,
-        entrypoint: str,
-        runtime: str,
-        storage_engine: StorageEnum = StorageEnum.storage,
-        channel: str = "TEST",
-        address: Optional[str] = settings.ADDRESS_TO_USE,
-        session: Optional[ClientSession] = None,
-        api_server: str = settings.API_HOST,
-        memory: int = settings.DEFAULT_VM_MEMORY,
-        encoding: Encoding = Encoding.zip,
-        volumes: List[Dict] = None,
-        subscriptions: Optional[List[Dict]] = None,
-):
-    return wrap_async(create_program)(
-        account=account,
-        program_ref=program_ref,
-        entrypoint=entrypoint,
-        runtime=runtime,
-        storage_engine=storage_engine,
-        channel=channel,
-        address=address,
-        session=session,
-        api_server=api_server,
-        memory=memory,
-        encoding=encoding,
-        volumes=volumes,
-        subscriptions=subscriptions,
-    )
-
-
 async def submit(
     account: Account,
     content: dict,
@@ -452,9 +359,6 @@ async def submit(
     return message
 
 
-sync_submit = wrap_async(submit)
-
-
 async def fetch_aggregate(
     address: str,
     key,
@@ -467,9 +371,6 @@ async def fetch_aggregate(
         f"{api_server}/api/v0/aggregates/{address}.json?keys={key}"
     ) as resp:
         return (await resp.json()).get("data", dict()).get(key)
-
-
-sync_fetch_aggregate = wrap_async(fetch_aggregate)
 
 
 async def fetch_aggregates(
@@ -487,9 +388,6 @@ async def fetch_aggregates(
         f"{api_server}/api/v0/aggregates/{address}.json{query_string}"
     ) as resp:
         return (await resp.json()).get("data", dict())
-
-
-sync_fetch_aggregates = wrap_async(fetch_aggregates)
 
 
 async def get_posts(
@@ -535,9 +433,6 @@ async def get_posts(
     async with session.get(f"{api_server}/api/v0/posts.json", params=params) as resp:
         resp.raise_for_status()
         return await resp.json()
-
-
-sync_get_posts = wrap_async(get_posts)
 
 
 async def get_messages(
@@ -586,9 +481,6 @@ async def get_messages(
     async with session.get(f"{api_server}/api/v0/messages.json", params=params) as resp:
         resp.raise_for_status()
         return await resp.json()
-
-
-sync_get_messages = wrap_async(get_messages)
 
 
 async def watch_messages(
@@ -670,16 +562,3 @@ def _start_run_watch_messages(output_queue: queue.Queue, args: List, kwargs: Dic
     watcher = watch_messages(*args, **kwargs)
     runner = _run_watch_messages(watcher, output_queue)
     asyncio.new_event_loop().run_until_complete(runner)
-
-
-def sync_watch_messages(*args, **kwargs):
-    """
-    Iterate over current and future matching messages synchronously.
-
-    Runs the `watch_messages` asynchronous generator in a thread.
-    """
-    output_queue = queue.Queue()
-    thread = threading.Thread(target=_start_run_watch_messages, args=(output_queue, args, kwargs))
-    thread.start()
-    while True:
-        yield output_queue.get()
