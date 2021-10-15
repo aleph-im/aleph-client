@@ -4,6 +4,7 @@ from dataclasses import dataclass, asdict
 from aleph_client.chains.common import delete_private_key_file
 from aleph_client.chains.ethereum import ETHAccount, get_fallback_account
 
+
 @dataclass
 class Message:
     chain: str

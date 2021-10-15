@@ -241,10 +241,14 @@ class NulsSignature(BaseNulsData):
             self.parse(data)
 
     def __eq__(self, other):
-        return all(((self.pub_key == other.pub_key),
-                    (self.digest_bytes == other.digest_bytes),
-                    (self.sig_ser == other.sig_ser),
-                    (self.ecc_type == other.ecc_type)))
+        return all(
+            (
+                (self.pub_key == other.pub_key),
+                (self.digest_bytes == other.digest_bytes),
+                (self.sig_ser == other.sig_ser),
+                (self.ecc_type == other.ecc_type),
+            )
+        )
 
     def parse(self, buffer, cursor=0):
         pos, self.pub_key = read_by_length(buffer, cursor)

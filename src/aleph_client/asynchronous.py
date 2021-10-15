@@ -46,7 +46,9 @@ def get_fallback_session() -> ClientSession:
 
 
 async def ipfs_push(
-    content, session: Optional[ClientSession] = None, api_server: str = settings.API_HOST
+    content,
+    session: Optional[ClientSession] = None,
+    api_server: str = settings.API_HOST,
 ) -> str:
     session = session or get_fallback_session()
 
@@ -56,7 +58,9 @@ async def ipfs_push(
 
 
 async def storage_push(
-    content, session: Optional[ClientSession] = None, api_server: str = settings.API_HOST
+    content,
+    session: Optional[ClientSession] = None,
+    api_server: str = settings.API_HOST,
 ) -> str:
     session = session or get_fallback_session()
 
@@ -98,7 +102,9 @@ async def storage_push_file(
 
 
 async def broadcast(
-    message, session: Optional[ClientSession] = None, api_server: str = settings.API_HOST
+    message,
+    session: Optional[ClientSession] = None,
+    api_server: str = settings.API_HOST,
 ):
     session = session or get_fallback_session()
 
@@ -109,7 +115,7 @@ async def broadcast(
         response.raise_for_status()
         result = await response.json()
         if result["status"] == "warning":
-            if 'failed' in result:
+            if "failed" in result:
                 # Requires recent version of Pyaleph
                 logger.warning(f"Message failed to publish on {result.get('failed')}")
             else:
@@ -234,19 +240,19 @@ async def create_store(
 
 
 async def create_program(
-        account: Account,
-        program_ref: str,
-        entrypoint: str,
-        runtime: str,
-        storage_engine: StorageEnum = StorageEnum.storage,
-        channel: str = "TEST",
-        address: Optional[str] = settings.ADDRESS_TO_USE,
-        session: Optional[ClientSession] = None,
-        api_server: str = settings.API_HOST,
-        memory: int = settings.DEFAULT_VM_MEMORY,
-        encoding: Encoding = Encoding.zip,
-        volumes: List[Dict] = None,
-        subscriptions: Optional[List[Dict]] = None,
+    account: Account,
+    program_ref: str,
+    entrypoint: str,
+    runtime: str,
+    storage_engine: StorageEnum = StorageEnum.storage,
+    channel: str = "TEST",
+    address: Optional[str] = settings.ADDRESS_TO_USE,
+    session: Optional[ClientSession] = None,
+    api_server: str = settings.API_HOST,
+    memory: int = settings.DEFAULT_VM_MEMORY,
+    encoding: Encoding = Encoding.zip,
+    volumes: List[Dict] = None,
+    subscriptions: Optional[List[Dict]] = None,
 ):
     volumes = volumes if volumes is not None else []
 
@@ -257,41 +263,39 @@ async def create_program(
     ## Register the different ways to trigger a VM
     if subscriptions:
         # Trigger on HTTP calls and on Aleph message subscriptions.
-        triggers = {
-            "http": True,
-            "message": subscriptions
-        }
+        triggers = {"http": True, "message": subscriptions}
     else:
         # Trigger on HTTP calls.
         triggers = {"http": True}
 
-    content = ProgramContent(**{
-        "type": "vm-function",
-        "address": address,
-        "allow_amend": False,
-        "code": {
-            "encoding": encoding,
-            "entrypoint": entrypoint,
-            "ref": program_ref,
-            "use_latest": True,
-        },
-        "on": triggers,
-        "environment": {
-            "reproducible": False,
-            "internet": True,
-            "aleph_api": True,
-        },
-        "resources": {
-            "vcpus": 1,
-            "memory": memory,
-            "seconds": 30,
-        },
-        "runtime": {
-            "ref": runtime,
-            "use_latest": True,
-            "comment": "Aleph Alpine Linux with Python 3.8",
-        },
-        "volumes": volumes,
+    content = ProgramContent(
+        **{
+            "type": "vm-function",
+            "address": address,
+            "allow_amend": False,
+            "code": {
+                "encoding": encoding,
+                "entrypoint": entrypoint,
+                "ref": program_ref,
+                "use_latest": True,
+            },
+            "on": triggers,
+            "environment": {
+                "reproducible": False,
+                "internet": True,
+                "aleph_api": True,
+            },
+            "resources": {
+                "vcpus": 1,
+                "memory": memory,
+                "seconds": 30,
+            },
+            "runtime": {
+                "ref": runtime,
+                "use_latest": True,
+                "comment": "Aleph Alpine Linux with Python 3.8",
+            },
+            "volumes": volumes,
             # {
             #     "mount": "/opt/venv",
             #     "ref": "5f31b0706f59404fad3d0bff97ef89ddf24da4761608ea0646329362c662ba51",
@@ -304,8 +308,9 @@ async def create_program(
             #     "persistence": "host",
             #     "size_mib": 5
             # }
-        "time": time.time(),
-    })
+            "time": time.time(),
+        }
+    )
 
     return await submit(
         account=account,
@@ -539,7 +544,7 @@ async def watch_messages(
         logger.debug("Websocket connected")
         async for msg in ws:
             if msg.type == aiohttp.WSMsgType.TEXT:
-                if msg.data == 'close cmd':
+                if msg.data == "close cmd":
                     await ws.close()
                     break
                 else:
@@ -555,8 +560,7 @@ async def _run_watch_messages(coroutine: AsyncIterable, output_queue: queue.Queu
 
 
 def _start_run_watch_messages(output_queue: queue.Queue, args: List, kwargs: Dict):
-    """Thread entrypoint to run the `watch_messages` asynchronous generator in a thread.
-    """
+    """Thread entrypoint to run the `watch_messages` asynchronous generator in a thread."""
     watcher = watch_messages(*args, **kwargs)
     runner = _run_watch_messages(watcher, output_queue)
     asyncio.new_event_loop().run_until_complete(runner)

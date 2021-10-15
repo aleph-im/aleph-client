@@ -21,6 +21,7 @@ class AlephApp:
     """ASGI compatible wrapper for apps running inside Aleph Virtual Machines.
     The wrapper adds support to register functions to react to non-HTTP events.
     """
+
     http_app: Optional[AsgiApplication] = None
     event_handlers: List[EventHandler]
 
@@ -37,31 +38,34 @@ class AlephApp:
                 ...
         ```
         """
+
         def inner(func: Callable):
             # Register the event handler
-            event_handler = EventHandler(filters=filters,
-                                         handler=func)
+            event_handler = EventHandler(filters=filters, handler=func)
             self.event_handlers.append(event_handler)
             return func
+
         return inner
 
-    def __call__(self, scope: Dict, receive: Awaitable, send: Callable[[Dict], Awaitable]):
-        if scope['type'] in ("http", "websocket"):
+    def __call__(
+        self, scope: Dict, receive: Awaitable, send: Callable[[Dict], Awaitable]
+    ):
+        if scope["type"] in ("http", "websocket"):
             if self.http_app:
                 return self.http_app(scope=scope, receive=receive, send=send)
             else:
                 raise ValueError("No HTTP app registered")
-        elif scope['type'] == "aleph.message":
+        elif scope["type"] == "aleph.message":
             for event_handler in self.event_handlers:
                 if event_handler.matches(scope):
                     # event_handler.handler(scope=scope, receive=receive, send=send)
                     async def send_handler_result():
                         result = await event_handler.handler(event=scope)
                         await send(result)
+
                     return send_handler_result()
         else:
             raise ValueError(f"Unknown scope type '{scope['type']}'")
-
 
     def __getattr__(self, name):
         # Default all calls to the HTTP handler
