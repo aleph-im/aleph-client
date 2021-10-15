@@ -113,7 +113,7 @@ def read_by_length(buffer, cursor=0, check_size=True):
         size = 1
 
     value = buffer[cursor + size : cursor + size + length]
-    return (size + length, value)
+    return size + length, value
 
 
 def write_with_length(buffer):
