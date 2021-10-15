@@ -18,7 +18,7 @@ already have an asyncio loop used.
 Most chain specific code is synchronous, and core aleph.im interaction
 might by async.
 
-Sync code have to be imported from :py:mod:`aleph_client.main`,
+Sync code have to be imported from :py:mod:`aleph_client.synchronous`,
 async code from :py:mod:`aleph_client.asynchronous`, with
 same functions names.
 

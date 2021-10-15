@@ -18,7 +18,7 @@ Synchronous version:
 
 .. code-block:: python3
 
-    >>> from aleph_client.main import fetch_aggregate
+    >>> from aleph_client.synchronous import fetch_aggregate
     >>> fetch_aggregate("0x06DE0C46884EbFF46558Cd1a9e7DA6B1c3E9D0a8",
     ... "profile")
     {"bio": "tester", "name": "Moshe on Ethereum"}
@@ -35,7 +35,7 @@ asynchronous version (assumes you already have an account instanciated):
 
 .. code-block:: python3
 
-    >>> from aleph_client.main import create_aggregate, fetch_aggregate
+    >>> from aleph_client.synchronous import create_aggregate, fetch_aggregate
     >>> create_aggregate(
     ...    account, 'testkey', {'a': 1, 'b': 2}, channel='MY_CHANNEL')
     >>> fetch_aggregate(account.get_address(), 'testkey')

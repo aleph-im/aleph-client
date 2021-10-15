@@ -28,7 +28,7 @@ There is an helper for that: create_post.
 
 .. code-block:: python3
 
-    >>> from aleph_client.main import create_post
+    >>> from aleph_client.synchronous import create_post
     >>> create_post(account, {'content': 'test'}, post_type='testtype', channel='MY_CHANNEL')
     {'chain': 'NULS2',
      'channel': 'MY_CHANNEL',
