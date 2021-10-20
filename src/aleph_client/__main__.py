@@ -99,7 +99,7 @@ def _is_zip_valid(path: str):
 def post(
     path: Optional[str] = None,
     type: str = "test",
-    channel: str = "TEST",
+    channel: str = settings.DEFAULT_CHANNEL,
     private_key: Optional[str] = settings.PRIVATE_KEY_STRING,
     private_key_file: Optional[str] = settings.PRIVATE_KEY_FILE,
 ):
@@ -148,7 +148,7 @@ def post(
 @app.command()
 def upload(
     path: str,
-    channel: str = "TEST",
+    channel: str = settings.DEFAULT_CHANNEL,
     private_key: Optional[str] = settings.PRIVATE_KEY_STRING,
     private_key_file: Optional[str] = settings.PRIVATE_KEY_FILE,
     ref: Optional[str] = None,
@@ -188,7 +188,7 @@ def upload(
 @app.command()
 def pin(
     hash: str,
-    channel: str = "TEST",
+    channel: str = settings.DEFAULT_CHANNEL,
     private_key: Optional[str] = settings.PRIVATE_KEY_STRING,
     private_key_file: Optional[str] = settings.PRIVATE_KEY_FILE,
     ref: Optional[str] = None,
@@ -265,7 +265,7 @@ def _prompt_for_volumes():
 def program(
     path: str,
     entrypoint: str,
-    channel: str = "TEST",
+    channel: str = settings.DEFAULT_CHANNEL,
     memory: int = settings.DEFAULT_VM_MEMORY,
     private_key: Optional[str] = settings.PRIVATE_KEY_STRING,
     private_key_file: Optional[str] = settings.PRIVATE_KEY_FILE,
@@ -502,7 +502,7 @@ def amend(
 def forget(
     hashes: str,
     reason: Optional[str] = None,
-    channel: str = "TEST",
+    channel: str = settings.DEFAULT_CHANNEL,
     private_key: Optional[str] = settings.PRIVATE_KEY_STRING,
     private_key_file: Optional[str] = settings.PRIVATE_KEY_FILE,
 ):

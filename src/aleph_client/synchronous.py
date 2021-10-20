@@ -50,7 +50,7 @@ def create_program(
     entrypoint: str,
     runtime: str,
     storage_engine: StorageEnum = StorageEnum.storage,
-    channel: str = "TEST",
+    channel: str = settings.DEFAULT_CHANNEL,
     address: Optional[str] = settings.ADDRESS_TO_USE,
     session: Optional[ClientSession] = None,
     api_server: str = settings.API_HOST,
