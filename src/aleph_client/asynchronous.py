@@ -10,7 +10,8 @@ import time
 from datetime import datetime
 from functools import lru_cache
 
-from aleph_message.models import ForgetContent, MessageType
+from aleph_message.models import ForgetContent, MessageType, AggregateContent, PostContent, \
+    StoreContent
 from yarl import URL
 
 from aleph_client.types import Account, StorageEnum
@@ -145,19 +146,18 @@ async def create_post(
 ):
     address = address or account.get_address()
 
-    post = {
-        "type": post_type,
-        "address": address,
-        "content": post_content,
-        "time": time.time(),
-    }
-    if ref is not None:
-        post["ref"] = ref
+    content = PostContent(
+        type=post_type,
+        address=address,
+        content=post_content,
+        time=time.time(),
+        ref=ref,
+    )
 
     return await submit(
-        account,
-        post,
-        "POST",
+        account=account,
+        content=content.dict(exclude_none=True),
+        message_type=MessageType.post,
         channel=channel,
         api_server=api_server,
         session=session,
@@ -177,11 +177,17 @@ async def create_aggregate(
 ):
     address = address or account.get_address()
 
-    post = {"key": key, "address": address, "content": content, "time": time.time()}
+    content_ = AggregateContent(
+        key=key,
+        address=address,
+        content=content,
+        time=time.time(),
+    )
+
     return await submit(
-        account,
-        post,
-        "AGGREGATE",
+        account=account,
+        content=content_,
+        message_type=MessageType.aggregate,
         channel=channel,
         api_server=api_server,
         session=session,
@@ -227,19 +233,21 @@ async def create_store(
     if ref:
         extra_fields["ref"] = ref
 
-    store_content = {
+    values = {
         "address": address,
         "item_type": storage_engine,
         "item_hash": file_hash,
         "time": time.time(),
     }
     if extra_fields is not None:
-        store_content.update(extra_fields)
+        values.update(extra_fields)
+
+    content = StoreContent(**values)
 
     return await submit(
-        account,
-        store_content,
-        "STORE",
+        account=account,
+        content=content,
+        message_type=MessageType.store,
         channel=channel,
         api_server=api_server,
         session=session,
@@ -323,7 +331,7 @@ async def create_program(
     return await submit(
         account=account,
         content=content.dict(exclude_none=True),
-        message_type="PROGRAM",
+        message_type=MessageType.program,
         channel=channel,
         api_server=api_server,
         storage_engine=storage_engine,
