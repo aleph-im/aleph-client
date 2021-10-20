@@ -141,7 +141,7 @@ async def create_post(
     session: Optional[ClientSession] = None,
     api_server: str = settings.API_HOST,
     inline: bool = True,
-    storage_engine: str = "storage",
+    storage_engine: StorageEnum = StorageEnum.storage,
 ):
     address = address or account.get_address()
 
@@ -195,7 +195,7 @@ async def create_store(
     file_hash: Optional[str] = None,
     guess_mime_type: bool = False,
     ref: Optional[str] = None,
-    storage_engine="storage",
+    storage_engine=StorageEnum.storage,
     extra_fields: Optional[dict] = None,
     channel: str = settings.DEFAULT_CHANNEL,
     session: Optional[ClientSession] = None,
@@ -208,11 +208,11 @@ async def create_store(
         if file_content is None:
             raise ValueError("Please specify at least a file_content or a file_hash")
 
-        if storage_engine == "storage":
+        if storage_engine == StorageEnum.storage:
             file_hash = await storage_push_file(
                 file_content, session=session, api_server=api_server
             )
-        elif storage_engine == "ipfs":
+        elif storage_engine == StorageEnum.ipfs:
             file_hash = await ipfs_push_file(
                 file_content, session=session, api_server=api_server
             )
@@ -368,7 +368,7 @@ async def submit(
     message_type: str,
     channel: str = "IOT_TEST",
     api_server: str = settings.API_HOST,
-    storage_engine: str = "storage",
+    storage_engine: StorageEnum = StorageEnum.storage,
     session: Optional[ClientSession] = None,
     inline: bool = True,
 ):
@@ -389,9 +389,10 @@ async def submit(
         h.update(message["item_content"].encode("utf-8"))
         message["item_hash"] = h.hexdigest()
     else:
-        if storage_engine == "ipfs":
+        if storage_engine == StorageEnum.ipfs:
             message["item_hash"] = await ipfs_push(content, api_server=api_server)
         else:  # storage
+            assert storage_engine == StorageEnum.storage
             message["item_hash"] = await storage_push(content, api_server=api_server)
 
     message = await account.sign_message(message)

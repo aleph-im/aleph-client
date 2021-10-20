@@ -115,14 +115,14 @@ def post(
             raise typer.Exit(code=1)
 
         file_size = os.path.getsize(path)
-        storage_engine = "ipfs" if file_size > 4 * 1024 * 1024 else "storage"
+        storage_engine = StorageEnum.ipfs if file_size > 4 * 1024 * 1024 else StorageEnum.storage
 
         with open(path, "r") as fd:
             content = json.load(fd)
 
     else:
         content_raw = _input_multiline()
-        storage_engine = "ipfs" if len(content_raw) > 4 * 1024 * 1024 else "storage"
+        storage_engine = StorageEnum.ipfs if len(content_raw) > 4 * 1024 * 1024 else StorageEnum.storage
         try:
             content = json.loads(content_raw)
         except json.decoder.JSONDecodeError:
@@ -167,7 +167,7 @@ def upload(
             # TODO: Read in lazy mode instead of copying everything in memory
             file_content = fd.read()
             storage_engine = (
-                "ipfs" if len(file_content) > 4 * 1024 * 1024 else "storage"
+                StorageEnum.ipfs if len(file_content) > 4 * 1024 * 1024 else StorageEnum.storage
             )
             logger.debug("Uploading file")
             result = synchronous.create_store(
@@ -201,7 +201,7 @@ def pin(
         result = synchronous.create_store(
             account=account,
             file_hash=hash,
-            storage_engine="ipfs",
+            storage_engine=StorageEnum.ipfs,
             channel=channel,
             ref=ref,
         )
