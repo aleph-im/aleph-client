@@ -10,6 +10,7 @@ import time
 from datetime import datetime
 from functools import lru_cache
 
+from aleph_message.models import ForgetContent, MessageType
 from yarl import URL
 
 from aleph_client.types import Account, StorageEnum
@@ -323,6 +324,36 @@ async def create_program(
         account=account,
         content=content.dict(exclude_none=True),
         message_type="PROGRAM",
+        channel=channel,
+        api_server=api_server,
+        storage_engine=storage_engine,
+        session=session,
+    )
+
+
+async def forget(
+    account: Account,
+    hashes: List[str],
+    reason: Optional[str],
+    storage_engine: StorageEnum = StorageEnum.storage,
+    channel: str = "TEST",
+    address: Optional[str] = settings.ADDRESS_TO_USE,
+    session: Optional[ClientSession] = None,
+    api_server: str = settings.API_HOST,
+):
+    address = address or account.get_address()
+
+    content = ForgetContent(
+        hashes=hashes,
+        reason=reason,
+        address=address,
+        time=time.time(),
+    )
+
+    return await submit(
+        account,
+        content=content.dict(exclude_none=True),
+        message_type=MessageType.forget,
         channel=channel,
         api_server=api_server,
         storage_engine=storage_engine,

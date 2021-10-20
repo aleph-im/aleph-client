@@ -499,6 +499,33 @@ def amend(
 
 
 @app.command()
+def forget(
+    hashes: str,
+    reason: Optional[str] = None,
+    channel: str = "TEST",
+    private_key: Optional[str] = settings.PRIVATE_KEY_STRING,
+    private_key_file: Optional[str] = settings.PRIVATE_KEY_FILE,
+):
+    """Forget a existing Aleph messages."""
+    account = _load_account(private_key, private_key_file)
+
+    hashes_: List[str] = hashes.split(',')
+
+    try:
+        result = synchronous.forget(
+            account=account,
+            hashes=hashes_,
+            reason=reason,
+            channel=channel,
+        )
+        echo(f"{json.dumps(result, indent=4)}")
+    finally:
+        # Prevent aiohttp unclosed connector warning
+        asyncio.get_event_loop().run_until_complete(get_fallback_session().close())
+
+
+
+@app.command()
 def watch(ref: str, indent: Optional[int] = None):
     """Watch a hash for amends and print amend hashes"""
 

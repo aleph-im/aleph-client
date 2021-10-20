@@ -29,6 +29,7 @@ def wrap_async(func):
 
 
 create_post = wrap_async(asynchronous.create_post)
+forget = wrap_async(asynchronous.forget)
 ipfs_push = wrap_async(asynchronous.ipfs_push)
 storage_push = wrap_async(asynchronous.storage_push)
 ipfs_push_file = wrap_async(asynchronous.ipfs_push_file)
