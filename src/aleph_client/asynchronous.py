@@ -246,7 +246,7 @@ async def create_store(
 
     return await submit(
         account=account,
-        content=content,
+        content=content.dict(exclude_none=True),
         message_type=MessageType.store,
         channel=channel,
         api_server=api_server,
@@ -372,7 +372,7 @@ async def forget(
 
 async def submit(
     account: Account,
-    content: dict,
+    content: Dict,
     message_type: str,
     channel: str = "IOT_TEST",
     api_server: str = settings.API_HOST,
