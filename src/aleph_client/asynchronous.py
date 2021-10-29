@@ -186,7 +186,7 @@ async def create_aggregate(
 
     return await submit(
         account=account,
-        content=content_,
+        content=content_.dict(exclude_none=True),
         message_type=MessageType.aggregate,
         channel=channel,
         api_server=api_server,
