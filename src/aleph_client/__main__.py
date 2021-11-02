@@ -99,6 +99,7 @@ def _is_zip_valid(path: str):
 def post(
     path: Optional[str] = None,
     type: str = "test",
+    ref: Optional[str] = None,
     channel: str = settings.DEFAULT_CHANNEL,
     private_key: Optional[str] = settings.PRIVATE_KEY_STRING,
     private_key_file: Optional[str] = settings.PRIVATE_KEY_FILE,
@@ -134,7 +135,7 @@ def post(
             account=account,
             post_content=content,
             post_type=type,
-            ref=None,
+            ref=ref,
             channel=channel,
             inline=True,
             storage_engine=storage_engine,
