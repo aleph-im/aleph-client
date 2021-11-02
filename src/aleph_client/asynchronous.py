@@ -582,14 +582,7 @@ async def watch_messages(
             end_date = end_date.timestamp()
         params["end_date"] = end_date
 
-    # FIXME:
-    #  We build the URL manually since aiohttp.ClientSession.ws_connect does not support
-    #  the `params` argument at the moment.
-    #  Upstream issue: https://github.com/aio-libs/aiohttp/issues/5868
-    #  Upstream pull request: https://github.com/aio-libs/aiohttp/pull/5869
-    url = URL(f"{api_server}/api/ws0/messages").with_query(params)
-
-    async with session.ws_connect(url) as ws:
+    async with session.ws_connect(f"{api_server}/api/ws0/messages", params=params) as ws:
         logger.debug("Websocket connected")
         async for msg in ws:
             if msg.type == aiohttp.WSMsgType.TEXT:
