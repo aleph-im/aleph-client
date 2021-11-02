@@ -398,10 +398,10 @@ async def submit(
         message["item_hash"] = h.hexdigest()
     else:
         if storage_engine == StorageEnum.ipfs:
-            message["item_hash"] = await ipfs_push(content, api_server=api_server)
+            message["item_hash"] = await ipfs_push(content, session=session, api_server=api_server)
         else:  # storage
             assert storage_engine == StorageEnum.storage
-            message["item_hash"] = await storage_push(content, api_server=api_server)
+            message["item_hash"] = await storage_push(content, session=session, api_server=api_server)
 
     message = await account.sign_message(message)
     await broadcast(message, session=session, api_server=api_server)
