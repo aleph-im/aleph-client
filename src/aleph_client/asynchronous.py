@@ -225,6 +225,8 @@ async def create_store(
         else:
             raise ValueError(f"Unknown storage engine: '{storage_engine}'")
 
+    assert file_hash, "File hash should be empty"
+
     if magic is None:
         pass
     elif guess_mime_type is True and "mime_type" not in extra_fields:
