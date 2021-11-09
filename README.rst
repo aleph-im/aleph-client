@@ -43,3 +43,12 @@ To install from source and still be able to modify the source code:
     $ pip install -e .
     or
     $ python setup.py develop
+
+
+
+Using Docker
+============
+
+Use the Aleph client and it's CLI from within Docker or Podman with:
+
+`docker run --rm -ti -v $(pwd)/device.key:/home/user/device.key:ro alephim/aleph-client:beta bash`
