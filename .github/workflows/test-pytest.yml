@@ -16,7 +16,7 @@ jobs:
       - name: Build the Docker image
         run: |
           git fetch --prune --unshallow --tags
-          docker build . -t aleph-client:${GITHUB_REF##*/} -f docker/test.dockerfile --cache-from=docker.pkg.github.com/$GITHUB_REPOSITORY/aleph-client-build-cache
+          docker build . -t aleph-client:${GITHUB_REF##*/} -f docker/Dockerfile --cache-from=docker.pkg.github.com/$GITHUB_REPOSITORY/aleph-client-build-cache
 
       - name: Push the image on GitHub's repository
         run: docker tag aleph-client:${GITHUB_REF##*/} docker.pkg.github.com/$GITHUB_REPOSITORY/aleph-client:${GITHUB_REF##*/} && docker push docker.pkg.github.com/$GITHUB_REPOSITORY/aleph-client:${GITHUB_REF##*/} || true
@@ -26,8 +26,8 @@ jobs:
 
       - name: Pytest in the Docker image
         run: |
-          docker run aleph-client:${GITHUB_REF##*/} pytest
+          docker run aleph-client:${GITHUB_REF##*/} pytest /opt/aleph-client/
 
       - name: MyPy in the Docker image
         run: |
-          docker run aleph-client:${GITHUB_REF##*/} mypy ./src/ --ignore-missing-imports
+          docker run aleph-client:${GITHUB_REF##*/} mypy /opt/aleph-client/src/ --ignore-missing-imports
