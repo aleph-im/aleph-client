@@ -1,16 +1,10 @@
 import asyncio
 
-from aleph_client.vm.app import AlephApp
+from .test_app.main import app
+from fastapi.testclient import TestClient
 
 
-def test_app():
-
-    # Create a test app
-    app = AlephApp()
-
-    @app.event(filters=[])
-    async def aleph_event(event):
-        print("aleph_event", event)
+def test_app_event():
 
     # Call the app with an ASGI context
     scope = {
@@ -26,3 +20,10 @@ def test_app():
         await send_queue.put(dico)
 
     app(scope, receive, send)
+
+
+def test_app_http():
+    client = TestClient(app)
+    response = client.get("/")
+    assert response.status_code == 200
+    assert response.json() == {"index": "/"}
