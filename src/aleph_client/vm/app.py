@@ -48,11 +48,13 @@ class AlephApp:
         return inner
 
     def __call__(
-        self, scope: Dict, receive: Awaitable, send: Callable[[Dict], Awaitable]
+        self, scope: Dict, receive: Awaitable = None, send: Callable[[Dict], Awaitable] = None,
     ):
         if scope["type"] in ("http", "websocket"):
             if self.http_app:
-                return self.http_app(scope=scope, receive=receive, send=send)
+                def wrapper(receive, send):
+                    return self.http_app(scope=scope, receive=receive, send=send)
+                return wrapper
             else:
                 raise ValueError("No HTTP app registered")
         elif scope["type"] == "aleph.message":

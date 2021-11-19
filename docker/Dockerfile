@@ -19,9 +19,9 @@ ENV PATH="/opt/venv/bin:$PATH"
 RUN pip install --upgrade pip wheel
 
 # Preinstall dependencies for faster steps
-RUN pip install --upgrade secp256k1 coincurve aiohttp eciespy python-magic
+RUN pip install --upgrade secp256k1 coincurve aiohttp eciespy python-magic typer
 RUN pip install --upgrade aleph-message eth_account pynacl base58
-RUN pip install --upgrade pytest pytest-cov pytest-asyncio mypy types-setuptools pytest-asyncio
+RUN pip install --upgrade pytest pytest-cov pytest-asyncio mypy types-setuptools pytest-asyncio fastapi requests
 
 WORKDIR /opt/aleph-client/
 COPY . .
