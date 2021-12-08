@@ -174,6 +174,7 @@ async def create_aggregate(
     channel: str = settings.DEFAULT_CHANNEL,
     session: Optional[ClientSession] = None,
     api_server: str = settings.API_HOST,
+    inline: bool = True,
 ):
     address = address or account.get_address()
 
@@ -191,6 +192,7 @@ async def create_aggregate(
         channel=channel,
         api_server=api_server,
         session=session,
+        inline=inline
     )
 
 
