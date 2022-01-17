@@ -1,10 +1,13 @@
 import asyncio
 
+import pytest
+
 from .test_app.main import app
 from fastapi.testclient import TestClient
 
 
-def test_app_event():
+@pytest.mark.asyncio
+async def test_app_event():
 
     # Call the app with an ASGI context
     scope = {
@@ -19,7 +22,7 @@ def test_app_event():
     async def send(dico):
         await send_queue.put(dico)
 
-    app(scope, receive, send)
+    await app(scope, receive, send)
 
 
 def test_app_http():
