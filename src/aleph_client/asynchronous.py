@@ -480,11 +480,11 @@ async def get_posts(
     if start_date is not None:
         if not isinstance(start_date, float) and hasattr(start_date, "timestamp"):
             start_date = start_date.timestamp()
-        params["start_date"] = start_date
+        params["startDate"] = start_date
     if end_date is not None:
         if not isinstance(end_date, float) and hasattr(start_date, "timestamp"):
             end_date = end_date.timestamp()
-        params["end_date"] = end_date
+        params["endDate"] = end_date
 
     async with session.get(f"{api_server}/api/v0/posts.json", params=params) as resp:
         resp.raise_for_status()
@@ -528,11 +528,11 @@ async def get_messages(
     if start_date is not None:
         if not isinstance(start_date, float) and hasattr(start_date, "timestamp"):
             start_date = start_date.timestamp()
-        params["start_date"] = start_date
+        params["startDate"] = start_date
     if end_date is not None:
         if not isinstance(end_date, float) and hasattr(start_date, "timestamp"):
             end_date = end_date.timestamp()
-        params["end_date"] = end_date
+        params["endDate"] = end_date
 
     async with session.get(f"{api_server}/api/v0/messages.json", params=params) as resp:
         resp.raise_for_status()
@@ -578,11 +578,11 @@ async def watch_messages(
     if start_date is not None:
         if not isinstance(start_date, float) and hasattr(start_date, "timestamp"):
             start_date = start_date.timestamp()
-        params["start_date"] = start_date
+        params["startDate"] = start_date
     if end_date is not None:
         if not isinstance(end_date, float) and hasattr(start_date, "timestamp"):
             end_date = end_date.timestamp()
-        params["end_date"] = end_date
+        params["endDate"] = end_date
 
     async with session.ws_connect(f"{api_server}/api/ws0/messages", params=params) as ws:
         logger.debug("Websocket connected")
