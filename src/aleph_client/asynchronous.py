@@ -417,10 +417,10 @@ async def submit(
 
 async def fetch_aggregate(
     address: str,
-    key,
+    key: str,
     session: Optional[ClientSession] = None,
     api_server: str = settings.API_HOST,
-):
+) -> Dict[str, Dict]:
     session = session or get_fallback_session()
 
     async with session.get(

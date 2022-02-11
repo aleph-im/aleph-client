@@ -2,7 +2,7 @@ import asyncio
 
 import pytest
 
-from .test_app.main import app
+from tests.unit.test_app.main import app
 from fastapi.testclient import TestClient
 
 
