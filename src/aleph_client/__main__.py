@@ -13,7 +13,7 @@ from typing import Optional, Dict, List
 from zipfile import ZipFile, BadZipFile
 
 import typer
-from aleph_message.models import ProgramMessage, StoreMessage, Message
+from aleph_message.models import ProgramMessage, StoreMessage, Message, MessageType
 from aleph_message.models.program import Encoding
 from typer import echo
 
@@ -499,23 +499,16 @@ def amend(
     )
 
 
-@app.command()
-def forget(
-    hashes: str,
-    reason: Optional[str] = None,
-    channel: str = settings.DEFAULT_CHANNEL,
-    private_key: Optional[str] = settings.PRIVATE_KEY_STRING,
-    private_key_file: Optional[str] = settings.PRIVATE_KEY_FILE,
+def forget_messages(
+    account: BaseAccount,
+    hashes: List[str],
+    reason: Optional[str],
+    channel: str,
 ):
-    """Forget a existing Aleph messages."""
-    account = _load_account(private_key, private_key_file)
-
-    hashes_: List[str] = hashes.split(',')
-
     try:
         result = synchronous.forget(
             account=account,
-            hashes=hashes_,
+            hashes=hashes,
             reason=reason,
             channel=channel,
         )
@@ -524,6 +517,40 @@ def forget(
         # Prevent aiohttp unclosed connector warning
         asyncio.get_event_loop().run_until_complete(get_fallback_session().close())
 
+
+@app.command()
+def forget(
+    hashes: str,
+    reason: Optional[str] = None,
+    channel: str = settings.DEFAULT_CHANNEL,
+    private_key: Optional[str] = settings.PRIVATE_KEY_STRING,
+    private_key_file: Optional[str] = settings.PRIVATE_KEY_FILE,
+):
+    """Forget an existing Aleph message."""
+    account = _load_account(private_key, private_key_file)
+
+    hash_list: List[str] = hashes.split(",")
+    forget_messages(account, hash_list, reason, channel)
+
+
+@app.command()
+def forget_aggregate(
+    key: str,
+    reason: Optional[str] = None,
+    channel: str = settings.DEFAULT_CHANNEL,
+    private_key: Optional[str] = settings.PRIVATE_KEY_STRING,
+    private_key_file: Optional[str] = settings.PRIVATE_KEY_FILE,
+):
+    """Forget all the messages composing an aggregate."""
+    account = _load_account(private_key, private_key_file)
+
+    message_response = synchronous.get_messages(
+        addresses=[account.get_address()],
+        message_type=MessageType.aggregate.value,
+        content_keys=[key],
+    )
+    hash_list = [message["item_hash"] for message in message_response["messages"]]
+    forget_messages(account, hash_list, reason, channel)
 
 
 @app.command()
