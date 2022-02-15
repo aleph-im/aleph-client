@@ -496,6 +496,7 @@ async def get_messages(
     page: int = 1,
     message_type: Optional[str] = None,
     content_types: Optional[Iterable[str]] = None,
+    content_keys: Optional[Iterable[str]] = None,
     refs: Optional[Iterable[str]] = None,
     addresses: Optional[Iterable[str]] = None,
     tags: Optional[Iterable[str]] = None,
@@ -514,6 +515,8 @@ async def get_messages(
         params["msgType"] = message_type
     if content_types is not None:
         params["contentTypes"] = ",".join(content_types)
+    if content_keys is not None:
+        params["contentKeys"] = ",".join(content_keys)
     if refs is not None:
         params["refs"] = ",".join(refs)
     if addresses is not None:
