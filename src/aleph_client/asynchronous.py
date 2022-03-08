@@ -426,7 +426,9 @@ async def fetch_aggregate(
     async with session.get(
         f"{api_server}/api/v0/aggregates/{address}.json?keys={key}"
     ) as resp:
-        return (await resp.json()).get("data", dict()).get(key)
+        result = await resp.json()
+        data = result.get("data", dict())
+        return data.get(key)
 
 
 async def fetch_aggregates(
@@ -443,7 +445,9 @@ async def fetch_aggregates(
     async with session.get(
         f"{api_server}/api/v0/aggregates/{address}.json{query_string}"
     ) as resp:
-        return (await resp.json()).get("data", dict())
+        result = await resp.json()
+        data = result.get("data", dict())
+        return data
 
 
 async def get_posts(
