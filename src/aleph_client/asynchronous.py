@@ -418,13 +418,18 @@ async def submit(
 async def fetch_aggregate(
     address: str,
     key: str,
+    limit: Optional[int] = 100,
     session: Optional[ClientSession] = None,
     api_server: str = settings.API_HOST,
 ) -> Dict[str, Dict]:
     session = session or get_fallback_session()
 
+    params: Dict[str, Any] = {"keys": key}
+    if limit:
+        params['limit'] = limit
+
     async with session.get(
-        f"{api_server}/api/v0/aggregates/{address}.json?keys={key}"
+        f"{api_server}/api/v0/aggregates/{address}.json", params=params
     ) as resp:
         return (await resp.json()).get("data", dict()).get(key)
 
@@ -432,16 +437,21 @@ async def fetch_aggregate(
 async def fetch_aggregates(
     address: str,
     keys: Optional[Iterable[str]] = None,
+    limit: Optional[int] = 100,
     session: Optional[ClientSession] = None,
     api_server: str = settings.API_HOST,
 ) -> Dict[str, Dict]:
     session = session or get_fallback_session()
 
     keys_str = ",".join(keys) if keys else ""
-    query_string = f"?keys={keys_str}" if keys else ""
+    params: Dict[str, Any] = {}
+    if keys_str:
+        params["keys"] = keys_str
+    if limit:
+        params["limit"] = limit
 
     async with session.get(
-        f"{api_server}/api/v0/aggregates/{address}.json{query_string}"
+        f"{api_server}/api/v0/aggregates/{address}.json", params=params,
     ) as resp:
         return (await resp.json()).get("data", dict())
 
