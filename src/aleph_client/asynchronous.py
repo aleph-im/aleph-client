@@ -231,7 +231,7 @@ async def create_store(
 
     if magic is None:
         pass
-    elif guess_mime_type is True and "mime_type" not in extra_fields:
+    elif file_content and guess_mime_type and ("mime_type" not in extra_fields):
         extra_fields["mime_type"] = magic.from_buffer(file_content, mime=True)
 
     if ref:
