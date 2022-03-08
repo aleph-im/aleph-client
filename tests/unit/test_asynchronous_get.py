@@ -15,7 +15,7 @@ async def test_fetch_aggregate():
     response = await fetch_aggregate(
         address="0xa1B3bb7d2332383D96b7796B908fB7f7F3c2Be10", key="corechannel"
     )
-    assert response.keys() == {"nodes"}
+    assert response.keys() == {"nodes", "resource_nodes"}
 
 
 @pytest.mark.asyncio
@@ -26,7 +26,7 @@ async def test_fetch_aggregates():
         address="0xa1B3bb7d2332383D96b7796B908fB7f7F3c2Be10"
     )
     assert response.keys() == {"corechannel"}
-    assert response["corechannel"].keys() == {"nodes"}
+    assert response["corechannel"].keys() == {"nodes", "resource_nodes"}
 
 
 @pytest.mark.asyncio
