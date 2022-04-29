@@ -270,6 +270,8 @@ async def create_program(
     session: Optional[ClientSession] = None,
     api_server: str = settings.API_HOST,
     memory: int = settings.DEFAULT_VM_MEMORY,
+    vcpus: int = settings.DEFAULT_VM_VCPUS,
+    timeout_seconds: float = settings.DEFAULT_VM_TIMEOUT,
     encoding: Encoding = Encoding.zip,
     volumes: List[Dict] = None,
     subscriptions: Optional[List[Dict]] = None,
@@ -306,9 +308,9 @@ async def create_program(
                 "aleph_api": True,
             },
             "resources": {
-                "vcpus": 1,
+                "vcpus": vcpus,
                 "memory": memory,
-                "seconds": 30,
+                "seconds": timeout_seconds,
             },
             "runtime": {
                 "ref": runtime,
