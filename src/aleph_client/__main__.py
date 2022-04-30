@@ -96,6 +96,19 @@ def _is_zip_valid(path: str):
 
 
 @app.command()
+def whoami(
+    private_key: Optional[str] = settings.PRIVATE_KEY_STRING,
+    private_key_file: Optional[str] = settings.PRIVATE_KEY_FILE,
+):
+    """
+    Display your public address.
+    """
+
+    account = _load_account(private_key, private_key_file)
+    echo(account.get_public_key())
+
+
+@app.command()
 def post(
     path: Optional[str] = None,
     type: str = "test",
