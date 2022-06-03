@@ -264,7 +264,7 @@ async def create_program(
     program_ref: str,
     entrypoint: str,
     runtime: str,
-    environment_variables: Dict[str, str],
+    environment_variables: Optional[Dict[str, str]] = None,
     storage_engine: StorageEnum = StorageEnum.storage,
     channel: str = settings.DEFAULT_CHANNEL,
     address: Optional[str] = settings.ADDRESS_TO_USE,
