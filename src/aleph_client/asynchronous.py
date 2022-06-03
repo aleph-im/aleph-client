@@ -264,6 +264,7 @@ async def create_program(
     program_ref: str,
     entrypoint: str,
     runtime: str,
+    environment_variables: Dict[str, str],
     storage_engine: StorageEnum = StorageEnum.storage,
     channel: str = settings.DEFAULT_CHANNEL,
     address: Optional[str] = settings.ADDRESS_TO_USE,
@@ -305,6 +306,7 @@ async def create_program(
                 "internet": True,
                 "aleph_api": True,
             },
+            "variables": environment_variables,
             "resources": {
                 "vcpus": 1,
                 "memory": memory,
