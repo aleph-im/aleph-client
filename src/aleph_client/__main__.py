@@ -56,7 +56,7 @@ def _load_account(
     """Load private key from a file"""
 
     if private_key_str:
-        if not private_key_str:
+        if not private_key_file:
             return ETHAccount(private_key_str.encode())
         else:
             raise ValueError("Choose between a private key or a file, not both")
