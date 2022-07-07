@@ -61,10 +61,9 @@ def _load_account(
     """Load private key from a file"""
 
     if private_key_str:
-        if not private_key_file:
-            return ETHAccount(private_key_str.encode())
-        else:
-            raise ValueError("Choose between a private key or a file, not both")
+        if private_key_str.startswith("0x"):
+            private_key_str = private_key_str[2:]
+        return EthAccount(bytes.fromhex(private_key_str))
     elif private_key_file:
         with open(private_key_file, "rb") as pk_fd:
             private_key: bytes = pk_fd.read()
