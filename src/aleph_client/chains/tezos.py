@@ -11,6 +11,8 @@ from .common import (
     get_public_key,
 )
 
+import json
+
 class TezosAccount(BaseAccount):
     CHAIN = "TEZOS"
     CURVE = "secp256k1"
@@ -28,8 +30,12 @@ class TezosAccount(BaseAccount):
         message = self._setup_sender(message)
 
         verif = get_verification_buffer(message)
-        sig = self._account.sign(verif)
-        message["signature"] = sig
+        sig = {
+            "publicKey": self.get_public_key(),
+            "signature": self._account.sign(verif),
+        }
+
+        message["signature"] = json.dumps(sig)
         return message
 
     def get_address(self) -> str:

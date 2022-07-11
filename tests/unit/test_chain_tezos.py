@@ -27,7 +27,7 @@ async def test_TezosAccount():
     message = Message("TEZOS", account.get_address(), "SomeType", "ItemHash")
     signed = await account.sign_message(asdict(message))
     assert signed["signature"]
-    assert len(signed["signature"]) == 99
+    assert len(signed["signature"]) == 188
 
     address = account.get_address()
     assert address
