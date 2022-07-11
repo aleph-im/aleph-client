@@ -45,12 +45,10 @@ class TezosAccount(BaseAccount):
         return self._account.public_key()
 
     async def encrypt(self, content) -> bytes:
-        value: bytes = bytes(SealedBox(self._private_key.public_key).encrypt(content))
-        return value
+        return SealedBox(self._private_key.public_key).encrypt(content)
 
     async def decrypt(self, content) -> bytes:
-        value: bytes = SealedBox(self._private_key).decrypt(content)
-        return value
+        return SealedBox(self._private_key).decrypt(content)
 
 
 def get_fallback_account() -> TezosAccount:

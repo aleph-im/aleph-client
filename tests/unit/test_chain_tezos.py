@@ -21,7 +21,7 @@ def test_get_fallback_account():
     assert account._account.public_key()
 
 @pytest.mark.asyncio
-async def test_TezosAccount():
+async def test_tezos_account():
     account: TezosAccount = get_fallback_account()
 
     message = Message("TEZOS", account.get_address(), "SomeType", "ItemHash")
@@ -30,12 +30,12 @@ async def test_TezosAccount():
     assert len(signed["signature"]) == 188
 
     address = account.get_address()
-    assert address
-    assert type(address) == str
+    assert address is not None
+    assert isinstance(address, str)
     assert len(address) == 36
 
     pubkey = account.get_public_key()
-    assert type(pubkey) == str
+    assert isinstance(pubkey, str)
     assert len(pubkey) == 55
 
 @pytest.mark.asyncio
@@ -46,7 +46,7 @@ async def test_decrypt_secp256k1():
     content = b"SomeContent"
 
     encrypted = await account.encrypt(content)
-    assert type(encrypted) == bytes
+    assert isinstance(encrypted, bytes)
     decrypted = await account.decrypt(encrypted)
-    assert type(decrypted) == bytes
+    assert isinstance(decrypted, bytes)
     assert content == decrypted
