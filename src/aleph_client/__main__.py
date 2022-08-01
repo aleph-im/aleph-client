@@ -534,7 +534,7 @@ def forget_aggregate(
 
 
 @app.command()
-def watch(ref: str, indent: Optional[int] = None):
+def watch(ref: str, indent: Optional[int] = 4):
     """Watch a hash for amends and print amend hashes"""
 
     original_json = synchronous.get_messages(hashes=[ref])["messages"][0]
