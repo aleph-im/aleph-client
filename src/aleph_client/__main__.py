@@ -239,9 +239,9 @@ def yes_no_input(text: str, default: Optional[bool] = None):
             return default
         else:
             if default is None:
-                print("Please enter 'y', 'yes', 'n' or 'no'")
+                echo("Please enter 'y', 'yes', 'n' or 'no'")
             else:
-                print("Please enter 'y', 'yes', 'n', 'no' or nothing")
+                echo("Please enter 'y', 'yes', 'n', 'no' or nothing")
             continue
 
 
@@ -311,7 +311,7 @@ def program(
     volumes = []
     for volume in _prompt_for_volumes():
         volumes.append(volume)
-        print()
+        echo("\n")
 
     subscriptions: Optional[List[Dict]]
     if beta and yes_no_input("Subscribe to messages ?", default=False):
@@ -470,7 +470,7 @@ def amend(
 
     new_content = json.loads(new_message)
     new_content["ref"] = existing_message["item_hash"]
-    print(new_content)
+    echo(new_content)
     synchronous.submit(
         account=account,
         content=new_content,
