@@ -12,7 +12,6 @@ from functools import lru_cache
 
 from aleph_message.models import ForgetContent, MessageType, AggregateContent, PostContent, \
     StoreContent
-from yarl import URL
 
 from aleph_client.types import Account, StorageEnum
 

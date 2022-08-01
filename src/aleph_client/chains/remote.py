@@ -2,7 +2,7 @@
 Remote account, accessible via an API.
 """
 import asyncio
-from typing import Dict, Optional, Coroutine
+from typing import Dict, Optional
 
 import aiohttp.web
 from aiohttp import ClientSession

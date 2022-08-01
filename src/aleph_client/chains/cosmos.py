@@ -1,18 +1,15 @@
-import json
-import ecdsa
-import hashlib
 import base64
+import hashlib
+import json
 
-from substrateinterface import Keypair
+import ecdsa
+from cosmospy._wallet import privkey_to_address, privkey_to_pubkey
+
 from .common import (
     BaseAccount,
     get_fallback_private_key,
     get_verification_buffer,
-    get_public_key,
 )
-
-from cosmospy._wallet import privkey_to_address, privkey_to_pubkey
-from cosmospy.typing import SyncMode
 
 DEFAULT_HRP = "cosmos"
 

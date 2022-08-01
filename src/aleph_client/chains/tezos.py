@@ -1,17 +1,16 @@
+import json
 from typing import Dict
-from aleph_pytezos.crypto.key import Key
 
+from aleph_pytezos.crypto.key import Key
+from nacl.public import SealedBox
 from nacl.signing import SigningKey
-from nacl.public import PublicKey, PrivateKey, SealedBox
 
 from .common import (
     BaseAccount,
     get_fallback_private_key,
     get_verification_buffer,
-    get_public_key,
 )
 
-import json
 
 class TezosAccount(BaseAccount):
     CHAIN = "TEZOS"

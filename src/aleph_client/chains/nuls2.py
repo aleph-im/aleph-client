@@ -1,16 +1,14 @@
 import base64
+
 from nuls2.model.data import (
-    read_by_length,
-    write_with_length,
     public_key_to_hash,
     address_from_hash,
     sign_recoverable_message,
     NETWORKS,
-    recover_message_address,
 )
+
 from .common import (
     get_public_key,
-    generate_key,
     get_verification_buffer,
     BaseAccount,
     get_fallback_private_key,

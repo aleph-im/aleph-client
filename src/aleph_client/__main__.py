@@ -17,12 +17,11 @@ from aleph_message.models import ProgramMessage, StoreMessage, Message, MessageT
 from typer import echo
 
 from aleph_client.utils import create_archive
+from . import synchronous
 from .asynchronous import (
     get_fallback_session,
     StorageEnum,
 )
-from . import synchronous
-
 from .chains.common import get_fallback_private_key, BaseAccount
 from .chains.ethereum import ETHAccount
 from .chains.remote import RemoteAccount

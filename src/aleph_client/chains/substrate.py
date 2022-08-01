@@ -1,11 +1,10 @@
 import json
 
 from substrateinterface import Keypair
+
 from .common import (
     BaseAccount,
-    get_fallback_private_key,
     get_verification_buffer,
-    get_public_key,
 )
 from ..conf import settings
 
