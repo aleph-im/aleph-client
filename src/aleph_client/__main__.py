@@ -13,7 +13,14 @@ from typing import Optional, Dict, List
 from zipfile import BadZipFile
 
 import typer
-from aleph_message.models import ProgramMessage, StoreMessage, Message, MessageType
+from aleph_message.models import (
+    ProgramMessage,
+    StoreMessage,
+    Message,
+    MessageType,
+    PostMessage,
+    ForgetMessage,
+)
 from typer import echo
 
 from aleph_client.utils import create_archive
@@ -145,7 +152,7 @@ def post(
             raise typer.Exit(code=2)
 
     try:
-        result = synchronous.create_post(
+        result: PostMessage = synchronous.create_post(
             account=account,
             post_content=content,
             post_type=type,
@@ -154,7 +161,7 @@ def post(
             inline=True,
             storage_engine=storage_engine,
         )
-        echo(f"{json.dumps(result, indent=4)}")
+        echo(result.json(indent=4))
     finally:
         # Prevent aiohttp unclosed connector warning
         asyncio.run(get_fallback_session().close())
@@ -191,7 +198,7 @@ def upload(
                 else StorageEnum.storage
             )
             logger.debug("Uploading file")
-            result = synchronous.create_store(
+            result: StoreMessage = synchronous.create_store(
                 account=account,
                 file_content=file_content,
                 storage_engine=storage_engine,
@@ -200,7 +207,7 @@ def upload(
                 ref=ref,
             )
             logger.debug("Upload finished")
-            echo(f"{json.dumps(result, indent=4)}")
+            echo(f"{result.json(indent=4)}")
     finally:
         # Prevent aiohttp unclosed connector warning
         asyncio.run(get_fallback_session().close())
@@ -222,7 +229,7 @@ def pin(
     account = _load_account(private_key, private_key_file)
 
     try:
-        result = synchronous.create_store(
+        result: StoreMessage = synchronous.create_store(
             account=account,
             file_hash=hash,
             storage_engine=StorageEnum.ipfs,
@@ -230,7 +237,7 @@ def pin(
             ref=ref,
         )
         logger.debug("Upload finished")
-        echo(f"{json.dumps(result, indent=4)}")
+        echo(f"{result.json(indent=4)}")
     finally:
         # Prevent aiohttp unclosed connector warning
         asyncio.run(get_fallback_session().close())
@@ -353,7 +360,7 @@ def program(
                 else StorageEnum.storage
             )
             logger.debug("Uploading file")
-            result = synchronous.create_store(
+            user_code: StoreMessage = synchronous.create_store(
                 account=account,
                 file_content=file_content,
                 storage_engine=storage_engine,
@@ -363,11 +370,11 @@ def program(
             )
             logger.debug("Upload finished")
             if print_messages or print_code_message:
-                echo(f"{json.dumps(result, indent=4)}")
-            program_ref = result["item_hash"]
+                echo(f"{user_code.json(indent=4)}")
+            program_ref = user_code.item_hash
 
         # Register the program
-        result = synchronous.create_program(
+        result: ProgramMessage = synchronous.create_program(
             account=account,
             program_ref=program_ref,
             entrypoint=entrypoint,
@@ -383,9 +390,9 @@ def program(
         )
         logger.debug("Upload finished")
         if print_messages or print_program_message:
-            echo(f"{json.dumps(result, indent=4)}")
+            echo(f"{result.json(indent=4)}")
 
-        hash: str = result["item_hash"]
+        hash: str = result.item_hash
         hash_base32 = b32encode(b16decode(hash.upper())).strip(b"=").lower().decode()
 
         echo(
@@ -457,7 +464,7 @@ def update(
             )
             logger.debug("Upload finished")
             if print_message:
-                echo(f"{json.dumps(result, indent=4)}")
+                echo(f"{result.json(indent=4)}")
     finally:
         # Prevent aiohttp unclosed connector warning
         asyncio.run(get_fallback_session().close())
@@ -495,12 +502,13 @@ def amend(
     new_content = json.loads(new_message)
     new_content["ref"] = existing_message["item_hash"]
     echo(new_content)
-    synchronous.submit(
+    result = synchronous.submit(
         account=account,
         content=new_content,
         message_type=existing_message["type"],
         channel=existing_message["channel"],
     )
+    echo(f"{result.json(indent=4)}")
 
 
 def forget_messages(
@@ -510,13 +518,13 @@ def forget_messages(
     channel: str,
 ):
     try:
-        result = synchronous.forget(
+        result: ForgetMessage = synchronous.forget(
             account=account,
             hashes=hashes,
             reason=reason,
             channel=channel,
         )
-        echo(f"{json.dumps(result, indent=4)}")
+        echo(f"{result.json(indent=4)}")
     finally:
         # Prevent aiohttp unclosed connector warning
         asyncio.run(get_fallback_session().close())
@@ -581,7 +589,7 @@ def watch(
     for message in synchronous.watch_messages(
         refs=[ref], addresses=[original.content.address]
     ):
-        print(json.dumps(message, indent=indent))
+        echo(f"{message.json(indent=indent)}")
 
 
 if __name__ == "__main__":
