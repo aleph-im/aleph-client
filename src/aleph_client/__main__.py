@@ -149,7 +149,7 @@ def post(
         echo(f"{json.dumps(result, indent=4)}")
     finally:
         # Prevent aiohttp unclosed connector warning
-        asyncio.get_event_loop().run_until_complete(get_fallback_session().close())
+        asyncio.run(get_fallback_session().close())
 
 
 @app.command()
@@ -192,7 +192,7 @@ def upload(
             echo(f"{json.dumps(result, indent=4)}")
     finally:
         # Prevent aiohttp unclosed connector warning
-        asyncio.get_event_loop().run_until_complete(get_fallback_session().close())
+        asyncio.run(get_fallback_session().close())
 
 
 @app.command()
@@ -219,7 +219,7 @@ def pin(
         echo(f"{json.dumps(result, indent=4)}")
     finally:
         # Prevent aiohttp unclosed connector warning
-        asyncio.get_event_loop().run_until_complete(get_fallback_session().close())
+        asyncio.run(get_fallback_session().close())
 
 
 def yes_no_input(text: str, default: Optional[bool] = None):
@@ -382,7 +382,7 @@ def program(
 
     finally:
         # Prevent aiohttp unclosed connector warning
-        asyncio.get_event_loop().run_until_complete(get_fallback_session().close())
+        asyncio.run(get_fallback_session().close())
 
 
 @app.command()
@@ -440,7 +440,7 @@ def update(
                 echo(f"{json.dumps(result, indent=4)}")
     finally:
         # Prevent aiohttp unclosed connector warning
-        asyncio.get_event_loop().run_until_complete(get_fallback_session().close())
+        asyncio.run(get_fallback_session().close())
 
 
 @app.command()
@@ -495,7 +495,7 @@ def forget_messages(
         echo(f"{json.dumps(result, indent=4)}")
     finally:
         # Prevent aiohttp unclosed connector warning
-        asyncio.get_event_loop().run_until_complete(get_fallback_session().close())
+        asyncio.run(get_fallback_session().close())
 
 
 @app.command()

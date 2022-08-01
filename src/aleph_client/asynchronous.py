@@ -639,4 +639,4 @@ def _start_run_watch_messages(output_queue: queue.Queue, args: List, kwargs: Dic
     """Thread entrypoint to run the `watch_messages` asynchronous generator in a thread."""
     watcher = watch_messages(*args, **kwargs)
     runner = _run_watch_messages(watcher, output_queue)
-    asyncio.new_event_loop().run_until_complete(runner)
+    asyncio.run(runner)
