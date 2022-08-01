@@ -1,9 +1,10 @@
 import asyncio
 import queue
 import threading
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Iterable
 
 from aiohttp import ClientSession
+from aleph_message.models import AlephMessage
 from aleph_message.models.program import ProgramContent, Encoding  # type: ignore
 
 from . import asynchronous
@@ -82,13 +83,13 @@ def create_program(
     )
 
 
-def watch_messages(*args, **kwargs):
+def watch_messages(*args, **kwargs) -> Iterable[AlephMessage]:
     """
     Iterate over current and future matching messages synchronously.
 
     Runs the `watch_messages` asynchronous generator in a thread.
     """
-    output_queue = queue.Queue()
+    output_queue: queue.Queue[AlephMessage] = queue.Queue()
     thread = threading.Thread(
         target=asynchronous._start_run_watch_messages, args=(output_queue, args, kwargs)
     )
