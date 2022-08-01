@@ -9,8 +9,8 @@ from .common import (
     BaseAccount,
     get_verification_buffer,
     get_public_key,
-    PRIVATE_KEY_FILE,
 )
+from ..conf import settings
 
 
 def encode(item):
@@ -60,11 +60,11 @@ def get_fallback_account() -> SOLAccount:
 
 def get_fallback_private_key():
     try:
-        with open(PRIVATE_KEY_FILE, "rb") as prvfile:
+        with open(settings.PRIVATE_KEY_FILE, "rb") as prvfile:
             pkey = prvfile.read()
     except OSError:
         pkey = bytes(SigningKey.generate())
-        with open(PRIVATE_KEY_FILE, "wb") as prvfile:
+        with open(settings.PRIVATE_KEY_FILE, "wb") as prvfile:
             prvfile.write(pkey)
 
     return pkey

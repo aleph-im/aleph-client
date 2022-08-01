@@ -9,7 +9,6 @@ from .common import (
     get_fallback_private_key,
     get_verification_buffer,
     get_public_key,
-    PRIVATE_KEY_FILE,
 )
 
 from cosmospy._wallet import privkey_to_address, privkey_to_pubkey
