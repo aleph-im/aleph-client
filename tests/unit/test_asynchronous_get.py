@@ -1,4 +1,5 @@
 import pytest
+from aleph_message.models import MessageType, MessagesResponse
 
 from aleph_client.asynchronous import (
     get_messages,
@@ -33,71 +34,26 @@ async def test_fetch_aggregates():
 async def test_get_posts():
     _get_fallback_session.cache_clear()
 
-    response = await get_messages(
+    response: MessagesResponse = await get_messages(
         pagination=2,
+        message_type=MessageType.post,
     )
 
-    assert response.keys() == {
-        "messages",
-        "pagination_page",
-        "pagination_total",
-        "pagination_per_page",
-        "pagination_item",
-    }
-
-    messages = response["messages"]
-    assert set(messages[0].keys()).issuperset(
-        {
-            "_id",
-            "chain",
-            "item_hash",
-            "sender",
-            "type",
-            "channel",
-            "confirmed",
-            "content",
-            "item_content",
-            "item_type",
-            "signature",
-            "size",
-            "time",
-            # 'confirmations',
-        }
-    )
+    messages = response.messages
+    assert len(messages) > 1
+    for message in messages:
+        assert message.type == MessageType.post
 
 
 @pytest.mark.asyncio
 async def test_get_messages():
     _get_fallback_session.cache_clear()
 
-    response = await get_messages(
+    response: MessagesResponse = await get_messages(
         pagination=2,
     )
 
-    assert response.keys() == {
-        "messages",
-        "pagination_page",
-        "pagination_total",
-        "pagination_per_page",
-        "pagination_item",
-    }
-
-    messages = response["messages"]
-    assert set(messages[0].keys()).issuperset(
-        {
-            "_id",
-            "chain",
-            "item_hash",
-            "sender",
-            "type",
-            "channel",
-            "confirmed",
-            "content",
-            "item_content",
-            "item_type",
-            "signature",
-            "size",
-            "time",
-            # 'confirmations',
-        }
-    )
+    messages = response.messages
+    assert len(messages) > 1
+    assert messages[0].type
+    assert messages[0].sender
