@@ -111,7 +111,8 @@ async def broadcast(
     message,
     session: Optional[ClientSession] = None,
     api_server: str = settings.API_HOST,
-):
+) -> None:
+    """Broadcast a message on the Aleph network via pubsub for nodes to pick it up."""
     session = session or get_fallback_session()
 
     async with session.post(
@@ -120,7 +121,10 @@ async def broadcast(
     ) as response:
         response.raise_for_status()
         result = await response.json()
-        if result["status"] == "warning":
+        status = result.get("status")
+        if status == "success":
+            return
+        elif status == "warning":
             if result.get("failed"):
                 # Requires recent version of Pyaleph
                 if result["failed"] == ["p2p"]:
@@ -133,7 +137,10 @@ async def broadcast(
                     )
             else:
                 logger.warning(f"Message failed to publish on IPFS and/or P2P")
-        return result.get("value")
+        else:
+            raise ValueError(
+                f"Invalid response from server, status in missing or unknown: '{status}'"
+            )
 
 
 async def create_post(

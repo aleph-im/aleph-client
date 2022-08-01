@@ -18,6 +18,18 @@ from aleph_client.chains.common import get_fallback_private_key
 from aleph_client.chains.ethereum import ETHAccount
 
 
+def new_mock_session_with_post_success():
+    mock_response = AsyncMock()
+    mock_response.json.return_value = {"status": "success"}
+
+    mock_post = AsyncMock()
+    mock_post.return_value = mock_response
+
+    mock_session = MagicMock()
+    mock_session.post.return_value.__aenter__ = mock_post
+    return mock_session
+
+
 @pytest.mark.asyncio
 async def test_create_post():
     _get_fallback_session.cache_clear()
@@ -30,7 +42,7 @@ async def test_create_post():
 
     content = {"Hello": "World"}
 
-    mock_session = MagicMock()
+    mock_session = new_mock_session_with_post_success()
 
     await create_post(
         account=account,
@@ -56,7 +68,7 @@ async def test_create_aggregate():
 
     content = {"Hello": "World"}
 
-    mock_session = MagicMock()
+    mock_session = new_mock_session_with_post_success()
 
     await create_aggregate(
         account=account,
@@ -88,9 +100,7 @@ async def test_create_store():
     private_key = get_fallback_private_key()
     account: ETHAccount = ETHAccount(private_key=private_key)
 
-    content = {"Hello": "World"}
-
-    mock_session = MagicMock()
+    mock_session = new_mock_session_with_post_success()
 
     mock_ipfs_push_file = AsyncMock()
     mock_ipfs_push_file.return_value = "FAKE-HASH"
@@ -144,9 +154,7 @@ async def test_create_program():
     private_key = get_fallback_private_key()
     account: ETHAccount = ETHAccount(private_key=private_key)
 
-    content = {"Hello": "World"}
-
-    mock_session = MagicMock()
+    mock_session = new_mock_session_with_post_success()
 
     await create_program(
         account=account,
@@ -171,9 +179,7 @@ async def test_forget():
     private_key = get_fallback_private_key()
     account: ETHAccount = ETHAccount(private_key=private_key)
 
-    content = {"Hello": "World"}
-
-    mock_session = MagicMock()
+    mock_session = new_mock_session_with_post_success()
 
     await forget(
         account=account,
