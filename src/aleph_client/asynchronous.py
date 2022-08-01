@@ -393,7 +393,7 @@ async def submit(
     account: Account,
     content: Dict,
     message_type: str,
-    channel: str = "IOT_TEST",
+    channel: str = settings.DEFAULT_CHANNEL,
     api_server: str = settings.API_HOST,
     storage_engine: StorageEnum = StorageEnum.storage,
     session: Optional[ClientSession] = None,
