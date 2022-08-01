@@ -26,8 +26,8 @@ jobs:
 
       - name: Pytest in the Docker image
         run: |
-          docker run aleph-client:${GITHUB_REF##*/} pytest /opt/aleph-client/
+          docker run --entrypoint /opt/venv/bin/pytest aleph-client:${GITHUB_REF##*/} /opt/aleph-client/
 
       - name: MyPy in the Docker image
         run: |
-          docker run aleph-client:${GITHUB_REF##*/} mypy /opt/aleph-client/src/ --ignore-missing-imports
+          docker run --entrypoint /opt/venv/bin/mypy aleph-client:${GITHUB_REF##*/} /opt/aleph-client/src/ --ignore-missing-imports

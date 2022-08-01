@@ -33,4 +33,5 @@ RUN pip install -e .[testing,ethereum,solana]
 WORKDIR /home/user
 USER user
 RUN aleph --install-completion bash
-CMD ["aleph", "--help"]
+ENTRYPOINT ["aleph"]
+CMD ["--help"]
