@@ -51,4 +51,6 @@ Using Docker
 
 Use the Aleph client and it's CLI from within Docker or Podman with:
 
-`docker run --rm -ti -v $(pwd)/device.key:/home/user/device.key:ro alephim/aleph-client:beta bash`
+		$ docker run --rm -ti ghcr.io/aleph-im/aleph-client/aleph-client:master --help
+
+Warning: This will use an ephemeral key that will be discarded when stopping the container.
