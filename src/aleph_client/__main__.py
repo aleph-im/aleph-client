@@ -8,19 +8,18 @@ import subprocess
 import tempfile
 from base64 import b32encode, b16decode
 from enum import Enum
-from shutil import make_archive
+from pathlib import Path
 from typing import Optional, Dict, List
-from zipfile import ZipFile, BadZipFile
+from zipfile import BadZipFile
 
 import typer
 from aleph_message.models import ProgramMessage, StoreMessage, Message, MessageType
-from aleph_message.models.program import Encoding
 from typer import echo
 
+from aleph_client.utils import create_archive
 from .asynchronous import (
     get_fallback_session,
     StorageEnum,
-    magic,
 )
 from . import synchronous
 
@@ -83,18 +82,6 @@ def _load_account(
             return account
 
 
-def _is_zip_valid(path: str):
-    try:
-        with open(path, "rb") as archive_file:
-            with ZipFile(archive_file, "r") as archive:
-                if not archive.namelist():
-                    echo("No file in the archive.")
-        return True
-    except BadZipFile:
-        echo("Invalid zip archive")
-        return False
-
-
 @app.command()
 def whoami(
     private_key: Optional[str] = settings.PRIVATE_KEY_STRING,
@@ -124,14 +111,17 @@ def post(
     content: Dict
 
     if path:
-        if not os.path.isfile(path):
-            echo(f"Error: File not found: '{path}'")
+        path_object = Path(path)
+        if not path_object.is_file():
+            echo(f"Error: File not found: '{path_object}'")
             raise typer.Exit(code=1)
 
-        file_size = os.path.getsize(path)
-        storage_engine = StorageEnum.ipfs if file_size > 4 * 1024 * 1024 else StorageEnum.storage
+        file_size = os.path.getsize(path_object)
+        storage_engine = (
+            StorageEnum.ipfs if file_size > 4 * 1024 * 1024 else StorageEnum.storage
+        )
 
-        with open(path, "r") as fd:
+        with open(path_object, "r") as fd:
             content = json.load(fd)
 
     else:
@@ -170,13 +160,14 @@ def upload(
     """Upload and store a file on Aleph.im."""
 
     account = _load_account(private_key, private_key_file)
+    path_object = Path(path)
 
     try:
-        if not os.path.isfile(path):
-            echo(f"Error: File not found: '{path}'")
+        if not path_object.is_file():
+            echo(f"Error: File not found: '{path_object}'")
             raise typer.Exit(code=1)
 
-        with open(path, "rb") as fd:
+        with open(path_object, "rb") as fd:
             logger.debug("Reading file")
             # TODO: Read in lazy mode instead of copying everything in memory
             file_content = fd.read()
@@ -293,31 +284,14 @@ def program(
 ):
     """Register a program to run on Aleph.im virtual machines from a zip archive."""
 
-    path = os.path.abspath(path)
+    path_object = Path(path).absolute()
 
-    # Create a zip archive from a directory
-    if os.path.isdir(path):
-        if settings.CODE_USES_SQUASHFS:
-            logger.debug("Creating squashfs archive...")
-            os.system(f"mksquashfs {path} {path}.squashfs -noappend")
-            path = f"{path}.squashfs"
-            assert os.path.isfile(path)
-            encoding = Encoding.squashfs
-        else:
-            logger.debug("Creating zip archive...")
-            make_archive(path, "zip", path)
-            path = path + ".zip"
-            encoding = Encoding.zip
-    elif os.path.isfile(path):
-        if path.endswith(".squashfs") or (
-            magic and magic.from_file(path).startswith("Squashfs filesystem")
-        ):
-            encoding = Encoding.squashfs
-        elif _is_zip_valid(path):
-            encoding = Encoding.zip
-        else:
-            raise typer.Exit(3)
-    else:
+    try:
+        path_object, encoding = create_archive(path_object)
+    except BadZipFile:
+        echo("Invalid zip archive")
+        raise typer.Exit(3)
+    except FileNotFoundError:
         echo("No such file or directory")
         raise typer.Exit(4)
 
@@ -347,7 +321,7 @@ def program(
 
     try:
         # Upload the source code
-        with open(path, "rb") as fd:
+        with open(path_object, "rb") as fd:
             logger.debug("Reading file")
             # TODO: Read in lazy mode instead of copying everything in memory
             file_content = fd.read()
@@ -417,6 +391,7 @@ def update(
     """Update the code of an existing program"""
 
     account = _load_account(private_key, private_key_file)
+    path_object = Path(path).absolute()
 
     try:
         raw_program_message = synchronous.get_messages(hashes=[hash])
@@ -426,29 +401,12 @@ def update(
         raw_code_message = synchronous.get_messages(hashes=[code_ref])
         code_message = StoreMessage(**raw_code_message["messages"][0])
 
-        # Create a zip archive from a directory
-        if os.path.isdir(path):
-            if settings.CODE_USES_SQUASHFS:
-                logger.debug("Creating squashfs archive...")
-                os.system(f"mksquashfs {path} {path}.squashfs -noappend")
-                path = f"{path}.squashfs"
-                assert os.path.isfile(path)
-                encoding = Encoding.squashfs
-            else:
-                logger.debug("Creating zip archive...")
-                make_archive(path, "zip", path)
-                path = path + ".zip"
-                encoding = Encoding.zip
-        elif os.path.isfile(path):
-            if path.endswith(".squashfs") or (
-                magic and magic.from_file(path).startswith("Squashfs filesystem")
-            ):
-                encoding = Encoding.squashfs
-            elif _is_zip_valid(path):
-                encoding = Encoding.zip
-            else:
-                raise typer.Exit(3)
-        else:
+        try:
+            encoding = create_archive(path_object)
+        except BadZipFile:
+            echo("Invalid zip archive")
+            raise typer.Exit(3)
+        except FileNotFoundError:
             echo("No such file or directory")
             raise typer.Exit(4)
 
@@ -459,7 +417,7 @@ def update(
             raise typer.Exit(1)
 
         # Upload the source code
-        with open(path, "rb") as fd:
+        with open(path_object, "rb") as fd:
             logger.debug("Reading file")
             # TODO: Read in lazy mode instead of copying everything in memory
             file_content = fd.read()
