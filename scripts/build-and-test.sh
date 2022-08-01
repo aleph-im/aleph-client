@@ -11,5 +11,5 @@ else
 fi
 
 $DOCKER_COMMAND build -t aleph-client -f docker/Dockerfile .
-$DOCKER_COMMAND run -ti --rm aleph-client pytest /opt/aleph-client/ "$@"
-$DOCKER_COMMAND run -ti --rm aleph-client mypy /opt/aleph-client/src/ --ignore-missing-imports
+$DOCKER_COMMAND run -ti --rm --entrypoint /opt/venv/bin/pytest aleph-client /opt/aleph-client/ "$@"
+$DOCKER_COMMAND run -ti --rm --entrypoint /opt/venv/bin/mypy aleph-client /opt/aleph-client/src/ --ignore-missing-imports

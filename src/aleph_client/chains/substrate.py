@@ -6,8 +6,8 @@ from .common import (
     get_fallback_private_key,
     get_verification_buffer,
     get_public_key,
-    PRIVATE_KEY_FILE,
 )
+from ..conf import settings
 
 
 class DOTAccount(BaseAccount):
@@ -41,11 +41,11 @@ def get_fallback_account():
 
 def get_fallback_mnemonics():
     try:
-        with open(PRIVATE_KEY_FILE, "r") as prvfile:
+        with open(settings.PRIVATE_KEY_FILE, "r") as prvfile:
             mnemonic = prvfile.read()
     except OSError:
         mnemonic = Keypair.generate_mnemonic()
-        with open(PRIVATE_KEY_FILE, "w") as prvfile:
+        with open(settings.PRIVATE_KEY_FILE, "w") as prvfile:
             prvfile.write(mnemonic)
 
     return mnemonic
