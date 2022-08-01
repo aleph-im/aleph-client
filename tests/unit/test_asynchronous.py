@@ -6,8 +6,14 @@ import pytest as pytest
 from aleph_client.conf import settings
 from aleph_client.types import StorageEnum
 
-from aleph_client.asynchronous import create_post, _get_fallback_session, create_aggregate, create_store, \
-    create_program, forget
+from aleph_client.asynchronous import (
+    create_post,
+    _get_fallback_session,
+    create_aggregate,
+    create_store,
+    create_program,
+    forget,
+)
 from aleph_client.chains.common import get_fallback_private_key
 from aleph_client.chains.ethereum import ETHAccount
 
@@ -54,7 +60,7 @@ async def test_create_aggregate():
 
     await create_aggregate(
         account=account,
-        key='hello',
+        key="hello",
         content=content,
         channel="TEST",
         session=mock_session,
@@ -62,8 +68,8 @@ async def test_create_aggregate():
 
     await create_aggregate(
         account=account,
-        key='hello',
-        content='world',
+        key="hello",
+        content="world",
         channel="TEST",
         session=mock_session,
         api_server="https://example.org",
@@ -89,7 +95,7 @@ async def test_create_store():
     mock_ipfs_push_file = AsyncMock()
     mock_ipfs_push_file.return_value = "FAKE-HASH"
 
-    with patch('aleph_client.asynchronous.ipfs_push_file', mock_ipfs_push_file):
+    with patch("aleph_client.asynchronous.ipfs_push_file", mock_ipfs_push_file):
 
         await create_store(
             account=account,
@@ -114,7 +120,7 @@ async def test_create_store():
     mock_storage_push_file = AsyncMock()
     mock_storage_push_file.return_value = "FAKE-HASH"
 
-    with patch('aleph_client.asynchronous.storage_push_file', mock_storage_push_file):
+    with patch("aleph_client.asynchronous.storage_push_file", mock_storage_push_file):
 
         await create_store(
             account=account,

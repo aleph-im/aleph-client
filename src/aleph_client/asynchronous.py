@@ -10,8 +10,13 @@ import time
 from datetime import datetime
 from functools import lru_cache
 
-from aleph_message.models import ForgetContent, MessageType, AggregateContent, PostContent, \
-    StoreContent
+from aleph_message.models import (
+    ForgetContent,
+    MessageType,
+    AggregateContent,
+    PostContent,
+    StoreContent,
+)
 
 from aleph_client.types import Account, StorageEnum
 
@@ -191,7 +196,7 @@ async def create_aggregate(
         channel=channel,
         api_server=api_server,
         session=session,
-        inline=inline
+        inline=inline,
     )
 
 
@@ -405,10 +410,14 @@ async def submit(
         message["item_hash"] = h.hexdigest()
     else:
         if storage_engine == StorageEnum.ipfs:
-            message["item_hash"] = await ipfs_push(content, session=session, api_server=api_server)
+            message["item_hash"] = await ipfs_push(
+                content, session=session, api_server=api_server
+            )
         else:  # storage
             assert storage_engine == StorageEnum.storage
-            message["item_hash"] = await storage_push(content, session=session, api_server=api_server)
+            message["item_hash"] = await storage_push(
+                content, session=session, api_server=api_server
+            )
 
     message = await account.sign_message(message)
     await broadcast(message, session=session, api_server=api_server)
@@ -429,7 +438,7 @@ async def fetch_aggregate(
 
     params: Dict[str, Any] = {"keys": key}
     if limit:
-        params['limit'] = limit
+        params["limit"] = limit
 
     async with session.get(
         f"{api_server}/api/v0/aggregates/{address}.json", params=params
@@ -456,7 +465,8 @@ async def fetch_aggregates(
         params["limit"] = limit
 
     async with session.get(
-        f"{api_server}/api/v0/aggregates/{address}.json", params=params,
+        f"{api_server}/api/v0/aggregates/{address}.json",
+        params=params,
     ) as resp:
         result = await resp.json()
         data = result.get("data", dict())
@@ -604,7 +614,9 @@ async def watch_messages(
             end_date = end_date.timestamp()
         params["endDate"] = end_date
 
-    async with session.ws_connect(f"{api_server}/api/ws0/messages", params=params) as ws:
+    async with session.ws_connect(
+        f"{api_server}/api/ws0/messages", params=params
+    ) as ws:
         logger.debug("Websocket connected")
         async for msg in ws:
             if msg.type == aiohttp.WSMsgType.TEXT:

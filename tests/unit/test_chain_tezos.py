@@ -4,6 +4,7 @@ from aleph_client.chains.common import delete_private_key_file
 from aleph_client.chains.tezos import TezosAccount, get_fallback_account
 from dataclasses import dataclass, asdict
 
+
 @dataclass
 class Message:
     chain: str
@@ -19,6 +20,7 @@ def test_get_fallback_account():
     assert account.CHAIN == "TEZOS"
     assert account.CURVE == "secp256k1"
     assert account._account.public_key()
+
 
 @pytest.mark.asyncio
 async def test_tezos_account():
@@ -37,6 +39,7 @@ async def test_tezos_account():
     pubkey = account.get_public_key()
     assert isinstance(pubkey, str)
     assert len(pubkey) == 55
+
 
 @pytest.mark.asyncio
 async def test_decrypt_secp256k1():

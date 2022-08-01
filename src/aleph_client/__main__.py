@@ -125,7 +125,11 @@ def post(
 
     else:
         content_raw = _input_multiline()
-        storage_engine = StorageEnum.ipfs if len(content_raw) > 4 * 1024 * 1024 else StorageEnum.storage
+        storage_engine = (
+            StorageEnum.ipfs
+            if len(content_raw) > 4 * 1024 * 1024
+            else StorageEnum.storage
+        )
         try:
             content = json.loads(content_raw)
         except json.decoder.JSONDecodeError:
@@ -171,7 +175,9 @@ def upload(
             # TODO: Read in lazy mode instead of copying everything in memory
             file_content = fd.read()
             storage_engine = (
-                StorageEnum.ipfs if len(file_content) > 4 * 1024 * 1024 else StorageEnum.storage
+                StorageEnum.ipfs
+                if len(file_content) > 4 * 1024 * 1024
+                else StorageEnum.storage
             )
             logger.debug("Uploading file")
             result = synchronous.create_store(

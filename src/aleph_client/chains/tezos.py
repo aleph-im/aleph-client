@@ -24,8 +24,7 @@ class TezosAccount(BaseAccount):
         self._private_key = self._signing_key.to_curve25519_private_key()
 
     async def sign_message(self, message: Dict) -> Dict:
-        """Sign a message inplace.
-        """
+        """Sign a message inplace."""
         message = self._setup_sender(message)
 
         verif = get_verification_buffer(message)
