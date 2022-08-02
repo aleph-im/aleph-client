@@ -1,14 +1,13 @@
 import json
 from typing import Dict
 
-from nacl.signing import SigningKey
-from nacl.public import PublicKey, PrivateKey, SealedBox
 import base58
+from nacl.public import PrivateKey, SealedBox
+from nacl.signing import SigningKey
 
 from .common import (
     BaseAccount,
     get_verification_buffer,
-    get_public_key,
 )
 from ..conf import settings
 

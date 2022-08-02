@@ -2,8 +2,9 @@ import re
 from typing import Union, Optional
 
 from aiohttp import ClientSession
-from ..conf import settings
+
 from aleph_client.asynchronous import get_fallback_session
+from ..conf import settings
 
 
 class VmCache:

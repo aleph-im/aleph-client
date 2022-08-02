@@ -8,22 +8,20 @@ import subprocess
 import tempfile
 from base64 import b32encode, b16decode
 from enum import Enum
-from shutil import make_archive
+from pathlib import Path
 from typing import Optional, Dict, List
-from zipfile import ZipFile, BadZipFile
+from zipfile import BadZipFile
 
 import typer
 from aleph_message.models import ProgramMessage, StoreMessage, Message, MessageType
-from aleph_message.models.program import Encoding
 from typer import echo
 
+from aleph_client.utils import create_archive
+from . import synchronous
 from .asynchronous import (
     get_fallback_session,
     StorageEnum,
-    magic,
 )
-from . import synchronous
-
 from .chains.common import get_fallback_private_key, BaseAccount
 from .chains.ethereum import ETHAccount
 from .chains.remote import RemoteAccount
@@ -83,16 +81,9 @@ def _load_account(
             return account
 
 
-def _is_zip_valid(path: str):
-    try:
-        with open(path, "rb") as archive_file:
-            with ZipFile(archive_file, "r") as archive:
-                if not archive.namelist():
-                    echo("No file in the archive.")
-        return True
-    except BadZipFile:
-        echo("Invalid zip archive")
-        return False
+def _setup_logging(debug: bool = False):
+    level = logging.DEBUG if debug else logging.WARNING
+    logging.basicConfig(level=level)
 
 
 @app.command()
@@ -116,27 +107,37 @@ def post(
     channel: str = settings.DEFAULT_CHANNEL,
     private_key: Optional[str] = settings.PRIVATE_KEY_STRING,
     private_key_file: Optional[str] = settings.PRIVATE_KEY_FILE,
+    debug: bool = False,
 ):
     """Post a message on Aleph.im."""
+
+    _setup_logging(debug)
 
     account = _load_account(private_key, private_key_file)
     storage_engine: str
     content: Dict
 
     if path:
-        if not os.path.isfile(path):
-            echo(f"Error: File not found: '{path}'")
+        path_object = Path(path)
+        if not path_object.is_file():
+            echo(f"Error: File not found: '{path_object}'")
             raise typer.Exit(code=1)
 
-        file_size = os.path.getsize(path)
-        storage_engine = StorageEnum.ipfs if file_size > 4 * 1024 * 1024 else StorageEnum.storage
+        file_size = os.path.getsize(path_object)
+        storage_engine = (
+            StorageEnum.ipfs if file_size > 4 * 1024 * 1024 else StorageEnum.storage
+        )
 
-        with open(path, "r") as fd:
+        with open(path_object, "r") as fd:
             content = json.load(fd)
 
     else:
         content_raw = _input_multiline()
-        storage_engine = StorageEnum.ipfs if len(content_raw) > 4 * 1024 * 1024 else StorageEnum.storage
+        storage_engine = (
+            StorageEnum.ipfs
+            if len(content_raw) > 4 * 1024 * 1024
+            else StorageEnum.storage
+        )
         try:
             content = json.loads(content_raw)
         except json.decoder.JSONDecodeError:
@@ -156,7 +157,7 @@ def post(
         echo(f"{json.dumps(result, indent=4)}")
     finally:
         # Prevent aiohttp unclosed connector warning
-        asyncio.get_event_loop().run_until_complete(get_fallback_session().close())
+        asyncio.run(get_fallback_session().close())
 
 
 @app.command()
@@ -166,22 +167,28 @@ def upload(
     private_key: Optional[str] = settings.PRIVATE_KEY_STRING,
     private_key_file: Optional[str] = settings.PRIVATE_KEY_FILE,
     ref: Optional[str] = None,
+    debug: bool = False,
 ):
     """Upload and store a file on Aleph.im."""
 
+    _setup_logging(debug)
+
     account = _load_account(private_key, private_key_file)
+    path_object = Path(path)
 
     try:
-        if not os.path.isfile(path):
-            echo(f"Error: File not found: '{path}'")
+        if not path_object.is_file():
+            echo(f"Error: File not found: '{path_object}'")
             raise typer.Exit(code=1)
 
-        with open(path, "rb") as fd:
+        with open(path_object, "rb") as fd:
             logger.debug("Reading file")
             # TODO: Read in lazy mode instead of copying everything in memory
             file_content = fd.read()
             storage_engine = (
-                StorageEnum.ipfs if len(file_content) > 4 * 1024 * 1024 else StorageEnum.storage
+                StorageEnum.ipfs
+                if len(file_content) > 4 * 1024 * 1024
+                else StorageEnum.storage
             )
             logger.debug("Uploading file")
             result = synchronous.create_store(
@@ -196,7 +203,7 @@ def upload(
             echo(f"{json.dumps(result, indent=4)}")
     finally:
         # Prevent aiohttp unclosed connector warning
-        asyncio.get_event_loop().run_until_complete(get_fallback_session().close())
+        asyncio.run(get_fallback_session().close())
 
 
 @app.command()
@@ -206,8 +213,11 @@ def pin(
     private_key: Optional[str] = settings.PRIVATE_KEY_STRING,
     private_key_file: Optional[str] = settings.PRIVATE_KEY_FILE,
     ref: Optional[str] = None,
+    debug: bool = False,
 ):
     """Persist a file from IPFS on Aleph.im."""
+
+    _setup_logging(debug)
 
     account = _load_account(private_key, private_key_file)
 
@@ -223,7 +233,7 @@ def pin(
         echo(f"{json.dumps(result, indent=4)}")
     finally:
         # Prevent aiohttp unclosed connector warning
-        asyncio.get_event_loop().run_until_complete(get_fallback_session().close())
+        asyncio.run(get_fallback_session().close())
 
 
 def yes_no_input(text: str, default: Optional[bool] = None):
@@ -243,9 +253,9 @@ def yes_no_input(text: str, default: Optional[bool] = None):
             return default
         else:
             if default is None:
-                print("Please enter 'y', 'yes', 'n' or 'no'")
+                echo("Please enter 'y', 'yes', 'n' or 'no'")
             else:
-                print("Please enter 'y', 'yes', 'n', 'no' or nothing")
+                echo("Please enter 'y', 'yes', 'n', 'no' or nothing")
             continue
 
 
@@ -290,34 +300,20 @@ def program(
     print_program_message: bool = False,
     runtime: str = None,
     beta: bool = False,
+    debug: bool = False,
 ):
     """Register a program to run on Aleph.im virtual machines from a zip archive."""
 
-    path = os.path.abspath(path)
+    _setup_logging(debug)
 
-    # Create a zip archive from a directory
-    if os.path.isdir(path):
-        if settings.CODE_USES_SQUASHFS:
-            logger.debug("Creating squashfs archive...")
-            os.system(f"mksquashfs {path} {path}.squashfs -noappend")
-            path = f"{path}.squashfs"
-            assert os.path.isfile(path)
-            encoding = Encoding.squashfs
-        else:
-            logger.debug("Creating zip archive...")
-            make_archive(path, "zip", path)
-            path = path + ".zip"
-            encoding = Encoding.zip
-    elif os.path.isfile(path):
-        if path.endswith(".squashfs") or (
-            magic and magic.from_file(path).startswith("Squashfs filesystem")
-        ):
-            encoding = Encoding.squashfs
-        elif _is_zip_valid(path):
-            encoding = Encoding.zip
-        else:
-            raise typer.Exit(3)
-    else:
+    path_object = Path(path).absolute()
+
+    try:
+        path_object, encoding = create_archive(path_object)
+    except BadZipFile:
+        echo("Invalid zip archive")
+        raise typer.Exit(3)
+    except FileNotFoundError:
         echo("No such file or directory")
         raise typer.Exit(4)
 
@@ -332,7 +328,7 @@ def program(
     volumes = []
     for volume in _prompt_for_volumes():
         volumes.append(volume)
-        print()
+        echo("\n")
 
     subscriptions: Optional[List[Dict]]
     if beta and yes_no_input("Subscribe to messages ?", default=False):
@@ -347,7 +343,7 @@ def program(
 
     try:
         # Upload the source code
-        with open(path, "rb") as fd:
+        with open(path_object, "rb") as fd:
             logger.debug("Reading file")
             # TODO: Read in lazy mode instead of copying everything in memory
             file_content = fd.read()
@@ -403,7 +399,7 @@ def program(
 
     finally:
         # Prevent aiohttp unclosed connector warning
-        asyncio.get_event_loop().run_until_complete(get_fallback_session().close())
+        asyncio.run(get_fallback_session().close())
 
 
 @app.command()
@@ -413,10 +409,14 @@ def update(
     private_key: Optional[str] = settings.PRIVATE_KEY_STRING,
     private_key_file: Optional[str] = settings.PRIVATE_KEY_FILE,
     print_message: bool = True,
+    debug: bool = False,
 ):
     """Update the code of an existing program"""
 
+    _setup_logging(debug)
+
     account = _load_account(private_key, private_key_file)
+    path_object = Path(path).absolute()
 
     try:
         raw_program_message = synchronous.get_messages(hashes=[hash])
@@ -426,29 +426,12 @@ def update(
         raw_code_message = synchronous.get_messages(hashes=[code_ref])
         code_message = StoreMessage(**raw_code_message["messages"][0])
 
-        # Create a zip archive from a directory
-        if os.path.isdir(path):
-            if settings.CODE_USES_SQUASHFS:
-                logger.debug("Creating squashfs archive...")
-                os.system(f"mksquashfs {path} {path}.squashfs -noappend")
-                path = f"{path}.squashfs"
-                assert os.path.isfile(path)
-                encoding = Encoding.squashfs
-            else:
-                logger.debug("Creating zip archive...")
-                make_archive(path, "zip", path)
-                path = path + ".zip"
-                encoding = Encoding.zip
-        elif os.path.isfile(path):
-            if path.endswith(".squashfs") or (
-                magic and magic.from_file(path).startswith("Squashfs filesystem")
-            ):
-                encoding = Encoding.squashfs
-            elif _is_zip_valid(path):
-                encoding = Encoding.zip
-            else:
-                raise typer.Exit(3)
-        else:
+        try:
+            encoding = create_archive(path_object)
+        except BadZipFile:
+            echo("Invalid zip archive")
+            raise typer.Exit(3)
+        except FileNotFoundError:
             echo("No such file or directory")
             raise typer.Exit(4)
 
@@ -459,7 +442,7 @@ def update(
             raise typer.Exit(1)
 
         # Upload the source code
-        with open(path, "rb") as fd:
+        with open(path_object, "rb") as fd:
             logger.debug("Reading file")
             # TODO: Read in lazy mode instead of copying everything in memory
             file_content = fd.read()
@@ -477,7 +460,7 @@ def update(
                 echo(f"{json.dumps(result, indent=4)}")
     finally:
         # Prevent aiohttp unclosed connector warning
-        asyncio.get_event_loop().run_until_complete(get_fallback_session().close())
+        asyncio.run(get_fallback_session().close())
 
 
 @app.command()
@@ -485,8 +468,12 @@ def amend(
     hash: str,
     private_key: Optional[str] = settings.PRIVATE_KEY_STRING,
     private_key_file: Optional[str] = settings.PRIVATE_KEY_FILE,
+    debug: bool = False,
 ):
     """Amend an existing Aleph message."""
+
+    _setup_logging(debug)
+
     account = _load_account(private_key, private_key_file)
 
     existing = synchronous.get_messages(hashes=[hash])
@@ -507,7 +494,7 @@ def amend(
 
     new_content = json.loads(new_message)
     new_content["ref"] = existing_message["item_hash"]
-    print(new_content)
+    echo(new_content)
     synchronous.submit(
         account=account,
         content=new_content,
@@ -532,7 +519,7 @@ def forget_messages(
         echo(f"{json.dumps(result, indent=4)}")
     finally:
         # Prevent aiohttp unclosed connector warning
-        asyncio.get_event_loop().run_until_complete(get_fallback_session().close())
+        asyncio.run(get_fallback_session().close())
 
 
 @app.command()
@@ -542,8 +529,12 @@ def forget(
     channel: str = settings.DEFAULT_CHANNEL,
     private_key: Optional[str] = settings.PRIVATE_KEY_STRING,
     private_key_file: Optional[str] = settings.PRIVATE_KEY_FILE,
+    debug: bool = False,
 ):
     """Forget an existing Aleph message."""
+
+    _setup_logging(debug)
+
     account = _load_account(private_key, private_key_file)
 
     hash_list: List[str] = hashes.split(",")
@@ -557,8 +548,12 @@ def forget_aggregate(
     channel: str = settings.DEFAULT_CHANNEL,
     private_key: Optional[str] = settings.PRIVATE_KEY_STRING,
     private_key_file: Optional[str] = settings.PRIVATE_KEY_FILE,
+    debug: bool = False,
 ):
     """Forget all the messages composing an aggregate."""
+
+    _setup_logging(debug)
+
     account = _load_account(private_key, private_key_file)
 
     message_response = synchronous.get_messages(
@@ -571,8 +566,14 @@ def forget_aggregate(
 
 
 @app.command()
-def watch(ref: str, indent: Optional[int] = None):
+def watch(
+    ref: str,
+    indent: Optional[int] = None,
+    debug: bool = False,
+):
     """Watch a hash for amends and print amend hashes"""
+
+    _setup_logging(debug)
 
     original_json = synchronous.get_messages(hashes=[ref])["messages"][0]
     original = Message(**original_json)
@@ -584,5 +585,4 @@ def watch(ref: str, indent: Optional[int] = None):
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.DEBUG, format="%(levelname)s: %(message)s")
     app()

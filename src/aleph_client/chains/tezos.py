@@ -1,17 +1,16 @@
+import json
 from typing import Dict
-from aleph_pytezos.crypto.key import Key
 
+from aleph_pytezos.crypto.key import Key
+from nacl.public import SealedBox
 from nacl.signing import SigningKey
-from nacl.public import PublicKey, PrivateKey, SealedBox
 
 from .common import (
     BaseAccount,
     get_fallback_private_key,
     get_verification_buffer,
-    get_public_key,
 )
 
-import json
 
 class TezosAccount(BaseAccount):
     CHAIN = "TEZOS"
@@ -25,8 +24,7 @@ class TezosAccount(BaseAccount):
         self._private_key = self._signing_key.to_curve25519_private_key()
 
     async def sign_message(self, message: Dict) -> Dict:
-        """Sign a message inplace.
-        """
+        """Sign a message inplace."""
         message = self._setup_sender(message)
 
         verif = get_verification_buffer(message)

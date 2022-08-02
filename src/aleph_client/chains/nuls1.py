@@ -1,20 +1,19 @@
 """ Barebone NULS address and message signing support.
 """
-import struct
 import hashlib
+import logging
+import struct
+from binascii import hexlify, unhexlify
 from typing import Optional
 
 from coincurve import PrivateKey, PublicKey
-from binascii import hexlify, unhexlify
+
 from .common import (
     get_public_key,
-    generate_key,
     get_verification_buffer,
     BaseAccount,
     get_fallback_private_key,
 )
-
-import logging
 
 LOGGER = logging.getLogger("NULS")
 
