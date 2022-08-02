@@ -58,7 +58,10 @@ async def ipfs_push(
 ) -> str:
     session = session or get_fallback_session()
 
-    async with session.post(f"{api_server}/api/v0/ipfs/add_json", json=content) as resp:
+    url = f"{api_server}/api/v0/ipfs/add_json"
+    logger.debug(f"Pushing to IPFS on {url}")
+
+    async with session.post(url, json=content) as resp:
         resp.raise_for_status()
         return (await resp.json()).get("hash")
 
@@ -70,9 +73,10 @@ async def storage_push(
 ) -> str:
     session = session or get_fallback_session()
 
-    async with session.post(
-        f"{api_server}/api/v0/storage/add_json", json=content
-    ) as resp:
+    url = f"{api_server}/api/v0/storage/add_json"
+    logger.debug(f"Pushing to storage on {url}")
+
+    async with session.post(url, json=content) as resp:
         resp.raise_for_status()
         return (await resp.json()).get("hash")
 
@@ -87,7 +91,10 @@ async def ipfs_push_file(
     data = aiohttp.FormData()
     data.add_field("file", file_content)
 
-    async with session.post(f"{api_server}/api/v0/ipfs/add_file", data=data) as resp:
+    url = f"{api_server}/api/v0/ipfs/add_file"
+    logger.debug(f"Pushing file to IPFS on {url}")
+
+    async with session.post(url, data=data) as resp:
         resp.raise_for_status()
         return (await resp.json()).get("hash")
 
@@ -102,7 +109,10 @@ async def storage_push_file(
     data = aiohttp.FormData()
     data.add_field("file", file_content)
 
-    async with session.post(f"{api_server}/api/v0/storage/add_file", data=data) as resp:
+    url = f"{api_server}/api/v0/storage/add_file"
+    logger.debug(f"Posting file on {url}")
+
+    async with session.post(url, data=data) as resp:
         resp.raise_for_status()
         return (await resp.json()).get("hash")
 
@@ -115,8 +125,11 @@ async def broadcast(
     """Broadcast a message on the Aleph network via pubsub for nodes to pick it up."""
     session = session or get_fallback_session()
 
+    url = f"{api_server}/api/v0/ipfs/pubsub/pub"
+    logger.debug(f"Posting message on {url}")
+
     async with session.post(
-        f"{api_server}/api/v0/ipfs/pubsub/pub",
+        url,
         json={"topic": "ALEPH-TEST", "data": json.dumps(message)},
     ) as response:
         response.raise_for_status()

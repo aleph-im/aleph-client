@@ -81,6 +81,11 @@ def _load_account(
             return account
 
 
+def _setup_logging(debug: bool = False):
+    level = logging.DEBUG if debug else logging.WARNING
+    logging.basicConfig(level=level)
+
+
 @app.command()
 def whoami(
     private_key: Optional[str] = settings.PRIVATE_KEY_STRING,
@@ -102,8 +107,11 @@ def post(
     channel: str = settings.DEFAULT_CHANNEL,
     private_key: Optional[str] = settings.PRIVATE_KEY_STRING,
     private_key_file: Optional[str] = settings.PRIVATE_KEY_FILE,
+    debug: bool = False,
 ):
     """Post a message on Aleph.im."""
+
+    _setup_logging(debug)
 
     account = _load_account(private_key, private_key_file)
     storage_engine: str
@@ -159,8 +167,11 @@ def upload(
     private_key: Optional[str] = settings.PRIVATE_KEY_STRING,
     private_key_file: Optional[str] = settings.PRIVATE_KEY_FILE,
     ref: Optional[str] = None,
+    debug: bool = False,
 ):
     """Upload and store a file on Aleph.im."""
+
+    _setup_logging(debug)
 
     account = _load_account(private_key, private_key_file)
     path_object = Path(path)
@@ -202,8 +213,11 @@ def pin(
     private_key: Optional[str] = settings.PRIVATE_KEY_STRING,
     private_key_file: Optional[str] = settings.PRIVATE_KEY_FILE,
     ref: Optional[str] = None,
+    debug: bool = False,
 ):
     """Persist a file from IPFS on Aleph.im."""
+
+    _setup_logging(debug)
 
     account = _load_account(private_key, private_key_file)
 
@@ -286,8 +300,11 @@ def program(
     print_program_message: bool = False,
     runtime: str = None,
     beta: bool = False,
+    debug: bool = False,
 ):
     """Register a program to run on Aleph.im virtual machines from a zip archive."""
+
+    _setup_logging(debug)
 
     path_object = Path(path).absolute()
 
@@ -392,8 +409,11 @@ def update(
     private_key: Optional[str] = settings.PRIVATE_KEY_STRING,
     private_key_file: Optional[str] = settings.PRIVATE_KEY_FILE,
     print_message: bool = True,
+    debug: bool = False,
 ):
     """Update the code of an existing program"""
+
+    _setup_logging(debug)
 
     account = _load_account(private_key, private_key_file)
     path_object = Path(path).absolute()
@@ -448,8 +468,12 @@ def amend(
     hash: str,
     private_key: Optional[str] = settings.PRIVATE_KEY_STRING,
     private_key_file: Optional[str] = settings.PRIVATE_KEY_FILE,
+    debug: bool = False,
 ):
     """Amend an existing Aleph message."""
+
+    _setup_logging(debug)
+
     account = _load_account(private_key, private_key_file)
 
     existing = synchronous.get_messages(hashes=[hash])
@@ -505,8 +529,12 @@ def forget(
     channel: str = settings.DEFAULT_CHANNEL,
     private_key: Optional[str] = settings.PRIVATE_KEY_STRING,
     private_key_file: Optional[str] = settings.PRIVATE_KEY_FILE,
+    debug: bool = False,
 ):
     """Forget an existing Aleph message."""
+
+    _setup_logging(debug)
+
     account = _load_account(private_key, private_key_file)
 
     hash_list: List[str] = hashes.split(",")
@@ -520,8 +548,12 @@ def forget_aggregate(
     channel: str = settings.DEFAULT_CHANNEL,
     private_key: Optional[str] = settings.PRIVATE_KEY_STRING,
     private_key_file: Optional[str] = settings.PRIVATE_KEY_FILE,
+    debug: bool = False,
 ):
     """Forget all the messages composing an aggregate."""
+
+    _setup_logging(debug)
+
     account = _load_account(private_key, private_key_file)
 
     message_response = synchronous.get_messages(
@@ -534,8 +566,14 @@ def forget_aggregate(
 
 
 @app.command()
-def watch(ref: str, indent: Optional[int] = 4):
+def watch(
+    ref: str,
+    indent: Optional[int] = None,
+    debug: bool = False,
+):
     """Watch a hash for amends and print amend hashes"""
+
+    _setup_logging(debug)
 
     original_json = synchronous.get_messages(hashes=[ref])["messages"][0]
     original = Message(**original_json)
@@ -547,5 +585,4 @@ def watch(ref: str, indent: Optional[int] = 4):
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.DEBUG, format="%(levelname)s: %(message)s")
     app()
