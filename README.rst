@@ -16,10 +16,17 @@ Documentation (albeit still vastly incomplete as it is a work in progress) can b
 Requirements
 ============
 
+- Linux : 
+
 Some cryptographic functionalities use curve secp256k1 and require installing
 `libsecp256k1 <https://github.com/bitcoin-core/secp256k1>`_.
 
     $ apt-get install -y python3-pip libsecp256k1-dev
+
+- macOs :  
+
+    $ brew tap cuber/homebrew-libsecp256k1
+    $ brew install libsecp256k1
 
 
 Installation
