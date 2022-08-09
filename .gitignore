@@ -49,3 +49,4 @@ MANIFEST
 .venv*/
 **/device.key
 
+.gitsigners
