@@ -308,6 +308,7 @@ async def create_program(
     memory: int = settings.DEFAULT_VM_MEMORY,
     vcpus: int = settings.DEFAULT_VM_VCPUS,
     timeout_seconds: float = settings.DEFAULT_VM_TIMEOUT,
+    persistent: bool = False,
     encoding: Encoding = Encoding.zip,
     volumes: List[Dict] = None,
     subscriptions: Optional[List[Dict]] = None,
@@ -321,10 +322,10 @@ async def create_program(
     ## Register the different ways to trigger a VM
     if subscriptions:
         # Trigger on HTTP calls and on Aleph message subscriptions.
-        triggers = {"http": True, "message": subscriptions}
+        triggers = {"http": True, "persistent": persistent, "message": subscriptions}
     else:
         # Trigger on HTTP calls.
-        triggers = {"http": True}
+        triggers = {"http": True, "persistent": persistent}
 
     content = ProgramContent(
         **{
@@ -372,6 +373,9 @@ async def create_program(
             "time": time.time(),
         }
     )
+
+    # Ensure that the version of aleph-message used supports the field.
+    assert content.on.persistent == persistent
 
     return await submit(
         account=account,

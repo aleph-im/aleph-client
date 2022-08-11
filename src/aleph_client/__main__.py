@@ -20,11 +20,13 @@ from aleph_message.models import (
     PostMessage,
     ForgetMessage,
     AlephMessage,
+    MessagesResponse,
+    ProgramContent,
 )
 from typer import echo
 
-from aleph_client.types import AccountFromPrivateKey
 from aleph_client.account import _load_account
+from aleph_client.types import AccountFromPrivateKey
 from aleph_client.utils import create_archive
 from . import synchronous
 from .asynchronous import (
@@ -272,6 +274,7 @@ def program(
     runtime: str = None,
     beta: bool = False,
     debug: bool = False,
+    persistent: bool = False,
 ):
     """Register a program to run on Aleph.im virtual machines from a zip archive."""
 
@@ -348,6 +351,7 @@ def program(
             memory=memory,
             vcpus=vcpus,
             timeout_seconds=timeout_seconds,
+            persistent=persistent,
             encoding=encoding,
             volumes=volumes,
             subscriptions=subscriptions,
@@ -434,6 +438,35 @@ def update(
     finally:
         # Prevent aiohttp unclosed connector warning
         asyncio.run(get_fallback_session().close())
+
+
+@app.command()
+def unpersist(
+    hash: str,
+    private_key: Optional[str] = settings.PRIVATE_KEY_STRING,
+    private_key_file: Optional[Path] = settings.PRIVATE_KEY_FILE,
+    debug: bool = False,
+):
+    """Stop a persistent virtual machine by making it non-persistent"""
+
+    _setup_logging(debug)
+
+    account = _load_account(private_key, private_key_file)
+
+    existing: MessagesResponse = synchronous.get_messages(hashes=[hash])
+    message: ProgramMessage = existing.messages[0]
+    content: ProgramContent = message.content.copy()
+
+    content.on.persistent = False
+    content.replaces = message.item_hash
+
+    result = synchronous.submit(
+        account=account,
+        content=content.dict(exclude_none=True),
+        message_type=message.type,
+        channel=message.channel,
+    )
+    echo(f"{result.json(indent=4)}")
 
 
 @app.command()
