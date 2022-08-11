@@ -350,7 +350,9 @@ async def create_program(
             "runtime": {
                 "ref": runtime,
                 "use_latest": True,
-                "comment": "Aleph Alpine Linux with Python 3.8",
+                "comment": "Official Aleph runtime"
+                if runtime == settings.DEFAULT_RUNTIME_ID
+                else "",
             },
             "volumes": volumes,
             # {
