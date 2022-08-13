@@ -20,12 +20,12 @@ class SOLAccount(BaseAccount):
     CHAIN = "SOL"
     CURVE = "curve25519"
     _signing_key: SigningKey
-    _private_key: PrivateKey
+    _encryption_key: PrivateKey
 
     def __init__(self, private_key=None):
         self.private_key = private_key
         self._signing_key = SigningKey(self.private_key)
-        self._private_key = self._signing_key.to_curve25519_private_key()
+        self._encryption_key = self._signing_key.to_curve25519_private_key()
 
     async def sign_message(self, message: Dict) -> Dict:
         """Sign a message inplace."""
@@ -42,14 +42,14 @@ class SOLAccount(BaseAccount):
         return encode(self._signing_key.verify_key)
 
     def get_public_key(self) -> str:
-        return bytes(self._signing_key.verify_key.to_curve25519_public_key()).hex()
+        return bytes(self._signing_key.verify_key).hex()
 
     async def encrypt(self, content) -> bytes:
-        value: bytes = bytes(SealedBox(self._private_key.public_key).encrypt(content))
+        value: bytes = bytes(SealedBox(self._encryption_key.public_key).encrypt(content))
         return value
 
     async def decrypt(self, content) -> bytes:
-        value: bytes = SealedBox(self._private_key).decrypt(content)
+        value: bytes = SealedBox(self._encryption_key).decrypt(content)
         return value
 
 
