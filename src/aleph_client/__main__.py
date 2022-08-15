@@ -63,7 +63,7 @@ def _load_account(
     if private_key_str:
         if private_key_str.startswith("0x"):
             private_key_str = private_key_str[2:]
-        return EthAccount(bytes.fromhex(private_key_str))
+        return ETHAccount(bytes.fromhex(private_key_str))
     elif private_key_file:
         with open(private_key_file, "rb") as pk_fd:
             private_key: bytes = pk_fd.read()
