@@ -37,18 +37,3 @@ jobs:
       - name: Install the Python wheel
         run: |
           python3 -m pip install dist/aleph_client-*.whl
-
-     
-
-
-
-
-        
-          
-
-
-
-
-
- 
-  
