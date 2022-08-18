@@ -11,7 +11,7 @@ def fixture_account():
 
 
 # Fixes the "Event loop is closed" error that happens when running several tests in a row
-@pytest.yield_fixture(scope="session")
+@pytest.fixture(scope="session")
 def event_loop(request):
     """Create an instance of the default event loop for each test case."""
     loop = asyncio.get_event_loop_policy().new_event_loop()
