@@ -1,6 +1,6 @@
 import os
 from abc import abstractmethod, ABC
-from typing import Union, Dict
+from typing import Dict
 
 from coincurve import PrivateKey
 from ecies import decrypt, encrypt
@@ -23,7 +23,7 @@ def get_public_key(private_key):
 class BaseAccount(ABC):
     CHAIN: str
     CURVE: str
-    private_key: Union[str, bytes]
+    private_key: bytes
 
     def _setup_sender(self, message: Dict) -> Dict:
         """Set the sender of the message as the account's public key.

@@ -23,15 +23,14 @@ from aleph_message.models import (
 )
 from typer import echo
 
+from aleph_client.types import AccountFromPrivateKey
+from aleph_client.account import _load_account
 from aleph_client.utils import create_archive
 from . import synchronous
 from .asynchronous import (
     get_fallback_session,
     StorageEnum,
 )
-from .chains.common import get_fallback_private_key, BaseAccount
-from .chains.ethereum import ETHAccount
-from .chains.remote import RemoteAccount
 from .conf import settings
 
 logger = logging.getLogger(__name__)
@@ -55,38 +54,6 @@ def _input_multiline() -> str:
     return contents
 
 
-def _load_account(
-    private_key_str: Optional[str] = None, private_key_file: Optional[str] = None
-) -> BaseAccount:
-    """Load private key from a file"""
-
-    if private_key_str:
-        if private_key_str.startswith("0x"):
-            private_key_str = private_key_str[2:]
-        return ETHAccount(bytes.fromhex(private_key_str))
-    elif private_key_file:
-        with open(private_key_file, "rb") as pk_fd:
-            private_key: bytes = pk_fd.read()
-        return ETHAccount(private_key)
-    else:
-        if settings.REMOTE_CRYPTO_HOST:
-            logger.debug("Using remote account")
-            loop = asyncio.get_event_loop()
-            return loop.run_until_complete(
-                RemoteAccount.from_crypto_host(
-                    host=settings.REMOTE_CRYPTO_HOST,
-                    unix_socket=settings.REMOTE_CRYPTO_UNIX_SOCKET,
-                )
-            )
-        else:
-            private_key = get_fallback_private_key()
-            account: ETHAccount = ETHAccount(private_key=private_key)
-            logger.info(
-                f"Generated fallback private key with address {account.get_address()}"
-            )
-            return account
-
-
 def _setup_logging(debug: bool = False):
     level = logging.DEBUG if debug else logging.WARNING
     logging.basicConfig(level=level)
@@ -95,13 +62,13 @@ def _setup_logging(debug: bool = False):
 @app.command()
 def whoami(
     private_key: Optional[str] = settings.PRIVATE_KEY_STRING,
-    private_key_file: Optional[str] = settings.PRIVATE_KEY_FILE,
+    private_key_file: Optional[Path] = settings.PRIVATE_KEY_FILE,
 ):
     """
     Display your public address.
     """
 
-    account = _load_account(private_key, private_key_file)
+    account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
     echo(account.get_public_key())
 
 
@@ -112,14 +79,14 @@ def post(
     ref: Optional[str] = None,
     channel: str = settings.DEFAULT_CHANNEL,
     private_key: Optional[str] = settings.PRIVATE_KEY_STRING,
-    private_key_file: Optional[str] = settings.PRIVATE_KEY_FILE,
+    private_key_file: Optional[Path] = settings.PRIVATE_KEY_FILE,
     debug: bool = False,
 ):
     """Post a message on Aleph.im."""
 
     _setup_logging(debug)
 
-    account = _load_account(private_key, private_key_file)
+    account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
     storage_engine: str
     content: Dict
 
@@ -170,7 +137,7 @@ def upload(
     path: Path,
     channel: str = settings.DEFAULT_CHANNEL,
     private_key: Optional[str] = settings.PRIVATE_KEY_STRING,
-    private_key_file: Optional[str] = settings.PRIVATE_KEY_FILE,
+    private_key_file: Optional[Path] = settings.PRIVATE_KEY_FILE,
     ref: Optional[str] = None,
     debug: bool = False,
 ):
@@ -178,7 +145,7 @@ def upload(
 
     _setup_logging(debug)
 
-    account = _load_account(private_key, private_key_file)
+    account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
 
     try:
         if not path.is_file():
@@ -215,7 +182,7 @@ def pin(
     hash: str,
     channel: str = settings.DEFAULT_CHANNEL,
     private_key: Optional[str] = settings.PRIVATE_KEY_STRING,
-    private_key_file: Optional[str] = settings.PRIVATE_KEY_FILE,
+    private_key_file: Optional[Path] = settings.PRIVATE_KEY_FILE,
     ref: Optional[str] = None,
     debug: bool = False,
 ):
@@ -223,7 +190,7 @@ def pin(
 
     _setup_logging(debug)
 
-    account = _load_account(private_key, private_key_file)
+    account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
 
     try:
         result: StoreMessage = synchronous.create_store(
@@ -298,7 +265,7 @@ def program(
     vcpus: int = settings.DEFAULT_VM_VCPUS,
     timeout_seconds: float = settings.DEFAULT_VM_TIMEOUT,
     private_key: Optional[str] = settings.PRIVATE_KEY_STRING,
-    private_key_file: Optional[str] = settings.PRIVATE_KEY_FILE,
+    private_key_file: Optional[Path] = settings.PRIVATE_KEY_FILE,
     print_messages: bool = False,
     print_code_message: bool = False,
     print_program_message: bool = False,
@@ -321,7 +288,7 @@ def program(
         echo("No such file or directory")
         raise typer.Exit(4)
 
-    account = _load_account(private_key, private_key_file)
+    account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
 
     runtime = (
         runtime
@@ -411,7 +378,7 @@ def update(
     hash: str,
     path: Path,
     private_key: Optional[str] = settings.PRIVATE_KEY_STRING,
-    private_key_file: Optional[str] = settings.PRIVATE_KEY_FILE,
+    private_key_file: Optional[Path] = settings.PRIVATE_KEY_FILE,
     print_message: bool = True,
     debug: bool = False,
 ):
@@ -472,14 +439,14 @@ def update(
 def amend(
     hash: str,
     private_key: Optional[str] = settings.PRIVATE_KEY_STRING,
-    private_key_file: Optional[str] = settings.PRIVATE_KEY_FILE,
+    private_key_file: Optional[Path] = settings.PRIVATE_KEY_FILE,
     debug: bool = False,
 ):
     """Amend an existing Aleph message."""
 
     _setup_logging(debug)
 
-    account = _load_account(private_key, private_key_file)
+    account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
 
     existing = synchronous.get_messages(hashes=[hash])
     existing_message = existing["messages"][0]
@@ -510,7 +477,7 @@ def amend(
 
 
 def forget_messages(
-    account: BaseAccount,
+    account: AccountFromPrivateKey,
     hashes: List[str],
     reason: Optional[str],
     channel: str,
@@ -534,14 +501,14 @@ def forget(
     reason: Optional[str] = None,
     channel: str = settings.DEFAULT_CHANNEL,
     private_key: Optional[str] = settings.PRIVATE_KEY_STRING,
-    private_key_file: Optional[str] = settings.PRIVATE_KEY_FILE,
+    private_key_file: Optional[Path] = settings.PRIVATE_KEY_FILE,
     debug: bool = False,
 ):
     """Forget an existing Aleph message."""
 
     _setup_logging(debug)
 
-    account = _load_account(private_key, private_key_file)
+    account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
 
     hash_list: List[str] = hashes.split(",")
     forget_messages(account, hash_list, reason, channel)
@@ -553,14 +520,14 @@ def forget_aggregate(
     reason: Optional[str] = None,
     channel: str = settings.DEFAULT_CHANNEL,
     private_key: Optional[str] = settings.PRIVATE_KEY_STRING,
-    private_key_file: Optional[str] = settings.PRIVATE_KEY_FILE,
+    private_key_file: Optional[Path] = settings.PRIVATE_KEY_FILE,
     debug: bool = False,
 ):
     """Forget all the messages composing an aggregate."""
 
     _setup_logging(debug)
 
-    account = _load_account(private_key, private_key_file)
+    account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
 
     message_response = synchronous.get_messages(
         addresses=[account.get_address()],

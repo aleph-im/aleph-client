@@ -17,7 +17,7 @@ class TezosAccount(BaseAccount):
     CURVE = "secp256k1"
     _account: Key
 
-    def __init__(self, private_key=None):
+    def __init__(self, private_key: bytes):
         self.private_key = private_key
         self._account = Key.from_secret_exponent(self.private_key)
         self._signing_key = SigningKey(self.private_key)
