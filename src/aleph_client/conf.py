@@ -8,8 +8,8 @@ from pydantic import BaseSettings, Field
 class Settings(BaseSettings):
     # In case the user does not want to bother with handling private keys himself,
     # do an ugly and insecure write and read from disk to this file.
-    PRIVATE_KEY_FILE: str = Field(
-        default="device.key",
+    PRIVATE_KEY_FILE: Path = Field(
+        default=Path("device.key"),
         description="Path to the private key used to sign messages",
     )
 

@@ -22,7 +22,7 @@ class SOLAccount(BaseAccount):
     _signing_key: SigningKey
     _private_key: PrivateKey
 
-    def __init__(self, private_key=None):
+    def __init__(self, private_key: bytes):
         self.private_key = private_key
         self._signing_key = SigningKey(self.private_key)
         self._private_key = self._signing_key.to_curve25519_private_key()
