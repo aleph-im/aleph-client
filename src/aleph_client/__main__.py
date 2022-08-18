@@ -400,7 +400,7 @@ def program(
             f"  {settings.VM_URL_PATH.format(hash=hash)}\n"
             f"  {settings.VM_URL_HOST.format(hash_base32=hash_base32)}\n"
             "Visualise on:\n  https://explorer.aleph.im/address/"
-            f"{result['chain']}/{result['sender']}/message/PROGRAM/{hash}\n"
+            f"{result.chain}/{result.sender}/message/PROGRAM/{hash}\n"
         )
 
     finally:
