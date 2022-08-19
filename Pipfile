@@ -15,6 +15,7 @@ paho-mqtt = "*"
 click = "*"
 certifi = "*"
 python-magic = "*"
+python-docker = "*"
 
 [packages.e1839a8]
 path = "."

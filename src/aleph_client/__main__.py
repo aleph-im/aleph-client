@@ -11,6 +11,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Optional, Dict, List
 from zipfile import BadZipFile
+from python_docker.registry import Registry
 
 import typer
 from aleph_message.models import (
@@ -406,6 +407,164 @@ def program(
     finally:
         # Prevent aiohttp unclosed connector warning
         asyncio.run(get_fallback_session().close())
+
+@app.command()
+def container(
+    script_path: str = typer.Argument(..., help="The script on your machine to use to launch your docker container."),
+    image_name: str = typer.Argument(..., help="The docker image to upload on Aleph. e.g: library/ubuntu"),
+    tag: str = typer.Argument("latest", help="The image's version tag"),
+    channel: str = settings.DEFAULT_CHANNEL,
+    memory: int = settings.DEFAULT_VM_MEMORY,
+    vcpus: int = settings.DEFAULT_VM_VCPUS,
+    timeout_seconds: float = settings.DEFAULT_VM_TIMEOUT,
+    private_key: Optional[str] = settings.PRIVATE_KEY_STRING,
+    private_key_file: Optional[str] = settings.PRIVATE_KEY_FILE,
+    print_messages: bool = False,
+    print_code_message: bool = False,
+    print_program_message: bool = False,
+    beta: bool = False,
+    debug: bool = False
+):
+    """
+    Register a docker container to run on Aleph.im virtual machines.
+    """
+
+    # pull docker image
+    registry = Registry()
+    image = registry.pull_image(image_name, tag)
+    file_basename = (
+        image_name if "/" not in image_name
+        else image_name.split("/")[-1]
+    )  
+    filename = f"{file_basename}.{tag}.tar"
+    image.write_filename(filename)
+    entrypoint = script_path
+    _setup_logging(debug)
+
+    image_path_object = Path(filename).absolute()
+    script_path_object = Path(script_path).absolute()
+
+    def compress(_path_object: Path):
+        try:
+            _path_object, encoding = create_archive(_path_object)
+        except BadZipFile:
+            echo("Invalid zip archive")
+            raise typer.Exit(3)
+        except FileNotFoundError:
+            echo("No such file or directory")
+            raise typer.Exit(4)
+        return _path_object, encoding
+
+    script_path_object, encoding = compress(script_path_object)
+    # TODO: vvv is it  necessary ? Check with backend aleph-vm
+    # image_path_object, _ = compress(image_path_object)
+
+    account = _load_account(private_key, private_key_file)
+
+    volumes = []
+
+    for volume in _prompt_for_volumes():
+        volumes.append(volume)
+        echo("\n")
+
+    subscriptions: Optional[List[Dict]]
+    if beta and yes_no_input("Subscribe to messages ?", default=False):
+        content_raw = _input_multiline()
+        try:
+            subscriptions = json.loads(content_raw)
+        except json.decoder.JSONDecodeError:
+            echo("Not valid JSON")
+            raise typer.Exit(code=2)
+    else:
+        subscriptions = None
+
+    try:
+        # upload docker image
+        with open(image_path_object, "rb") as fd:
+            logger.debug("Reading file")
+            # TODO: Read in lazy mode instead of copying everything in memory
+            file_content = fd.read()
+            logger.debug("Uploading file")
+            user_image: StoreMessage = synchronous.create_store(
+                account=account,
+                file_content=file_content,
+                storage_engine=StorageEnum.ipfs,
+                channel=channel,
+                guess_mime_type=True,
+                ref=None,
+            )
+            logger.debug("Upload finished")
+            if print_messages or print_code_message:
+                echo(f"{user_image.json(indent=4)}")
+            image_ref = user_image.item_hash
+
+        volumes.append({
+            "comment": "docker image",
+            "mount": "/opt/docker_image",
+            "ref": image_ref,
+            "use_latest": False, # TODO: define better behavior
+        })
+
+        # Upload the source code
+        with open(script_path_object, "rb") as fd:
+            logger.debug("Reading file")
+            # TODO: Read in lazy mode instead of copying everything in memory
+            file_content = fd.read()
+            storage_engine = (
+                StorageEnum.ipfs
+                if len(file_content) > 4 * 1024 * 1024
+                else StorageEnum.storage
+            )
+            logger.debug("Uploading file")
+            user_code: StoreMessage = synchronous.create_store(
+                account=account,
+                file_content=file_content,
+                storage_engine=storage_engine,
+                channel=channel,
+                guess_mime_type=True,
+                ref=None,
+            )
+            logger.debug("Upload finished")
+            if print_messages or print_code_message:
+                echo(f"{user_code.json(indent=4)}")
+            program_ref = user_code.item_hash
+
+        # Register the program
+        result: ProgramMessage = synchronous.create_program(
+            account=account,
+            program_ref=program_ref,
+            entrypoint=entrypoint,
+            runtime=settings.DOCKER_RUNTIME_ID,
+            storage_engine=StorageEnum.storage,
+            channel=channel,
+            memory=memory,
+            vcpus=vcpus,
+            timeout_seconds=timeout_seconds,
+            encoding=encoding,
+            volumes=volumes,
+            subscriptions=subscriptions,
+        )
+        logger.debug("Upload finished")
+        if print_messages or print_program_message:
+            echo(f"{result.json(indent=4)}")
+
+        hash: str = result.item_hash
+        hash_base32 = b32encode(b16decode(hash.upper())).strip(b"=").lower().decode()
+
+        echo(
+            f"Your program has been uploaded on Aleph .\n\n"
+            "Available on:\n"
+            f"  {settings.VM_URL_PATH.format(hash=hash)}\n"
+            f"  {settings.VM_URL_HOST.format(hash_base32=hash_base32)}\n"
+            "Visualise on:\n  https://explorer.aleph.im/address/"
+            f"{result['chain']}/{result['sender']}/message/PROGRAM/{hash}\n"
+        )
+
+    finally:
+        # Prevent aiohttp unclosed connector warning
+        asyncio.run(get_fallback_session().close())
+
+
 
 
 @app.command()
