@@ -107,7 +107,7 @@ def whoami(
 
 @app.command()
 def post(
-    path: Optional[str] = None,
+    path: Optional[Path] = None,
     type: str = "test",
     ref: Optional[str] = None,
     channel: str = settings.DEFAULT_CHANNEL,
@@ -124,17 +124,16 @@ def post(
     content: Dict
 
     if path:
-        path_object = Path(path)
-        if not path_object.is_file():
-            echo(f"Error: File not found: '{path_object}'")
+        if not path.is_file():
+            echo(f"Error: File not found: '{path}'")
             raise typer.Exit(code=1)
 
-        file_size = os.path.getsize(path_object)
+        file_size = os.path.getsize(path)
         storage_engine = (
             StorageEnum.ipfs if file_size > 4 * 1024 * 1024 else StorageEnum.storage
         )
 
-        with open(path_object, "r") as fd:
+        with open(path, "r") as fd:
             content = json.load(fd)
 
     else:
@@ -168,7 +167,7 @@ def post(
 
 @app.command()
 def upload(
-    path: str,
+    path: Path,
     channel: str = settings.DEFAULT_CHANNEL,
     private_key: Optional[str] = settings.PRIVATE_KEY_STRING,
     private_key_file: Optional[str] = settings.PRIVATE_KEY_FILE,
@@ -180,14 +179,13 @@ def upload(
     _setup_logging(debug)
 
     account = _load_account(private_key, private_key_file)
-    path_object = Path(path)
 
     try:
-        if not path_object.is_file():
-            echo(f"Error: File not found: '{path_object}'")
+        if not path.is_file():
+            echo(f"Error: File not found: '{path}'")
             raise typer.Exit(code=1)
 
-        with open(path_object, "rb") as fd:
+        with open(path, "rb") as fd:
             logger.debug("Reading file")
             # TODO: Read in lazy mode instead of copying everything in memory
             file_content = fd.read()
@@ -293,7 +291,7 @@ def _prompt_for_volumes():
 
 @app.command()
 def program(
-    path: str,
+    path: Path,
     entrypoint: str,
     channel: str = settings.DEFAULT_CHANNEL,
     memory: int = settings.DEFAULT_VM_MEMORY,
@@ -312,10 +310,10 @@ def program(
 
     _setup_logging(debug)
 
-    path_object = Path(path).absolute()
+    path = path.absolute()
 
     try:
-        path_object, encoding = create_archive(path_object)
+        path_object, encoding = create_archive(path)
     except BadZipFile:
         echo("Invalid zip archive")
         raise typer.Exit(3)
@@ -411,7 +409,7 @@ def program(
 @app.command()
 def update(
     hash: str,
-    path: str,
+    path: Path,
     private_key: Optional[str] = settings.PRIVATE_KEY_STRING,
     private_key_file: Optional[str] = settings.PRIVATE_KEY_FILE,
     print_message: bool = True,
@@ -422,7 +420,7 @@ def update(
     _setup_logging(debug)
 
     account = _load_account(private_key, private_key_file)
-    path_object = Path(path).absolute()
+    path = path.absolute()
 
     try:
         raw_program_message = synchronous.get_messages(hashes=[hash])
@@ -433,7 +431,7 @@ def update(
         code_message = StoreMessage(**raw_code_message["messages"][0])
 
         try:
-            encoding = create_archive(path_object)
+            encoding = create_archive(path)
         except BadZipFile:
             echo("Invalid zip archive")
             raise typer.Exit(3)
@@ -448,7 +446,7 @@ def update(
             raise typer.Exit(1)
 
         # Upload the source code
-        with open(path_object, "rb") as fd:
+        with open(path, "rb") as fd:
             logger.debug("Reading file")
             # TODO: Read in lazy mode instead of copying everything in memory
             file_content = fd.read()
