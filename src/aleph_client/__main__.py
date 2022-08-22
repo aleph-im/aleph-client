@@ -179,7 +179,6 @@ def upload(
     _setup_logging(debug)
 
     account = _load_account(private_key, private_key_file)
-    path_object = Path(path)
 
     try:
         if not path.is_file():
