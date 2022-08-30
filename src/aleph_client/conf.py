@@ -1,7 +1,7 @@
 from pathlib import Path
 from shutil import which
 from typing import Optional
-
+from .docker.docker_conf import docker_settings
 from pydantic import BaseSettings, Field
 
 
@@ -32,6 +32,7 @@ class Settings(BaseSettings):
 
     VM_URL_PATH = "https://aleph.sh/vm/{hash}"
     VM_URL_HOST = "https://{hash_base32}.aleph.sh"
+    DOCKER_SETTINGS = docker_settings
 
     class Config:
         env_prefix = "ALEPH_"

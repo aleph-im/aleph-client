@@ -1,0 +1,5 @@
+#!/bin/sh
+systemctl stop docker.service
+dockerd --data-root $(pwd)/docker-data
+systemctl restart docker.socket
+systemctl start docker.service
