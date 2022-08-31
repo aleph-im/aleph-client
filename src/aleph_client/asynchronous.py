@@ -16,15 +16,6 @@ from aleph_message.models import (
     AggregateContent,
     PostContent,
     StoreContent,
-    PostMessage,
-    Message,
-    ForgetMessage,
-    AlephMessage,
-    add_item_content_and_hash,
-    AggregateMessage,
-    StoreMessage,
-    ProgramMessage,
-    MessagesResponse,
 )
 
 from aleph_client.types import Account, StorageEnum
@@ -176,7 +167,7 @@ async def create_post(
     api_server: str = settings.API_HOST,
     inline: bool = True,
     storage_engine: StorageEnum = StorageEnum.storage,
-) -> PostMessage:
+):
     address = address or account.get_address()
 
     content = PostContent(
@@ -208,7 +199,7 @@ async def create_aggregate(
     session: Optional[ClientSession] = None,
     api_server: str = settings.API_HOST,
     inline: bool = True,
-) -> AggregateMessage:
+):
     address = address or account.get_address()
 
     content_ = AggregateContent(
@@ -241,7 +232,7 @@ async def create_store(
     channel: str = settings.DEFAULT_CHANNEL,
     session: Optional[ClientSession] = None,
     api_server: str = settings.API_HOST,
-) -> StoreMessage:
+):
     address = address or account.get_address()
     extra_fields = extra_fields or {}
 
@@ -309,7 +300,7 @@ async def create_program(
     encoding: Encoding = Encoding.zip,
     volumes: List[Dict] = None,
     subscriptions: Optional[List[Dict]] = None,
-) -> ProgramMessage:
+):
     volumes = volumes if volumes is not None else []
 
     address = address or account.get_address()
@@ -389,7 +380,7 @@ async def forget(
     address: Optional[str] = settings.ADDRESS_TO_USE,
     session: Optional[ClientSession] = None,
     api_server: str = settings.API_HOST,
-) -> ForgetMessage:
+):
     address = address or account.get_address()
 
     content = ForgetContent(
@@ -414,13 +405,13 @@ async def forget(
 async def submit(
     account: Account,
     content: Dict,
-    message_type: MessageType,
+    message_type: str,
     channel: str = settings.DEFAULT_CHANNEL,
     api_server: str = settings.API_HOST,
     storage_engine: StorageEnum = StorageEnum.storage,
     session: Optional[ClientSession] = None,
     inline: bool = True,
-) -> AlephMessage:
+):
     message: Dict[str, Any] = {
         #'item_hash': ipfs_hash,
         "chain": account.CHAIN,
@@ -437,7 +428,6 @@ async def submit(
         h = hashlib.sha256()
         h.update(message["item_content"].encode("utf-8"))
         message["item_hash"] = h.hexdigest()
-        message["item_type"] = "inline"
     else:
         if storage_engine == StorageEnum.ipfs:
             message["item_hash"] = await ipfs_push(
@@ -454,9 +444,7 @@ async def submit(
 
     # let's add the content to the object so users can access it.
     message["content"] = content
-
-    add_item_content_and_hash(message, inplace=True)
-    return Message(**message)
+    return message
 
 
 async def fetch_aggregate(
@@ -556,7 +544,7 @@ async def get_posts(
 async def get_messages(
     pagination: int = 200,
     page: int = 1,
-    message_type: Optional[MessageType] = None,
+    message_type: Optional[str] = None,
     content_types: Optional[Iterable[str]] = None,
     content_keys: Optional[Iterable[str]] = None,
     refs: Optional[Iterable[str]] = None,
@@ -569,13 +557,13 @@ async def get_messages(
     end_date: Optional[Union[datetime, float]] = None,
     session: Optional[ClientSession] = None,
     api_server: str = settings.API_HOST,
-) -> MessagesResponse:
+) -> Dict[str, Any]:
     session = session or get_fallback_session()
 
     params: Dict[str, Any] = dict(pagination=pagination, page=page)
 
     if message_type is not None:
-        params["msgType"] = message_type.value
+        params["msgType"] = message_type
     if content_types is not None:
         params["contentTypes"] = ",".join(content_types)
     if content_keys is not None:
@@ -604,12 +592,11 @@ async def get_messages(
 
     async with session.get(f"{api_server}/api/v0/messages.json", params=params) as resp:
         resp.raise_for_status()
-        messages_json = await resp.json()
-        return MessagesResponse(**messages_json)
+        return await resp.json()
 
 
 async def watch_messages(
-    message_type: Optional[MessageType] = None,
+    message_type: Optional[str] = None,
     content_types: Optional[Iterable[str]] = None,
     refs: Optional[Iterable[str]] = None,
     addresses: Optional[Iterable[str]] = None,
@@ -621,7 +608,7 @@ async def watch_messages(
     end_date: Optional[Union[datetime, float]] = None,
     session: Optional[ClientSession] = None,
     api_server: str = settings.API_HOST,
-) -> AsyncIterable[AlephMessage]:
+) -> AsyncIterable[Dict[str, Any]]:
     """
     Iterate over current and future matching messages asynchronously.
     """
@@ -631,7 +618,7 @@ async def watch_messages(
     params: Dict[str, Any] = dict()
 
     if message_type is not None:
-        params["msgType"] = message_type.value
+        params["msgType"] = message_type
     if content_types is not None:
         params["contentTypes"] = ",".join(content_types)
     if refs is not None:
@@ -666,8 +653,7 @@ async def watch_messages(
                     await ws.close()
                     break
                 else:
-                    data = json.loads(msg.data)
-                    yield Message(**data)
+                    yield json.loads(msg.data)
             elif msg.type == aiohttp.WSMsgType.ERROR:
                 break
 

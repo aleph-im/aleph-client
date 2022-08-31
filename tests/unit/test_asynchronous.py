@@ -2,13 +2,6 @@ import os
 from unittest.mock import MagicMock, patch, AsyncMock
 
 import pytest as pytest
-from aleph_message.models import (
-    PostMessage,
-    AggregateMessage,
-    StoreMessage,
-    ProgramMessage,
-    ForgetMessage,
-)
 
 from aleph_client.conf import settings
 from aleph_client.types import StorageEnum
@@ -51,7 +44,7 @@ async def test_create_post():
 
     mock_session = new_mock_session_with_post_success()
 
-    new_post = await create_post(
+    await create_post(
         account=account,
         post_content=content,
         post_type="TEST",
@@ -61,7 +54,6 @@ async def test_create_post():
     )
 
     assert mock_session.post.called
-    assert isinstance(new_post, PostMessage)
 
 
 @pytest.mark.asyncio
@@ -86,7 +78,7 @@ async def test_create_aggregate():
         session=mock_session,
     )
 
-    new_post = await create_aggregate(
+    await create_aggregate(
         account=account,
         key="hello",
         content="world",
@@ -96,7 +88,6 @@ async def test_create_aggregate():
     )
 
     assert mock_session.post.called
-    assert isinstance(new_post, AggregateMessage)
 
 
 @pytest.mark.asyncio
@@ -141,7 +132,7 @@ async def test_create_store():
 
     with patch("aleph_client.asynchronous.storage_push_file", mock_storage_push_file):
 
-        new_post = await create_store(
+        await create_store(
             account=account,
             file_content=b"HELLO",
             channel="TEST",
@@ -151,7 +142,6 @@ async def test_create_store():
         )
 
     assert mock_session.post.called
-    assert isinstance(new_post, StoreMessage)
 
 
 @pytest.mark.asyncio
@@ -166,7 +156,7 @@ async def test_create_program():
 
     mock_session = new_mock_session_with_post_success()
 
-    new_post = await create_program(
+    await create_program(
         account=account,
         program_ref="FAKE-HASH",
         entrypoint="main:app",
@@ -177,7 +167,6 @@ async def test_create_program():
     )
 
     assert mock_session.post.called
-    assert isinstance(new_post, ProgramMessage)
 
 
 @pytest.mark.asyncio
@@ -192,7 +181,7 @@ async def test_forget():
 
     mock_session = new_mock_session_with_post_success()
 
-    new_post = await forget(
+    await forget(
         account=account,
         hashes=["FAKE-HASH"],
         reason="GDPR",
@@ -202,4 +191,3 @@ async def test_forget():
     )
 
     assert mock_session.post.called
-    assert isinstance(new_post, ForgetMessage)
