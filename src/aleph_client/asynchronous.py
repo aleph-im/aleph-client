@@ -502,7 +502,6 @@ async def get_posts(
     tags: Optional[Iterable[str]] = None,
     hashes: Optional[Iterable[str]] = None,
     channels: Optional[Iterable[str]] = None,
-    chains: Optional[Iterable[str]] = None,
     start_date: Optional[Union[datetime, float]] = None,
     end_date: Optional[Union[datetime, float]] = None,
     session: Optional[ClientSession] = None,
@@ -524,8 +523,6 @@ async def get_posts(
         params["hashes"] = ",".join(hashes)
     if channels is not None:
         params["channels"] = ",".join(channels)
-    if chains is not None:
-        params["chains"] = ",".join(chains)
 
     if start_date is not None:
         if not isinstance(start_date, float) and hasattr(start_date, "timestamp"):
@@ -552,7 +549,6 @@ async def get_messages(
     tags: Optional[Iterable[str]] = None,
     hashes: Optional[Iterable[str]] = None,
     channels: Optional[Iterable[str]] = None,
-    chains: Optional[Iterable[str]] = None,
     start_date: Optional[Union[datetime, float]] = None,
     end_date: Optional[Union[datetime, float]] = None,
     session: Optional[ClientSession] = None,
@@ -578,8 +574,6 @@ async def get_messages(
         params["hashes"] = ",".join(hashes)
     if channels is not None:
         params["channels"] = ",".join(channels)
-    if chains is not None:
-        params["chains"] = ",".join(chains)
 
     if start_date is not None:
         if not isinstance(start_date, float) and hasattr(start_date, "timestamp"):
@@ -603,7 +597,6 @@ async def watch_messages(
     tags: Optional[Iterable[str]] = None,
     hashes: Optional[Iterable[str]] = None,
     channels: Optional[Iterable[str]] = None,
-    chains: Optional[Iterable[str]] = None,
     start_date: Optional[Union[datetime, float]] = None,
     end_date: Optional[Union[datetime, float]] = None,
     session: Optional[ClientSession] = None,
@@ -631,8 +624,6 @@ async def watch_messages(
         params["hashes"] = ",".join(hashes)
     if channels is not None:
         params["channels"] = ",".join(channels)
-    if chains is not None:
-        params["chains"] = ",".join(chains)
 
     if start_date is not None:
         if not isinstance(start_date, float) and hasattr(start_date, "timestamp"):
