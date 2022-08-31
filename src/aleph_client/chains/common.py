@@ -1,5 +1,5 @@
 import os
-from abc import abstractmethod, ABC
+from abc import abstractmethod
 from typing import Union, Dict
 
 from coincurve import PrivateKey
@@ -20,7 +20,7 @@ def get_public_key(private_key):
     return privkey.public_key.format()
 
 
-class BaseAccount(ABC):
+class BaseAccount:
     CHAIN: str
     CURVE: str
     private_key: Union[str, bytes]
