@@ -1,4 +1,3 @@
-from pathlib import Path
 from shutil import which
 from typing import Optional
 
@@ -9,8 +8,7 @@ class Settings(BaseSettings):
     # In case the user does not want to bother with handling private keys himself,
     # do an ugly and insecure write and read from disk to this file.
     PRIVATE_KEY_FILE: str = Field(
-        default="device.key",
-        description="Path to the private key used to sign messages",
+        "device.key", description="Path to the private key used to sign messages"
     )
 
     PRIVATE_KEY_STRING: Optional[str] = None
