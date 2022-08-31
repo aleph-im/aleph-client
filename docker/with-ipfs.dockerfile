@@ -32,7 +32,7 @@ COPY . .
 RUN pip install -e .[testing,ethereum]
 
 
-#  User 'aleph' to run the code itself
+# - User 'aleph' to run the code itself
 RUN useradd --create-home -s /bin/bash aleph
 WORKDIR /home/aleph
 
