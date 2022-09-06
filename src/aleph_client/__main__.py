@@ -19,7 +19,7 @@ from aleph_message.models import (
     Message,
     MessageType,
     PostMessage,
-    ForgetMessage,
+    ForgetMessage, MessagesResponse,
 )
 from typer import echo
 
@@ -423,15 +423,15 @@ def update(
     path = path.absolute()
 
     try:
-        raw_program_message = synchronous.get_messages(hashes=[hash])
-        program_message = ProgramMessage(**raw_program_message["messages"][0])
+        raw_program_message: MessagesResponse = synchronous.get_messages(hashes=[hash])
+        program_message = raw_program_message.messages[0]
         code_ref = program_message.content.code.ref
 
-        raw_code_message = synchronous.get_messages(hashes=[code_ref])
-        code_message = StoreMessage(**raw_code_message["messages"][0])
+        raw_code_message: MessagesResponse = synchronous.get_messages(hashes=[code_ref])
+        code_message = raw_code_message.messages[0]
 
         try:
-            encoding = create_archive(path)
+            path, encoding = create_archive(path)
         except BadZipFile:
             echo("Invalid zip archive")
             raise typer.Exit(3)
@@ -441,7 +441,8 @@ def update(
 
         if encoding != program_message.content.code.encoding:
             logger.error(
-                "Code must be encoded with the same encoding as the previous version"
+                f"Code must be encoded with the same encoding as the previous version "
+                f"('{encoding}' vs '{program_message.content.code.encoding}'"
             )
             raise typer.Exit(1)
 
