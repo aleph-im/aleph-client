@@ -6,20 +6,21 @@ jobs:
   build: 
     strategy: 
       matrix:
-        os: [macos-latest, ubuntu-latest]
+        os: [macos-11, macos-12, ubuntu-20.04, ubuntu-22.04]
     runs-on: ${{matrix.os}}
 
     steps:
       - uses: actions/checkout@v2
 
-      - name: Install required system packages for ubuntu and macos
+      - name: Install required system packages for macOS
+        if: startsWith(matrix.os, 'macos-')
         run: |
           brew update
           brew tap cuber/homebrew-libsecp256k1
           brew install libsecp256k1
       
-      - name: Install required system packages only for ubuntu
-        if: matrix.os == 'ubuntu-latest'
+      - name: Install required system packages only for Ubuntu Linux
+        if: startsWith(matrix.os, 'ubuntu-')
         run: |
           sudo apt-get update
           sudo apt-get -y upgrade
