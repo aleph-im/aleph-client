@@ -1,5 +1,6 @@
 import pytest
 from aleph_message import Message
+from aleph_message.models import PostMessage, MessagesResponse
 
 from aleph_client.asynchronous import (
     create_post,
@@ -16,7 +17,7 @@ async def create_message_on_target(
     Create a POST message on the target node, then fetch it from the reference node.
     """
 
-    created_message_dict = await create_post(
+    created_message_dict: PostMessage = await create_post(
         account=fixture_account,
         post_content=None,
         post_type="POST",
@@ -25,12 +26,15 @@ async def create_message_on_target(
         api_server=emitter_node,
     )
 
+    def response_contains_messages(response: MessagesResponse) -> bool:
+        return len(response.messages) > 0
+
     # create_message = Message(**created_message_dict)
     response_dict = await try_until(
         get_messages,
-        lambda response: len(response["messages"]) > 0,
+        response_contains_messages,
         timeout=5,
-        hashes=[created_message_dict["item_hash"]],
+        hashes=[created_message_dict.item_hash],
         api_server=receiver_node,
     )
 

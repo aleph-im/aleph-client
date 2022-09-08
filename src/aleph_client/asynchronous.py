@@ -9,6 +9,7 @@ import threading
 import time
 from datetime import datetime
 from functools import lru_cache
+from typing import Type
 
 from aleph_message.models import (
     ForgetContent,
@@ -26,7 +27,9 @@ from aleph_message.models import (
     MessagesResponse,
 )
 
-from aleph_client.types import Account, StorageEnum
+from aleph_client.types import Account, StorageEnum, GenericMessage
+from .exceptions import MessageNotFoundError, MultipleMessagesError
+from .utils import get_message_type_value
 
 logger = logging.getLogger(__name__)
 
@@ -606,6 +609,37 @@ async def get_messages(
         resp.raise_for_status()
         messages_json = await resp.json()
         return MessagesResponse(**messages_json)
+
+
+async def get_message(
+    item_hash: str,
+    message_type: Optional[Type[GenericMessage]] = None,
+    channel: Optional[str] = None,
+    session: Optional[ClientSession] = None,
+    api_server: str = settings.API_HOST,
+) -> GenericMessage:
+    """Get a single message from its `item_hash`."""
+    messages_response = await get_messages(
+        hashes=[item_hash],
+        session=session,
+        channels=[channel] if channel else None,
+        api_server=api_server,
+    )
+    if len(messages_response.messages) < 1:
+        raise MessageNotFoundError(f"No such hash {item_hash}")
+    if len(messages_response.messages) != 1:
+        raise MultipleMessagesError(
+            f"Multiple messages found for the same item_hash `{item_hash}`"
+        )
+    message: GenericMessage = messages_response.messages[0]
+    if message_type:
+        expected_type = get_message_type_value(message_type)
+        if message.type != expected_type:
+            raise TypeError(
+                f"The message type '{message.type}' "
+                f"does not match the expected type '{expected_type}'"
+            )
+    return message
 
 
 async def watch_messages(

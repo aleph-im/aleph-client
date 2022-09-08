@@ -1,8 +1,10 @@
 from abc import abstractmethod
 from enum import Enum
-from typing import Protocol, Dict
+from typing import Protocol, Dict, TypeVar
 
 __all__ = ("StorageEnum", "Account", "AccountFromPrivateKey")
+
+from aleph_message.models import AlephMessage
 
 
 class StorageEnum(str, Enum):
@@ -33,3 +35,6 @@ class AccountFromPrivateKey(Account, Protocol):
 
     def __init__(self, private_key: bytes):
         ...
+
+
+GenericMessage = TypeVar("GenericMessage", bound=AlephMessage)

@@ -16,10 +16,10 @@ import typer
 from aleph_message.models import (
     ProgramMessage,
     StoreMessage,
-    Message,
     MessageType,
     PostMessage,
-    ForgetMessage, MessagesResponse,
+    ForgetMessage,
+    AlephMessage,
 )
 from typer import echo
 
@@ -390,12 +390,13 @@ def update(
     path = path.absolute()
 
     try:
-        raw_program_message: MessagesResponse = synchronous.get_messages(hashes=[hash])
-        program_message = raw_program_message.messages[0]
+        program_message: ProgramMessage = synchronous.get_message(
+            item_hash=hash, message_type=ProgramMessage
+        )
         code_ref = program_message.content.code.ref
-
-        raw_code_message: MessagesResponse = synchronous.get_messages(hashes=[code_ref])
-        code_message = raw_code_message.messages[0]
+        code_message: StoreMessage = synchronous.get_message(
+            item_hash=code_ref, message_type=StoreMessage
+        )
 
         try:
             path, encoding = create_archive(path)
@@ -448,8 +449,7 @@ def amend(
 
     account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
 
-    existing = synchronous.get_messages(hashes=[hash])
-    existing_message = existing["messages"][0]
+    existing_message: AlephMessage = synchronous.get_message(item_hash=hash)
 
     editor: str = os.getenv("EDITOR", default="nano")
     with tempfile.NamedTemporaryFile(suffix="json") as fd:
@@ -548,8 +548,7 @@ def watch(
 
     _setup_logging(debug)
 
-    original_json = synchronous.get_messages(hashes=[ref])["messages"][0]
-    original = Message(**original_json)
+    original: AlephMessage = synchronous.get_message(item_hash=ref)
 
     for message in synchronous.watch_messages(
         refs=[ref], addresses=[original.content.address]
