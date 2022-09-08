@@ -2,12 +2,14 @@ import logging
 import os
 from pathlib import Path
 from shutil import make_archive
-from typing import Tuple
+from typing import Tuple, Type
 from zipfile import ZipFile, BadZipFile
 
+from aleph_message.models import MessageType
 from aleph_message.models.program import Encoding
 
 from aleph_client.conf import settings
+from aleph_client.types import GenericMessage
 
 logger = logging.getLogger(__name__)
 
@@ -52,3 +54,9 @@ def create_archive(path: Path) -> Tuple[Path, Encoding]:
             return path, Encoding.zip
     else:
         raise FileNotFoundError("No file or directory to create the archive from")
+
+
+def get_message_type_value(message_type: Type[GenericMessage]) -> MessageType:
+    """Returns the value of the 'type' field of a message type class."""
+    type_literal = message_type.__annotations__["type"]
+    return type_literal.__args__[0]  # Get the value from a Literal
