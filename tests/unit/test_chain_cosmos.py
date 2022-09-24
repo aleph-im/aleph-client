@@ -38,4 +38,3 @@ async def test_CSDKAccount():
     pubkey = account.get_public_key()
     assert type(pubkey) == str
     assert len(pubkey) == 33
-   

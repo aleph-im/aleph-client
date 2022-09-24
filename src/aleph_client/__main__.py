@@ -454,7 +454,7 @@ def amend(
     editor: str = os.getenv("EDITOR", default="nano")
     with tempfile.NamedTemporaryFile(suffix="json") as fd:
         # Fill in message template
-        fd.write(json.dumps(existing_message["content"], indent=4).encode())
+        fd.write(existing_message.content.json(indent=4).encode())
         fd.seek(0)
 
         # Launch editor
@@ -462,16 +462,24 @@ def amend(
 
         # Read new message
         fd.seek(0)
-        new_message = fd.read()
+        new_content_json = fd.read()
 
-    new_content = json.loads(new_message)
-    new_content["ref"] = existing_message["item_hash"]
+    content_type = type(existing_message).__annotations__["content"]
+    new_content_dict = json.loads(new_content_json)
+    new_content = content_type(**new_content_dict)
+    new_content.ref = existing_message.item_hash
+    new_message = fd.read()
+
+    content_type = type(existing_message).__annotations__["content"]
+    new_content_dict = json.loads(new_content_json)
+    new_content = content_type(**new_content_dict)
+    new_content.ref = existing_message.item_hash
     echo(new_content)
     result = synchronous.submit(
         account=account,
-        content=new_content,
-        message_type=existing_message["type"],
-        channel=existing_message["channel"],
+        content=new_content.dict(),
+        message_type=existing_message.type,
+        channel=existing_message.channel,
     )
     echo(f"{result.json(indent=4)}")
 

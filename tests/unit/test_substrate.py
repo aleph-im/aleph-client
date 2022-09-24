@@ -29,16 +29,14 @@ async def test_sign_message():
     mnemonic = get_fallback_mnemonics()
     keypair = Keypair.create_from_mnemonic(mnemonic)
     account: DOTAccount = get_fallback_account()
+    
     assert keypair.ss58_address == account.get_address()
     message = asdict(Message("DOT", account.get_address(), "SomeType", "ItemHash"))
     verif = get_verification_buffer(message).decode("utf-8")
     sig = {"curve": account.CURVE, "data": keypair.sign(verif)}
+    
     await account.sign_message(message)
     address = message["sender"]
     assert address
     assert type(address) == str
     assert type(message["signature"]) == str
-
-    
-    
-    

@@ -49,6 +49,3 @@ async def test_sign_message():
     pubKey = base58.b58decode(address)
     assert type(pubKey) == bytes
     assert len(pubKey) == 27
-    
-    
-# @pytest.mark.asyncio
