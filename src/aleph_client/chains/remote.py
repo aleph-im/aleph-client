@@ -2,7 +2,7 @@
 Remote account, accessible via an API.
 """
 import asyncio
-from typing import Dict, Optional, Coroutine
+from typing import Dict, Optional
 
 import aiohttp.web
 from aiohttp import ClientSession
@@ -65,7 +65,7 @@ class RemoteAccount(BaseAccount):
         )
 
     def __del__(self):
-        asyncio.get_event_loop().run_until_complete(self._session.close())
+        self._session.close()
 
     @property
     def private_key(self):

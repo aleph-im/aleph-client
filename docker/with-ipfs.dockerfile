@@ -2,9 +2,9 @@ FROM python:3.9
 
 # === Install IPFS ===
 RUN apt-get install -y wget
-RUN wget https://ipfs.io/ipns/dist.ipfs.io/go-ipfs/v0.7.0/go-ipfs_v0.7.0_linux-amd64.tar.gz
-RUN tar -xvzf go-ipfs_v0.7.0_linux-amd64.tar.gz -C /opt/
-RUN ln -s /opt/go-ipfs/ipfs /usr/local/bin/
+RUN wget https://ipfs.io/ipns/dist.ipfs.io/kubo/v0.15.0/kubo_v0.15.0_linux-amd64.tar.gz
+RUN tar -xvzf kubo_v0.15.0_linux-amd64.tar.gz -C /opt/
+RUN ln -s /opt/kubo/ipfs /usr/local/bin/
 
 # Volume to store IPFS data
 RUN mkdir /var/lib/ipfs

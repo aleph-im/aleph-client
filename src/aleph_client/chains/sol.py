@@ -1,16 +1,15 @@
 import json
 from typing import Dict
 
-from nacl.signing import SigningKey
-from nacl.public import PublicKey, PrivateKey, SealedBox
 import base58
+from nacl.public import PrivateKey, SealedBox
+from nacl.signing import SigningKey
 
 from .common import (
     BaseAccount,
     get_verification_buffer,
-    get_public_key,
-    PRIVATE_KEY_FILE,
 )
+from ..conf import settings
 
 
 def encode(item):
@@ -23,7 +22,7 @@ class SOLAccount(BaseAccount):
     _signing_key: SigningKey
     _private_key: PrivateKey
 
-    def __init__(self, private_key=None):
+    def __init__(self, private_key: bytes):
         self.private_key = private_key
         self._signing_key = SigningKey(self.private_key)
         self._private_key = self._signing_key.to_curve25519_private_key()
@@ -60,11 +59,11 @@ def get_fallback_account() -> SOLAccount:
 
 def get_fallback_private_key():
     try:
-        with open(PRIVATE_KEY_FILE, "rb") as prvfile:
+        with open(settings.PRIVATE_KEY_FILE, "rb") as prvfile:
             pkey = prvfile.read()
     except OSError:
         pkey = bytes(SigningKey.generate())
-        with open(PRIVATE_KEY_FILE, "wb") as prvfile:
+        with open(settings.PRIVATE_KEY_FILE, "wb") as prvfile:
             prvfile.write(pkey)
 
     return pkey

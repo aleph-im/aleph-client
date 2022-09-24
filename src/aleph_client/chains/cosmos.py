@@ -1,19 +1,15 @@
-import json
-import ecdsa
-import hashlib
 import base64
+import hashlib
+import json
 
-from substrateinterface import Keypair
+import ecdsa
+from cosmospy._wallet import privkey_to_address, privkey_to_pubkey
+
 from .common import (
     BaseAccount,
     get_fallback_private_key,
     get_verification_buffer,
-    get_public_key,
-    PRIVATE_KEY_FILE,
 )
-
-from cosmospy._wallet import privkey_to_address, privkey_to_pubkey
-from cosmospy.typing import SyncMode
 
 DEFAULT_HRP = "cosmos"
 
@@ -68,7 +64,7 @@ class CSDKAccount(BaseAccount):
             sigencode=ecdsa.util.sigencode_string_canonize,
         )
         signature_base64_str = base64.b64encode(signature_compact).decode("utf-8")
-        base64_pubkey = base64.b64encode(self.get_public_key()).decode("utf-8")
+        base64_pubkey = base64.b64encode(self.get_public_key().encode()).decode("utf-8")
 
         sig = {
             "signature": signature_base64_str,
@@ -79,11 +75,11 @@ class CSDKAccount(BaseAccount):
         message["signature"] = json.dumps(sig)
         return message
 
-    def get_address(self):
+    def get_address(self) -> str:
         return privkey_to_address(self.private_key)
 
-    def get_public_key(self):
-        return privkey_to_pubkey(self.private_key)
+    def get_public_key(self) -> str:
+        return privkey_to_pubkey(self.private_key).decode()
 
 
 def get_fallback_account(hrp=DEFAULT_HRP):

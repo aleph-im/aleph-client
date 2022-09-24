@@ -1,11 +1,18 @@
+from pathlib import Path
 from shutil import which
 from typing import Optional
 
-from pydantic import BaseSettings
+from pydantic import BaseSettings, Field
 
 
 class Settings(BaseSettings):
-    PRIVATE_KEY_FILE: Optional[str] = None
+    # In case the user does not want to bother with handling private keys himself,
+    # do an ugly and insecure write and read from disk to this file.
+    PRIVATE_KEY_FILE: Path = Field(
+        default=Path("device.key"),
+        description="Path to the private key used to sign messages",
+    )
+
     PRIVATE_KEY_STRING: Optional[str] = None
     API_HOST: str = "https://api2.aleph.im"
     API_UNIX_SOCKET: Optional[str] = None
@@ -19,7 +26,7 @@ class Settings(BaseSettings):
     )
     DEFAULT_VM_MEMORY: int = 128
     DEFAULT_VM_VCPUS: int = 1
-    DEFAULT_VM_TIMEOUT: float = 30.
+    DEFAULT_VM_TIMEOUT: float = 30.0
 
     CODE_USES_SQUASHFS: bool = which("mksquashfs") is not None  # True if command exists
 

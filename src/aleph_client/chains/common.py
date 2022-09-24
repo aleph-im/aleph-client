@@ -1,13 +1,11 @@
 import os
-from abc import abstractmethod
-from typing import Union, Dict
+from abc import abstractmethod, ABC
+from typing import Dict
 
 from coincurve import PrivateKey
 from ecies import decrypt, encrypt
 
-# In case we don't want to bother with handling private key ourselves
-# do an ugly and insecure write and read from disk to this file.
-PRIVATE_KEY_FILE = "device.key"
+from aleph_client.conf import settings
 
 
 def get_verification_buffer(message):
@@ -22,10 +20,10 @@ def get_public_key(private_key):
     return privkey.public_key.format()
 
 
-class BaseAccount:
+class BaseAccount(ABC):
     CHAIN: str
     CURVE: str
-    private_key: Union[str, bytes]
+    private_key: bytes
 
     def _setup_sender(self, message: Dict) -> Dict:
         """Set the sender of the message as the account's public key.
@@ -75,11 +73,11 @@ def generate_key() -> bytes:
 def get_fallback_private_key() -> bytes:
     private_key: bytes
     try:
-        with open(PRIVATE_KEY_FILE, "rb") as prvfile:
+        with open(settings.PRIVATE_KEY_FILE, "rb") as prvfile:
             private_key = prvfile.read()
     except OSError:
         private_key = generate_key()
-        with open(PRIVATE_KEY_FILE, "wb") as prvfile:
+        with open(settings.PRIVATE_KEY_FILE, "wb") as prvfile:
             prvfile.write(private_key)
 
     return private_key
@@ -87,6 +85,6 @@ def get_fallback_private_key() -> bytes:
 
 def delete_private_key_file():
     try:
-        os.remove(PRIVATE_KEY_FILE)
+        os.remove(settings.PRIVATE_KEY_FILE)
     except FileNotFoundError:
         pass

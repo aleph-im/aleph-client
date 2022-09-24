@@ -30,7 +30,12 @@ RUN chown -R user:user /opt/aleph-client
 
 RUN pip install -e .[testing,ethereum,solana]
 
+RUN mkdir /data
+RUN chown user:user /data
+ENV ALEPH_PRIVATE_KEY_FILE=/data/secret.key
+
 WORKDIR /home/user
 USER user
 RUN aleph --install-completion bash
-CMD ["aleph", "--help"]
+ENTRYPOINT ["aleph"]
+CMD ["--help"]

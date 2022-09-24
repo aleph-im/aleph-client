@@ -11,4 +11,4 @@ else
 fi
 
 $DOCKER_COMMAND build -t aleph-client -f docker/Dockerfile .
-$DOCKER_COMMAND run -ti --rm -v "$(pwd)":/opt/aleph-client aleph-client bash
+$DOCKER_COMMAND run -ti --rm --entrypoint /bin/bash -v "$(pwd)":/opt/aleph-client aleph-client

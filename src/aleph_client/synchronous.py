@@ -1,14 +1,15 @@
 import asyncio
 import queue
 import threading
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Iterable, Type
 
 from aiohttp import ClientSession
+from aleph_message.models import AlephMessage
 from aleph_message.models.program import ProgramContent, Encoding  # type: ignore
 
 from . import asynchronous
 from .conf import settings
-from .types import Account, StorageEnum
+from .types import Account, StorageEnum, GenericMessage
 
 
 def wrap_async(func):
@@ -42,6 +43,22 @@ fetch_aggregate = wrap_async(asynchronous.fetch_aggregate)
 fetch_aggregates = wrap_async(asynchronous.fetch_aggregates)
 get_posts = wrap_async(asynchronous.get_posts)
 get_messages = wrap_async(asynchronous.get_messages)
+
+
+def get_message(
+    item_hash: str,
+    message_type: Optional[Type[GenericMessage]] = None,
+    channel: Optional[str] = None,
+    session: Optional[ClientSession] = None,
+    api_server: str = settings.API_HOST,
+) -> GenericMessage:
+    return wrap_async(asynchronous.get_message)(
+        item_hash=item_hash,
+        message_type=message_type,
+        channel=channel,
+        session=session,
+        api_server=api_server,
+    )
 
 
 def create_program(
@@ -82,13 +99,13 @@ def create_program(
     )
 
 
-def watch_messages(*args, **kwargs):
+def watch_messages(*args, **kwargs) -> Iterable[AlephMessage]:
     """
     Iterate over current and future matching messages synchronously.
 
     Runs the `watch_messages` asynchronous generator in a thread.
     """
-    output_queue = queue.Queue()
+    output_queue: queue.Queue[AlephMessage] = queue.Queue()
     thread = threading.Thread(
         target=asynchronous._start_run_watch_messages, args=(output_queue, args, kwargs)
     )

@@ -16,10 +16,17 @@ Documentation (albeit still vastly incomplete as it is a work in progress) can b
 Requirements
 ============
 
+- Linux : 
+
 Some cryptographic functionalities use curve secp256k1 and require installing
 `libsecp256k1 <https://github.com/bitcoin-core/secp256k1>`_.
 
     $ apt-get install -y python3-pip libsecp256k1-dev
+
+- macOs :  
+
+    $ brew tap cuber/homebrew-libsecp256k1
+    $ brew install libsecp256k1
 
 
 Installation
@@ -51,4 +58,6 @@ Using Docker
 
 Use the Aleph client and it's CLI from within Docker or Podman with:
 
-`docker run --rm -ti -v $(pwd)/device.key:/home/user/device.key:ro alephim/aleph-client:beta bash`
+		$ docker run --rm -ti -v $(pwd)/data:/data ghcr.io/aleph-im/aleph-client/aleph-client:master --help
+
+Warning: This will use an ephemeral key that will be discarded when stopping the container.

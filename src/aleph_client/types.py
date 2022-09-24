@@ -1,8 +1,10 @@
 from abc import abstractmethod
 from enum import Enum
-from typing import Protocol, Union, Dict
+from typing import Protocol, Dict, TypeVar
 
-__all__ = ("StorageEnum", "Account")
+__all__ = ("StorageEnum", "Account", "AccountFromPrivateKey")
+
+from aleph_message.models import AlephMessage
 
 
 class StorageEnum(str, Enum):
@@ -14,7 +16,6 @@ class StorageEnum(str, Enum):
 class Account(Protocol):
     CHAIN: str
     CURVE: str
-    private_key: Union[str, bytes]
 
     @abstractmethod
     async def sign_message(self, message: Dict) -> Dict:
@@ -28,6 +29,12 @@ class Account(Protocol):
     def get_public_key(self) -> str:
         ...
 
-    @abstractmethod
-    async def decrypt(self, content) -> bytes:
+
+class AccountFromPrivateKey(Account, Protocol):
+    """Only accounts that are initialized from a private key string are supported."""
+
+    def __init__(self, private_key: bytes):
         ...
+
+
+GenericMessage = TypeVar("GenericMessage", bound=AlephMessage)

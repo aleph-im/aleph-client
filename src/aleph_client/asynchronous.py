@@ -9,12 +9,27 @@ import threading
 import time
 from datetime import datetime
 from functools import lru_cache
+from typing import Type
 
-from aleph_message.models import ForgetContent, MessageType, AggregateContent, PostContent, \
-    StoreContent
-from yarl import URL
+from aleph_message.models import (
+    ForgetContent,
+    MessageType,
+    AggregateContent,
+    PostContent,
+    StoreContent,
+    PostMessage,
+    Message,
+    ForgetMessage,
+    AlephMessage,
+    AggregateMessage,
+    StoreMessage,
+    ProgramMessage,
+    MessagesResponse,
+)
 
-from aleph_client.types import Account, StorageEnum
+from aleph_client.types import Account, StorageEnum, GenericMessage
+from .exceptions import MessageNotFoundError, MultipleMessagesError
+from .utils import get_message_type_value
 
 logger = logging.getLogger(__name__)
 
@@ -54,7 +69,10 @@ async def ipfs_push(
 ) -> str:
     session = session or get_fallback_session()
 
-    async with session.post(f"{api_server}/api/v0/ipfs/add_json", json=content) as resp:
+    url = f"{api_server}/api/v0/ipfs/add_json"
+    logger.debug(f"Pushing to IPFS on {url}")
+
+    async with session.post(url, json=content) as resp:
         resp.raise_for_status()
         return (await resp.json()).get("hash")
 
@@ -66,9 +84,10 @@ async def storage_push(
 ) -> str:
     session = session or get_fallback_session()
 
-    async with session.post(
-        f"{api_server}/api/v0/storage/add_json", json=content
-    ) as resp:
+    url = f"{api_server}/api/v0/storage/add_json"
+    logger.debug(f"Pushing to storage on {url}")
+
+    async with session.post(url, json=content) as resp:
         resp.raise_for_status()
         return (await resp.json()).get("hash")
 
@@ -83,7 +102,10 @@ async def ipfs_push_file(
     data = aiohttp.FormData()
     data.add_field("file", file_content)
 
-    async with session.post(f"{api_server}/api/v0/ipfs/add_file", data=data) as resp:
+    url = f"{api_server}/api/v0/ipfs/add_file"
+    logger.debug(f"Pushing file to IPFS on {url}")
+
+    async with session.post(url, data=data) as resp:
         resp.raise_for_status()
         return (await resp.json()).get("hash")
 
@@ -98,7 +120,10 @@ async def storage_push_file(
     data = aiohttp.FormData()
     data.add_field("file", file_content)
 
-    async with session.post(f"{api_server}/api/v0/storage/add_file", data=data) as resp:
+    url = f"{api_server}/api/v0/storage/add_file"
+    logger.debug(f"Posting file on {url}")
+
+    async with session.post(url, data=data) as resp:
         resp.raise_for_status()
         return (await resp.json()).get("hash")
 
@@ -107,16 +132,23 @@ async def broadcast(
     message,
     session: Optional[ClientSession] = None,
     api_server: str = settings.API_HOST,
-):
+) -> None:
+    """Broadcast a message on the Aleph network via pubsub for nodes to pick it up."""
     session = session or get_fallback_session()
 
+    url = f"{api_server}/api/v0/ipfs/pubsub/pub"
+    logger.debug(f"Posting message on {url}")
+
     async with session.post(
-        f"{api_server}/api/v0/ipfs/pubsub/pub",
+        url,
         json={"topic": "ALEPH-TEST", "data": json.dumps(message)},
     ) as response:
         response.raise_for_status()
         result = await response.json()
-        if result["status"] == "warning":
+        status = result.get("status")
+        if status == "success":
+            return
+        elif status == "warning":
             if result.get("failed"):
                 # Requires recent version of Pyaleph
                 if result["failed"] == ["p2p"]:
@@ -129,7 +161,10 @@ async def broadcast(
                     )
             else:
                 logger.warning(f"Message failed to publish on IPFS and/or P2P")
-        return result.get("value")
+        else:
+            raise ValueError(
+                f"Invalid response from server, status in missing or unknown: '{status}'"
+            )
 
 
 async def create_post(
@@ -143,7 +178,7 @@ async def create_post(
     api_server: str = settings.API_HOST,
     inline: bool = True,
     storage_engine: StorageEnum = StorageEnum.storage,
-):
+) -> PostMessage:
     address = address or account.get_address()
 
     content = PostContent(
@@ -175,7 +210,7 @@ async def create_aggregate(
     session: Optional[ClientSession] = None,
     api_server: str = settings.API_HOST,
     inline: bool = True,
-):
+) -> AggregateMessage:
     address = address or account.get_address()
 
     content_ = AggregateContent(
@@ -192,7 +227,7 @@ async def create_aggregate(
         channel=channel,
         api_server=api_server,
         session=session,
-        inline=inline
+        inline=inline,
     )
 
 
@@ -208,7 +243,7 @@ async def create_store(
     channel: str = settings.DEFAULT_CHANNEL,
     session: Optional[ClientSession] = None,
     api_server: str = settings.API_HOST,
-):
+) -> StoreMessage:
     address = address or account.get_address()
     extra_fields = extra_fields or {}
 
@@ -276,7 +311,7 @@ async def create_program(
     encoding: Encoding = Encoding.zip,
     volumes: List[Dict] = None,
     subscriptions: Optional[List[Dict]] = None,
-):
+) -> ProgramMessage:
     volumes = volumes if volumes is not None else []
 
     address = address or account.get_address()
@@ -317,7 +352,9 @@ async def create_program(
             "runtime": {
                 "ref": runtime,
                 "use_latest": True,
-                "comment": "Aleph Alpine Linux with Python 3.8",
+                "comment": "Official Aleph runtime"
+                if runtime == settings.DEFAULT_RUNTIME_ID
+                else "",
             },
             "volumes": volumes,
             # {
@@ -356,7 +393,7 @@ async def forget(
     address: Optional[str] = settings.ADDRESS_TO_USE,
     session: Optional[ClientSession] = None,
     api_server: str = settings.API_HOST,
-):
+) -> ForgetMessage:
     address = address or account.get_address()
 
     content = ForgetContent(
@@ -381,13 +418,13 @@ async def forget(
 async def submit(
     account: Account,
     content: Dict,
-    message_type: str,
-    channel: str = "IOT_TEST",
+    message_type: MessageType,
+    channel: str = settings.DEFAULT_CHANNEL,
     api_server: str = settings.API_HOST,
     storage_engine: StorageEnum = StorageEnum.storage,
     session: Optional[ClientSession] = None,
     inline: bool = True,
-):
+) -> AlephMessage:
     message: Dict[str, Any] = {
         #'item_hash': ipfs_hash,
         "chain": account.CHAIN,
@@ -404,19 +441,25 @@ async def submit(
         h = hashlib.sha256()
         h.update(message["item_content"].encode("utf-8"))
         message["item_hash"] = h.hexdigest()
+        message["item_type"] = "inline"
     else:
         if storage_engine == StorageEnum.ipfs:
-            message["item_hash"] = await ipfs_push(content, session=session, api_server=api_server)
+            message["item_hash"] = await ipfs_push(
+                content, session=session, api_server=api_server
+            )
         else:  # storage
             assert storage_engine == StorageEnum.storage
-            message["item_hash"] = await storage_push(content, session=session, api_server=api_server)
+            message["item_hash"] = await storage_push(
+                content, session=session, api_server=api_server
+            )
 
     message = await account.sign_message(message)
     await broadcast(message, session=session, api_server=api_server)
 
     # let's add the content to the object so users can access it.
     message["content"] = content
-    return message
+
+    return Message(**message)
 
 
 async def fetch_aggregate(
@@ -430,7 +473,7 @@ async def fetch_aggregate(
 
     params: Dict[str, Any] = {"keys": key}
     if limit:
-        params['limit'] = limit
+        params["limit"] = limit
 
     async with session.get(
         f"{api_server}/api/v0/aggregates/{address}.json", params=params
@@ -457,7 +500,8 @@ async def fetch_aggregates(
         params["limit"] = limit
 
     async with session.get(
-        f"{api_server}/api/v0/aggregates/{address}.json", params=params,
+        f"{api_server}/api/v0/aggregates/{address}.json",
+        params=params,
     ) as resp:
         result = await resp.json()
         data = result.get("data", dict())
@@ -473,6 +517,7 @@ async def get_posts(
     tags: Optional[Iterable[str]] = None,
     hashes: Optional[Iterable[str]] = None,
     channels: Optional[Iterable[str]] = None,
+    chains: Optional[Iterable[str]] = None,
     start_date: Optional[Union[datetime, float]] = None,
     end_date: Optional[Union[datetime, float]] = None,
     session: Optional[ClientSession] = None,
@@ -494,6 +539,8 @@ async def get_posts(
         params["hashes"] = ",".join(hashes)
     if channels is not None:
         params["channels"] = ",".join(channels)
+    if chains is not None:
+        params["chains"] = ",".join(chains)
 
     if start_date is not None:
         if not isinstance(start_date, float) and hasattr(start_date, "timestamp"):
@@ -512,7 +559,7 @@ async def get_posts(
 async def get_messages(
     pagination: int = 200,
     page: int = 1,
-    message_type: Optional[str] = None,
+    message_type: Optional[MessageType] = None,
     content_types: Optional[Iterable[str]] = None,
     content_keys: Optional[Iterable[str]] = None,
     refs: Optional[Iterable[str]] = None,
@@ -520,17 +567,18 @@ async def get_messages(
     tags: Optional[Iterable[str]] = None,
     hashes: Optional[Iterable[str]] = None,
     channels: Optional[Iterable[str]] = None,
+    chains: Optional[Iterable[str]] = None,
     start_date: Optional[Union[datetime, float]] = None,
     end_date: Optional[Union[datetime, float]] = None,
     session: Optional[ClientSession] = None,
     api_server: str = settings.API_HOST,
-) -> Dict[str, Any]:
+) -> MessagesResponse:
     session = session or get_fallback_session()
 
     params: Dict[str, Any] = dict(pagination=pagination, page=page)
 
     if message_type is not None:
-        params["msgType"] = message_type
+        params["msgType"] = message_type.value
     if content_types is not None:
         params["contentTypes"] = ",".join(content_types)
     if content_keys is not None:
@@ -545,6 +593,8 @@ async def get_messages(
         params["hashes"] = ",".join(hashes)
     if channels is not None:
         params["channels"] = ",".join(channels)
+    if chains is not None:
+        params["chains"] = ",".join(chains)
 
     if start_date is not None:
         if not isinstance(start_date, float) and hasattr(start_date, "timestamp"):
@@ -557,22 +607,55 @@ async def get_messages(
 
     async with session.get(f"{api_server}/api/v0/messages.json", params=params) as resp:
         resp.raise_for_status()
-        return await resp.json()
+        messages_json = await resp.json()
+        return MessagesResponse(**messages_json)
+
+
+async def get_message(
+    item_hash: str,
+    message_type: Optional[Type[GenericMessage]] = None,
+    channel: Optional[str] = None,
+    session: Optional[ClientSession] = None,
+    api_server: str = settings.API_HOST,
+) -> GenericMessage:
+    """Get a single message from its `item_hash`."""
+    messages_response = await get_messages(
+        hashes=[item_hash],
+        session=session,
+        channels=[channel] if channel else None,
+        api_server=api_server,
+    )
+    if len(messages_response.messages) < 1:
+        raise MessageNotFoundError(f"No such hash {item_hash}")
+    if len(messages_response.messages) != 1:
+        raise MultipleMessagesError(
+            f"Multiple messages found for the same item_hash `{item_hash}`"
+        )
+    message: GenericMessage = messages_response.messages[0]
+    if message_type:
+        expected_type = get_message_type_value(message_type)
+        if message.type != expected_type:
+            raise TypeError(
+                f"The message type '{message.type}' "
+                f"does not match the expected type '{expected_type}'"
+            )
+    return message
 
 
 async def watch_messages(
-    message_type: Optional[str] = None,
+    message_type: Optional[MessageType] = None,
     content_types: Optional[Iterable[str]] = None,
     refs: Optional[Iterable[str]] = None,
     addresses: Optional[Iterable[str]] = None,
     tags: Optional[Iterable[str]] = None,
     hashes: Optional[Iterable[str]] = None,
     channels: Optional[Iterable[str]] = None,
+    chains: Optional[Iterable[str]] = None,
     start_date: Optional[Union[datetime, float]] = None,
     end_date: Optional[Union[datetime, float]] = None,
     session: Optional[ClientSession] = None,
     api_server: str = settings.API_HOST,
-) -> AsyncIterable[Dict[str, Any]]:
+) -> AsyncIterable[AlephMessage]:
     """
     Iterate over current and future matching messages asynchronously.
     """
@@ -582,7 +665,7 @@ async def watch_messages(
     params: Dict[str, Any] = dict()
 
     if message_type is not None:
-        params["msgType"] = message_type
+        params["msgType"] = message_type.value
     if content_types is not None:
         params["contentTypes"] = ",".join(content_types)
     if refs is not None:
@@ -595,6 +678,8 @@ async def watch_messages(
         params["hashes"] = ",".join(hashes)
     if channels is not None:
         params["channels"] = ",".join(channels)
+    if chains is not None:
+        params["chains"] = ",".join(chains)
 
     if start_date is not None:
         if not isinstance(start_date, float) and hasattr(start_date, "timestamp"):
@@ -605,7 +690,9 @@ async def watch_messages(
             end_date = end_date.timestamp()
         params["endDate"] = end_date
 
-    async with session.ws_connect(f"{api_server}/api/ws0/messages", params=params) as ws:
+    async with session.ws_connect(
+        f"{api_server}/api/ws0/messages", params=params
+    ) as ws:
         logger.debug("Websocket connected")
         async for msg in ws:
             if msg.type == aiohttp.WSMsgType.TEXT:
@@ -613,7 +700,8 @@ async def watch_messages(
                     await ws.close()
                     break
                 else:
-                    yield json.loads(msg.data)
+                    data = json.loads(msg.data)
+                    yield Message(**data)
             elif msg.type == aiohttp.WSMsgType.ERROR:
                 break
 
@@ -628,4 +716,4 @@ def _start_run_watch_messages(output_queue: queue.Queue, args: List, kwargs: Dic
     """Thread entrypoint to run the `watch_messages` asynchronous generator in a thread."""
     watcher = watch_messages(*args, **kwargs)
     runner = _run_watch_messages(watcher, output_queue)
-    asyncio.new_event_loop().run_until_complete(runner)
+    asyncio.run(runner)

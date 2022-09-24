@@ -17,7 +17,7 @@ class ETHAccount(BaseAccount):
     CURVE = "secp256k1"
     _account: LocalAccount
 
-    def __init__(self, private_key=None):
+    def __init__(self, private_key: bytes):
         self.private_key = private_key
         self._account = Account.from_key(self.private_key)
 
