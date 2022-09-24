@@ -7,7 +7,7 @@ from dataclasses import dataclass, asdict
 from nacl.signing import VerifyKey
 
 from aleph_client.chains.common import delete_private_key_file, get_verification_buffer
-from aleph_client.chains.sol import SOLAccount, get_fallback_account
+from aleph_client.chains.sol import SOLAccount, get_fallback_account, encode
 
 
 @dataclass
@@ -24,7 +24,7 @@ def test_get_fallback_account():
 
     assert account.CHAIN == "SOL"
     assert account.CURVE == "curve25519"
-    assert account._signing_key.verify_key
+    assert encode(account._signing_key.verify_key) == account.get_address()
     assert type(account.private_key) == bytes
     assert len(account.private_key) == 32
 
@@ -46,7 +46,7 @@ async def test_SOLAccount():
 
     pubkey = base58.b58decode(signature["publicKey"])
     assert type(pubkey) == bytes
-    assert len(pubkey) == 32
+    assert len(pubkey) == 32 
 
     # modeled according to https://github.com/aleph-im/pyaleph/blob/master/src/aleph/chains/solana.py
     verify_key = VerifyKey(pubkey)

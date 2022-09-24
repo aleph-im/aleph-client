@@ -1,4 +1,5 @@
 import os
+import time 
 from unittest.mock import MagicMock, patch, AsyncMock
 
 import pytest as pytest
@@ -8,6 +9,9 @@ from aleph_message.models import (
     StoreMessage,
     ProgramMessage,
     ForgetMessage,
+    PostContent, 
+    MessageType, 
+    AlephMessage
 )
 
 from aleph_client.conf import settings
@@ -20,9 +24,24 @@ from aleph_client.asynchronous import (
     create_store,
     create_program,
     forget,
+    submit
 )
 from aleph_client.chains.common import get_fallback_private_key
 from aleph_client.chains.ethereum import ETHAccount
+from build.lib.aleph_client.__main__ import post
+from build.lib.aleph_client.asynchronous import fetch_aggregates
+
+
+def new_mock_session_with_post_success():
+    mock_response = AsyncMock()
+    mock_response.json.return_value = {"status": "success"}
+
+    mock_post = AsyncMock()
+    mock_post.return_value = mock_response
+
+    mock_session = MagicMock()
+    mock_session.post.return_value.__aenter__ = mock_post
+    return mock_session
 
 
 def new_mock_session_with_post_success():
@@ -203,3 +222,24 @@ async def test_forget():
 
     assert mock_session.post.called
     assert isinstance(new_post, ForgetMessage)
+    
+@pytest.mark.asyncio
+async def fetch_aggregate():
+    
+    _get_fallback_session.cache_clear()
+    
+    if os.path.exists(settings.PRIVATE_KEY_FILE):
+            os.remove(settings.PRIVATE_KEY_FILE)
+
+    private_key = get_fallback_private_key()
+    account: ETHAccount = ETHAccount(private_key=private_key)
+    
+    mock_session = new_mock_session_with_post_success()
+
+    address = account.get_address()
+    
+    response = await fetch_aggregate(
+        address = address, 
+        key = "0xa1B3bb7d2332383D96b7796B908fB7f7F3c2Be10",
+        api_server = settings.API_HOST,
+    )

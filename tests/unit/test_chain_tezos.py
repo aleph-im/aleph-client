@@ -53,3 +53,4 @@ async def test_decrypt_secp256k1():
     decrypted = await account.decrypt(encrypted)
     assert isinstance(decrypted, bytes)
     assert content == decrypted
+    assert content == decrypted
