@@ -10,7 +10,6 @@ import time
 from datetime import datetime
 from functools import lru_cache
 from typing import Type
-from types import NoneType
 
 from aleph_message.models import (
     ForgetContent,
