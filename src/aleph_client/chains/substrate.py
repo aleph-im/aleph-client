@@ -1,5 +1,5 @@
 import json
-from base64 import b64encode
+
 from substrateinterface import Keypair
 
 from .common import (
@@ -13,16 +13,17 @@ class DOTAccount(BaseAccount):
     CHAIN = "DOT"
     CURVE = "sr25519"
 
-    def __init__(self, mnemonics=None):
+    def __init__(self, mnemonics=None, address_type=42):
         self.mnemonics = mnemonics
+        self.address_type = address_type
         self._account = Keypair.create_from_mnemonic(
-            self.mnemonics)
+            self.mnemonics, address_type=address_type
+        )
 
     async def sign_message(self, message):
         message = self._setup_sender(message)
         verif = get_verification_buffer(message).decode("utf-8")
-        m = b64encode(b'self._account.sign(verif)').decode('utf-8')
-        sig = {"curve": self.CURVE, "data": m}
+        sig = {"curve": self.CURVE, "data": self._account.sign(verif)}
         message["signature"] = json.dumps(sig)
         return message
 

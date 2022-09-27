@@ -13,6 +13,7 @@ from .common import (
 
 DEFAULT_HRP = "cosmos"
 
+
 def get_signable_message(message):
     signable = get_verification_buffer(message).decode("utf-8")
     content_message = {
@@ -58,7 +59,7 @@ class CSDKAccount(BaseAccount):
 
         privkey = ecdsa.SigningKey.from_string(self.private_key, curve=ecdsa.SECP256k1)
         signature_compact = privkey.sign_deterministic(
-            verif.encode("ISO-8859-1"),
+            verif.encode("utf-8"),
             hashfunc=hashlib.sha256,
             sigencode=ecdsa.util.sigencode_string_canonize,
         )
@@ -79,7 +80,6 @@ class CSDKAccount(BaseAccount):
 
     def get_public_key(self) -> str:
         return privkey_to_pubkey(self.private_key).decode()
-        return privkey_to_pubkey(self.private_key).decode("ISO-8859-1")
 
 
 def get_fallback_account(hrp=DEFAULT_HRP):

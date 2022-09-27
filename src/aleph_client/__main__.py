@@ -468,12 +468,6 @@ def amend(
     new_content_dict = json.loads(new_content_json)
     new_content = content_type(**new_content_dict)
     new_content.ref = existing_message.item_hash
-    new_message = fd.read()
-
-    content_type = type(existing_message).__annotations__["content"]
-    new_content_dict = json.loads(new_content_json)
-    new_content = content_type(**new_content_dict)
-    new_content.ref = existing_message.item_hash
     echo(new_content)
     result = synchronous.submit(
         account=account,

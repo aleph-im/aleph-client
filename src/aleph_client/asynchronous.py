@@ -10,7 +10,6 @@ import time
 from datetime import datetime
 from functools import lru_cache
 from typing import Type
-from types import NoneType
 
 from aleph_message.models import (
     ForgetContent,
@@ -388,7 +387,7 @@ async def create_program(
 async def forget(
     account: Account,
     hashes: List[str],
-    reason: Optional[str]=None,
+    reason: Optional[str],
     storage_engine: StorageEnum = StorageEnum.storage,
     channel: str = settings.DEFAULT_CHANNEL,
     address: Optional[str] = settings.ADDRESS_TO_USE,
@@ -423,10 +422,9 @@ async def submit(
     channel: str = settings.DEFAULT_CHANNEL,
     api_server: str = settings.API_HOST,
     storage_engine: StorageEnum = StorageEnum.storage,
-    session: Optional[ClientSession]=None,
+    session: Optional[ClientSession] = None,
     inline: bool = True,
 ) -> AlephMessage:
-    
     message: Dict[str, Any] = {
         #'item_hash': ipfs_hash,
         "chain": account.CHAIN,
@@ -435,10 +433,8 @@ async def submit(
         "type": message_type,
         "time": time.time(),
     }
-    
+
     item_content: str = json.dumps(content, separators=(",", ":"))
-
-
 
     if inline and (len(item_content) < 50000):
         message["item_content"] = item_content
@@ -480,10 +476,9 @@ async def fetch_aggregate(
         params["limit"] = limit
 
     async with session.get(
-        f"{api_server}/api/v0/aggregates/{address}.json", 
-        params=params
+        f"{api_server}/api/v0/aggregates/{address}.json", params=params
     ) as resp:
-        result = await resp.json(encoding="utf-8", content_type="application/json" )
+        result = await resp.json()
         data = result.get("data", dict())
         return data.get(key)
 
