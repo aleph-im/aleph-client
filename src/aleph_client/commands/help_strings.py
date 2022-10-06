@@ -1,0 +1,5 @@
+IPFS_HASH = "IPFS Content identifier (CID)"
+CHANNEL = "Aleph network channel where the message is located"
+PRIVATE_KEY = "Your private key. Cannot be used with --private-key-file"
+PRIVATE_KEY_FILE = "Path to your private key file"
+REF = "Checkout https://aleph-im.gitbook.io/aleph-js/api-resources-reference/posts"
