@@ -16,7 +16,7 @@ RUN python3.9 -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 ENV PATH="/opt/venv/bin:$PATH"
 
-RUN pip install --upgrade pip wheel
+RUN pip install --upgrade pip wheel twine
 
 # Preinstall dependencies for faster steps
 RUN pip install --upgrade secp256k1 coincurve aiohttp eciespy python-magic typer
