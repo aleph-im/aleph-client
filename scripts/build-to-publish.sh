@@ -17,4 +17,5 @@ $DOCKER_COMMAND build -t aleph-client -f docker/Dockerfile .
 $DOCKER_COMMAND run -ti --rm \
   -w /opt/aleph-client \
   -v "$(pwd)/dist":/opt/aleph-client/dist \
-  aleph-client bash
+  --entrypoint /bin/bash \
+  aleph-client
