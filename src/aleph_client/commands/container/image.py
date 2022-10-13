@@ -74,6 +74,23 @@ class Image:
             chain_ids.append(chain_id)
             return chain_id
 
+
+
+        # TODO: test this iterative version
+        iterative_chain_ids = []
+        def iterative_compute_chain_id(index: int) -> str:
+            diff_id = self.diff_ids[0]
+            iterative_chain_ids.append(diff_id)
+            i = 1
+            while i < index:
+                chain_id = "sha256:" + sha256(
+                iterative_chain_ids[i - 1].encode()
+                + " ".encode()
+                + self.diff_ids[i].encode()
+            ).hexdigest()
+            iterative_chain_ids.append(chain_id)
+            return
+
         recursive_compute_chain_id(len(self.layers_ids) - 1)
 
         return chain_ids
