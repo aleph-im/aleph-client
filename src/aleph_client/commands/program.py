@@ -24,6 +24,12 @@ from aleph_message.models import (
     StoreMessage,
 )
 
+from aleph_message.models.program import (
+    ImmutableVolume,
+    EphemeralVolume,
+    PersistentVolume,
+)
+
 from aleph_client.types import AccountFromPrivateKey
 from aleph_client.account import _load_account
 from aleph_client.utils import create_archive
@@ -66,12 +72,7 @@ def upload(
     print_program_message: bool = typer.Option(False),
     runtime: str = typer.Option(None, help="Hash of the runtime to use for your program. Defaults to aleph debian with Python3.8 and node. You can also create your own runtime and pin it"),
     beta: bool = typer.Option(False),
-    immutable_volume: Optional[str] = typer.Options(None, help= 'immutable_volume'),
-    immutable_volume: Optional[str] = typer.Options(None, help= 'immutable_volume'),
-    immutable_volume: Optional[str] = typer.Options(None, help= 'immutable_volume'),
-
-
-
+    immutable_volume: Optional[str] = typer.Option(None, help= 'immutable_volume'),
     debug: bool = False,
 ):
     """Register a program to run on Aleph.im virtual machines from a zip archive."""
@@ -97,10 +98,9 @@ def upload(
         or settings.DEFAULT_RUNTIME_ID
     )
 
-    volumes = []
-    for volume in prompt_for_volumes():
-        volumes.append(volume)
-        typer.echo("\n")
+    if immutable_volume :
+        immutable_volume = {input(f"Ref of volume")}
+    
 
     subscriptions: Optional[List[Dict]]
     if beta and yes_no_input("Subscribe to messages ?", default=False):
@@ -150,7 +150,7 @@ def upload(
             vcpus=vcpus,
             timeout_seconds=timeout_seconds,
             encoding=encoding,
-            volumes=volumes,
+            immutable_volume=immutable_volume,
             subscriptions=subscriptions,
         )
         logger.debug("Upload finished")

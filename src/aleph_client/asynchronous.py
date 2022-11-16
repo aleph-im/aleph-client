@@ -309,10 +309,10 @@ async def create_program(
     vcpus: int = settings.DEFAULT_VM_VCPUS,
     timeout_seconds: float = settings.DEFAULT_VM_TIMEOUT,
     encoding: Encoding = Encoding.zip,
-    volumes: List[Dict] = None,
+    immutable_volume: Optional[str] = None,
     subscriptions: Optional[List[Dict]] = None,
 ) -> ProgramMessage:
-    volumes = volumes if volumes is not None else []
+    immutable_volume = immutable_volume if immutable_volume is not None else []
 
     address = address or account.get_address()
 
@@ -356,7 +356,7 @@ async def create_program(
                 if runtime == settings.DEFAULT_RUNTIME_ID
                 else "",
             },
-            "volumes": volumes,
+            "volume_immutable": immutable_volume,
             # {
             #     "mount": "/opt/venv",
             #     "ref": "5f31b0706f59404fad3d0bff97ef89ddf24da4761608ea0646329362c662ba51",
