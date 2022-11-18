@@ -1,7 +1,7 @@
 from pathlib import Path
 from shutil import which
 from typing import Optional
-from .docker.docker_conf import docker_settings
+from .commands.container.docker_conf import docker_settings
 from pydantic import BaseSettings, Field
 
 
@@ -24,6 +24,10 @@ class Settings(BaseSettings):
     DEFAULT_RUNTIME_ID: str = (
         "bd79839bf96e595a06da5ac0b6ba51dea6f7e2591bb913deccded04d831d29f4"
     )
+    DEFAULT_DOCKER_RUNTIME_ID: str = (
+        "bd79839bf96e595a06da5ac0b6ba51dea6f7e2591bb913deccded04d831d29f4" # TODO: Replace
+    )
+    DEFAULT_DOCKER_VOLUME_MOUNTPOINT="/docker_aleph"
     DEFAULT_VM_MEMORY: int = 128
     DEFAULT_VM_VCPUS: int = 1
     DEFAULT_VM_TIMEOUT: float = 30.0

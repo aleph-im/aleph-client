@@ -10,12 +10,14 @@ import typer
 from aleph_client.types import AccountFromPrivateKey
 from aleph_client.account import _load_account
 from aleph_client.conf import settings
+
+from .commands.container import cli_command as container
 from .commands import (
     files,
     message,
     program,
     help_strings,
-    aggregate
+    aggregate,
 )
 
 
@@ -26,6 +28,7 @@ app.add_typer(files.app, name="file", help="File uploading and pinning on IPFS a
 app.add_typer(message.app, name="message", help="Post, amend, watch and forget messages on Aleph.im")
 app.add_typer(program.app, name="program", help="Upload and update programs on Aleph's VM")
 app.add_typer(aggregate.app, name="aggregate", help="Manage aggregate messages on Aleph.im")
+app.add_typer(container.app, name="container", help="Upload docker containers as programs on Aleph.im")
 
 @app.command()
 def whoami(
