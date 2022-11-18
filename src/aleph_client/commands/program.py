@@ -1,37 +1,25 @@
 import typer
 from typing import Optional, Dict, List
-from aleph_client.types import AccountFromPrivateKey
-from aleph_client.account import _load_account
-from aleph_client.conf import settings
 from pathlib import Path
 import asyncio
-from aleph_client import synchronous
 import json
 from zipfile import BadZipFile
-from aleph_client.commands import help_strings
-
-import asyncio
-import json
 import logging
 from base64 import b32encode, b16decode
-from pathlib import Path
-from typing import Optional, Dict, List
-from zipfile import BadZipFile
 
-import typer
 from aleph_message.models import (
     ProgramMessage,
     StoreMessage,
+    MessagesResponse,
+    ProgramContent,
 )
 
+from aleph_client import synchronous
+from aleph_client.conf import settings
+from aleph_client.commands import help_strings
 from aleph_client.types import AccountFromPrivateKey
 from aleph_client.account import _load_account
 from aleph_client.utils import create_archive
-
-logger = logging.getLogger(__name__)
-app = typer.Typer()
-
-
 
 from aleph_client.asynchronous import (
     get_fallback_session,
@@ -45,14 +33,9 @@ from aleph_client.commands.utils import (
     yes_no_input
 )
 
-from aleph_message.models import (
-    ProgramMessage,
-    StoreMessage,
-    MessagesResponse,
-    ProgramContent,
-)
-
+logger = logging.getLogger(__name__)
 app = typer.Typer()
+
 @app.command()
 def upload(
     path: Path = typer.Argument(..., help="Path to your source code"),
