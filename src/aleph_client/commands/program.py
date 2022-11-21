@@ -32,7 +32,6 @@ logger = logging.getLogger(__name__)
 app = typer.Typer()
 
 
-
 from aleph_client.asynchronous import (
     get_fallback_session,
     StorageEnum,
@@ -42,7 +41,7 @@ from aleph_client.commands.utils import (
     setup_logging,
     input_multiline,
     prompt_for_volumes,
-    yes_no_input
+    yes_no_input,
 )
 
 from aleph_message.models import (
@@ -53,20 +52,36 @@ from aleph_message.models import (
 )
 
 app = typer.Typer()
+
+
 @app.command()
 def upload(
     path: Path = typer.Argument(..., help="Path to your source code"),
     entrypoint: str = typer.Argument(..., help="Your program entrypoint"),
     channel: str = typer.Option(settings.DEFAULT_CHANNEL, help=help_strings.CHANNEL),
-    memory: int = typer.Option(settings.DEFAULT_VM_MEMORY, help="Maximum memory allocation on vm in MiB"),
-    vcpus: int = typer.Option(settings.DEFAULT_VM_VCPUS, help="Number of virtual cpus to allocate."),
-    timeout_seconds: float = typer.Option(settings.DEFAULT_VM_TIMEOUT, help="If vm is not called after [timeout_seconds] it will shutdown"),
-    private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
-    private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
+    memory: int = typer.Option(
+        settings.DEFAULT_VM_MEMORY, help="Maximum memory allocation on vm in MiB"
+    ),
+    vcpus: int = typer.Option(
+        settings.DEFAULT_VM_VCPUS, help="Number of virtual cpus to allocate."
+    ),
+    timeout_seconds: float = typer.Option(
+        settings.DEFAULT_VM_TIMEOUT,
+        help="If vm is not called after [timeout_seconds] it will shutdown",
+    ),
+    private_key: Optional[str] = typer.Option(
+        settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY
+    ),
+    private_key_file: Optional[Path] = typer.Option(
+        settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE
+    ),
     print_messages: bool = typer.Option(False),
     print_code_message: bool = typer.Option(False),
     print_program_message: bool = typer.Option(False),
-    runtime: str = typer.Option(None, help="Hash of the runtime to use for your program. Defaults to aleph debian with Python3.8 and node. You can also create your own runtime and pin it"),
+    runtime: str = typer.Option(
+        None,
+        help="Hash of the runtime to use for your program. Defaults to aleph debian with Python3.8 and node. You can also create your own runtime and pin it",
+    ),
     beta: bool = typer.Option(False),
     debug: bool = False,
     persistent: bool = False,
@@ -233,6 +248,7 @@ def update(
     finally:
         # Prevent aiohttp unclosed connector warning
         asyncio.run(get_fallback_session().close())
+
 
 @app.command()
 def unpersist(

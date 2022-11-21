@@ -28,8 +28,12 @@ app = typer.Typer()
 def pin(
     hash: str = typer.Argument(..., help="IPFS hash to pin on Aleph.im"),
     channel: str = typer.Option(settings.DEFAULT_CHANNEL, help=help_strings.CHANNEL),
-    private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
-    private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
+    private_key: Optional[str] = typer.Option(
+        settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY
+    ),
+    private_key_file: Optional[Path] = typer.Option(
+        settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE
+    ),
     ref: Optional[str] = typer.Option(None, help=help_strings.REF),
     debug: bool = False,
 ):
@@ -54,13 +58,16 @@ def pin(
         asyncio.run(get_fallback_session().close())
 
 
-
 @app.command()
 def upload(
     path: Path = typer.Argument(..., help="Path of the file to upload"),
     channel: str = typer.Option(settings.DEFAULT_CHANNEL, help=help_strings.CHANNEL),
-    private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
-    private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
+    private_key: Optional[str] = typer.Option(
+        settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY
+    ),
+    private_key_file: Optional[Path] = typer.Option(
+        settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE
+    ),
     ref: Optional[str] = typer.Option(None, help=help_strings.REF),
     debug: bool = False,
 ):

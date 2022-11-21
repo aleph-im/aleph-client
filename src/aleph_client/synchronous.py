@@ -77,7 +77,7 @@ def create_program(
     timeout_seconds: float = settings.DEFAULT_VM_TIMEOUT,
     persistent: bool = False,
     encoding: Encoding = Encoding.zip,
-    volumes: List[Dict] = None,
+    volumes: Optional[List[Dict]] = None,
     subscriptions: Optional[List[Dict]] = None,
 ):
     return wrap_async(asynchronous.create_program)(

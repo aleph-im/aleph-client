@@ -34,14 +34,22 @@ from aleph_client.commands.utils import (
 
 app = typer.Typer()
 
+
 @app.command()
 def post(
-    path: Optional[Path] = typer.Option(None, help="Path to the content you want to post. If omitted, you can input your content directly"),
+    path: Optional[Path] = typer.Option(
+        None,
+        help="Path to the content you want to post. If omitted, you can input your content directly",
+    ),
     type: str = typer.Option("test", help="Text representing the message object type"),
     ref: Optional[str] = typer.Option(None, help=help_strings.REF),
     channel: str = typer.Option(settings.DEFAULT_CHANNEL, help=help_strings.CHANNEL),
-    private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
-    private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
+    private_key: Optional[str] = typer.Option(
+        settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY
+    ),
+    private_key_file: Optional[Path] = typer.Option(
+        settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE
+    ),
     debug: bool = False,
 ):
     """Post a message on Aleph.im."""
@@ -97,8 +105,12 @@ def post(
 @app.command()
 def amend(
     hash: str = typer.Argument(..., help="Hash reference of the message to amend"),
-    private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
-    private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
+    private_key: Optional[str] = typer.Option(
+        settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY
+    ),
+    private_key_file: Optional[Path] = typer.Option(
+        settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE
+    ),
     debug: bool = False,
 ):
     """Amend an existing Aleph message."""
@@ -157,11 +169,19 @@ def forget_messages(
 
 @app.command()
 def forget(
-    hashes: str= typer.Argument(..., help="Comma separated list of hash references of messages to forget"),
-    reason: Optional[str] = typer.Option(None, help="A description of why the messages are being forgotten."),
+    hashes: str = typer.Argument(
+        ..., help="Comma separated list of hash references of messages to forget"
+    ),
+    reason: Optional[str] = typer.Option(
+        None, help="A description of why the messages are being forgotten."
+    ),
     channel: str = typer.Option(settings.DEFAULT_CHANNEL, help=help_strings.CHANNEL),
-    private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
-    private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
+    private_key: Optional[str] = typer.Option(
+        settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY
+    ),
+    private_key_file: Optional[Path] = typer.Option(
+        settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE
+    ),
     debug: bool = False,
 ):
     """Forget an existing Aleph message."""

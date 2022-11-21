@@ -2,6 +2,7 @@ import logging
 from typer import echo
 from typing import Optional
 
+
 def input_multiline() -> str:
     """Prompt the user for a multiline input."""
     echo("Enter/Paste your content. Ctrl-D or Ctrl-Z ( windows ) to save it.")
