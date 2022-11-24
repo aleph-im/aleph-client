@@ -18,7 +18,7 @@ from pathlib import Path
 from typing import Optional, Dict, List
 from zipfile import BadZipFile
 
-import typer
+
 from aleph_message.models import (
     ProgramMessage,
     StoreMessage,
@@ -36,7 +36,6 @@ from aleph_client.utils import create_archive
 
 logger = logging.getLogger(__name__)
 app = typer.Typer()
-
 
 
 from aleph_client.asynchronous import (
@@ -73,6 +72,8 @@ def upload(
     runtime: str = typer.Option(None, help="Hash of the runtime to use for your program. Defaults to aleph debian with Python3.8 and node. You can also create your own runtime and pin it"),
     beta: bool = typer.Option(False),
     immutable_volume: Optional[str] = typer.Option(None, help= 'immutable_volume'),
+    ephemeral_volume:Optional[str] = typer.Option(None, help= 'ephemeral_volume'),
+    persistent_volume:Optional[str] = typer.Option(None, help= 'persistent_volume'),
     debug: bool = False,
 ):
     """Register a program to run on Aleph.im virtual machines from a zip archive."""
@@ -98,9 +99,45 @@ def upload(
         or settings.DEFAULT_RUNTIME_ID
     )
 
-    if immutable_volume :
-        immutable_volume = {input(f"Ref of volume")}
+    if immutable_volume:
+        immutable_volume = immutable_volume.split(";",1)
+        immu_ref = immutable_volume[0].split('=')
+        immu_mount = immutable_volume[1].split('=')
+        typer.echo(f"Ref of immutable_volume : {immu_ref[1]}")
+        typer.echo(f"Mount of immutable_volume : {immu_mount[1]}")
+        ImmutableVolume.ref = immu_ref[1]
+        ImmutableVolume.mount = immu_mount[1]
+
+    # for prop in immutable_volume:
+    #     split = prop.split("=")
+    #     if split[0] == "ref":
+    #         immu_ref = split[1]
+    #     elif split[0] == "mount":
+    #         immu_mount = split[1]
+
+
+    if ephemeral_volume: 
+        ephemeral_volume = ephemeral_volume.split(";", 1)
+        EphemeralVolume.size_mib = ephemeral_volume[0]
+        EphemeralVolume.mount = ephemeral_volume[1]
+        typer.echo(f"size of ephemeral_volume : {ephemeral_volume[0]}")
+        typer.echo(f"Mount of ephemeral_volume : {ephemeral_volume[1]}")
+
+    if persistent_volume:
+        persistent_volume = persistent_volume.split(";", 1)
+        choice = input("Volume Persistance ? (host/store) ")
+        if choice == "host": 
+            PersistentVolume.persistence = "host"
+        elif choice == "store":
+            PersistentVolume.persistence = "store"
+        else :
+            typer.echo("please choose host or store")
+            raise typer.Exit(1)
     
+        
+        PersistentVolume.name = persistent_volume[0]
+        PersistentVolume.size_mib = persistent_volume[1]
+
 
     subscriptions: Optional[List[Dict]]
     if beta and yes_no_input("Subscribe to messages ?", default=False):
@@ -150,7 +187,7 @@ def upload(
             vcpus=vcpus,
             timeout_seconds=timeout_seconds,
             encoding=encoding,
-            immutable_volume=immutable_volume,
+            immutable_volume = ImmutableVolume.ref,
             subscriptions=subscriptions,
         )
         logger.debug("Upload finished")
