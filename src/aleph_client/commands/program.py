@@ -100,22 +100,24 @@ def upload(
     )
 
     if immutable_volume:
-        immutable_volume = immutable_volume.split(";",1)
-        immu_ref = immutable_volume[0].split('=')
-        immu_mount = immutable_volume[1].split('=')
-        typer.echo(f"Ref of immutable_volume : {immu_ref[1]}")
-        typer.echo(f"Mount of immutable_volume : {immu_mount[1]}")
-        ImmutableVolume.ref = immu_ref[1]
-        ImmutableVolume.mount = immu_mount[1]
+        immutable_volume = immutable_volume.split(";")
+        immu_first = immutable_volume[0].split('=')
+        immu_second = immutable_volume[1].split('=')
+        if immu_first[0]=="ref":
+            typer.echo(f"Ref of immutable_volume : {immu_first[1]}")
+            ImmutableVolume.ref = immu_first[1] 
+            immu_second[0]=="mount"
+            typer.echo(f"Mount of immutable_volume : {immu_second[1]}")
+            ImmutableVolume.mount = immu_second[1] 
 
-    # for prop in immutable_volume:
-    #     split = prop.split("=")
-    #     if split[0] == "ref":
-    #         immu_ref = split[1]
-    #     elif split[0] == "mount":
-    #         immu_mount = split[1]
+        elif immu_second[0]=="ref":
+            typer.echo(f"Ref of immutable_volume : {immu_second[1]}")
+            ImmutableVolume.ref = immu_second[1] 
+            immu_first[0]=="mount"
+            typer.echo(f"Mount of immutable_volume : {immu_first[1]}")
+            ImmutableVolume.mount = immu_first[1] 
 
-
+        
     if ephemeral_volume: 
         ephemeral_volume = ephemeral_volume.split(";", 1)
         EphemeralVolume.size_mib = ephemeral_volume[0]
@@ -133,8 +135,6 @@ def upload(
         else :
             typer.echo("please choose host or store")
             raise typer.Exit(1)
-    
-        
         PersistentVolume.name = persistent_volume[0]
         PersistentVolume.size_mib = persistent_volume[1]
 
@@ -187,7 +187,8 @@ def upload(
             vcpus=vcpus,
             timeout_seconds=timeout_seconds,
             encoding=encoding,
-            immutable_volume = ImmutableVolume.ref,
+            immutable_volume = immutable_volume,
+            # ephemeral_volume = EphemeralVolume.mount,
             subscriptions=subscriptions,
         )
         logger.debug("Upload finished")
