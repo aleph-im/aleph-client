@@ -26,9 +26,11 @@ from aleph_message.models import (
     ProgramMessage,
     MessagesResponse,
 )
+from pydantic import ValidationError
 
 from aleph_client.types import Account, StorageEnum, GenericMessage
 from .exceptions import MessageNotFoundError, MultipleMessagesError
+from .models import MessagesResponse
 from .utils import get_message_type_value
 
 logger = logging.getLogger(__name__)
@@ -45,7 +47,7 @@ from typing import Optional, Iterable, Union, Any, Dict, List, AsyncIterable
 import aiohttp
 from aiohttp import ClientSession
 
-from aleph_message.models.program import ProgramContent, Encoding  # type: ignore
+from aleph_message.models.program import ProgramContent, Encoding, MachineVolume  # type: ignore
 
 
 @lru_cache()
@@ -308,15 +310,12 @@ async def create_program(
     memory: int = settings.DEFAULT_VM_MEMORY,
     vcpus: int = settings.DEFAULT_VM_VCPUS,
     timeout_seconds: float = settings.DEFAULT_VM_TIMEOUT,
+    persistent: bool = False,
     encoding: Encoding = Encoding.zip,
-    immutable_volume: Optional[str] = None,
-    # ephemeral_volume: Optional[str] = None, 
-    # persistent_volume: Optional[str] = None,
+    volumes: Optional[List[MachineVolume]] = None,
     subscriptions: Optional[List[Dict]] = None,
 ) -> ProgramMessage:
-    immutable_volume = immutable_volume if immutable_volume is not None else []
-    # ephemeral_volume = ephemeral_volume if ephemeral_volume is not None else []
-    # persistent_volume = persistent_volume if persistent_volume is not None else []
+    volumes = volumes if volumes is not None else []
 
     address = address or account.get_address()
 
@@ -325,10 +324,10 @@ async def create_program(
     ## Register the different ways to trigger a VM
     if subscriptions:
         # Trigger on HTTP calls and on Aleph message subscriptions.
-        triggers = {"http": True, "message": subscriptions}
+        triggers = {"http": True, "persistent": persistent, "message": subscriptions}
     else:
         # Trigger on HTTP calls.
-        triggers = {"http": True}
+        triggers = {"http": True, "persistent": persistent}
 
     content = ProgramContent(
         **{
@@ -360,9 +359,7 @@ async def create_program(
                 if runtime == settings.DEFAULT_RUNTIME_ID
                 else "",
             },
-            # "immutable_volume": {
-            #     "ref" : immutable_volume,
-            # },
+            "volumes": [volume.dict() for volume in volumes],
             # {
             #     "mount": "/opt/venv",
             #     "ref": "5f31b0706f59404fad3d0bff97ef89ddf24da4761608ea0646329362c662ba51",
@@ -378,6 +375,9 @@ async def create_program(
             "time": time.time(),
         }
     )
+
+    # Ensure that the version of aleph-message used supports the field.
+    assert content.on.persistent == persistent
 
     return await submit(
         account=account,
@@ -578,6 +578,8 @@ async def get_messages(
     end_date: Optional[Union[datetime, float]] = None,
     session: Optional[ClientSession] = None,
     api_server: str = settings.API_HOST,
+    ignore_invalid_messages: bool = True,
+    invalid_messages_log_level: int = logging.NOTSET,
 ) -> MessagesResponse:
     session = session or get_fallback_session()
 
@@ -613,8 +615,36 @@ async def get_messages(
 
     async with session.get(f"{api_server}/api/v0/messages.json", params=params) as resp:
         resp.raise_for_status()
-        messages_json = await resp.json()
-        return MessagesResponse(**messages_json)
+        response_json = await resp.json()
+        messages_raw = response_json["messages"]
+
+        # All messages may not be valid according to the latest specification in
+        # aleph-message. This allows the user to specify how errors should be handled.
+        messages: List[AlephMessage] = []
+        for message_raw in messages_raw:
+            try:
+                message = Message(**message_raw)
+                messages.append(message)
+            except KeyError as e:
+                if not ignore_invalid_messages:
+                    raise e
+                logger.log(
+                    level=invalid_messages_log_level,
+                    msg=f"KeyError: Field '{e.args[0]}' not found",
+                )
+            except ValidationError as e:
+                if not ignore_invalid_messages:
+                    raise e
+                if invalid_messages_log_level:
+                    logger.log(level=invalid_messages_log_level, msg=e)
+
+        return MessagesResponse(
+            messages=messages,
+            pagination_page=response_json["pagination_page"],
+            pagination_total=response_json["pagination_total"],
+            pagination_per_page=response_json["pagination_per_page"],
+            pagination_item=response_json["pagination_item"],
+        )
 
 
 async def get_message(

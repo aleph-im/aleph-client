@@ -18,7 +18,6 @@ from pathlib import Path
 from typing import Optional, Dict, List
 from zipfile import BadZipFile
 
-
 from aleph_message.models import (
     ProgramMessage,
     StoreMessage,
@@ -27,7 +26,7 @@ from aleph_message.models import (
 from aleph_message.models.program import (
     ImmutableVolume,
     EphemeralVolume,
-    PersistentVolume,
+    PersistentVolume, AbstractVolume, MachineVolume,
 )
 
 from aleph_client.types import AccountFromPrivateKey
@@ -36,7 +35,6 @@ from aleph_client.utils import create_archive
 
 logger = logging.getLogger(__name__)
 app = typer.Typer()
-
 
 from aleph_client.asynchronous import (
     get_fallback_session,
@@ -56,25 +54,29 @@ from aleph_message.models import (
 )
 
 app = typer.Typer()
+
+
 @app.command()
 def upload(
-    path: Path = typer.Argument(..., help="Path to your source code"),
-    entrypoint: str = typer.Argument(..., help="Your program entrypoint"),
-    channel: str = typer.Option(settings.DEFAULT_CHANNEL, help=help_strings.CHANNEL),
-    memory: int = typer.Option(settings.DEFAULT_VM_MEMORY, help="Maximum memory allocation on vm in MiB"),
-    vcpus: int = typer.Option(settings.DEFAULT_VM_VCPUS, help="Number of virtual cpus to allocate."),
-    timeout_seconds: float = typer.Option(settings.DEFAULT_VM_TIMEOUT, help="If vm is not called after [timeout_seconds] it will shutdown"),
-    private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
-    private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
-    print_messages: bool = typer.Option(False),
-    print_code_message: bool = typer.Option(False),
-    print_program_message: bool = typer.Option(False),
-    runtime: str = typer.Option(None, help="Hash of the runtime to use for your program. Defaults to aleph debian with Python3.8 and node. You can also create your own runtime and pin it"),
-    beta: bool = typer.Option(False),
-    immutable_volume: Optional[str] = typer.Option(None, help= 'immutable_volume'),
-    ephemeral_volume:Optional[str] = typer.Option(None, help= 'ephemeral_volume'),
-    persistent_volume:Optional[str] = typer.Option(None, help= 'persistent_volume'),
-    debug: bool = False,
+        path: Path = typer.Argument(..., help="Path to your source code"),
+        entrypoint: str = typer.Argument(..., help="Your program entrypoint"),
+        channel: str = typer.Option(settings.DEFAULT_CHANNEL, help=help_strings.CHANNEL),
+        memory: int = typer.Option(settings.DEFAULT_VM_MEMORY, help="Maximum memory allocation on vm in MiB"),
+        vcpus: int = typer.Option(settings.DEFAULT_VM_VCPUS, help="Number of virtual cpus to allocate."),
+        timeout_seconds: float = typer.Option(settings.DEFAULT_VM_TIMEOUT,
+                                              help="If vm is not called after [timeout_seconds] it will shutdown"),
+        private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
+        private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
+        print_messages: bool = typer.Option(False),
+        print_code_message: bool = typer.Option(False),
+        print_program_message: bool = typer.Option(False),
+        runtime: str = typer.Option(None,
+                                    help="Hash of the runtime to use for your program. Defaults to aleph debian with Python3.8 and node. You can also create your own runtime and pin it"),
+        beta: bool = typer.Option(False),
+        immutable_volume: Optional[List[str]] = typer.Option(None, help='immutable_volume'),
+        ephemeral_volume: Optional[List[str]] = typer.Option(None, help='ephemeral_volume'),
+        persistent_volume: Optional[List[str]] = typer.Option(None, help='persistent_volume'),
+        debug: bool = False,
 ):
     """Register a program to run on Aleph.im virtual machines from a zip archive."""
 
@@ -94,31 +96,31 @@ def upload(
     account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
 
     runtime = (
-        runtime
-        or input(f"Ref of runtime ? [{settings.DEFAULT_RUNTIME_ID}] ")
-        or settings.DEFAULT_RUNTIME_ID
+            runtime
+            or input(f"Ref of runtime ? [{settings.DEFAULT_RUNTIME_ID}] ")
+            or settings.DEFAULT_RUNTIME_ID
     )
 
+    volumes: List[MachineVolume] = []
     if immutable_volume:
-        immutable_volume = immutable_volume.split(";")
-        immu_first = immutable_volume[0].split('=')
-        immu_second = immutable_volume[1].split('=')
-        if immu_first[0]=="ref":
-            typer.echo(f"Ref of immutable_volume : {immu_first[1]}")
-            ImmutableVolume.ref = immu_first[1] 
-            immu_second[0]=="mount"
-            typer.echo(f"Mount of immutable_volume : {immu_second[1]}")
-            ImmutableVolume.mount = immu_second[1] 
+        ref = None
+        use_latest = None
+        params = immutable_volume[0].split(';')
+        mount = immutable_volume[1]
+        name = immutable_volume[2]
+        for param in params:
+            param = param.split('=')
+            if param[0] == 'ref':
+                ref = param[1]
+            elif param[0] == 'use-latest':
+                use_latest = param[1]
+        try:
+            volumes.append(ImmutableVolume(ref=ref, mount=mount, name=name, use_latest=use_latest))
+        except Exception as e:
+            typer.echo(f"Error: {e}")
+            raise typer.Exit(1)
 
-        elif immu_second[0]=="ref":
-            typer.echo(f"Ref of immutable_volume : {immu_second[1]}")
-            ImmutableVolume.ref = immu_second[1] 
-            immu_first[0]=="mount"
-            typer.echo(f"Mount of immutable_volume : {immu_first[1]}")
-            ImmutableVolume.mount = immu_first[1] 
-
-        
-    if ephemeral_volume: 
+    if ephemeral_volume:
         ephemeral_volume = ephemeral_volume.split(";", 1)
         EphemeralVolume.size_mib = ephemeral_volume[0]
         EphemeralVolume.mount = ephemeral_volume[1]
@@ -128,16 +130,15 @@ def upload(
     if persistent_volume:
         persistent_volume = persistent_volume.split(";", 1)
         choice = input("Volume Persistance ? (host/store) ")
-        if choice == "host": 
+        if choice == "host":
             PersistentVolume.persistence = "host"
         elif choice == "store":
             PersistentVolume.persistence = "store"
-        else :
+        else:
             typer.echo("please choose host or store")
             raise typer.Exit(1)
         PersistentVolume.name = persistent_volume[0]
         PersistentVolume.size_mib = persistent_volume[1]
-
 
     subscriptions: Optional[List[Dict]]
     if beta and yes_no_input("Subscribe to messages ?", default=False):
@@ -187,7 +188,7 @@ def upload(
             vcpus=vcpus,
             timeout_seconds=timeout_seconds,
             encoding=encoding,
-            immutable_volume = immutable_volume,
+            volumes=volumes,
             # ephemeral_volume = EphemeralVolume.mount,
             subscriptions=subscriptions,
         )
@@ -214,12 +215,12 @@ def upload(
 
 @app.command()
 def update(
-    hash: str,
-    path: Path,
-    private_key: Optional[str] = settings.PRIVATE_KEY_STRING,
-    private_key_file: Optional[Path] = settings.PRIVATE_KEY_FILE,
-    print_message: bool = True,
-    debug: bool = False,
+        hash: str,
+        path: Path,
+        private_key: Optional[str] = settings.PRIVATE_KEY_STRING,
+        private_key_file: Optional[Path] = settings.PRIVATE_KEY_FILE,
+        print_message: bool = True,
+        debug: bool = False,
 ):
     """Update the code of an existing program"""
 

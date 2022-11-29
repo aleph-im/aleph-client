@@ -5,7 +5,7 @@ from typing import List, Optional, Dict, Iterable, Type
 
 from aiohttp import ClientSession
 from aleph_message.models import AlephMessage
-from aleph_message.models.program import ProgramContent, Encoding, ImmutableVolume  # type: ignore
+from aleph_message.models.program import ProgramContent, Encoding, MachineVolume  # type: ignore
 
 from . import asynchronous
 from .conf import settings
@@ -75,8 +75,9 @@ def create_program(
     memory: int = settings.DEFAULT_VM_MEMORY,
     vcpus: int = settings.DEFAULT_VM_VCPUS,
     timeout_seconds: float = settings.DEFAULT_VM_TIMEOUT,
+    persistent: bool = False,
     encoding: Encoding = Encoding.zip,
-    immutable_volume: ImmutableVolume = None,  
+    volumes: Optional[List[MachineVolume]] = None,
     subscriptions: Optional[List[Dict]] = None,
 ):
     return wrap_async(asynchronous.create_program)(
@@ -93,8 +94,9 @@ def create_program(
         memory=memory,
         vcpus=vcpus,
         timeout_seconds=timeout_seconds,
+        persistent=persistent,
         encoding=encoding,
-        immutable_volume=immutable_volume,
+        volumes=volumes,
         subscriptions=subscriptions,
     )
 
