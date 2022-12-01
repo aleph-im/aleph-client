@@ -1,5 +1,5 @@
 import tarfile
-from typing import Dict
+from typing import Dict, List
 from .image import Image
 import os
 import json
@@ -10,6 +10,7 @@ from shutil import rmtree
 import tempfile
 import gzip
 from .docker_conf import DockerSettings, StorageDriverEnum
+
 
 class IStorageDriver:
     def create_file_architecture(self):
@@ -70,6 +71,12 @@ class AStorageDriver(IStorageDriver):
         """
         raise NotImplementedError(f"You must implement this method")
 
+    def optimize(self, output_dir: str):
+        """
+        Reproduce /var/lib/docker/image/{storage_driver}/disctibution
+        in output_dir based on an image object.
+        """
+        raise NotImplementedError(f"You must implement this method")
 
 
 # Since aleph vms can be running with an unknown host configuration,
@@ -104,13 +111,16 @@ class Vfs(AStorageDriver):
         os.makedirs(os.path.join(output_dir, "imagedb"), 0o700)
         os.makedirs(os.path.join(output_dir, "imagedb", "content"), 0o700)
         os.makedirs(os.path.join(output_dir, "imagedb", "metadata"), 0o700)
-        os.makedirs(os.path.join(output_dir, "imagedb", "content", "sha256"), 0o700)
-        os.makedirs(os.path.join(output_dir, "imagedb", "metadata", "sha256"), 0o700)
+        os.makedirs(os.path.join(output_dir, "imagedb",
+                    "content", "sha256"), 0o700)
+        os.makedirs(os.path.join(output_dir, "imagedb",
+                    "metadata", "sha256"), 0o700)
         # os.makedirs(os.path.join(metadata, self.image.image_digest))
         content = os.path.join(output_dir, "imagedb", "content", "sha256")
         path = os.path.join(content, self.image.image_digest)
         with open(path, "w") as f:
-            f.write(json.dumps(self.image.config, separators=(',', ':'))) # This file must be dumped compactly in order to keep the correct sha256 digest
+            # This file must be dumped compactly in order to keep the correct sha256 digest
+            f.write(json.dumps(self.image.config, separators=(',', ':')))
         os.chmod(path, 0o0600)
         # with open(os.path.join(metadata, self.image.image_digest, "parent"), "w") as f:
         #     f.write(self.image.config['config']['Image'])
@@ -148,10 +158,10 @@ class Vfs(AStorageDriver):
                     fd.write(previous_chain_id)
                 os.chmod(dest, 0o600)
 
-
         def copy_layer(src: str, dest: str) -> None:
             for folder in os.listdir(src):
-                subprocess.check_output(["cp", "-r", os.path.join(src, folder), dest])
+                subprocess.check_output(
+                    ["cp", "-r", os.path.join(src, folder), dest])
 
         def compute_layer_size(tar_data_json_path: str) -> int:
             size = 0
@@ -160,11 +170,14 @@ class Vfs(AStorageDriver):
                     "["
                     + archive.read().decode().replace("}\n{", "},\n{")
                     + "]"
-                ) # fixes poor formatting from tar-split
+                )  # fixes poor formatting from tar-split
             for elem in data:
                 if "size" in elem.keys():
-                    size =+ elem["size"]
+                    size = + elem["size"]
             return size
+
+        def remove_unused_layers(layers_dir: str, keep: List[str]):
+            return
 
         def extract_layer(path: str, archive_path: str, layerdb_subdir: str) -> int:
             cwd = os.getcwd()
@@ -183,9 +196,12 @@ class Vfs(AStorageDriver):
             # Mandatory if one plans to export a docker image to a tar file
             # https://github.com/vbatts/tar-split
             if self.use_tarsplit:
-                tar_data_json = os.path.join(layerdb_subdir, "tar-split.json.gz")
-                os.system(f"tar-split disasm --output {tar_data_json} {tar_src} | tar -C . -x")
-                size = compute_layer_size(tar_data_json) # Differs from expected. Only messes with docker image size listing
+                tar_data_json = os.path.join(
+                    layerdb_subdir, "tar-split.json.gz")
+                os.system(
+                    f"tar-split disasm --output {tar_data_json} {tar_src} | tar -C . -x")
+                # Differs from expected. Only messes with docker image size listing
+                size = compute_layer_size(tar_data_json)
                 os.remove(tar_src)
 
             # Also works, but won't be able to export images
@@ -193,7 +209,7 @@ class Vfs(AStorageDriver):
                 with tarfile.open(tar_src, "r") as tar:
                     os.remove(tar_src)
                     tar.extractall()
-                size=0
+                size = 0
             os.rmdir(tmp_dir)
             os.chdir(cwd)
             return size
@@ -201,7 +217,8 @@ class Vfs(AStorageDriver):
         previous_cache_id = None
         for i in range(0, len(self.image.chain_ids)):
             chain_id = self.image.chain_ids[i]
-            layerdb_subdir = os.path.join(layerdb_path, chain_id.replace("sha256:", ""))
+            layerdb_subdir = os.path.join(
+                layerdb_path, chain_id.replace("sha256:", ""))
             os.makedirs(layerdb_subdir, 0o700)
             cache_id = (str(uuid4()) + str(uuid4())).replace("-", "")
 
@@ -209,16 +226,17 @@ class Vfs(AStorageDriver):
             current_layer_path = os.path.join(layers_dir, cache_id)
             os.makedirs(current_layer_path, 0o700)
 
-
             # Merge layers
             # The last layer contains changes from all the previous ones
             if previous_cache_id:
-                previous_layer_path = os.path.join(layers_dir, previous_cache_id)
+                previous_layer_path = os.path.join(
+                    layers_dir, previous_cache_id)
                 copy_layer(previous_layer_path, current_layer_path)
                 if (self.optimize):
                     rmtree(previous_layer_path)
             previous_cache_id = cache_id
-            size = extract_layer(current_layer_path, self.image.archive_path, layerdb_subdir)
+            size = extract_layer(current_layer_path,
+                                 self.image.archive_path, layerdb_subdir)
             save_layer_metadata(
                 path=layerdb_subdir,
                 diff=self.image.diff_ids[i],
@@ -228,6 +246,11 @@ class Vfs(AStorageDriver):
                 if i > 0
                 else None
             )
+        if self.optimize:
+            layer_to_keep = os.path.join(
+                layers_dir, previous_cache_id
+            )
+            remove_unused_layers(layers_dir, layer_to_keep)
 
 
 def create_storage_driver(

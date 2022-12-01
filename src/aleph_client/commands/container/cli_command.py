@@ -9,7 +9,10 @@ from typing import Optional, Dict, List
 from base64 import b32encode, b16decode
 from typing import Optional, Dict, List
 
-from aleph_message.models import StoreMessage
+from aleph_message.models import (
+    StoreMessage,
+    ProgramMessage
+)
 
 from aleph_client import synchronous
 from aleph_client.account import _load_account, AccountFromPrivateKey
@@ -30,7 +33,10 @@ from aleph_client.commands.utils import (
     yes_no_input
 )
 
-from .save import save_tar
+
+
+from aleph_client.commands.container.save import save_tar
+from aleph_client.commands.container.utils import create_container_volume
 
 logger = logging.getLogger(__name__)
 app = typer.Typer()
@@ -52,7 +58,7 @@ def upload_file(
             else StorageEnum.storage
         )
         logger.debug("Uploading file")
-        result = synchronous.create_store(
+        result: StoreMessage = synchronous.create_store(
             account=account,
             file_content=file_content,
             storage_engine=storage_engine,
@@ -65,12 +71,30 @@ def upload_file(
             typer.echo(f"{json.dumps(result, indent=4)}")
         return result
 
+def MutuallyExclusiveBoolean():
+    marker = None
+    def callback(ctx: typer.Context, param: typer.CallbackParam, value: str):
+        # Add cli option to group if it was called with a value
+        nonlocal marker
+        if value is False:
+            return value
+        if marker is None:
+            marker = param.name
+        if param.name != marker:
+            raise typer.BadParameter(
+                f"{param.name} is mutually exclusive with {marker}")
+        return value
+    return callback
+
+exclusivity_callback = MutuallyExclusiveBoolean()
+
 @app.command()
 def upload(
     image: str = typer.Argument(..., help="Path to an image archive exported with docker save."),
     path: str = typer.Argument(..., metavar="SCRIPT", help="A small script to start your container with parameters"),
-    from_remote: bool = typer.Option(False, "--from-remote", "-r", help=" If --from-remote, IMAGE is a registry to pull the image from. e.g: library/alpine, library/ubuntu:latest"),
-    from_daemon: bool = typer.Option(False, "--from-daemon", "-d", help=" If --from-daemon, IMAGE is an image in local docker deamon storage. You need docker installed for this command"),
+    from_remote: bool = typer.Option(False, "--from-remote", help=" If --from-remote, IMAGE is a registry to pull the image from. e.g: library/alpine, library/ubuntu:latest", callback=exclusivity_callback),
+    from_daemon: bool = typer.Option(False, "--from-daemon", help=" If --from-daemon, IMAGE is an image in local docker deamon storage. You need docker installed for this command", callback=exclusivity_callback),
+    from_created: bool = typer.Option(False, "--from-created", help=" If --from-created, IMAGE the path to a file created with 'aleph container create'", callback=exclusivity_callback),
     channel: str = typer.Option(settings.DEFAULT_CHANNEL, help=help_strings.CHANNEL),
     memory: int = typer.Option(settings.DEFAULT_VM_MEMORY, help="Maximum memory allocation on vm in MiB"),
     vcpus: int = typer.Option(settings.DEFAULT_VM_VCPUS, help="Number of virtual cpus to allocate."),
@@ -78,6 +102,7 @@ def upload(
     private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
     private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
     docker_mountpoint: Optional[Path] = typer.Option(settings.DEFAULT_DOCKER_VOLUME_MOUNTPOINT, "--docker-mountpoint", help="The path where the created docker image volume will be mounted"),
+    optimize: bool = typer.Option(True, help="Activate volume size optimization"),
     print_messages: bool = typer.Option(False),
     print_code_message: bool = typer.Option(False),
     print_program_message: bool = typer.Option(False),
@@ -87,31 +112,15 @@ def upload(
     Deploy a docker container on Aleph virtual machines.
     Unless otherwise specified, you don't need docker on your machine to run this command.
     """
-    if from_remote or from_daemon:
-        raise NotImplementedError()
-        # echo(f"Downloading {image}")
-        # registry = Registry()
-        # tag = "latest"
-        # if ":" in image:
-        #     l = image.split(":")
-        #     tag = l[-1]
-        #     image = l[0]
-        # print(tag)
-        # image_object = registry.pull_image(image, tag)
-        # manifest = registry.get_manifest_configuration(image, tag)
-        # image_archive = os.path.abspath(f"{str(uuid4())}.tar")
-        # image_object.write_filename(image_archive)
-        # image = image_archive
-        # print(manifest)
     typer.echo("Preparing image for vm runtime")
-    docker_data_path = os.path.abspath("docker-data")
-    save_tar(image, docker_data_path, settings=settings.DOCKER_SETTINGS)
-    if not settings.CODE_USES_SQUASHFS:
-        typer.echo("The command mksquashfs must be installed!")
-        typer.Exit(2)
-    logger.debug("Creating squashfs archive...")
-    os.system(f"mksquashfs {docker_data_path} {docker_data_path}.squashfs -noappend")
-    docker_data_path = f"{docker_data_path}.squashfs"
+    docker_data_path=image
+    if not from_created:
+        docker_data_path = os.path.abspath("docker-data.squashfs")
+        try:
+            create_container_volume(image, docker_data_path, from_remote, from_daemon, optimize, settings)
+        except Exception as e:
+            typer.echo(e)
+            raise typer.Exit(1)
     assert os.path.isfile(docker_data_path)
     encoding = Encoding.squashfs
     path = os.path.abspath(path)
@@ -140,16 +149,19 @@ def upload(
         docker_upload_result: StoreMessage = upload_file(docker_data_path, account, channel, print_messages, print_code_message)
         volumes.append({
             "comment": "Docker container volume",
-            "mount": docker_mountpoint,
-            "ref": docker_upload_result["item_hash"],
+            "mount": str(docker_mountpoint),
+            "ref": str(docker_upload_result.item_hash),
             "use_latest": True,
         })
+
+        typer.echo(f"Docker image upload message address: {docker_upload_result.item_hash}")
+
         program_result: StoreMessage = upload_file(path, account, channel, print_messages, print_code_message)
 
         # Register the program
-        result = synchronous.create_program(
+        result: ProgramMessage = synchronous.create_program(
             account=account,
-            program_ref=program_result["item_hash"],
+            program_ref=program_result.item_hash,
             entrypoint=entrypoint,
             runtime=settings.DEFAULT_DOCKER_RUNTIME_ID,
             storage_engine=StorageEnum.storage,
@@ -161,15 +173,16 @@ def upload(
             volumes=volumes,
             subscriptions=subscriptions,
             environment_variables={
-                "DOCKER_MOUNTPOINT": docker_mountpoint
+                "DOCKER_MOUNTPOINT": str(docker_mountpoint)
             }
         )
         logger.debug("Upload finished")
         if print_messages or print_program_message:
             typer.echo(f"{json.dumps(result, indent=4)}")
 
-        hash: str = result["item_hash"]
+        hash: str = result.item_hash
         hash_base32 = b32encode(b16decode(hash.upper())).strip(b"=").lower().decode()
+
 
         typer.echo(
             f"Your program has been uploaded on Aleph .\n\n"
@@ -177,9 +190,29 @@ def upload(
             f"  {settings.VM_URL_PATH.format(hash=hash)}\n"
             f"  {settings.VM_URL_HOST.format(hash_base32=hash_base32)}\n"
             "Visualise on:\n  https://explorer.aleph.im/address/"
-            f"{result['chain']}/{result['sender']}/message/PROGRAM/{hash}\n"
+            f"{result.chain}/{result.sender}/message/PROGRAM/{hash}\n"
         )
 
     finally:
         # Prevent aiohttp unclosed connector warning
         asyncio.get_event_loop().run_until_complete(get_fallback_session().close())
+
+@app.command()
+def create(
+    image: str = typer.Argument(..., help="Path to an image archive exported with docker save."),
+    output: str = typer.Argument(..., help="The path where you want "),
+    from_remote: bool = typer.Option(False, "--from-remote", help=" If --from-remote, IMAGE is a registry to pull the image from. e.g: library/alpine, library/ubuntu:latest", callback=exclusivity_callback),
+    from_daemon: bool = typer.Option(False, "--from-daemon", help=" If --from-daemon, IMAGE is an image in local docker deamon storage. You need docker installed for this command", callback=exclusivity_callback),
+    optimize: bool = typer.Option(True, help="Activate volume size optimization"),
+):
+    """
+    Use a docker image to create an Aleph compatible image on your local machine.
+    You can later upload it with 'aleph container upload --from-'
+    """
+    try:
+        create_container_volume(image, output, from_remote, from_daemon, optimize, settings)
+        typer.echo(f"Container volume created at {output}")
+    except Exception as e:
+        typer.echo(e)
+        raise typer.Exit(1)
+    return

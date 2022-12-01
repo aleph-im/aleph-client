@@ -5,8 +5,8 @@ from typing import List
 import filecmp
 import subprocess
 from shutil import rmtree
-from save import save_tar
-from conf import settings
+from aleph_client.commands.container.save import save_tar
+from aleph_client.commands.container.docker_conf import docker_settings as settings
 
 TEST_DIR = os.path.abspath("test_data")
 DOCKER_DATA = os.path.join(TEST_DIR, "docker")
@@ -18,8 +18,10 @@ IMAGE_ARCHIVE = os.path.join(TEST_DIR, f"{IMAGE_NAME}.tar")
 # - VFS optimization is turned on
 # - tar-split is not used
 
+
 def compare_folders_content(folder1: str, folder2: str):
     dcmp = filecmp.dircmp(folder1, folder2)
+
     def recursive_cmp(dcmp):
         diff = dcmp.left_only + dcmp.right_only + dcmp.diff_files
         for sub_dcmp in dcmp.subdirs.values():
@@ -29,7 +31,9 @@ def compare_folders_content(folder1: str, folder2: str):
 
     return recursive_cmp(dcmp)
 
+
 docker_daemon: subprocess.Popen = None
+
 
 class TestLoadImage(unittest.TestCase):
 
@@ -38,7 +42,8 @@ class TestLoadImage(unittest.TestCase):
         def cleanup_docker():
             os.system(f"rm -rf {DOCKER_DATA}")
             os.system("systemctl stop docker.service")
-            cls.docker_daemon = subprocess.Popen(["dockerd", "--data-root", DOCKER_DATA], stderr=subprocess.DEVNULL)
+            cls.docker_daemon = subprocess.Popen(
+                ["dockerd", "--data-root", DOCKER_DATA, "--storage-driver=vfs"], stderr=subprocess.DEVNULL)
             time.sleep(3)
 
         def build_test_image() -> bool:
@@ -78,6 +83,9 @@ class TestLoadImage(unittest.TestCase):
         res = []
         expected_result = os.listdir(expected_path)
         result = os.listdir(result_path)
+        if not settings.storage_driver.conf.use_tarsplit:
+            expected_result = list(filter(
+                lambda result: result != "tar-split.json.gz", expected_result))
         self.assertEqual(len(expected_result), len(result))
         for folder in expected_result:
             res.append(folder in result)
@@ -89,8 +97,6 @@ class TestLoadImage(unittest.TestCase):
         for f in expected_files:
             expected_mode = os.stat(os.path.join(expected_path, f)).st_mode
             actual_mode = os.stat(os.path.join(actual_path, f)).st_mode
-            if expected_mode != actual_mode:
-                print(os.path.join(expected_path, f), oct(expected_mode), oct(actual_mode))
             res.append(expected_mode == actual_mode)
         return res
 
@@ -195,12 +201,15 @@ class TestLoadImage(unittest.TestCase):
         path = os.path.join("image", "vfs", "layerdb", "sha256")
         for folder in os.listdir(os.path.join(DOCKER_DATA, path)):
             for f in os.listdir(os.path.join(DOCKER_DATA, path, folder)):
-                if f == "size": # not ready yet
+                if f == "tar-split.json.gz" and not settings.storage_driver.conf.use_tarsplit:
+                    continue
+                if f == "size":  # not ready yet
                     continue
                 result_file = os.path.join(TEST_DOCKER_DATA, path, folder, f)
-                expected_result_file = os.path.join(DOCKER_DATA, path, folder, f)
+                expected_result_file = os.path.join(
+                    DOCKER_DATA, path, folder, f)
                 res = filecmp.cmp(result_file, expected_result_file)
-                if f == "cache-id": # uuid should not be identical
+                if f == "cache-id":  # uuid should not be identical
                     self.assertFalse(res)
                 else:
                     self.assertTrue(res)
@@ -218,6 +227,7 @@ class TestLoadImage(unittest.TestCase):
                 os.path.join(TEST_DOCKER_DATA, "vfs", "dir", cache_id2),
             )
             self.assertEqual(len(res), 0)
+
 
 if __name__ == '__main__':
     unittest.main()
