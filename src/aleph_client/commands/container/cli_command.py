@@ -115,7 +115,7 @@ def upload(
     typer.echo("Preparing image for vm runtime")
     docker_data_path=image
     if not from_created:
-        docker_data_path = os.path.abspath("docker-data.squashfs")
+        docker_data_path = os.path.abspath("docker-data")
         try:
             create_container_volume(image, docker_data_path, from_remote, from_daemon, optimize, settings)
         except Exception as e:
@@ -146,15 +146,25 @@ def upload(
         subscriptions = None
 
     try:
-        docker_upload_result: StoreMessage = upload_file(docker_data_path, account, channel, print_messages, print_code_message)
+        docker_upload_layers_result: StoreMessage = upload_file(f"{docker_data_path}/layers", account, channel, print_messages, print_code_message)
+        docker_upload_metadata_result: StoreMessage = upload_file(f"{docker_data_path}/metadata", account, channel, print_messages, print_code_message)
+        typer.echo(f"Docker image layers upload message address: {docker_upload_layers_result.item_hash}")
+        typer.echo(f"Docker image metadata upload message address: {docker_upload_metadata_result.item_hash}")
+
         volumes.append({
-            "comment": "Docker container volume",
-            "mount": str(docker_mountpoint),
-            "ref": str(docker_upload_result.item_hash),
+            "comment": "Docker image layers",
+            "mount": f"{str(docker_mountpoint)}/layers",
+            "ref": str(docker_upload_layers_result.item_hash),
             "use_latest": True,
         })
 
-        typer.echo(f"Docker image upload message address: {docker_upload_result.item_hash}")
+        volumes.append({
+            "comment": "Docker image metadata",
+            "mount": f"{str(docker_mountpoint)}/metadata",
+            "ref": str(docker_upload_metadata_result.item_hash),
+            "use_latest": True,
+        })
+
 
         program_result: StoreMessage = upload_file(path, account, channel, print_messages, print_code_message)
 

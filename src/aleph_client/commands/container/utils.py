@@ -34,7 +34,7 @@ def create_container_volume(
         # image = image_archive
         # print(manifest)
     elif from_daemon:
-        output_from_daemon = f"{image}.tar"
+        output_from_daemon = f"{output}.image.tar"
         if os.system(f"docker image inspect {image} >/dev/null 2>&1"):
             raise Exception(f"Can't find image '{image}'")
         if os.system(f"docker save {image} > {output_from_daemon}") != 0:
@@ -47,7 +47,7 @@ def create_container_volume(
     if not settings.CODE_USES_SQUASHFS:
         raise Exception("The command mksquashfs must be installed!")
     logger.debug("Creating squashfs archive...")
-    os.system(
-        f"mksquashfs {tmp_output} {output} -noappend"
-    )
+    os.makedirs(output)
+    os.system(f"mksquashfs {tmp_output}/image/vfs {output}/metadata -noappend")
+    os.system(f"mksquashfs {tmp_output}/vfs {output}/layers -noappend")
     rmtree(tmp_output)

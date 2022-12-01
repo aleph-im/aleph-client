@@ -39,5 +39,5 @@ docker_settings = DockerSettings(
     storage_driver=StorageDriverSettings(
         kind=StorageDriverEnum.VFS
     ),
-    populate=True
+    populate=False
 )
