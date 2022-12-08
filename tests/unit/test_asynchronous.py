@@ -18,7 +18,7 @@ from aleph_client.asynchronous import (
     create_program,
     forget,
 )
-from aleph_client.chains.common import get_fallback_private_key
+from aleph_client.chains.common import get_fallback_private_key, delete_private_key_file
 from aleph_client.chains.ethereum import ETHAccount
 from aleph_client.conf import settings
 from aleph_client.types import StorageEnum, MessageStatus
@@ -45,7 +45,7 @@ async def test_create_post():
     _get_fallback_session.cache_clear()
 
     if os.path.exists(settings.PRIVATE_KEY_FILE):
-        os.remove(settings.PRIVATE_KEY_FILE)
+        delete_private_key_file()
 
     private_key = get_fallback_private_key()
     account: ETHAccount = ETHAccount(private_key=private_key)
@@ -74,7 +74,7 @@ async def test_create_aggregate():
     _get_fallback_session.cache_clear()
 
     if os.path.exists(settings.PRIVATE_KEY_FILE):
-        os.remove(settings.PRIVATE_KEY_FILE)
+        delete_private_key_file()
 
     private_key = get_fallback_private_key()
     account: ETHAccount = ETHAccount(private_key=private_key)
@@ -109,7 +109,7 @@ async def test_create_store():
     _get_fallback_session.cache_clear()
 
     if os.path.exists(settings.PRIVATE_KEY_FILE):
-        os.remove(settings.PRIVATE_KEY_FILE)
+        delete_private_key_file()
 
     private_key = get_fallback_private_key()
     account: ETHAccount = ETHAccount(private_key=private_key)
@@ -162,7 +162,7 @@ async def test_create_program():
     _get_fallback_session.cache_clear()
 
     if os.path.exists(settings.PRIVATE_KEY_FILE):
-        os.remove(settings.PRIVATE_KEY_FILE)
+        delete_private_key_file()
 
     private_key = get_fallback_private_key()
     account: ETHAccount = ETHAccount(private_key=private_key)
@@ -188,7 +188,7 @@ async def test_forget():
     _get_fallback_session.cache_clear()
 
     if os.path.exists(settings.PRIVATE_KEY_FILE):
-        os.remove(settings.PRIVATE_KEY_FILE)
+        delete_private_key_file()
 
     private_key = get_fallback_private_key()
     account: ETHAccount = ETHAccount(private_key=private_key)
