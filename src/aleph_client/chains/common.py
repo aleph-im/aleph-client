@@ -77,8 +77,10 @@ def get_fallback_private_key() -> bytes:
             private_key = prvfile.read()
     except OSError:
         private_key = generate_key()
+        os.makedirs(os.path.dirname(settings.PRIVATE_KEY_FILE), exist_ok=True)
         with open(settings.PRIVATE_KEY_FILE, "wb") as prvfile:
             prvfile.write(private_key)
+            os.symlink(settings.PRIVATE_KEY_FILE, os.path.join(os.path.dirname(settings.PRIVATE_KEY_FILE)), "ethereum.key")
 
     return private_key
 
