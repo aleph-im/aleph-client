@@ -13,7 +13,7 @@ class Settings(BaseSettings):
     # In case the user does not want to bother with handling private keys himself,
     # do an ugly and insecure write and read from disk to this file.
     PRIVATE_KEY_FILE: Path = Field(
-        default=Path("device.key"),
+        default=Path("ethereum.key"),
         description="Path to the private key used to sign messages",
     )
     
@@ -59,8 +59,8 @@ if settings.ALEPH_IM_HOME is None:
 
     settings = Settings()
 
-if str(settings.PRIVATE_KEY_FILE) == "device.key":
-    settings.PRIVATE_KEY_FILE = os.path.join(settings.ALEPH_IM_HOME, "private-keys", "device.key")
+if str(settings.PRIVATE_KEY_FILE) == "ethereum.key":
+    settings.PRIVATE_KEY_FILE = os.path.join(settings.ALEPH_IM_HOME, "private-keys", "ethereum.key")
 
 if "pytest" in sys.modules:
-    settings.PRIVATE_KEY_FILE = os.path.join(settings.ALEPH_IM_HOME, "private-keys", "device_test.key")
+    settings.PRIVATE_KEY_FILE = os.path.join(settings.ALEPH_IM_HOME, "private-keys", "ethereum_test.key")
