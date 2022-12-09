@@ -80,7 +80,7 @@ def get_fallback_private_key() -> bytes:
         os.makedirs(os.path.dirname(settings.PRIVATE_KEY_FILE), exist_ok=True)
         with open(settings.PRIVATE_KEY_FILE, "wb") as prvfile:
             prvfile.write(private_key)
-            os.symlink(settings.PRIVATE_KEY_FILE, os.path.join(os.path.dirname(settings.PRIVATE_KEY_FILE), "ethereum.key"))
+            os.symlink(settings.PRIVATE_KEY_FILE, os.path.join(os.path.dirname(settings.PRIVATE_KEY_FILE), "default.key"))
 
     return private_key
 
@@ -88,6 +88,6 @@ def get_fallback_private_key() -> bytes:
 def delete_private_key_file():
     try:
         os.remove(settings.PRIVATE_KEY_FILE)
-        os.unlink(os.path.join(os.path.dirname(settings.PRIVATE_KEY_FILE), "ethereum.key"))
+        os.unlink(os.path.join(os.path.dirname(settings.PRIVATE_KEY_FILE), "default.key"))
     except FileNotFoundError:
         pass
