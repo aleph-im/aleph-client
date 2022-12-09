@@ -4,6 +4,7 @@ from typing import Optional
 
 from pydantic import BaseSettings, Field
 import os
+import sys
 
 
 class Settings(BaseSettings):
@@ -11,13 +12,11 @@ class Settings(BaseSettings):
 
     # In case the user does not want to bother with handling private keys himself,
     # do an ugly and insecure write and read from disk to this file.
-    @property
-    def PRIVATE_KEY_FILE(self) -> Path:
-        """
-        Path to the private key used to sign messages
-        """
-        return os.path.join(self.ALEPH_IM_HOME, "private-keys", "device.key")
-
+    PRIVATE_KEY_FILE: Path = Field(
+        default=Path("device.key"),
+        description="Path to the private key used to sign messages",
+    )
+    
     PRIVATE_KEY_STRING: Optional[str] = None
     API_HOST: str = "https://api2.aleph.im"
     MAX_INLINE_SIZE: int = 50000
@@ -44,18 +43,24 @@ class Settings(BaseSettings):
         case_sensitive = False
         env_file = ".env"
 
+if os.environ.get("ALEPH_IM_HOME") is not None:
+    os.environ["ALEPH_ALEPH_IM_HOME"] = os.environ.get("ALEPH_IM_HOME")
+
 # Settings singleton
 settings = Settings()
 
 if settings.ALEPH_IM_HOME is None:
-    if os.environ.get("ALEPH_IM_HOME") is not None:
-        os.environ["ALEPH_ALEPH_IM_HOME"] = os.environ.get("ALEPH_IM_HOME")
+    xdg_data_home = os.environ.get("XDG_DATA_HOME")
+    if xdg_data_home is not None:
+        os.environ["ALEPH_ALEPH_IM_HOME"] = os.path.join(xdg_data_home, ".aleph-im")
     else:
-        xdg_data_home = os.environ.get("XDG_DATA_HOME")
-        if xdg_data_home is not None:
-            os.environ["ALEPH_ALEPH_IM_HOME"] = os.path.join(xdg_data_home, ".aleph-im")
-        else:
-            home = os.path.expanduser("~")
-            os.environ["ALEPH_ALEPH_IM_HOME"] = os.path.join(home, ".aleph-im")
+        home = os.path.expanduser("~")
+        os.environ["ALEPH_ALEPH_IM_HOME"] = os.path.join(home, ".aleph-im")
 
     settings = Settings()
+
+if str(settings.PRIVATE_KEY_FILE) == "device.key":
+    settings.PRIVATE_KEY_FILE = os.path.join(settings.ALEPH_IM_HOME, "private-keys", "device.key")
+
+if "pytest" in sys.modules:
+    settings.PRIVATE_KEY_FILE = os.path.join(settings.ALEPH_IM_HOME, "private-keys", "device_test.key")
