@@ -1,5 +1,6 @@
 import os
 from unittest.mock import MagicMock, patch, AsyncMock
+import unittest
 
 import pytest as pytest
 from aleph_message.models import (
@@ -203,3 +204,5 @@ async def test_forget():
 
     assert mock_session.post.called
     assert isinstance(new_post, ForgetMessage)
+if __name__ == '__main __':
+    unittest.main()
