@@ -1,7 +1,7 @@
 import asyncio
 import queue
 import threading
-from typing import List, Optional, Dict, Iterable, Type
+from typing import List, Optional, Dict, Iterable, Type,Tuple
 
 from aiohttp import ClientSession
 from aleph_message.models import AlephMessage
@@ -78,6 +78,12 @@ def create_program(
     persistent: bool = False,
     encoding: Encoding = Encoding.zip,
     volumes: Optional[List[Dict]] = None,
+    persistent_volumes:Optional[Tuple[str, str, str]] =None,
+    ephemeral_volumes:Optional[List[str]] =None,
+    immutable_volumes: Optional[Tuple[str, bool]] =None,
+
+
+
     subscriptions: Optional[List[Dict]] = None,
 ):
     return wrap_async(asynchronous.create_program)(
@@ -97,6 +103,9 @@ def create_program(
         persistent=persistent,
         encoding=encoding,
         volumes=volumes,
+        persistent_volumes=persistent_volumes,
+        ephemeral_volumes=ephemeral_volumes,
+        immutable_volumes=immutable_volumes,
         subscriptions=subscriptions,
     )
 
