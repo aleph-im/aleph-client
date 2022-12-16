@@ -45,7 +45,7 @@ def whoami(
     """
 
     account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
-    typer.echo(account.get_public_key())
+    typer.echo(account.get_address())
 
 
 if __name__ == "__main__":
