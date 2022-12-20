@@ -17,3 +17,9 @@ class MultipleMessagesError(QueryError):
     """Multiple messages were found when a single message is expected."""
 
     pass
+
+
+class ForgottenMessageError(QueryError):
+    """The requested message was forgotten"""
+
+    pass
