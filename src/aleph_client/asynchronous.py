@@ -10,6 +10,7 @@ import time
 from datetime import datetime
 from functools import lru_cache
 from typing import Type
+from pydantic import ValidationError
 
 from aleph_message.models import (
     ForgetContent,
@@ -25,10 +26,12 @@ from aleph_message.models import (
     StoreMessage,
     ProgramMessage,
 )
-from pydantic import ValidationError
-
+from .exceptions import (
+    MessageNotFoundError,
+    MultipleMessagesError,
+    ForgottenMessageError
+)
 from aleph_client.types import Account, StorageEnum, GenericMessage
-from .exceptions import MessageNotFoundError, MultipleMessagesError
 from .models import MessagesResponse
 from .utils import get_message_type_value
 
@@ -625,7 +628,11 @@ async def get_messages(
                 message = Message(**message_raw)
                 messages.append(message)
             except KeyError as e:
+                key_error_field = e.args[0]
                 if not ignore_invalid_messages:
+                    if key_error_field == 'item_content':
+                        raise ForgottenMessageError(f"{message.item_hash} was forgotten")
+                    
                     raise e
                 logger.log(
                     level=invalid_messages_log_level,
