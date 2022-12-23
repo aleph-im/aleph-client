@@ -1,7 +1,8 @@
 import typer
 from typing import Optional, Dict, List,Tuple
 
-import help_strings
+from aleph_client.commands import help_strings
+#from help_strings import CHANNEL,PRIVATE_KEY,PRIVATE_KEY_FILE,REF,IPFS_HASH
 from aleph_client.types import AccountFromPrivateKey
 from aleph_client.account import _load_account
 from aleph_client.conf import settings
@@ -10,7 +11,6 @@ import asyncio
 from aleph_client import synchronous
 import json
 from zipfile import BadZipFile
-#from aleph_client.commands import help_strings
 import asyncio
 import json
 import logging
@@ -18,7 +18,7 @@ from base64 import b32encode, b16decode
 from pathlib import Path
 from typing import Optional, Dict, List
 from zipfile import BadZipFile
-
+from aleph_client.commands.utils import volume_to_dict
 import typer
 from aleph_message.models import (
     ProgramMessage,
@@ -38,7 +38,7 @@ from aleph_client.asynchronous import (
     StorageEnum,
 )
 
-from utils import (
+from aleph_client.commands.utils import (
     setup_logging,
     input_multiline,
     prompt_for_volumes,
@@ -89,25 +89,29 @@ def upload(
 
     debug: bool = False,
     persistent: bool = False,
-    persistent_volumes: Optional[Tuple[str, str, str]] = typer.Option(
-        (None, None, None),
-        help= '''Takes 3 parameters                                                                  
-        A persistent volume is allocated on the host machine at any time
-        eg:host my-volume 1 '''),
+    persistent_volume: Optional[List[str]] = typer.Option(
+        None,
+        help= '''Takes 3 parameters                                                                                                                             
+        A persistent volume is allocated on the host machine at any time                                             
+        eg:                                                                   
+        --persistent_volume  host,my-volume,100
+        use , to seperate the parameters'''),
 
-    ephemeral_volumes: Optional[List[str]] = typer.Option(
+    ephemeral_volume: Optional[List[str]] = typer.Option(
         None,
         help=
-        '''Takes 1 parameters 
-        Ephemeral volumes can move and be removed by the host,
-        Garbage collected basically, when the VM isn't running  eg: 100 '''),
+        '''Takes 1 parameter Only                                           
+        Ephemeral volumes can move and be removed by the host,Garbage collected basically, when the VM isn't running                                  
+        eg:                                                                     
+         --ephemeral_volume 100 '''),
 
-    immutable_volumes: Optional[Tuple[str, bool,str]] = typer.Option(
-        (None, None, None),
+    immutable_volume: Optional[List[str]] = typer.Option(
+        None,
         help=
-        '''Takes 3 parameters
-         Immutable volume is one whose contents do not change 
-        eg:25a393222692c2f73489dc6710ae87605a96742ceef7b91de4d7ec34bb688d94  True/False   mount=/mnt/volume
+        '''Takes 3 parameters                                           
+         Immutable volume is one whose contents do not change                                   
+         eg: Use , to seperate the parameters                                                                      
+        --immutable_volume 25a393222692c2f73489dc6710ae87605a96742ceef7b91de4d7ec34bb688d94,True,/mnt/volume
          '''
     )
 
@@ -138,15 +142,25 @@ def upload(
         or settings.DEFAULT_RUNTIME_ID
     )
 
-
     volumes = []
 
     ''' '''
-    if len(persistent_volumes) is None or len(ephemeral_volumes) is None or len(immutable_volumes) is None:
+    if persistent_volume is None or ephemeral_volume is None or immutable_volume is None:
         for volume in prompt_for_volumes():
             volumes.append(volume)
             typer.echo("\n")
 
+        '''else  Parse all the volumes that have passed as the cli parameters and put it into volume list '''
+    else:
+        if len(persistent_volume) > 0 :
+            persistent_volume_dict = volume_to_dict(volume=persistent_volume)
+            volumes.append(persistent_volume_dict)
+        if len(ephemeral_volume) > 0:
+            ephemeral_volume_dict = volume_to_dict(volume=ephemeral_volume)
+            volumes.append(ephemeral_volume_dict)
+        if len(immutable_volume) > 0:
+            immutable_volume_dict = volume_to_dict(volume=immutable_volume)
+            volumes.append(immutable_volume_dict)
 
     subscriptions: Optional[List[Dict]]
     if beta and yes_no_input("Subscribe to messages ?", default=False):
@@ -198,9 +212,7 @@ def upload(
             persistent=persistent,
             encoding=encoding,
             volumes=volumes,
-            persistent_volumes = persistent_volumes,
-            ephemeral_volumes = ephemeral_volumes,
-            immutable_volumes = immutable_volumes,
+
 
             subscriptions=subscriptions,
         )
@@ -315,5 +327,3 @@ def unpersist(
         channel=message.channel,
     )
     typer.echo(f"{result.json(indent=4)}")
-if __name__ == "__main__":
-    typer.run(upload)

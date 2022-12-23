@@ -78,10 +78,6 @@ def create_program(
     persistent: bool = False,
     encoding: Encoding = Encoding.zip,
     volumes: Optional[List[Dict]] = None,
-    persistent_volumes:Optional[Tuple[str, str, str]] =None,
-    ephemeral_volumes:Optional[List[str]] =None,
-    immutable_volumes: Optional[Tuple[str, bool]] =None,
-
 
 
     subscriptions: Optional[List[Dict]] = None,
@@ -103,9 +99,6 @@ def create_program(
         persistent=persistent,
         encoding=encoding,
         volumes=volumes,
-        persistent_volumes=persistent_volumes,
-        ephemeral_volumes=ephemeral_volumes,
-        immutable_volumes=immutable_volumes,
         subscriptions=subscriptions,
     )
 
