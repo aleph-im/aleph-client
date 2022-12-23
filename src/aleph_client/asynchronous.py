@@ -9,7 +9,7 @@ import threading
 import time
 from datetime import datetime
 from functools import lru_cache
-from typing import Type
+from typing import Type,Tuple
 
 from aleph_message.models import (
     ForgetContent,
@@ -312,6 +312,9 @@ async def create_program(
     persistent: bool = False,
     encoding: Encoding = Encoding.zip,
     volumes: Optional[List[Dict]] = None,
+    #persistent_volume: Optional[List[Dict]] = None,
+    #ephemeral_volume:Optional[List[Dict]] = None,
+    #immutable_volume: Optional[List[Dict]] = None,
     subscriptions: Optional[List[Dict]] = None,
 ) -> ProgramMessage:
     volumes = volumes if volumes is not None else []
@@ -371,6 +374,9 @@ async def create_program(
             #     "persistence": "host",
             #     "size_mib": 5
             # }
+            #"persistent_volume": persistent_volume,
+            #"ephemeral_volume" : ephemeral_volume,
+            #"immutable_volume" : immutable_volume,
             "time": time.time(),
         }
     )
