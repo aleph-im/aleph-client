@@ -45,8 +45,15 @@ from typing import Optional, Iterable, Union, Any, Dict, List, AsyncIterable
 
 import aiohttp
 from aiohttp import ClientSession
-
+import datetime as dt
 from aleph_message.models.program import ProgramContent, Encoding  # type: ignore
+
+
+def json_default_serializer(obj: Any) -> str:
+    if isinstance(obj, dt.datetime):
+        return obj.isoformat()
+
+    raise TypeError(f"No serializer defined for type {type(obj)}")
 
 
 @lru_cache()
@@ -439,7 +446,9 @@ async def submit(
         "time": time.time(),
     }
 
-    item_content: str = json.dumps(content, separators=(",", ":"))
+    item_content: str = json.dumps(
+        content, separators=(",", ":"), default=json_default_serializer
+    )
 
     if inline and (len(item_content) < 50000):
         message["item_content"] = item_content
