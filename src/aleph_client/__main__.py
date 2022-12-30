@@ -6,6 +6,7 @@ from typing import Optional
 from pathlib import Path
 
 import typer
+from .commands.runtime import runtime
 
 from aleph_client.types import AccountFromPrivateKey
 from aleph_client.account import _load_account
@@ -29,6 +30,10 @@ app.add_typer(
 app.add_typer(
     aggregate.app, name="aggregate", help="Manage aggregate messages on Aleph.im"
 )
+app.add_typer(
+    runtime.app, name="runtime", help="Create and manage lambda runtimes on Aleph.im"
+)
+
 
 
 @app.command()
