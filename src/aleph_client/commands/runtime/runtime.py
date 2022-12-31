@@ -5,8 +5,7 @@ import logging
 from pathlib import Path
 from .firecracker import download_firecracker
 from .templates import download_templates
-from os import makedirs, listdir
-from os import path
+import os
 from sys import stderr
 
 import typer
@@ -30,22 +29,36 @@ def init(
     sdk_version: str = typer.Option("latest")
 ):
     """Init a project with folder architecture and tools"""
-    if path.exists(dest):
-        if not path.isdir(dest):
+    if os.path.exists(dest):
+        if not os.path.isdir(dest):
             print(f"destination path '{dest}' already exists and is not a directory.", file=stderr)
             exit(1)
-        if listdir(dest):
+        if os.listdir(dest):
             print(f"destination path '{dest}' already exists and is not an empty directory.", file=stderr)
             exit(1)
-    makedirs(dest, exist_ok=True)
+    os.makedirs(dest, exist_ok=True)
     download_firecracker(dest)
     download_templates(dest, sdk_version)
 
 @app.command()
 def build(
-    path: Path = typer.Argument(..., help="The name of your project"),
+    project: Path = typer.Argument(..., help="The name of your project"),
     test: bool = typer.Option(False, help="Build a test runtime to test your plugins locally"),
-    builder: BuilderOption = typer.Option(BuilderOption.podman, help="Choose between docker and podman to build your runtime")
+    builder: BuilderOption = typer.Option(BuilderOption.podman, help="Choose between docker and podman to build your runtime"),
+    version: str = typer.Option("latest", help="tag of your runtime version")
 ):
     """Build a runtime created with the init command, using podman or docker"""
+    image_name = f"{project}:{version}"
+    context = f"{project}/plugins"
+    containerfile = f"{project}/plugins/Containerfile"
+    os.system(f"{builder} build -f {containerfile} -t {image_name} {context}")
+    os.system(f"{builder} container create --name {project} {image_name}")
+    os.makedirs(f"{project}/build", exist_ok=True)
+    os.system(f"{builder} export {project} > {project}/build/rootfs.tar")
+    os.makedirs(f"{project}/build/rootfs", exist_ok=True)
+    os.system(f"tar -xf {project}/build/rootfs.tar --directory={project}/build/rootfs")
+    os.system(f"{builder} container rm {project}")
+    os.system(f"mksquashfs {project}/build/rootfs {project}/build/rootfs.squashfs")
+
+
 
