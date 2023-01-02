@@ -23,7 +23,7 @@ from aleph_message.models import (
     AlephMessage,
     AggregateMessage,
     StoreMessage,
-    ProgramMessage,
+    ProgramMessage, ItemType,
 )
 from pydantic import ValidationError
 
@@ -538,17 +538,19 @@ async def submit(
         h = hashlib.sha256()
         h.update(message["item_content"].encode("utf-8"))
         message["item_hash"] = h.hexdigest()
-        message["item_type"] = "inline"
+        message["item_type"] = ItemType.inline
     else:
         if storage_engine == StorageEnum.ipfs:
             message["item_hash"] = await ipfs_push(
                 content, session=session, api_server=api_server
             )
+            message["item_type"] = ItemType.ipfs
         else:  # storage
             assert storage_engine == StorageEnum.storage
             message["item_hash"] = await storage_push(
                 content, session=session, api_server=api_server
             )
+            message["item_type"] = ItemType.storage
 
     message = await account.sign_message(message)
     await broadcast(message, session=session, api_server=api_server)
