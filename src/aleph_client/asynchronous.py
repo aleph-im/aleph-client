@@ -288,6 +288,7 @@ async def create_store(
     guess_mime_type = False if guess_mime_type is None else guess_mime_type
     storage_engine = storage_engine or settings.DEFAULT_STORAGE_ENGINE
     extra_fields = extra_fields or {}
+    session = session or get_fallback_session()
     api_server = api_server or settings.API_HOST
 
     if file_hash is None:
