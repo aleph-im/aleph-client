@@ -64,12 +64,11 @@ def get_fallback_session() -> ClientSession:
 
 
 async def ipfs_push(
-        content,
-        session: Optional[ClientSession] = None,
-        api_server: str = settings.API_HOST,
+        content: Dict,
+        session: ClientSession,
+        api_server: str,
 ) -> str:
-    session = session or get_fallback_session()
-
+    """Push arbitrary content as JSON to the IPFS service."""
     url = f"{api_server}/api/v0/ipfs/add_json"
     logger.debug(f"Pushing to IPFS on {url}")
 
@@ -79,12 +78,11 @@ async def ipfs_push(
 
 
 async def storage_push(
-        content,
-        session: Optional[ClientSession] = None,
-        api_server: str = settings.API_HOST,
+        content: Dict,
+        session: ClientSession,
+        api_server: str,
 ) -> str:
-    session = session or get_fallback_session()
-
+    """Push arbitrary content as JSON to the storage service."""
     url = f"{api_server}/api/v0/storage/add_json"
     logger.debug(f"Pushing to storage on {url}")
 
@@ -95,11 +93,10 @@ async def storage_push(
 
 async def ipfs_push_file(
         file_content,
-        session: Optional[ClientSession] = None,
-        api_server: str = settings.API_HOST,
+        session: ClientSession,
+        api_server: str,
 ) -> str:
-    session = session or get_fallback_session()
-
+    """Push a file to the IPFS service."""
     data = aiohttp.FormData()
     data.add_field("file", file_content)
 
@@ -113,11 +110,10 @@ async def ipfs_push_file(
 
 async def storage_push_file(
         file_content,
-        session: Optional[ClientSession] = None,
-        api_server: str = settings.API_HOST,
+        session: ClientSession,
+        api_server: str,
 ) -> str:
-    session = session or get_fallback_session()
-
+    """Push a file to the storage service."""
     data = aiohttp.FormData()
     data.add_field("file", file_content)
 
@@ -131,12 +127,10 @@ async def storage_push_file(
 
 async def broadcast(
         message,
-        session: Optional[ClientSession] = None,
-        api_server: str = settings.API_HOST,
+        session: ClientSession,
+        api_server: str,
 ) -> None:
     """Broadcast a message on the Aleph network via pubsub for nodes to pick it up."""
-    session = session or get_fallback_session()
-
     url = f"{api_server}/api/v0/ipfs/pubsub/pub"
     logger.debug(f"Posting message on {url}")
 
@@ -173,14 +167,28 @@ async def create_post(
         post_content,
         post_type: str,
         ref: Optional[str] = None,
-        address: Optional[str] = settings.ADDRESS_TO_USE,
-        channel: str = settings.DEFAULT_CHANNEL,
+        address: Optional[str] = None,
+        channel: Optional[str] = None,
         session: Optional[ClientSession] = None,
-        api_server: str = settings.API_HOST,
-        inline: bool = True,
-        storage_engine: StorageEnum = StorageEnum.storage,
+        api_server: Optional[str] = None,
+        inline: Optional[bool] = None,
+        storage_engine: Optional[StorageEnum] = None,
 ) -> PostMessage:
-    address = address or account.get_address()
+    """
+    Create a POST message on the Aleph network. It is associated with a channel and owned by an account.
+
+    :param account: The account that will sign and own the message
+    :param post_content: The content of the message
+    :param post_type: An arbitrary content type that helps to describe the post_content
+    :param ref: A reference to a previous message that it replaces
+    :param address: The address that will be displayed as the author of the message
+    :param channel: The channel that the message will be posted on
+    :param session: An optional aiohttp session to use for the request
+    :param api_server: An optional API server to use for the request (DEFAULT: "https://api2.aleph.im")
+    :param inline: An optional flag to indicate if the content should be inlined in the message or not
+    :param storage_engine: An optional storage engine to use for the message, if not inlined (DEFAULT: "storage")
+    """
+    address = address or settings.ADDRESS_TO_USE or account.get_address()
 
     content = PostContent(
         type=post_type,
@@ -206,13 +214,25 @@ async def create_aggregate(
         account: Account,
         key,
         content,
-        address: Optional[str] = settings.ADDRESS_TO_USE,
-        channel: str = settings.DEFAULT_CHANNEL,
+        address: Optional[str] = None,
+        channel: Optional[str] = None,
         session: Optional[ClientSession] = None,
-        api_server: str = settings.API_HOST,
-        inline: bool = True,
+        api_server: Optional[str] = None,
+        inline: Optional[bool] = None,
 ) -> AggregateMessage:
-    address = address or account.get_address()
+    """
+    Create an AGGREGATE message. It is meant to be used as a quick access storage associated with an account.
+
+    :param account: Account to use to sign the message
+    :param key: Key to use to store the content
+    :param content: Content to store
+    :param address: Address to use to sign the message
+    :param channel: Channel to use (DEFAULT: "TEST")
+    :param session: Session to use (DEFAULT: get_fallback_session())
+    :param api_server: API server to use (DEFAULT: "https://api2.aleph.im")
+    :param inline: Whether to write content inside the message (DEFAULT: True)
+    """
+    address = address or settings.ADDRESS_TO_USE or account.get_address()
 
     content_ = AggregateContent(
         key=key,
@@ -234,23 +254,48 @@ async def create_aggregate(
 
 async def create_store(
         account: Account,
-        address=settings.ADDRESS_TO_USE,
+        address: Optional[str] = None,
         file_content: Optional[bytes] = None,
+        file_path: Optional[str] = None,
         file_hash: Optional[str] = None,
-        guess_mime_type: bool = False,
+        guess_mime_type: Optional[bool] = None,
         ref: Optional[str] = None,
-        storage_engine=StorageEnum.storage,
+        storage_engine: Optional[StorageEnum] = None,
         extra_fields: Optional[dict] = None,
-        channel: str = settings.DEFAULT_CHANNEL,
+        channel: Optional[str] = None,
         session: Optional[ClientSession] = None,
-        api_server: str = settings.API_HOST,
+        api_server: Optional[str] = None,
 ) -> StoreMessage:
-    address = address or account.get_address()
+    """
+    Create a STORE message to store a file on the Aleph network.
+
+    Can be passed either a file path, an IPFS hash or the file's content as raw bytes.
+
+    :param account: Account to use to sign the message
+    :param address: Address to display as the author of the message (DEFAULT: account.get_address())
+    :param file_content: Byte stream of the file to store (DEFAULT: None)
+    :param file_path: Path to the file to store (DEFAULT: None)
+    :param file_hash: Hash of the file to store (DEFAULT: None)
+    :param guess_mime_type: Guess the MIME type of the file (DEFAULT: False)
+    :param ref: Reference to a previous message (DEFAULT: None)
+    :param storage_engine: Storage engine to use (DEFAULT: "storage")
+    :param extra_fields: Extra fields to add to the STORE message (DEFAULT: None)
+    :param channel: Channel to post the message to (DEFAULT: "TEST")
+    :param session: aiohttp session to use (DEFAULT: get_fallback_session())
+    :param api_server: Aleph API server to use (DEFAULT: "https://api2.aleph.im")
+    """
+    address = address or settings.ADDRESS_TO_USE or account.get_address()
+    guess_mime_type = False if guess_mime_type is None else guess_mime_type
+    storage_engine = storage_engine or settings.DEFAULT_STORAGE_ENGINE
     extra_fields = extra_fields or {}
+    api_server = api_server or settings.API_HOST
 
     if file_hash is None:
         if file_content is None:
-            raise ValueError("Please specify at least a file_content or a file_hash")
+            if file_path is None:
+                raise ValueError("Please specify at least a file_content, a file_hash or a file_path")
+            else:
+                file_content = open(file_path, "rb").read()
 
         if storage_engine == StorageEnum.storage:
             file_hash = await storage_push_file(
@@ -301,25 +346,52 @@ async def create_program(
         entrypoint: str,
         runtime: str,
         environment_variables: Optional[Dict[str, str]] = None,
-        storage_engine: StorageEnum = StorageEnum.storage,
-        channel: str = settings.DEFAULT_CHANNEL,
-        address: Optional[str] = settings.ADDRESS_TO_USE,
+        storage_engine: Optional[StorageEnum] = None,
+        channel: Optional[str] = None,
+        address: Optional[str] = None,
         session: Optional[ClientSession] = None,
-        api_server: str = settings.API_HOST,
-        memory: int = settings.DEFAULT_VM_MEMORY,
-        vcpus: int = settings.DEFAULT_VM_VCPUS,
-        timeout_seconds: float = settings.DEFAULT_VM_TIMEOUT,
-        persistent: bool = False,
-        encoding: Encoding = Encoding.zip,
+        api_server: Optional[str] = None,
+        memory: Optional[int] = None,
+        vcpus: Optional[int] = None,
+        timeout_seconds: Optional[float] = None,
+        persistent: Optional[bool] = None,
+        encoding: Optional[Encoding] = None,
         volumes: Optional[List[Dict]] = None,
         subscriptions: Optional[List[Dict]] = None,
 ) -> ProgramMessage:
+    """
+    Post a (create) PROGRAM message.
+
+    :param account: Account to use to sign the message
+    :param program_ref: Reference to the program to run
+    :param entrypoint: Entrypoint to run
+    :param runtime: Runtime to use
+    :param environment_variables: Environment variables to pass to the program
+    :param storage_engine: Storage engine to use (DEFAULT: "storage")
+    :param channel: Channel to use (DEFAULT: "TEST")
+    :param address: Address to use (DEFAULT: account.get_address())
+    :param session: Session to use (DEFAULT: get_fallback_session())
+    :param api_server: API server to use (DEFAULT: "https://api2.aleph.im")
+    :param memory: Memory in MB for the VM to be allocated (DEFAULT: 128)
+    :param vcpus: Number of vCPUs to allocate (DEFAULT: 1)
+    :param timeout_seconds: Timeout in seconds (DEFAULT: 30.0)
+    :param persistent: Whether the program should be persistent or not (DEFAULT: False)
+    :param encoding: Encoding to use (DEFAULT: Encoding.zip)
+    :param volumes: Volumes to mount
+    :param subscriptions: Patterns of Aleph messages to forward to the program's event receiver
+    """
+    storage_engine = storage_engine or settings.DEFAULT_STORAGE_ENGINE
+    address = address or settings.ADDRESS_TO_USE or account.get_address()
     volumes = volumes if volumes is not None else []
-    address = address or account.get_address()
+    memory = memory or settings.DEFAULT_VM_MEMORY
+    vcpus = vcpus or settings.DEFAULT_VM_VCPUS
+    timeout_seconds = timeout_seconds or settings.DEFAULT_VM_TIMEOUT
+    persistent = False if persistent is None else persistent
+    encoding = encoding or Encoding.zip
 
     # TODO: Check that program_ref, runtime and data_ref exist
 
-    ## Register the different ways to trigger a VM
+    # Register the different ways to trigger a VM
     if subscriptions:
         # Trigger on HTTP calls and on Aleph message subscriptions.
         triggers = {"http": True, "persistent": persistent, "message": subscriptions}
@@ -392,13 +464,28 @@ async def forget(
         account: Account,
         hashes: List[str],
         reason: Optional[str],
-        storage_engine: StorageEnum = StorageEnum.storage,
-        channel: str = settings.DEFAULT_CHANNEL,
-        address: Optional[str] = settings.ADDRESS_TO_USE,
+        storage_engine: Optional[StorageEnum] = None,
+        channel: Optional[str] = None,
+        address: Optional[str] = None,
         session: Optional[ClientSession] = None,
-        api_server: str = settings.API_HOST,
+        api_server: Optional[str] = None,
 ) -> ForgetMessage:
-    address = address or account.get_address()
+    """
+    Post a FORGET message to remove previous messages from the network.
+
+    Targeted messages need to be signed by the same account that is attempting to forget them,
+    if the creating address did not delegate the access rights to the forgetting account.
+
+    :param account: Account to use to sign the message
+    :param hashes: Hashes of the messages to forget
+    :param reason: Reason for forgetting the messages
+    :param storage_engine: Storage engine to use (DEFAULT: "storage")
+    :param channel: Channel to use (DEFAULT: "TEST")
+    :param address: Address to use (DEFAULT: account.get_address())
+    :param session: Session to use (DEFAULT: get_fallback_session())
+    :param api_server: API server to use (DEFAULT: "https://api2.aleph.im")
+    """
+    address = address or settings.ADDRESS_TO_USE or account.get_address()
 
     content = ForgetContent(
         hashes=hashes,
@@ -414,8 +501,7 @@ async def forget(
         channel=channel,
         api_server=api_server,
         storage_engine=storage_engine,
-        session=session,
-        inline=True,
+        session=session
     )
 
 
@@ -423,12 +509,19 @@ async def submit(
         account: Account,
         content: Dict,
         message_type: MessageType,
-        channel: str = settings.DEFAULT_CHANNEL,
-        api_server: str = settings.API_HOST,
-        storage_engine: StorageEnum = StorageEnum.storage,
+        channel: Optional[str] = None,
+        api_server: Optional[str] = None,
+        storage_engine: Optional[StorageEnum] = None,
         session: Optional[ClientSession] = None,
-        inline: bool = True,
+        inline: Optional[bool] = None,
 ) -> AlephMessage:
+    """Main function to post a message to the network. Use the other functions in this module if you can."""
+    channel = channel or settings.DEFAULT_CHANNEL
+    api_server = api_server or settings.API_HOST
+    storage_engine = storage_engine or settings.DEFAULT_STORAGE_ENGINE
+    session = session or get_fallback_session()
+    inline = True if inline is None else inline
+
     message: Dict[str, Any] = {
         # 'item_hash': ipfs_hash,
         "chain": account.CHAIN,
@@ -469,11 +562,22 @@ async def submit(
 async def fetch_aggregate(
         address: str,
         key: str,
-        limit: Optional[int] = 100,
+        limit: Optional[int] = None,
         session: Optional[ClientSession] = None,
-        api_server: str = settings.API_HOST,
+        api_server: Optional[str] = None,
 ) -> Dict[str, Dict]:
+    """
+    Fetch a value from the aggregate store by owner address and item key.
+
+    :param address: Address of the owner of the aggregate
+    :param key: Key of the aggregate
+    :param limit: Maximum number of items to fetch (DEFAULT: 100)
+    :param session: Session to use (DEFAULT: get_fallback_session())
+    :param api_server: API server to use (DEFAULT: "https://api2.aleph.im")
+    """
+    limit = limit or 100
     session = session or get_fallback_session()
+    api_server = api_server or settings.API_HOST
 
     params: Dict[str, Any] = {"keys": key}
     if limit:
@@ -490,11 +594,22 @@ async def fetch_aggregate(
 async def fetch_aggregates(
         address: str,
         keys: Optional[Iterable[str]] = None,
-        limit: Optional[int] = 100,
+        limit: Optional[int] = None,
         session: Optional[ClientSession] = None,
-        api_server: str = settings.API_HOST,
+        api_server: Optional[str] = None,
 ) -> Dict[str, Dict]:
+    """
+    Fetch key-value pairs from the aggregate store by owner address.
+
+    :param address: Address of the owner of the aggregate
+    :param keys: Keys of the aggregates to fetch (DEFAULT: all items)
+    :param limit: Maximum number of items to fetch (DEFAULT: 100)
+    :param session: Session to use (DEFAULT: get_fallback_session())
+    :param api_server: API server to use (DEFAULT: "https://api2.aleph.im")
+    """
+    limit = limit or 100
     session = session or get_fallback_session()
+    api_server = api_server or settings.API_HOST
 
     keys_str = ",".join(keys) if keys else ""
     params: Dict[str, Any] = {}
@@ -525,9 +640,27 @@ async def get_posts(
         start_date: Optional[Union[datetime, float]] = None,
         end_date: Optional[Union[datetime, float]] = None,
         session: Optional[ClientSession] = None,
-        api_server: str = settings.API_HOST,
-):
+        api_server: Optional[str] = None,
+) -> Dict[str, Dict]:
+    """
+    Fetch a list of posts from the network.
+
+    :param pagination: Number of items to fetch (DEFAULT: 200)
+    :param page: Page to fetch, begins at 1 (DEFAULT: 1)
+    :param types: Types of posts to fetch (DEFAULT: all types)
+    :param refs: If set, only fetch posts that reference these hashes (in the "refs" field)
+    :param addresses: Addresses of the posts to fetch (DEFAULT: all addresses)
+    :param tags: Tags of the posts to fetch (DEFAULT: all tags)
+    :param hashes: Specific item_hashes to fetch
+    :param channels: Channels of the posts to fetch (DEFAULT: all channels)
+    :param chains: Chains of the posts to fetch (DEFAULT: all chains)
+    :param start_date: Earliest date to fetch messages from
+    :param end_date: Latest date to fetch messages from
+    :param session: Session to use (DEFAULT: get_fallback_session())
+    :param api_server: API server to use (DEFAULT: "https://api2.aleph.im")
+    """
     session = session or get_fallback_session()
+    api_server = api_server or settings.API_HOST
 
     params: Dict[str, Any] = dict(pagination=pagination, page=page)
 
@@ -575,11 +708,35 @@ async def get_messages(
         start_date: Optional[Union[datetime, float]] = None,
         end_date: Optional[Union[datetime, float]] = None,
         session: Optional[ClientSession] = None,
-        api_server: str = settings.API_HOST,
-        ignore_invalid_messages: bool = True,
-        invalid_messages_log_level: int = logging.NOTSET,
+        api_server: Optional[str] = None,
+        ignore_invalid_messages: Optional[bool] = None,
+        invalid_messages_log_level: Optional[int] = None,
 ) -> MessagesResponse:
+    """
+    Fetch a list of messages from the network.
+
+    :param pagination: Number of items to fetch (DEFAULT: 200)
+    :param page: Page to fetch, begins at 1 (DEFAULT: 1)
+    :param message_type: Filter by message type, can be "AGGREGATE", "POST", "PROGRAM", "VM", "STORE" or "FORGET"
+    :param content_types: Filter by content type
+    :param content_keys: Filter by content key
+    :param refs: If set, only fetch posts that reference these hashes (in the "refs" field)
+    :param addresses: Addresses of the posts to fetch (DEFAULT: all addresses)
+    :param tags: Tags of the posts to fetch (DEFAULT: all tags)
+    :param hashes: Specific item_hashes to fetch
+    :param channels: Channels of the posts to fetch (DEFAULT: all channels)
+    :param chains: Filter by sender address chain
+    :param start_date: Earliest date to fetch messages from
+    :param end_date: Latest date to fetch messages from
+    :param session: Session to use (DEFAULT: get_fallback_session())
+    :param api_server: API server to use (DEFAULT: "https://api2.aleph.im")
+    :param ignore_invalid_messages: Ignore invalid messages (DEFAULT: False)
+    :param invalid_messages_log_level: Log level to use for invalid messages (DEFAULT: logging.NOTSET)
+    """
     session = session or get_fallback_session()
+    api_server = api_server or settings.API_HOST
+    ignore_invalid_messages = True if ignore_invalid_messages is None else ignore_invalid_messages
+    invalid_messages_log_level = logging.NOTSET if invalid_messages_log_level is None else invalid_messages_log_level
 
     params: Dict[str, Any] = dict(pagination=pagination, page=page)
 
@@ -650,9 +807,17 @@ async def get_message(
         message_type: Optional[Type[GenericMessage]] = None,
         channel: Optional[str] = None,
         session: Optional[ClientSession] = None,
-        api_server: str = settings.API_HOST,
+        api_server: Optional[str] = None,
 ) -> GenericMessage:
-    """Get a single message from its `item_hash`."""
+    """
+    Get a single message from its `item_hash` and perform some basic validation.
+
+    :param item_hash: Hash of the message to fetch
+    :param message_type: Type of message to fetch
+    :param channel: Channel of the message to fetch
+    :param session: Session to use (DEFAULT: get_fallback_session())
+    :param api_server: API server to use (DEFAULT: "https://api2.aleph.im")
+    """
     messages_response = await get_messages(
         hashes=[item_hash],
         session=session,
@@ -688,13 +853,26 @@ async def watch_messages(
         start_date: Optional[Union[datetime, float]] = None,
         end_date: Optional[Union[datetime, float]] = None,
         session: Optional[ClientSession] = None,
-        api_server: str = settings.API_HOST,
+        api_server: Optional[str] = None,
 ) -> AsyncIterable[AlephMessage]:
     """
     Iterate over current and future matching messages asynchronously.
-    """
 
+    :param message_type: Type of message to watch
+    :param content_types: Content types to watch
+    :param refs: References to watch
+    :param addresses: Addresses to watch
+    :param tags: Tags to watch
+    :param hashes: Hashes to watch
+    :param channels: Channels to watch
+    :param chains: Chains to watch
+    :param start_date: Start date from when to watch
+    :param end_date: End date until when to watch
+    :param session: Session to use (DEFAULT: get_fallback_session())
+    :param api_server: API server to use (DEFAULT: "https://api2.aleph.im")
+    """
     session = session or get_fallback_session()
+    api_server = api_server or settings.API_HOST
 
     params: Dict[str, Any] = dict()
 

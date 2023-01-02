@@ -67,20 +67,40 @@ def create_program(
         entrypoint: str,
         runtime: str,
         environment_variables: Optional[Dict[str, str]] = None,
-        storage_engine: StorageEnum = StorageEnum.storage,
-        channel: str = settings.DEFAULT_CHANNEL,
-        address: Optional[str] = settings.ADDRESS_TO_USE,
+        storage_engine: Optional[StorageEnum] = None,
+        channel: Optional[str] = None,
+        address: Optional[str] = None,
         session: Optional[ClientSession] = None,
-        api_server: str = settings.API_HOST,
-        memory: int = settings.DEFAULT_VM_MEMORY,
-        vcpus: int = settings.DEFAULT_VM_VCPUS,
-        timeout_seconds: float = settings.DEFAULT_VM_TIMEOUT,
-        persistent: bool = False,
-        encoding: Encoding = Encoding.zip,
+        api_server: Optional[str] = None,
+        memory: Optional[int] = None,
+        vcpus: Optional[int] = None,
+        timeout_seconds: Optional[float] = None,
+        persistent: Optional[bool] = None,
+        encoding: Optional[Encoding] = None,
         volumes: Optional[List[Dict]] = None,
-
         subscriptions: Optional[List[Dict]] = None,
 ):
+    """
+    Post a (create) PROGRAM message.
+
+    :param account: Account to use to sign the message
+    :param program_ref: Reference to the program to run
+    :param entrypoint: Entrypoint to run
+    :param runtime: Runtime to use
+    :param environment_variables: Environment variables to pass to the program
+    :param storage_engine: Storage engine to use (DEFAULT: "storage")
+    :param channel: Channel to use (DEFAULT: "TEST")
+    :param address: Address to use (DEFAULT: account.get_address())
+    :param session: Session to use (DEFAULT: get_fallback_session())
+    :param api_server: API server to use (DEFAULT: "https://api2.aleph.im")
+    :param memory: Memory in MB for the VM to be allocated (DEFAULT: 128)
+    :param vcpus: Number of vCPUs to allocate (DEFAULT: 1)
+    :param timeout_seconds: Timeout in seconds (DEFAULT: 30.0)
+    :param persistent: Whether the program should be persistent or not (DEFAULT: False)
+    :param encoding: Encoding to use (DEFAULT: Encoding.zip)
+    :param volumes: Volumes to mount
+    :param subscriptions: Patterns of Aleph messages to forward to the program's event receiver
+    """
     return wrap_async(asynchronous.create_program)(
         account=account,
         program_ref=program_ref,

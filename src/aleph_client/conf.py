@@ -2,6 +2,7 @@ from pathlib import Path
 from shutil import which
 from typing import Optional
 
+from .types import StorageEnum
 from pydantic import BaseSettings, Field
 
 
@@ -27,6 +28,7 @@ class Settings(BaseSettings):
     DEFAULT_VM_MEMORY: int = 128
     DEFAULT_VM_VCPUS: int = 1
     DEFAULT_VM_TIMEOUT: float = 30.0
+    DEFAULT_STORAGE_ENGINE: StorageEnum = StorageEnum.storage
 
     CODE_USES_SQUASHFS: bool = which("mksquashfs") is not None  # True if command exists
 
