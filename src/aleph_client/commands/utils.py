@@ -1,6 +1,6 @@
 import logging
 from typer import echo
-from typing import Optional, List, Dict
+from typing import Optional, List, Dict, Union
 
 
 def input_multiline() -> str:
@@ -70,10 +70,10 @@ def prompt_for_volumes():
             }
 
 
-def volume_to_dict(volume: List[str]) -> Optional[Dict[str, str]]:
+def volume_to_dict(volume: List[str]) -> Optional[Dict[str, Union[str, int]]]:
     if not volume:
         return None
-    dict_store = {}
+    dict_store: Dict[str, Union[str, int]] = {}
     for word in volume:
         split_values = word.split(",")
         for param in split_values:
