@@ -50,8 +50,8 @@ class AlephApp:
     async def __call__(
         self,
         scope: Dict,
-        receive: Awaitable = None,
-        send: Callable[[Dict], Awaitable] = None,
+        receive: Optional[Awaitable] = None,
+        send: Optional[Callable[[Dict], Awaitable]] = None,
     ):
         if scope["type"] in ("http", "websocket"):
             if self.http_app:
