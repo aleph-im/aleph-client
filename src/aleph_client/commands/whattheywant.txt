@@ -1,6 +1,0 @@
-A prompt open up that will fill the volumes that the user want to add instead we want  to add the  cli parameters and put that into the volume array and then pass
-it to create program
-
-
-2 : Then these string need to be seperate by the separtor  this can be a  ; and
-then can be separte y the equality sign

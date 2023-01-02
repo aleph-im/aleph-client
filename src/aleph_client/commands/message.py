@@ -1,56 +1,51 @@
+import asyncio
 import json
 import os.path
 import subprocess
-from typing import Optional, Dict, List
-from pathlib import Path
 import tempfile
-import asyncio
+from pathlib import Path
+from typing import Optional, Dict, List
 
 import typer
-
 from aleph_message.models import (
     PostMessage,
     ForgetMessage,
     AlephMessage,
 )
 
-
 from aleph_client import synchronous
-from aleph_client.commands import help_strings
-from aleph_client.types import AccountFromPrivateKey
 from aleph_client.account import _load_account
-from aleph_client.conf import settings
-
 from aleph_client.asynchronous import (
     get_fallback_session,
     StorageEnum,
 )
-
+from aleph_client.commands import help_strings
 from aleph_client.commands.utils import (
     setup_logging,
     input_multiline,
 )
-
+from aleph_client.conf import settings
+from aleph_client.types import AccountFromPrivateKey
 
 app = typer.Typer()
 
 
 @app.command()
 def post(
-    path: Optional[Path] = typer.Option(
-        None,
-        help="Path to the content you want to post. If omitted, you can input your content directly",
-    ),
-    type: str = typer.Option("test", help="Text representing the message object type"),
-    ref: Optional[str] = typer.Option(None, help=help_strings.REF),
-    channel: str = typer.Option(settings.DEFAULT_CHANNEL, help=help_strings.CHANNEL),
-    private_key: Optional[str] = typer.Option(
-        settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY
-    ),
-    private_key_file: Optional[Path] = typer.Option(
-        settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE
-    ),
-    debug: bool = False,
+        path: Optional[Path] = typer.Option(
+            None,
+            help="Path to the content you want to post. If omitted, you can input your content directly",
+        ),
+        type: str = typer.Option("test", help="Text representing the message object type"),
+        ref: Optional[str] = typer.Option(None, help=help_strings.REF),
+        channel: str = typer.Option(settings.DEFAULT_CHANNEL, help=help_strings.CHANNEL),
+        private_key: Optional[str] = typer.Option(
+            settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY
+        ),
+        private_key_file: Optional[Path] = typer.Option(
+            settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE
+        ),
+        debug: bool = False,
 ):
     """Post a message on Aleph.im."""
 
@@ -104,14 +99,14 @@ def post(
 
 @app.command()
 def amend(
-    hash: str = typer.Argument(..., help="Hash reference of the message to amend"),
-    private_key: Optional[str] = typer.Option(
-        settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY
-    ),
-    private_key_file: Optional[Path] = typer.Option(
-        settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE
-    ),
-    debug: bool = False,
+        hash: str = typer.Argument(..., help="Hash reference of the message to amend"),
+        private_key: Optional[str] = typer.Option(
+            settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY
+        ),
+        private_key_file: Optional[Path] = typer.Option(
+            settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE
+        ),
+        debug: bool = False,
 ):
     """Amend an existing Aleph message."""
 
@@ -149,10 +144,10 @@ def amend(
 
 
 def forget_messages(
-    account: AccountFromPrivateKey,
-    hashes: List[str],
-    reason: Optional[str],
-    channel: str,
+        account: AccountFromPrivateKey,
+        hashes: List[str],
+        reason: Optional[str],
+        channel: str,
 ):
     try:
         result: ForgetMessage = synchronous.forget(
@@ -169,20 +164,20 @@ def forget_messages(
 
 @app.command()
 def forget(
-    hashes: str = typer.Argument(
-        ..., help="Comma separated list of hash references of messages to forget"
-    ),
-    reason: Optional[str] = typer.Option(
-        None, help="A description of why the messages are being forgotten."
-    ),
-    channel: str = typer.Option(settings.DEFAULT_CHANNEL, help=help_strings.CHANNEL),
-    private_key: Optional[str] = typer.Option(
-        settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY
-    ),
-    private_key_file: Optional[Path] = typer.Option(
-        settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE
-    ),
-    debug: bool = False,
+        hashes: str = typer.Argument(
+            ..., help="Comma separated list of hash references of messages to forget"
+        ),
+        reason: Optional[str] = typer.Option(
+            None, help="A description of why the messages are being forgotten."
+        ),
+        channel: str = typer.Option(settings.DEFAULT_CHANNEL, help=help_strings.CHANNEL),
+        private_key: Optional[str] = typer.Option(
+            settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY
+        ),
+        private_key_file: Optional[Path] = typer.Option(
+            settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE
+        ),
+        debug: bool = False,
 ):
     """Forget an existing Aleph message."""
 
@@ -196,9 +191,9 @@ def forget(
 
 @app.command()
 def watch(
-    ref: str = typer.Argument(..., help="Hash reference of the message to watch"),
-    indent: Optional[int] = typer.Option(None, help="Number of indents to use"),
-    debug: bool = False,
+        ref: str = typer.Argument(..., help="Hash reference of the message to watch"),
+        indent: Optional[int] = typer.Option(None, help="Number of indents to use"),
+        debug: bool = False,
 ):
     """Watch a hash for amends and print amend hashes"""
 
@@ -207,6 +202,6 @@ def watch(
     original: AlephMessage = synchronous.get_message(item_hash=ref)
 
     for message in synchronous.watch_messages(
-        refs=[ref], addresses=[original.content.address]
+            refs=[ref], addresses=[original.content.address]
     ):
         typer.echo(f"{message.json(indent=indent)}")
