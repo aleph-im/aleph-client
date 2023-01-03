@@ -562,6 +562,36 @@ async def get_posts(
         return await resp.json()
 
 
+async def get_store_file(
+        file_hash: str,
+        storage_engine: Optional[StorageEnum] = None,
+        session: Optional[ClientSession] = None,
+        api_server: Optional[str] = None
+) -> bytes:
+    """
+    Get a file from the storage engine as raw bytes.
+
+    :param file_hash: The hash of the file to retrieve.
+    :param storage_engine: The storage engine to use. (DEFAULT: "storage")
+    :param session: The aiohttp session to use. (DEFAULT: get_fallback_session())
+    :param api_server: The API server to use. (DEFAULT: "https://api2.aleph.im")
+    """
+    storage_engine = storage_engine or StorageEnum.storage
+    session = session or get_fallback_session()
+    api_server = api_server or settings.API_HOST
+
+    if storage_engine == StorageEnum.storage:
+        async with session.get(f"{api_server}/api/v0/storage/raw/{file_hash}") as response:
+            response.raise_for_status()
+            return await response.read()
+    elif storage_engine == StorageEnum.ipfs:
+        async with session.get(f"{api_server}/api/v0/ipfs/files/read/{file_hash}") as response:
+            response.raise_for_status()
+            return await response.read()
+    else:
+        raise ValueError(f"Invalid storage engine: {storage_engine}")
+
+
 async def get_messages(
         pagination: int = 200,
         page: int = 1,
