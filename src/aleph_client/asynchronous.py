@@ -9,7 +9,7 @@ import threading
 import time
 from datetime import datetime
 from functools import lru_cache
-from typing import Type
+from typing import Type, Mapping
 
 from aleph_message.models import (
     ForgetContent,
@@ -130,13 +130,66 @@ async def storage_push_file(
         return (await resp.json()).get("hash")
 
 
-async def broadcast(
-    message,
-    session: Optional[ClientSession] = None,
-    api_server: str = settings.API_HOST,
+def _log_publication_status(publication_status: Mapping[str, Any]):
+    status = publication_status.get("status")
+    failures = publication_status.get("failed")
+
+    if status == "success":
+        return
+    elif status == "warning":
+        logger.warning("Broadcast failed on the following network(s): %s", failures)
+    elif status == "error":
+        logger.error(
+            "Broadcast failed on all protocols. The message was not published."
+        )
+    else:
+        raise ValueError(
+            f"Invalid response from server, status in missing or unknown: '{status}'"
+        )
+
+
+async def _handle_broadcast_error(response: aiohttp.ClientResponse) -> None:
+    if response.status == 500:
+        # Assume a broadcast error, no need to read the JSON
+        if response.content_type == "application/json":
+            logger.error("Internal error - broadcast failed on all protocols")
+        else:
+            logger.error(
+                "Internal error - the message was not broadcast: %s",
+                await response.text(),
+            )
+            response.raise_for_status()
+    elif response.status == 422:
+        logger.error(
+            "The message could not be processed because of the following errors: %s",
+            await response.json(),
+        )
+    else:
+        logger.error(
+            "Unexpected HTTP response (%d): %s", response.status, await response.text()
+        )
+
+
+async def _handle_broadcast_deprecated_response(
+    response: aiohttp.ClientResponse,
 ) -> None:
-    """Broadcast a message on the Aleph network via pubsub for nodes to pick it up."""
-    session = session or get_fallback_session()
+    if response.status != 200:
+        await _handle_broadcast_error(response)
+    else:
+        publication_status = await response.json()
+        _log_publication_status(publication_status)
+
+
+async def _broadcast_deprecated(
+    message: Mapping[str, Any],
+    session: ClientSession,
+    api_server: str = settings.API_HOST,
+):
+
+    """
+    Broadcast a message on the Aleph network using the deprecated
+    /ipfs/pubsub/pub/ endpoint.
+    """
 
     url = f"{api_server}/api/v0/ipfs/pubsub/pub"
     logger.debug(f"Posting message on {url}")
@@ -145,28 +198,48 @@ async def broadcast(
         url,
         json={"topic": "ALEPH-TEST", "data": json.dumps(message)},
     ) as response:
-        response.raise_for_status()
-        result = await response.json()
-        status = result.get("status")
-        if status == "success":
-            return
-        elif status == "warning":
-            if result.get("failed"):
-                # Requires recent version of Pyaleph
-                if result["failed"] == ["p2p"]:
-                    logger.info(
-                        f"Message published on IPFS but failed to publish on P2P"
-                    )
-                else:
-                    logger.warning(
-                        f"Message published but failed on {result.get('failed')}"
-                    )
-            else:
-                logger.warning(f"Message failed to publish on IPFS and/or P2P")
-        else:
-            raise ValueError(
-                f"Invalid response from server, status in missing or unknown: '{status}'"
+        await _handle_broadcast_deprecated_response(response)
+
+
+async def _handle_broadcast_response(
+    response: aiohttp.ClientResponse, sync: bool
+) -> None:
+    if response.status not in (200, 202):
+        await _handle_broadcast_error(response)
+    else:
+        status = await response.json()
+        _log_publication_status(status["publication_status"])
+
+        if sync and response.status == 202:
+            logger.warning("Timed out while waiting for processing of sync message")
+
+
+async def broadcast(
+    message,
+    sync: bool = True,
+    session: Optional[ClientSession] = None,
+    api_server: str = settings.API_HOST,
+) -> None:
+    """Broadcast a message on the Aleph network via pubsub for nodes to pick it up."""
+    session = session or get_fallback_session()
+
+    url = f"{api_server}/api/v0/messages"
+    logger.debug(f"Posting message on {url}")
+
+    async with session.post(
+        url,
+        json={"sync": sync, "message": message},
+    ) as response:
+        # The endpoint may be unavailable on this node, try the deprecated version.
+        if response.status == 404:
+            logger.warning(
+                "POST /messages/ not found. Defaulting to legacy endpoint..."
             )
+            await _broadcast_deprecated(
+                message=message, session=session, api_server=api_server
+            )
+        else:
+            await _handle_broadcast_response(response=response, sync=sync)
 
 
 async def create_post(
