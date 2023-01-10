@@ -1,6 +1,7 @@
 import os
 from abc import abstractmethod, ABC
-from typing import Dict
+from pathlib import Path
+from typing import Dict, Optional
 
 from coincurve.keys import PrivateKey
 from ecies import decrypt, encrypt
@@ -70,24 +71,24 @@ def generate_key() -> bytes:
     return privkey.secret
 
 
-def get_fallback_private_key() -> bytes:
+def get_fallback_private_key(path: Optional[Path] = None) -> bytes:
+    path = path or settings.PRIVATE_KEY_FILE
     private_key: bytes
-    try:
-        with open(settings.PRIVATE_KEY_FILE, "rb") as prvfile:
+    if path.exists() and path.stat().st_size > 0:
+        with open(path, "rb") as prvfile:
             private_key = prvfile.read()
-    except OSError:
+    else:
         private_key = generate_key()
-        os.makedirs(os.path.dirname(settings.PRIVATE_KEY_FILE), exist_ok=True)
-        with open(settings.PRIVATE_KEY_FILE, "wb") as prvfile:
+        os.makedirs(path.parent, exist_ok=True)
+        with open(path, "wb") as prvfile:
             prvfile.write(private_key)
-            os.symlink(settings.PRIVATE_KEY_FILE, os.path.join(os.path.dirname(settings.PRIVATE_KEY_FILE), "default.key"))
 
+        with open(path, "rb") as prvfile:
+            print(prvfile.read())
+
+
+        default_key_path = path.parent / "default.key"
+        if not default_key_path.is_symlink():
+            # Create a symlink to use this key by default
+            os.symlink(path, default_key_path)
     return private_key
-
-
-def delete_private_key_file():
-    try:
-        os.remove(settings.PRIVATE_KEY_FILE)
-        os.unlink(os.path.join(os.path.dirname(settings.PRIVATE_KEY_FILE), "default.key"))
-    except FileNotFoundError:
-        pass

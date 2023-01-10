@@ -1,4 +1,5 @@
-from typing import Dict
+from pathlib import Path
+from typing import Dict, Optional
 
 from eth_account import Account
 from eth_account.signers.local import LocalAccount
@@ -38,5 +39,5 @@ class ETHAccount(BaseAccount):
         return "0x" + get_public_key(private_key=self._account.key).hex()
 
 
-def get_fallback_account() -> ETHAccount:
-    return ETHAccount(private_key=get_fallback_private_key())
+def get_fallback_account(path: Optional[Path] = None) -> ETHAccount:
+    return ETHAccount(private_key=get_fallback_private_key(path=path))
