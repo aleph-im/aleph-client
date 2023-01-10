@@ -2,12 +2,14 @@
 
 This file tests that both implementations returns identical results.
 """
+from pathlib import Path
+from tempfile import NamedTemporaryFile
 
 import pytest
 import secp256k1
 from coincurve.keys import PrivateKey
 
-from aleph_client.chains.common import get_fallback_private_key, delete_private_key_file
+from aleph_client.chains.common import get_fallback_private_key
 from aleph_client.chains.nuls1 import NulsSignature, VarInt, MESSAGE_TEMPLATE, LOGGER
 
 SECRET = (
@@ -63,16 +65,16 @@ def test_sign_data_deprecated():
     data = None
     signature = NulsSignature(data=data)
 
-    delete_private_key_file()
-    private_key = get_fallback_private_key()
+    with NamedTemporaryFile() as private_key_file:
+        private_key = get_fallback_private_key(path=Path(private_key_file.name))
 
-    assert signature
-    sign_deprecated: NulsSignatureSecp256k1 = (
-        NulsSignatureSecp256k1.sign_data_deprecated(
-            pri_key=private_key, digest_bytes=b"x" * (256 // 8)
+        assert signature
+        sign_deprecated: NulsSignatureSecp256k1 = (
+            NulsSignatureSecp256k1.sign_data_deprecated(
+                pri_key=private_key, digest_bytes=b"x" * (256 // 8)
+            )
         )
-    )
-    assert sign_deprecated
+        assert sign_deprecated
 
 
 @pytest.mark.asyncio

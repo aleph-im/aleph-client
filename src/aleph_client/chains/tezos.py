@@ -1,5 +1,6 @@
 import json
-from typing import Dict
+from pathlib import Path
+from typing import Dict, Optional
 
 from aleph_pytezos.crypto.key import Key
 from nacl.public import SealedBox
@@ -49,5 +50,5 @@ class TezosAccount(BaseAccount):
         return SealedBox(self._private_key).decrypt(content)
 
 
-def get_fallback_account() -> TezosAccount:
-    return TezosAccount(private_key=get_fallback_private_key())
+def get_fallback_account(path: Optional[Path] = None) -> TezosAccount:
+    return TezosAccount(private_key=get_fallback_private_key(path=path))

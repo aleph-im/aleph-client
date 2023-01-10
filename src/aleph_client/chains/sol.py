@@ -1,5 +1,7 @@
 import json
-from typing import Dict
+import os
+from pathlib import Path
+from typing import Dict, Optional
 
 import base58
 from nacl.public import PrivateKey, SealedBox
@@ -53,17 +55,34 @@ class SOLAccount(BaseAccount):
         return value
 
 
-def get_fallback_account() -> SOLAccount:
-    return SOLAccount(private_key=get_fallback_private_key())
+def get_fallback_account(path: Optional[Path] = None) -> SOLAccount:
+    return SOLAccount(private_key=get_fallback_private_key(path=path))
 
 
-def get_fallback_private_key():
-    try:
-        with open(settings.PRIVATE_KEY_FILE, "rb") as prvfile:
-            pkey = prvfile.read()
-    except OSError:
-        pkey = bytes(SigningKey.generate())
-        with open(settings.PRIVATE_KEY_FILE, "wb") as prvfile:
-            prvfile.write(pkey)
+def generate_key() -> bytes:
+    privkey = bytes(SigningKey.generate())
+    return privkey
 
-    return pkey
+
+def get_fallback_private_key(path: Optional[Path] = None) -> bytes:
+    path = path or settings.PRIVATE_KEY_FILE
+    private_key: bytes
+    if path.exists() and path.stat().st_size > 0:
+        with open(path, "rb") as prvfile:
+            private_key = prvfile.read()
+    else:
+        private_key = generate_key()
+        os.makedirs(path.parent, exist_ok=True)
+        with open(path, "wb") as prvfile:
+            prvfile.write(private_key)
+
+        with open(path, "rb") as prvfile:
+            print(prvfile.read())
+
+
+        default_key_path = path.parent / "default.key"
+        if not default_key_path.is_symlink():
+            # Create a symlink to use this key by default
+            os.symlink(path, default_key_path)
+    return private_key
+
