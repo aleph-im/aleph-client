@@ -35,8 +35,8 @@ def create(
 
     private_key = None
     if from_private_key is not None:
-        account: AccountFromPrivateKey = _load_account(from_private_key, None)
-        private_key = account.private_key
+        account: AccountFromPrivateKey = _load_account(private_key_str=from_private_key)
+        private_key = from_private_key
     else:
         private_key = generate_key()
 
