@@ -51,15 +51,16 @@ settings = Settings()
 if settings.CONFIG_HOME is None:
     xdg_data_home = os.environ.get("XDG_DATA_HOME")
     if xdg_data_home is not None:
-        os.environ["ALEPH_CONFIG_HOME"] = str(pathlib.Path(xdg_data_home, ".aleph-im"))
+        os.environ["ALEPH_CONFIG_HOME"] = str(Path(xdg_data_home, ".aleph-im"))
     else:
         home = os.path.expanduser("~")
-        os.environ["ALEPH_CONFIG_HOME"] = str(pathlib.Path(home, ".aleph-im"))
+        os.environ["ALEPH_CONFIG_HOME"] = str(Path(home, ".aleph-im"))
 
     settings = Settings()
-else:
-    if str(settings.PRIVATE_KEY_FILE) == "ethereum.key":
-        settings.PRIVATE_KEY_FILE = pathlib.Path(settings.CONFIG_HOME, "private-keys", "ethereum.key")
 
-    if "pytest" in sys.modules:
-        settings.PRIVATE_KEY_FILE = pathlib.Path(settings.CONFIG_HOME, "private-keys", "ethereum_test.key")
+assert settings.CONFIG_HOME
+if str(settings.PRIVATE_KEY_FILE) == "ethereum.key":
+    settings.PRIVATE_KEY_FILE = Path(settings.CONFIG_HOME, "private-keys", "ethereum.key")
+
+if "pytest" in sys.modules:
+    settings.PRIVATE_KEY_FILE = Path(settings.CONFIG_HOME, "private-keys", "ethereum_test.key")
