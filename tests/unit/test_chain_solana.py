@@ -1,4 +1,6 @@
 import json
+from pathlib import Path
+from tempfile import NamedTemporaryFile
 
 import base58
 import pytest
@@ -6,7 +8,7 @@ from dataclasses import dataclass, asdict
 
 from nacl.signing import VerifyKey
 
-from aleph_client.chains.common import delete_private_key_file, get_verification_buffer
+from aleph_client.chains.common import get_verification_buffer
 from aleph_client.chains.sol import SOLAccount, get_fallback_account
 
 
@@ -19,23 +21,21 @@ class Message:
 
 
 def test_get_fallback_account():
-    delete_private_key_file()
-    account: SOLAccount = get_fallback_account()
+    with NamedTemporaryFile() as private_key_file:
+        account: SOLAccount = get_fallback_account(path=Path(private_key_file.name))
 
-    assert account.CHAIN == "SOL"
-    assert account.CURVE == "curve25519"
-    assert account._signing_key.verify_key
-    assert type(account.private_key) == bytes
-    assert len(account.private_key) == 32
+        assert account.CHAIN == "SOL"
+        assert account.CURVE == "curve25519"
+        assert account._signing_key.verify_key
+        assert type(account.private_key) == bytes
+        assert len(account.private_key) == 32
 
 
 @pytest.mark.asyncio
-async def test_SOLAccount():
-    account: SOLAccount = get_fallback_account()
-
-    message = asdict(Message("SOL", account.get_address(), "SomeType", "ItemHash"))
+async def test_SOLAccount(solana_account):
+    message = asdict(Message("SOL", solana_account.get_address(), "SomeType", "ItemHash"))
     initial_message = message.copy()
-    await account.sign_message(message)
+    await solana_account.sign_message(message)
     assert message["signature"]
 
     address = message["sender"]
@@ -61,14 +61,12 @@ async def test_SOLAccount():
 
 
 @pytest.mark.asyncio
-async def test_decrypt_curve25516():
-    account: SOLAccount = get_fallback_account()
-
-    assert account.CURVE == "curve25519"
+async def test_decrypt_curve25516(solana_account):
+    assert solana_account.CURVE == "curve25519"
     content = b"SomeContent"
 
-    encrypted = await account.encrypt(content)
+    encrypted = await solana_account.encrypt(content)
     assert type(encrypted) == bytes
-    decrypted = await account.decrypt(encrypted)
+    decrypted = await solana_account.decrypt(encrypted)
     assert type(decrypted) == bytes
     assert content == decrypted

@@ -1,4 +1,3 @@
-import os
 from unittest.mock import MagicMock, patch, AsyncMock
 
 import pytest as pytest
@@ -10,6 +9,8 @@ from aleph_message.models import (
     ForgetMessage,
 )
 
+from aleph_client.types import StorageEnum
+
 from aleph_client.asynchronous import (
     create_post,
     _get_fallback_session,
@@ -18,10 +19,6 @@ from aleph_client.asynchronous import (
     create_program,
     forget,
 )
-from aleph_client.chains.common import get_fallback_private_key, delete_private_key_file
-from aleph_client.chains.ethereum import ETHAccount
-from aleph_client.conf import settings
-from aleph_client.types import StorageEnum
 
 
 def new_mock_session_with_post_success():
@@ -37,21 +34,15 @@ def new_mock_session_with_post_success():
 
 
 @pytest.mark.asyncio
-async def test_create_post():
+async def test_create_post(ethereum_account):
     _get_fallback_session.cache_clear()
-
-    if os.path.exists(settings.PRIVATE_KEY_FILE):
-        delete_private_key_file()
-
-    private_key = get_fallback_private_key()
-    account: ETHAccount = ETHAccount(private_key=private_key)
 
     content = {"Hello": "World"}
 
     mock_session = new_mock_session_with_post_success()
 
     new_post = await create_post(
-        account=account,
+        account=ethereum_account,
         post_content=content,
         post_type="TEST",
         channel="TEST",
@@ -64,21 +55,15 @@ async def test_create_post():
 
 
 @pytest.mark.asyncio
-async def test_create_aggregate():
+async def test_create_aggregate(ethereum_account):
     _get_fallback_session.cache_clear()
-
-    if os.path.exists(settings.PRIVATE_KEY_FILE):
-        delete_private_key_file()
-
-    private_key = get_fallback_private_key()
-    account: ETHAccount = ETHAccount(private_key=private_key)
 
     content = {"Hello": "World"}
 
     mock_session = new_mock_session_with_post_success()
 
     await create_aggregate(
-        account=account,
+        account=ethereum_account,
         key="hello",
         content=content,
         channel="TEST",
@@ -86,7 +71,7 @@ async def test_create_aggregate():
     )
 
     new_post = await create_aggregate(
-        account=account,
+        account=ethereum_account,
         key="hello",
         content="world",
         channel="TEST",
@@ -99,14 +84,8 @@ async def test_create_aggregate():
 
 
 @pytest.mark.asyncio
-async def test_create_store():
+async def test_create_store(ethereum_account):
     _get_fallback_session.cache_clear()
-
-    if os.path.exists(settings.PRIVATE_KEY_FILE):
-        delete_private_key_file()
-
-    private_key = get_fallback_private_key()
-    account: ETHAccount = ETHAccount(private_key=private_key)
 
     mock_session = new_mock_session_with_post_success()
 
@@ -114,8 +93,9 @@ async def test_create_store():
     mock_ipfs_push_file.return_value = "QmRTV3h1jLcACW4FRfdisokkQAk4E4qDhUzGpgdrd4JAFy"
 
     with patch("aleph_client.asynchronous.ipfs_push_file", mock_ipfs_push_file):
+
         await create_store(
-            account=account,
+            account=ethereum_account,
             file_content=b"HELLO",
             # file_hash="abcde",
             channel="TEST",
@@ -125,7 +105,7 @@ async def test_create_store():
         )
 
         await create_store(
-            account=account,
+            account=ethereum_account,
             # file_content=b"HELLO",
             file_hash="QmRTV3h1jLcACW4FRfdisokkQAk4E4qDhUzGpgdrd4JAFy",
             channel="TEST",
@@ -138,8 +118,9 @@ async def test_create_store():
     mock_storage_push_file.return_value = "QmRTV3h1jLcACW4FRfdisokkQAk4E4qDhUzGpgdrd4JAFy"
 
     with patch("aleph_client.asynchronous.storage_push_file", mock_storage_push_file):
+
         new_post = await create_store(
-            account=account,
+            account=ethereum_account,
             file_content=b"HELLO",
             channel="TEST",
             storage_engine=StorageEnum.storage,
@@ -152,19 +133,13 @@ async def test_create_store():
 
 
 @pytest.mark.asyncio
-async def test_create_program():
+async def test_create_program(ethereum_account):
     _get_fallback_session.cache_clear()
-
-    if os.path.exists(settings.PRIVATE_KEY_FILE):
-        delete_private_key_file()
-
-    private_key = get_fallback_private_key()
-    account: ETHAccount = ETHAccount(private_key=private_key)
 
     mock_session = new_mock_session_with_post_success()
 
     new_post = await create_program(
-        account=account,
+        account=ethereum_account,
         program_ref="FAKE-HASH",
         entrypoint="main:app",
         runtime="FAKE-HASH",
@@ -178,19 +153,13 @@ async def test_create_program():
 
 
 @pytest.mark.asyncio
-async def test_forget():
+async def test_forget(ethereum_account):
     _get_fallback_session.cache_clear()
-
-    if os.path.exists(settings.PRIVATE_KEY_FILE):
-        delete_private_key_file()
-
-    private_key = get_fallback_private_key()
-    account: ETHAccount = ETHAccount(private_key=private_key)
 
     mock_session = new_mock_session_with_post_success()
 
     new_post = await forget(
-        account=account,
+        account=ethereum_account,
         hashes=["QmRTV3h1jLcACW4FRfdisokkQAk4E4qDhUzGpgdrd4JAFy"],
         reason="GDPR",
         channel="TEST",
@@ -200,4 +169,3 @@ async def test_forget():
 
     assert mock_session.post.called
     assert isinstance(new_post, ForgetMessage)
-
