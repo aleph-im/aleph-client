@@ -1,3 +1,4 @@
+import pathlib
 from pathlib import Path
 from shutil import which
 from typing import Optional
@@ -43,21 +44,22 @@ class Settings(BaseSettings):
         case_sensitive = False
         env_file = ".env"
 
+
 # Settings singleton
 settings = Settings()
 
 if settings.CONFIG_HOME is None:
     xdg_data_home = os.environ.get("XDG_DATA_HOME")
     if xdg_data_home is not None:
-        os.environ["ALEPH_CONFIG_HOME"] = os.path.join(xdg_data_home, ".aleph-im")
+        os.environ["ALEPH_CONFIG_HOME"] = str(pathlib.Path(xdg_data_home, ".aleph-im"))
     else:
         home = os.path.expanduser("~")
-        os.environ["ALEPH_CONFIG_HOME"] = os.path.join(home, ".aleph-im")
+        os.environ["ALEPH_CONFIG_HOME"] = str(pathlib.Path(home, ".aleph-im"))
 
     settings = Settings()
+else:
+    if str(settings.PRIVATE_KEY_FILE) == "ethereum.key":
+        settings.PRIVATE_KEY_FILE = pathlib.Path(settings.CONFIG_HOME, "private-keys", "ethereum.key")
 
-if str(settings.PRIVATE_KEY_FILE) == "ethereum.key":
-    settings.PRIVATE_KEY_FILE = os.path.join(settings.CONFIG_HOME, "private-keys", "ethereum.key")
-
-if "pytest" in sys.modules:
-    settings.PRIVATE_KEY_FILE = os.path.join(settings.CONFIG_HOME, "private-keys", "ethereum_test.key")
+    if "pytest" in sys.modules:
+        settings.PRIVATE_KEY_FILE = pathlib.Path(settings.CONFIG_HOME, "private-keys", "ethereum_test.key")
