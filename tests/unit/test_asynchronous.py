@@ -10,9 +10,6 @@ from aleph_message.models import (
     ForgetMessage,
 )
 
-from aleph_client.conf import settings
-from aleph_client.types import StorageEnum
-
 from aleph_client.asynchronous import (
     create_post,
     _get_fallback_session,
@@ -23,6 +20,8 @@ from aleph_client.asynchronous import (
 )
 from aleph_client.chains.common import get_fallback_private_key, delete_private_key_file
 from aleph_client.chains.ethereum import ETHAccount
+from aleph_client.conf import settings
+from aleph_client.types import StorageEnum
 
 
 def new_mock_session_with_post_success():
@@ -115,7 +114,6 @@ async def test_create_store():
     mock_ipfs_push_file.return_value = "QmRTV3h1jLcACW4FRfdisokkQAk4E4qDhUzGpgdrd4JAFy"
 
     with patch("aleph_client.asynchronous.ipfs_push_file", mock_ipfs_push_file):
-
         await create_store(
             account=account,
             file_content=b"HELLO",
@@ -140,7 +138,6 @@ async def test_create_store():
     mock_storage_push_file.return_value = "QmRTV3h1jLcACW4FRfdisokkQAk4E4qDhUzGpgdrd4JAFy"
 
     with patch("aleph_client.asynchronous.storage_push_file", mock_storage_push_file):
-
         new_post = await create_store(
             account=account,
             file_content=b"HELLO",
@@ -203,3 +200,4 @@ async def test_forget():
 
     assert mock_session.post.called
     assert isinstance(new_post, ForgetMessage)
+

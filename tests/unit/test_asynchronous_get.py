@@ -1,5 +1,6 @@
 import pytest
 from aleph_message.models import MessageType, MessagesResponse
+import unittest
 
 from aleph_client.asynchronous import (
     get_messages,
@@ -57,3 +58,7 @@ async def test_get_messages():
     assert len(messages) > 1
     assert messages[0].type
     assert messages[0].sender
+
+
+if __name__ == '__main __':
+    unittest.main()
