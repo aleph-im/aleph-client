@@ -26,7 +26,11 @@ from aleph_client.types import StorageEnum
 
 def new_mock_session_with_post_success():
     mock_response = AsyncMock()
-    mock_response.json.return_value = {"status": "success"}
+    mock_response.status = 200
+    mock_response.json.return_value = {
+        "message_status": "processed",
+        "publication_status": {"status": "success", "failed": []},
+    }
 
     mock_post = AsyncMock()
     mock_post.return_value = mock_response
@@ -135,7 +139,9 @@ async def test_create_store():
         )
 
     mock_storage_push_file = AsyncMock()
-    mock_storage_push_file.return_value = "QmRTV3h1jLcACW4FRfdisokkQAk4E4qDhUzGpgdrd4JAFy"
+    mock_storage_push_file.return_value = (
+        "QmRTV3h1jLcACW4FRfdisokkQAk4E4qDhUzGpgdrd4JAFy"
+    )
 
     with patch("aleph_client.asynchronous.storage_push_file", mock_storage_push_file):
         new_post = await create_store(
@@ -200,4 +206,3 @@ async def test_forget():
 
     assert mock_session.post.called
     assert isinstance(new_post, ForgetMessage)
-
