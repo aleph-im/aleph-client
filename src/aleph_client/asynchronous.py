@@ -23,7 +23,8 @@ from aleph_message.models import (
     AlephMessage,
     AggregateMessage,
     StoreMessage,
-    ProgramMessage, ItemType,
+    ProgramMessage,
+    ItemType,
 )
 from pydantic import ValidationError
 
@@ -64,9 +65,9 @@ def get_fallback_session() -> ClientSession:
 
 
 async def ipfs_push(
-        content,
-        session: Optional[ClientSession] = None,
-        api_server: str = settings.API_HOST,
+    content,
+    session: Optional[ClientSession] = None,
+    api_server: str = settings.API_HOST,
 ) -> str:
     session = session or get_fallback_session()
 
@@ -79,9 +80,9 @@ async def ipfs_push(
 
 
 async def storage_push(
-        content,
-        session: Optional[ClientSession] = None,
-        api_server: str = settings.API_HOST,
+    content,
+    session: Optional[ClientSession] = None,
+    api_server: str = settings.API_HOST,
 ) -> str:
     session = session or get_fallback_session()
 
@@ -94,9 +95,9 @@ async def storage_push(
 
 
 async def ipfs_push_file(
-        file_content,
-        session: Optional[ClientSession] = None,
-        api_server: str = settings.API_HOST,
+    file_content,
+    session: Optional[ClientSession] = None,
+    api_server: str = settings.API_HOST,
 ) -> str:
     session = session or get_fallback_session()
 
@@ -112,9 +113,9 @@ async def ipfs_push_file(
 
 
 async def storage_push_file(
-        file_content,
-        session: Optional[ClientSession] = None,
-        api_server: str = settings.API_HOST,
+    file_content,
+    session: Optional[ClientSession] = None,
+    api_server: str = settings.API_HOST,
 ) -> str:
     session = session or get_fallback_session()
 
@@ -130,9 +131,9 @@ async def storage_push_file(
 
 
 async def broadcast(
-        message,
-        session: Optional[ClientSession] = None,
-        api_server: str = settings.API_HOST,
+    message,
+    session: Optional[ClientSession] = None,
+    api_server: str = settings.API_HOST,
 ) -> None:
     """Broadcast a message on the Aleph network via pubsub for nodes to pick it up."""
     session = session or get_fallback_session()
@@ -141,8 +142,8 @@ async def broadcast(
     logger.debug(f"Posting message on {url}")
 
     async with session.post(
-            url,
-            json={"topic": "ALEPH-TEST", "data": json.dumps(message)},
+        url,
+        json={"topic": "ALEPH-TEST", "data": json.dumps(message)},
     ) as response:
         response.raise_for_status()
         result = await response.json()
@@ -169,16 +170,16 @@ async def broadcast(
 
 
 async def create_post(
-        account: Account,
-        post_content,
-        post_type: str,
-        ref: Optional[str] = None,
-        address: Optional[str] = settings.ADDRESS_TO_USE,
-        channel: str = settings.DEFAULT_CHANNEL,
-        session: Optional[ClientSession] = None,
-        api_server: str = settings.API_HOST,
-        inline: bool = True,
-        storage_engine: StorageEnum = StorageEnum.storage,
+    account: Account,
+    post_content,
+    post_type: str,
+    ref: Optional[str] = None,
+    address: Optional[str] = settings.ADDRESS_TO_USE,
+    channel: str = settings.DEFAULT_CHANNEL,
+    session: Optional[ClientSession] = None,
+    api_server: str = settings.API_HOST,
+    inline: bool = True,
+    storage_engine: StorageEnum = StorageEnum.storage,
 ) -> PostMessage:
     address = address or account.get_address()
 
@@ -203,14 +204,14 @@ async def create_post(
 
 
 async def create_aggregate(
-        account: Account,
-        key,
-        content,
-        address: Optional[str] = settings.ADDRESS_TO_USE,
-        channel: str = settings.DEFAULT_CHANNEL,
-        session: Optional[ClientSession] = None,
-        api_server: str = settings.API_HOST,
-        inline: bool = True,
+    account: Account,
+    key,
+    content,
+    address: Optional[str] = settings.ADDRESS_TO_USE,
+    channel: str = settings.DEFAULT_CHANNEL,
+    session: Optional[ClientSession] = None,
+    api_server: str = settings.API_HOST,
+    inline: bool = True,
 ) -> AggregateMessage:
     address = address or account.get_address()
 
@@ -233,17 +234,17 @@ async def create_aggregate(
 
 
 async def create_store(
-        account: Account,
-        address=settings.ADDRESS_TO_USE,
-        file_content: Optional[bytes] = None,
-        file_hash: Optional[str] = None,
-        guess_mime_type: bool = False,
-        ref: Optional[str] = None,
-        storage_engine=StorageEnum.storage,
-        extra_fields: Optional[dict] = None,
-        channel: str = settings.DEFAULT_CHANNEL,
-        session: Optional[ClientSession] = None,
-        api_server: str = settings.API_HOST,
+    account: Account,
+    address=settings.ADDRESS_TO_USE,
+    file_content: Optional[bytes] = None,
+    file_hash: Optional[str] = None,
+    guess_mime_type: bool = False,
+    ref: Optional[str] = None,
+    storage_engine=StorageEnum.storage,
+    extra_fields: Optional[dict] = None,
+    channel: str = settings.DEFAULT_CHANNEL,
+    session: Optional[ClientSession] = None,
+    api_server: str = settings.API_HOST,
 ) -> StoreMessage:
     address = address or account.get_address()
     extra_fields = extra_fields or {}
@@ -296,23 +297,23 @@ async def create_store(
 
 
 async def create_program(
-        account: Account,
-        program_ref: str,
-        entrypoint: str,
-        runtime: str,
-        environment_variables: Optional[Dict[str, str]] = None,
-        storage_engine: StorageEnum = StorageEnum.storage,
-        channel: str = settings.DEFAULT_CHANNEL,
-        address: Optional[str] = settings.ADDRESS_TO_USE,
-        session: Optional[ClientSession] = None,
-        api_server: str = settings.API_HOST,
-        memory: int = settings.DEFAULT_VM_MEMORY,
-        vcpus: int = settings.DEFAULT_VM_VCPUS,
-        timeout_seconds: float = settings.DEFAULT_VM_TIMEOUT,
-        persistent: bool = False,
-        encoding: Encoding = Encoding.zip,
-        volumes: Optional[List[Dict]] = None,
-        subscriptions: Optional[List[Dict]] = None,
+    account: Account,
+    program_ref: str,
+    entrypoint: str,
+    runtime: str,
+    environment_variables: Optional[Dict[str, str]] = None,
+    storage_engine: StorageEnum = StorageEnum.storage,
+    channel: str = settings.DEFAULT_CHANNEL,
+    address: Optional[str] = settings.ADDRESS_TO_USE,
+    session: Optional[ClientSession] = None,
+    api_server: str = settings.API_HOST,
+    memory: int = settings.DEFAULT_VM_MEMORY,
+    vcpus: int = settings.DEFAULT_VM_VCPUS,
+    timeout_seconds: float = settings.DEFAULT_VM_TIMEOUT,
+    persistent: bool = False,
+    encoding: Encoding = Encoding.zip,
+    volumes: Optional[List[Dict]] = None,
+    subscriptions: Optional[List[Dict]] = None,
 ) -> ProgramMessage:
     volumes = volumes if volumes is not None else []
     address = address or account.get_address()
@@ -389,14 +390,14 @@ async def create_program(
 
 
 async def forget(
-        account: Account,
-        hashes: List[str],
-        reason: Optional[str],
-        storage_engine: StorageEnum = StorageEnum.storage,
-        channel: str = settings.DEFAULT_CHANNEL,
-        address: Optional[str] = settings.ADDRESS_TO_USE,
-        session: Optional[ClientSession] = None,
-        api_server: str = settings.API_HOST,
+    account: Account,
+    hashes: List[str],
+    reason: Optional[str],
+    storage_engine: StorageEnum = StorageEnum.storage,
+    channel: str = settings.DEFAULT_CHANNEL,
+    address: Optional[str] = settings.ADDRESS_TO_USE,
+    session: Optional[ClientSession] = None,
+    api_server: str = settings.API_HOST,
 ) -> ForgetMessage:
     address = address or account.get_address()
 
@@ -420,14 +421,14 @@ async def forget(
 
 
 async def submit(
-        account: Account,
-        content: Dict,
-        message_type: MessageType,
-        channel: str = settings.DEFAULT_CHANNEL,
-        api_server: str = settings.API_HOST,
-        storage_engine: StorageEnum = StorageEnum.storage,
-        session: Optional[ClientSession] = None,
-        inline: bool = True,
+    account: Account,
+    content: Dict,
+    message_type: MessageType,
+    channel: str = settings.DEFAULT_CHANNEL,
+    api_server: str = settings.API_HOST,
+    storage_engine: StorageEnum = StorageEnum.storage,
+    session: Optional[ClientSession] = None,
+    inline: bool = True,
 ) -> AlephMessage:
     message: Dict[str, Any] = {
         # 'item_hash': ipfs_hash,
@@ -469,11 +470,11 @@ async def submit(
 
 
 async def fetch_aggregate(
-        address: str,
-        key: str,
-        limit: Optional[int] = 100,
-        session: Optional[ClientSession] = None,
-        api_server: str = settings.API_HOST,
+    address: str,
+    key: str,
+    limit: Optional[int] = 100,
+    session: Optional[ClientSession] = None,
+    api_server: str = settings.API_HOST,
 ) -> Dict[str, Dict]:
     session = session or get_fallback_session()
 
@@ -482,7 +483,7 @@ async def fetch_aggregate(
         params["limit"] = limit
 
     async with session.get(
-            f"{api_server}/api/v0/aggregates/{address}.json", params=params
+        f"{api_server}/api/v0/aggregates/{address}.json", params=params
     ) as resp:
         result = await resp.json()
         data = result.get("data", dict())
@@ -490,11 +491,11 @@ async def fetch_aggregate(
 
 
 async def fetch_aggregates(
-        address: str,
-        keys: Optional[Iterable[str]] = None,
-        limit: Optional[int] = 100,
-        session: Optional[ClientSession] = None,
-        api_server: str = settings.API_HOST,
+    address: str,
+    keys: Optional[Iterable[str]] = None,
+    limit: Optional[int] = 100,
+    session: Optional[ClientSession] = None,
+    api_server: str = settings.API_HOST,
 ) -> Dict[str, Dict]:
     session = session or get_fallback_session()
 
@@ -506,8 +507,8 @@ async def fetch_aggregates(
         params["limit"] = limit
 
     async with session.get(
-            f"{api_server}/api/v0/aggregates/{address}.json",
-            params=params,
+        f"{api_server}/api/v0/aggregates/{address}.json",
+        params=params,
     ) as resp:
         result = await resp.json()
         data = result.get("data", dict())
@@ -515,19 +516,19 @@ async def fetch_aggregates(
 
 
 async def get_posts(
-        pagination: int = 200,
-        page: int = 1,
-        types: Optional[Iterable[str]] = None,
-        refs: Optional[Iterable[str]] = None,
-        addresses: Optional[Iterable[str]] = None,
-        tags: Optional[Iterable[str]] = None,
-        hashes: Optional[Iterable[str]] = None,
-        channels: Optional[Iterable[str]] = None,
-        chains: Optional[Iterable[str]] = None,
-        start_date: Optional[Union[datetime, float]] = None,
-        end_date: Optional[Union[datetime, float]] = None,
-        session: Optional[ClientSession] = None,
-        api_server: str = settings.API_HOST,
+    pagination: int = 200,
+    page: int = 1,
+    types: Optional[Iterable[str]] = None,
+    refs: Optional[Iterable[str]] = None,
+    addresses: Optional[Iterable[str]] = None,
+    tags: Optional[Iterable[str]] = None,
+    hashes: Optional[Iterable[str]] = None,
+    channels: Optional[Iterable[str]] = None,
+    chains: Optional[Iterable[str]] = None,
+    start_date: Optional[Union[datetime, float]] = None,
+    end_date: Optional[Union[datetime, float]] = None,
+    session: Optional[ClientSession] = None,
+    api_server: str = settings.API_HOST,
 ):
     session = session or get_fallback_session()
 
@@ -563,23 +564,23 @@ async def get_posts(
 
 
 async def get_messages(
-        pagination: int = 200,
-        page: int = 1,
-        message_type: Optional[MessageType] = None,
-        content_types: Optional[Iterable[str]] = None,
-        content_keys: Optional[Iterable[str]] = None,
-        refs: Optional[Iterable[str]] = None,
-        addresses: Optional[Iterable[str]] = None,
-        tags: Optional[Iterable[str]] = None,
-        hashes: Optional[Iterable[str]] = None,
-        channels: Optional[Iterable[str]] = None,
-        chains: Optional[Iterable[str]] = None,
-        start_date: Optional[Union[datetime, float]] = None,
-        end_date: Optional[Union[datetime, float]] = None,
-        session: Optional[ClientSession] = None,
-        api_server: str = settings.API_HOST,
-        ignore_invalid_messages: bool = True,
-        invalid_messages_log_level: int = logging.NOTSET,
+    pagination: int = 200,
+    page: int = 1,
+    message_type: Optional[MessageType] = None,
+    content_types: Optional[Iterable[str]] = None,
+    content_keys: Optional[Iterable[str]] = None,
+    refs: Optional[Iterable[str]] = None,
+    addresses: Optional[Iterable[str]] = None,
+    tags: Optional[Iterable[str]] = None,
+    hashes: Optional[Iterable[str]] = None,
+    channels: Optional[Iterable[str]] = None,
+    chains: Optional[Iterable[str]] = None,
+    start_date: Optional[Union[datetime, float]] = None,
+    end_date: Optional[Union[datetime, float]] = None,
+    session: Optional[ClientSession] = None,
+    api_server: str = settings.API_HOST,
+    ignore_invalid_messages: bool = True,
+    invalid_messages_log_level: int = logging.NOTSET,
 ) -> MessagesResponse:
     session = session or get_fallback_session()
 
@@ -648,11 +649,11 @@ async def get_messages(
 
 
 async def get_message(
-        item_hash: str,
-        message_type: Optional[Type[GenericMessage]] = None,
-        channel: Optional[str] = None,
-        session: Optional[ClientSession] = None,
-        api_server: str = settings.API_HOST,
+    item_hash: str,
+    message_type: Optional[Type[GenericMessage]] = None,
+    channel: Optional[str] = None,
+    session: Optional[ClientSession] = None,
+    api_server: str = settings.API_HOST,
 ) -> GenericMessage:
     """Get a single message from its `item_hash`."""
     messages_response = await get_messages(
@@ -679,18 +680,18 @@ async def get_message(
 
 
 async def watch_messages(
-        message_type: Optional[MessageType] = None,
-        content_types: Optional[Iterable[str]] = None,
-        refs: Optional[Iterable[str]] = None,
-        addresses: Optional[Iterable[str]] = None,
-        tags: Optional[Iterable[str]] = None,
-        hashes: Optional[Iterable[str]] = None,
-        channels: Optional[Iterable[str]] = None,
-        chains: Optional[Iterable[str]] = None,
-        start_date: Optional[Union[datetime, float]] = None,
-        end_date: Optional[Union[datetime, float]] = None,
-        session: Optional[ClientSession] = None,
-        api_server: str = settings.API_HOST,
+    message_type: Optional[MessageType] = None,
+    content_types: Optional[Iterable[str]] = None,
+    refs: Optional[Iterable[str]] = None,
+    addresses: Optional[Iterable[str]] = None,
+    tags: Optional[Iterable[str]] = None,
+    hashes: Optional[Iterable[str]] = None,
+    channels: Optional[Iterable[str]] = None,
+    chains: Optional[Iterable[str]] = None,
+    start_date: Optional[Union[datetime, float]] = None,
+    end_date: Optional[Union[datetime, float]] = None,
+    session: Optional[ClientSession] = None,
+    api_server: str = settings.API_HOST,
 ) -> AsyncIterable[AlephMessage]:
     """
     Iterate over current and future matching messages asynchronously.
@@ -727,7 +728,7 @@ async def watch_messages(
         params["endDate"] = end_date
 
     async with session.ws_connect(
-            f"{api_server}/api/ws0/messages", params=params
+        f"{api_server}/api/ws0/messages", params=params
     ) as ws:
         logger.debug("Websocket connected")
         async for msg in ws:
