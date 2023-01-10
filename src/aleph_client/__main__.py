@@ -50,7 +50,7 @@ def whoami(
 
     if private_key is not None:
         private_key_file = None
-    elif not os.path.exists(private_key_file):
+    elif private_key_file and not os.path.exists(private_key_file):
         exit(0)
 
     account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
