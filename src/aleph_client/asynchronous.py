@@ -420,7 +420,7 @@ async def create_program(
     program_ref: str,
     entrypoint: str,
     runtime: str,
-    environment_variables: Optional[Dict[str, str]] = None,
+    environment_variables: Optional[Mapping[str, str]] = None,
     storage_engine: Optional[StorageEnum] = None,
     channel: Optional[str] = None,
     address: Optional[str] = None,
@@ -431,8 +431,8 @@ async def create_program(
     timeout_seconds: Optional[float] = None,
     persistent: Optional[bool] = None,
     encoding: Optional[Encoding] = None,
-    volumes: Optional[List[Dict]] = None,
-    subscriptions: Optional[List[Dict]] = None,
+    volumes: Optional[List[Mapping]] = None,
+    subscriptions: Optional[List[Mapping]] = None,
 ) -> ProgramMessage:
     """
     Post a (create) PROGRAM message.
@@ -582,7 +582,7 @@ async def forget(
 
 async def submit(
     account: Account,
-    content: Dict,
+    content: Mapping,
     message_type: MessageType,
     channel: Optional[str] = None,
     api_server: Optional[str] = None,
