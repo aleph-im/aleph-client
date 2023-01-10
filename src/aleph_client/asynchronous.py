@@ -9,7 +9,8 @@ import threading
 import time
 from datetime import datetime
 from functools import lru_cache
-from typing import Type, Mapping
+from typing import Type, Mapping, Optional, Union, Any, Dict, List, Iterable, AsyncIterable
+from pathlib import Path
 
 from aleph_message.models import (
     ForgetContent,
@@ -42,7 +43,6 @@ except ImportError:
     magic = None  # type:ignore
 
 from .conf import settings
-from typing import Optional, Iterable, Union, Any, Dict, List, AsyncIterable
 
 import aiohttp
 from aiohttp import ClientSession
@@ -330,7 +330,7 @@ async def create_store(
     account: Account,
     address: Optional[str] = None,
     file_content: Optional[bytes] = None,
-    file_path: Optional[str] = None,
+    file_path: Optional[Union[str, Path]] = None,
     file_hash: Optional[str] = None,
     guess_mime_type: Optional[bool] = None,
     ref: Optional[str] = None,
