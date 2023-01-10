@@ -636,6 +636,28 @@ async def get_posts(
         return await resp.json()
 
 
+async def download_file(
+        file_hash: str,
+        session: Optional[ClientSession] = None,
+        api_server: Optional[str] = None
+) -> bytes:
+    """
+    Get a file from the storage engine as raw bytes.
+
+    Warning: Downloading large files can be slow and memory intensive.
+
+    :param file_hash: The hash of the file to retrieve.
+    :param session: The aiohttp session to use. (DEFAULT: get_fallback_session())
+    :param api_server: The API server to use. (DEFAULT: "https://api2.aleph.im")
+    """
+    session = session or get_fallback_session()
+    api_server = api_server or settings.API_HOST
+
+    async with session.get(f"{api_server}/api/v0/storage/raw/{file_hash}") as response:
+        response.raise_for_status()
+        return await response.read()
+
+
 async def get_messages(
     pagination: int = 200,
     page: int = 1,
