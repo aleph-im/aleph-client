@@ -1,4 +1,5 @@
 import re
+import fnmatch
 import abc
 from typing import Union, Optional, Any, Dict, List
 
@@ -33,7 +34,7 @@ class BaseVmCache(abc.ABC):
 
     @abc.abstractmethod
     async def keys(self, pattern: str = "*") -> List[str]:
-        """Get all keys matching a given pattern."""
+        """Get all keys matching a given glob pattern."""
         pass
 
 
@@ -116,6 +117,4 @@ class TestVmCache(BaseVmCache):
                 "Pattern may only contain letters, numbers, underscore, ?, *, ^, -"
             )
         all_keys = list(self._cache.keys())
-        if pattern == "*":
-            return all_keys
-        return [key for key in all_keys if re.match(pattern, key)]
+        return fnmatch.filter(all_keys, pattern)

@@ -1,9 +1,9 @@
 import pytest
 
-from aleph_client.vm.cache import TestVmCache
+from aleph_client.vm.cache import TestVmCache, BaseVmCache
 
 
-async def test_cache(cache):
+async def test_cache(cache: BaseVmCache):
     assert (await cache.get("doesnotexist")) is None
     assert len(await (cache.keys())) == 0
     key = "thisdoesexist"
@@ -11,6 +11,7 @@ async def test_cache(cache):
     await cache.set(key, value)
     assert (await cache.get(key)).decode() == value
     assert (await cache.keys())[0] == key
+    assert (await cache.keys("*exist"))[0] == key
     await cache.delete(key)
     assert (await cache.get(key)) is None
     assert len(await (cache.keys())) == 0
