@@ -212,9 +212,9 @@ async def _handle_broadcast_response(
 
 async def broadcast(
     message,
-    sync: bool = True,
     session: ClientSession,
     api_server: str,
+    sync: bool = True,
 ) -> None:
     """Broadcast a message on the Aleph network via pubsub for nodes to pick it up."""
     url = f"{api_server}/api/v0/messages"
