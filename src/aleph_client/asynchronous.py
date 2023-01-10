@@ -258,9 +258,9 @@ async def create_post(
     :param address: The address that will be displayed as the author of the message
     :param channel: The channel that the message will be posted on
     :param session: An optional aiohttp session to use for the request
-    :param api_server: An optional API server to use for the request (DEFAULT: "https://api2.aleph.im")
+    :param api_server: An optional API server to use for the request (Default: "https://api2.aleph.im")
     :param inline: An optional flag to indicate if the content should be inlined in the message or not
-    :param storage_engine: An optional storage engine to use for the message, if not inlined (DEFAULT: "storage")
+    :param storage_engine: An optional storage engine to use for the message, if not inlined (Default: "storage")
     """
     address = address or settings.ADDRESS_TO_USE or account.get_address()
 
@@ -301,10 +301,10 @@ async def create_aggregate(
     :param key: Key to use to store the content
     :param content: Content to store
     :param address: Address to use to sign the message
-    :param channel: Channel to use (DEFAULT: "TEST")
-    :param session: Session to use (DEFAULT: get_fallback_session())
-    :param api_server: API server to use (DEFAULT: "https://api2.aleph.im")
-    :param inline: Whether to write content inside the message (DEFAULT: True)
+    :param channel: Channel to use (Default: "TEST")
+    :param session: Session to use (Default: get_fallback_session())
+    :param api_server: API server to use (Default: "https://api2.aleph.im")
+    :param inline: Whether to write content inside the message (Default: True)
     """
     address = address or settings.ADDRESS_TO_USE or account.get_address()
 
@@ -346,17 +346,17 @@ async def create_store(
     Can be passed either a file path, an IPFS hash or the file's content as raw bytes.
 
     :param account: Account to use to sign the message
-    :param address: Address to display as the author of the message (DEFAULT: account.get_address())
-    :param file_content: Byte stream of the file to store (DEFAULT: None)
-    :param file_path: Path to the file to store (DEFAULT: None)
-    :param file_hash: Hash of the file to store (DEFAULT: None)
-    :param guess_mime_type: Guess the MIME type of the file (DEFAULT: False)
-    :param ref: Reference to a previous message (DEFAULT: None)
-    :param storage_engine: Storage engine to use (DEFAULT: "storage")
-    :param extra_fields: Extra fields to add to the STORE message (DEFAULT: None)
-    :param channel: Channel to post the message to (DEFAULT: "TEST")
-    :param session: aiohttp session to use (DEFAULT: get_fallback_session())
-    :param api_server: Aleph API server to use (DEFAULT: "https://api2.aleph.im")
+    :param address: Address to display as the author of the message (Default: account.get_address())
+    :param file_content: Byte stream of the file to store (Default: None)
+    :param file_path: Path to the file to store (Default: None)
+    :param file_hash: Hash of the file to store (Default: None)
+    :param guess_mime_type: Guess the MIME type of the file (Default: False)
+    :param ref: Reference to a previous message (Default: None)
+    :param storage_engine: Storage engine to use (Default: "storage")
+    :param extra_fields: Extra fields to add to the STORE message (Default: None)
+    :param channel: Channel to post the message to (Default: "TEST")
+    :param session: aiohttp session to use (Default: get_fallback_session())
+    :param api_server: Aleph API server to use (Default: "https://api2.aleph.im")
     """
     address = address or settings.ADDRESS_TO_USE or account.get_address()
     guess_mime_type = False if guess_mime_type is None else guess_mime_type
@@ -442,16 +442,16 @@ async def create_program(
     :param entrypoint: Entrypoint to run
     :param runtime: Runtime to use
     :param environment_variables: Environment variables to pass to the program
-    :param storage_engine: Storage engine to use (DEFAULT: "storage")
-    :param channel: Channel to use (DEFAULT: "TEST")
-    :param address: Address to use (DEFAULT: account.get_address())
-    :param session: Session to use (DEFAULT: get_fallback_session())
-    :param api_server: API server to use (DEFAULT: "https://api2.aleph.im")
-    :param memory: Memory in MB for the VM to be allocated (DEFAULT: 128)
-    :param vcpus: Number of vCPUs to allocate (DEFAULT: 1)
-    :param timeout_seconds: Timeout in seconds (DEFAULT: 30.0)
-    :param persistent: Whether the program should be persistent or not (DEFAULT: False)
-    :param encoding: Encoding to use (DEFAULT: Encoding.zip)
+    :param storage_engine: Storage engine to use (Default: "storage")
+    :param channel: Channel to use (Default: "TEST")
+    :param address: Address to use (Default: account.get_address())
+    :param session: Session to use (Default: get_fallback_session())
+    :param api_server: API server to use (Default: "https://api2.aleph.im")
+    :param memory: Memory in MB for the VM to be allocated (Default: 128)
+    :param vcpus: Number of vCPUs to allocate (Default: 1)
+    :param timeout_seconds: Timeout in seconds (Default: 30.0)
+    :param persistent: Whether the program should be persistent or not (Default: False)
+    :param encoding: Encoding to use (Default: Encoding.zip)
     :param volumes: Volumes to mount
     :param subscriptions: Patterns of Aleph messages to forward to the program's event receiver
     """
@@ -554,11 +554,11 @@ async def forget(
     :param account: Account to use to sign the message
     :param hashes: Hashes of the messages to forget
     :param reason: Reason for forgetting the messages
-    :param storage_engine: Storage engine to use (DEFAULT: "storage")
-    :param channel: Channel to use (DEFAULT: "TEST")
-    :param address: Address to use (DEFAULT: account.get_address())
-    :param session: Session to use (DEFAULT: get_fallback_session())
-    :param api_server: API server to use (DEFAULT: "https://api2.aleph.im")
+    :param storage_engine: Storage engine to use (Default: "storage")
+    :param channel: Channel to use (Default: "TEST")
+    :param address: Address to use (Default: account.get_address())
+    :param session: Session to use (Default: get_fallback_session())
+    :param api_server: API server to use (Default: "https://api2.aleph.im")
     """
     address = address or settings.ADDRESS_TO_USE or account.get_address()
 
@@ -648,9 +648,9 @@ async def fetch_aggregate(
 
     :param address: Address of the owner of the aggregate
     :param key: Key of the aggregate
-    :param limit: Maximum number of items to fetch (DEFAULT: 100)
-    :param session: Session to use (DEFAULT: get_fallback_session())
-    :param api_server: API server to use (DEFAULT: "https://api2.aleph.im")
+    :param limit: Maximum number of items to fetch (Default: 100)
+    :param session: Session to use (Default: get_fallback_session())
+    :param api_server: API server to use (Default: "https://api2.aleph.im")
     """
     limit = limit or 100
     session = session or get_fallback_session()
@@ -679,10 +679,10 @@ async def fetch_aggregates(
     Fetch key-value pairs from the aggregate store by owner address.
 
     :param address: Address of the owner of the aggregate
-    :param keys: Keys of the aggregates to fetch (DEFAULT: all items)
-    :param limit: Maximum number of items to fetch (DEFAULT: 100)
-    :param session: Session to use (DEFAULT: get_fallback_session())
-    :param api_server: API server to use (DEFAULT: "https://api2.aleph.im")
+    :param keys: Keys of the aggregates to fetch (Default: all items)
+    :param limit: Maximum number of items to fetch (Default: 100)
+    :param session: Session to use (Default: get_fallback_session())
+    :param api_server: API server to use (Default: "https://api2.aleph.im")
     """
     limit = limit or 100
     session = session or get_fallback_session()
@@ -722,19 +722,19 @@ async def get_posts(
     """
     Fetch a list of posts from the network.
 
-    :param pagination: Number of items to fetch (DEFAULT: 200)
-    :param page: Page to fetch, begins at 1 (DEFAULT: 1)
-    :param types: Types of posts to fetch (DEFAULT: all types)
+    :param pagination: Number of items to fetch (Default: 200)
+    :param page: Page to fetch, begins at 1 (Default: 1)
+    :param types: Types of posts to fetch (Default: all types)
     :param refs: If set, only fetch posts that reference these hashes (in the "refs" field)
-    :param addresses: Addresses of the posts to fetch (DEFAULT: all addresses)
-    :param tags: Tags of the posts to fetch (DEFAULT: all tags)
+    :param addresses: Addresses of the posts to fetch (Default: all addresses)
+    :param tags: Tags of the posts to fetch (Default: all tags)
     :param hashes: Specific item_hashes to fetch
-    :param channels: Channels of the posts to fetch (DEFAULT: all channels)
-    :param chains: Chains of the posts to fetch (DEFAULT: all chains)
+    :param channels: Channels of the posts to fetch (Default: all channels)
+    :param chains: Chains of the posts to fetch (Default: all chains)
     :param start_date: Earliest date to fetch messages from
     :param end_date: Latest date to fetch messages from
-    :param session: Session to use (DEFAULT: get_fallback_session())
-    :param api_server: API server to use (DEFAULT: "https://api2.aleph.im")
+    :param session: Session to use (Default: get_fallback_session())
+    :param api_server: API server to use (Default: "https://api2.aleph.im")
     """
     session = session or get_fallback_session()
     api_server = api_server or settings.API_HOST
@@ -781,8 +781,8 @@ async def download_file(
     Warning: Downloading large files can be slow and memory intensive.
 
     :param file_hash: The hash of the file to retrieve.
-    :param session: The aiohttp session to use. (DEFAULT: get_fallback_session())
-    :param api_server: The API server to use. (DEFAULT: "https://api2.aleph.im")
+    :param session: The aiohttp session to use. (Default: get_fallback_session())
+    :param api_server: The API server to use. (Default: "https://api2.aleph.im")
     """
     session = session or get_fallback_session()
     api_server = api_server or settings.API_HOST
@@ -814,23 +814,23 @@ async def get_messages(
     """
     Fetch a list of messages from the network.
 
-    :param pagination: Number of items to fetch (DEFAULT: 200)
-    :param page: Page to fetch, begins at 1 (DEFAULT: 1)
+    :param pagination: Number of items to fetch (Default: 200)
+    :param page: Page to fetch, begins at 1 (Default: 1)
     :param message_type: Filter by message type, can be "AGGREGATE", "POST", "PROGRAM", "VM", "STORE" or "FORGET"
     :param content_types: Filter by content type
     :param content_keys: Filter by content key
     :param refs: If set, only fetch posts that reference these hashes (in the "refs" field)
-    :param addresses: Addresses of the posts to fetch (DEFAULT: all addresses)
-    :param tags: Tags of the posts to fetch (DEFAULT: all tags)
+    :param addresses: Addresses of the posts to fetch (Default: all addresses)
+    :param tags: Tags of the posts to fetch (Default: all tags)
     :param hashes: Specific item_hashes to fetch
-    :param channels: Channels of the posts to fetch (DEFAULT: all channels)
+    :param channels: Channels of the posts to fetch (Default: all channels)
     :param chains: Filter by sender address chain
     :param start_date: Earliest date to fetch messages from
     :param end_date: Latest date to fetch messages from
-    :param session: Session to use (DEFAULT: get_fallback_session())
-    :param api_server: API server to use (DEFAULT: "https://api2.aleph.im")
-    :param ignore_invalid_messages: Ignore invalid messages (DEFAULT: False)
-    :param invalid_messages_log_level: Log level to use for invalid messages (DEFAULT: logging.NOTSET)
+    :param session: Session to use (Default: get_fallback_session())
+    :param api_server: API server to use (Default: "https://api2.aleph.im")
+    :param ignore_invalid_messages: Ignore invalid messages (Default: False)
+    :param invalid_messages_log_level: Log level to use for invalid messages (Default: logging.NOTSET)
     """
     session = session or get_fallback_session()
     api_server = api_server or settings.API_HOST
@@ -914,8 +914,8 @@ async def get_message(
     :param item_hash: Hash of the message to fetch
     :param message_type: Type of message to fetch
     :param channel: Channel of the message to fetch
-    :param session: Session to use (DEFAULT: get_fallback_session())
-    :param api_server: API server to use (DEFAULT: "https://api2.aleph.im")
+    :param session: Session to use (Default: get_fallback_session())
+    :param api_server: API server to use (Default: "https://api2.aleph.im")
     """
     messages_response = await get_messages(
         hashes=[item_hash],
@@ -967,8 +967,8 @@ async def watch_messages(
     :param chains: Chains to watch
     :param start_date: Start date from when to watch
     :param end_date: End date until when to watch
-    :param session: Session to use (DEFAULT: get_fallback_session())
-    :param api_server: API server to use (DEFAULT: "https://api2.aleph.im")
+    :param session: Session to use (Default: get_fallback_session())
+    :param api_server: API server to use (Default: "https://api2.aleph.im")
     """
     session = session or get_fallback_session()
     api_server = api_server or settings.API_HOST
