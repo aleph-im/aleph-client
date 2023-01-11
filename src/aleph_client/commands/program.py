@@ -173,7 +173,7 @@ def upload(
             program_ref = user_code.item_hash
 
         # Register the program
-        result: ProgramMessage = synchronous.create_program(
+        message, status = synchronous.create_program(
             account=account,
             program_ref=program_ref,
             entrypoint=entrypoint,
@@ -190,9 +190,9 @@ def upload(
         )
         logger.debug("Upload finished")
         if print_messages or print_program_message:
-            typer.echo(f"{result.json(indent=4)}")
+            typer.echo(f"{message.json(indent=4)}")
 
-        hash: str = result.item_hash
+        hash: str = message.item_hash
         hash_base32 = b32encode(b16decode(hash.upper())).strip(b"=").lower().decode()
 
         typer.echo(
@@ -201,7 +201,7 @@ def upload(
             f"  {settings.VM_URL_PATH.format(hash=hash)}\n"
             f"  {settings.VM_URL_HOST.format(hash_base32=hash_base32)}\n"
             "Visualise on:\n  https://explorer.aleph.im/address/"
-            f"{result.chain}/{result.sender}/message/PROGRAM/{hash}\n"
+            f"{message.chain}/{message.sender}/message/PROGRAM/{hash}\n"
         )
 
     finally:
@@ -256,7 +256,7 @@ def update(
             # TODO: Read in lazy mode instead of copying everything in memory
             file_content = fd.read()
             logger.debug("Uploading file")
-            result = synchronous.create_store(
+            message, status = synchronous.create_store(
                 account=account,
                 file_content=file_content,
                 storage_engine=code_message.content.item_type,
@@ -266,7 +266,7 @@ def update(
             )
             logger.debug("Upload finished")
             if print_message:
-                typer.echo(f"{result.json(indent=4)}")
+                typer.echo(f"{message.json(indent=4)}")
     finally:
         # Prevent aiohttp unclosed connector warning
         asyncio.run(get_fallback_session().close())
@@ -292,10 +292,10 @@ def unpersist(
     content.on.persistent = False
     content.replaces = message.item_hash
 
-    result = synchronous.submit(
+    message, _status = synchronous.submit(
         account=account,
         content=content.dict(exclude_none=True),
         message_type=message.type,
         channel=message.channel,
     )
-    typer.echo(f"{result.json(indent=4)}")
+    typer.echo(f"{message.json(indent=4)}")

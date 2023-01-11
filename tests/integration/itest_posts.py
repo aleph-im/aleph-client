@@ -17,7 +17,7 @@ async def create_message_on_target(
     Create a POST message on the target node, then fetch it from the reference node.
     """
 
-    created_message_dict: PostMessage = await create_post(
+    post_message, message_status = await create_post(
         account=fixture_account,
         post_content=None,
         post_type="POST",
@@ -34,12 +34,12 @@ async def create_message_on_target(
         get_messages,
         response_contains_messages,
         timeout=5,
-        hashes=[created_message_dict.item_hash],
+        hashes=[post_message.item_hash],
         api_server=receiver_node,
     )
 
     message_from_target = Message(**response_dict["messages"][0])
-    assert created_message_dict["item_hash"] == message_from_target.item_hash
+    assert post_message.item_hash == message_from_target.item_hash
 
 
 @pytest.mark.asyncio

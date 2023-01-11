@@ -20,7 +20,7 @@ async def create_aggregate_on_target(
     receiver_node: str,
     channel="INTEGRATION_TESTS",
 ):
-    aggregate_dict = await create_aggregate(
+    aggregate_message, message_status = await create_aggregate(
         account=account,
         key=key,
         content=content,
@@ -28,16 +28,16 @@ async def create_aggregate_on_target(
         api_server=emitter_node,
     )
 
-    assert aggregate_dict["sender"] == account.get_address()
-    assert aggregate_dict["channel"] == channel
+    assert aggregate_message.sender == account.get_address()
+    assert aggregate_message.channel == channel
     # Note: lots of duplicates in the response
-    item_content = json.loads(aggregate_dict["item_content"])
+    item_content = json.loads(aggregate_message.item_content)
     assert item_content["key"] == key
     assert item_content["content"] == content
     assert item_content["address"] == account.get_address()
-    assert aggregate_dict["content"]["key"] == key
-    assert aggregate_dict["content"]["address"] == account.get_address()
-    assert aggregate_dict["content"]["content"] == content
+    assert aggregate_message.content.key == key
+    assert aggregate_message.content.address == account.get_address()
+    assert aggregate_message.content.content == content
 
     aggregate_from_receiver = await try_until(
         fetch_aggregate,

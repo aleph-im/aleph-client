@@ -42,5 +42,5 @@ def forget(
         message_type=MessageType.aggregate.value,
         content_keys=[key],
     )
-    hash_list = [message["item_hash"] for message in message_response["messages"]]
+    hash_list = [message["item_hash"] for message in message_response.messages]
     forget_messages(account, hash_list, reason, channel)

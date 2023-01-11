@@ -6,15 +6,17 @@ import click
 from aleph_client.chains.ethereum import ETHAccount
 from aleph_client.chains.common import get_fallback_private_key
 from aleph_client.asynchronous import create_store
+from aleph_client.types import MessageStatus
+from aleph_message.models import AlephMessage, StoreMessage
 
 DEFAULT_SERVER = "https://api2.aleph.im"
 
-async def print_output_hash(message):
+async def print_output_hash(message: StoreMessage, status: MessageStatus):
     print("Successfully created STORE message")
-    print(f"File hash ({message['content']['item_type']}): {message['content']['item_hash']}")
-    print("Sender: ", message['sender'])
-    print(f"Message hash: {message['item_hash']}")
-    print(f"Explorer URL: https://explorer.aleph.im/address/{message['chain']}/{message['sender']}/message/{message['item_hash']}")
+    print(f"File hash ({message.content.item_type}): {message.content.item_hash}")
+    print("Sender: ", message.sender)
+    print(f"Message hash: {message.item_hash}")
+    print(f"Explorer URL: https://explorer.aleph.im/address/{message.chain.value}/{message.sender}/message/{message.item_hash}")
 
 async def do_upload(account, engine, channel, filename=None, file_hash=None):
     async with aiohttp.ClientSession() as session:
@@ -34,10 +36,10 @@ async def do_upload(account, engine, channel, filename=None, file_hash=None):
                 raise
 
         elif file_hash:
-            result = await create_store(account, file_hash=file_hash,
+            message, status = await create_store(account, file_hash=file_hash,
                                         channel=channel, storage_engine=engine.lower(), session=session)
             
-        await print_output_hash(result)
+        await print_output_hash(message, status)
 
 @click.command()
 @click.argument('filename', )

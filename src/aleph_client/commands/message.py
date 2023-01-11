@@ -131,13 +131,13 @@ def amend(
     new_content = content_type(**new_content_dict)
     new_content.ref = existing_message.item_hash
     typer.echo(new_content)
-    result = synchronous.submit(
+    message, _status = synchronous.submit(
         account=account,
         content=new_content.dict(),
         message_type=existing_message.type,
         channel=existing_message.channel,
     )
-    typer.echo(f"{result.json(indent=4)}")
+    typer.echo(f"{message.json(indent=4)}")
 
 
 def forget_messages(
