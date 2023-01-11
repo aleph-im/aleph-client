@@ -3,24 +3,19 @@
 # -*- coding: utf-8 -*-
 
 import os
+import platform
+import time
+
 import psutil
 
-# import requests
-import platform
-
-# import socket
-import time
-from aleph_client.main import create_aggregate, create_post
-
-# from aleph_client.chains.nuls1 import NULSAccount, get_fallback_account
-from aleph_client.chains.ethereum import ETHAccount, get_fallback_account
+from aleph_client.chains.ethereum import get_fallback_account
+from aleph_client.synchronous import create_aggregate
 
 
 def get_sysinfo():
     uptime = int(time.time() - psutil.boot_time())
     sysinfo = {
         "uptime": uptime,
-        # 'hostname': socket.gethostname(),
         "os": platform.platform(),
         "load_avg": os.getloadavg(),
         "num_cpus": psutil.cpu_count(),
@@ -55,7 +50,6 @@ def get_cpu_cores():
 
 
 def send_metrics(account, metrics):
-    # metric_payload = {}
     return create_aggregate(account, "metrics", metrics, channel="SYSINFO")
 
 

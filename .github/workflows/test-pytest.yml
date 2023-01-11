@@ -36,4 +36,4 @@ jobs:
 
       - name: MyPy in the Docker image
         run: |
-          docker run --entrypoint /opt/venv/bin/mypy aleph-client:${GITHUB_REF##*/} --config-file /opt/aleph-client/mypy.ini /opt/aleph-client/src/ /opt/aleph-client/tests/
+          docker run --entrypoint /opt/venv/bin/mypy aleph-client:${GITHUB_REF##*/} --config-file /opt/aleph-client/mypy.ini /opt/aleph-client/src/ /opt/aleph-client/tests/ /opt/aleph-client/examples/
