@@ -3,8 +3,10 @@
 # -*- coding: utf-8 -*-
 
 import os
+
 # import requests
 import platform
+
 # import socket
 import time
 import asyncio
@@ -20,54 +22,62 @@ from aiohttp import web
 app = web.Application()
 routes = web.RouteTableDef()
 
-@routes.get('/')
+
+@routes.get("/")
 async def hello(request):
     return web.Response(text="Hello, world")
 
 
-@routes.post('/p/{source}')
+@routes.post("/p/{source}")
 async def source_post(request):
     # print(await request.text())
     data = await request.post()
     data = dict(data.copy().items())
 
-    secret = data.pop('secret', None)
-    data['source'] = request.match_info['source']
+    secret = data.pop("secret", None)
+    data["source"] = request.match_info["source"]
 
-    if app['secret'] is not None:
-        if secret != app['secret']:
-            return web.json_response({'status': 'error',
-                                      'message': 'unauthorized secret'})
-    message, _status = await create_post(app['account'], data,
-                              'event', channel=app['channel'],
-                              api_server='https://api2.aleph.im')
+    if app["secret"] is not None:
+        if secret != app["secret"]:
+            return web.json_response(
+                {"status": "error", "message": "unauthorized secret"}
+            )
+    message, _status = await create_post(
+        app["account"],
+        data,
+        "event",
+        channel=app["channel"],
+        api_server="https://api2.aleph.im",
+    )
 
-    return web.json_response({'status': 'success',
-                              'item_hash': message.item_hash})
-    
+    return web.json_response({"status": "success", "item_hash": message.item_hash})
+
 
 @click.command()
-@click.option('--host', default='localhost',
-              help='http host')
-@click.option('--port', default=80, help='http port')
-@click.option('--channel', default='GATEWAY', help='Channel for data post')
-@click.option('--pkey', default=None, help='Account private key (optionnal, will default to device.key file)')
-@click.option('--secret', default=None, help='Needed secret to be allowed to post')
+@click.option("--host", default="localhost", help="http host")
+@click.option("--port", default=80, help="http port")
+@click.option("--channel", default="GATEWAY", help="Channel for data post")
+@click.option(
+    "--pkey",
+    default=None,
+    help="Account private key (optionnal, will default to device.key file)",
+)
+@click.option("--secret", default=None, help="Needed secret to be allowed to post")
 def main(host, port, channel, pkey=None, secret=None):
     app.add_routes(routes)
     loop = asyncio.get_event_loop()
 
-    app['secret'] = secret
-    app['channel'] = channel
+    app["secret"] = secret
+    app["channel"] = channel
 
     if pkey is None:
         pkey = get_fallback_private_key()
 
     account = ETHAccount(private_key=pkey)
-    app['account'] = account
+    app["account"] = account
 
     web.run_app(app, host=host, port=port)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
