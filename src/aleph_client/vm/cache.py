@@ -23,9 +23,6 @@ class BaseVmCache(abc.ABC):
 
     session: ClientSession
 
-    def __init__(self, session: Optional[ClientSession] = None):
-        self.session = session or get_fallback_session()
-
     @abc.abstractmethod
     async def get(self, key: str) -> Optional[bytes]:
         """Get the value for a given key string."""
@@ -54,7 +51,7 @@ class VmCache(BaseVmCache):
     api_host: str
 
     def __init__(self, session: Optional[ClientSession] = None, api_host: Optional[str] = None):
-        super().__init__(session)
+        self.session = session or get_fallback_session()
         self.cache = {}
         self.api_host = api_host if api_host else settings.API_HOST
 
@@ -97,8 +94,7 @@ class VmCache(BaseVmCache):
 class TestVmCache(BaseVmCache):
     """This is a local, dict-based cache that can be used for testing purposes."""
 
-    def __init__(self, session: Optional[ClientSession] = None):
-        super().__init__(session)
+    def __init__(self):
         self._cache: Dict[str, bytes] = {}
 
     async def get(self, key: str) -> Optional[bytes]:
