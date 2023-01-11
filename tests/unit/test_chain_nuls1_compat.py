@@ -5,7 +5,7 @@ This file tests that both implementations returns identical results.
 
 import pytest
 import secp256k1
-from coincurve import PrivateKey
+from coincurve.keys import PrivateKey
 
 from aleph_client.chains.common import get_fallback_private_key, delete_private_key_file
 from aleph_client.chains.nuls1 import NulsSignature, VarInt, MESSAGE_TEMPLATE, LOGGER
@@ -89,6 +89,8 @@ async def test_compare_sign_data():
         )
     )
 
+    assert sign.sig_ser is not None
+    assert sign_deprecated.sig_ser is not None
     assert len(sign.sig_ser) == len(sign_deprecated.sig_ser)
     assert sign.sig_ser == sign_deprecated.sig_ser
     assert sign == sign_deprecated
@@ -109,6 +111,8 @@ async def test_compare_sign_message():
         )
     )
 
+    assert sign.sig_ser is not None
+    assert sign_deprecated.sig_ser is not None
     assert len(sign.sig_ser) == len(sign_deprecated.sig_ser)
     assert sign.sig_ser == sign_deprecated.sig_ser
     assert sign == sign_deprecated

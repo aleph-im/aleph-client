@@ -37,7 +37,7 @@ from .utils import get_message_type_value
 logger = logging.getLogger(__name__)
 
 try:
-    import magic  # type:ignore
+    import magic
 except ImportError:
     logger.info("Could not import library 'magic', MIME type detection disabled")
     magic = None  # type:ignore
@@ -47,7 +47,7 @@ from .conf import settings
 import aiohttp
 from aiohttp import ClientSession
 
-from aleph_message.models.program import ProgramContent, Encoding  # type: ignore
+from aleph_message.models.program import ProgramContent, Encoding
 
 
 @lru_cache()

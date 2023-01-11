@@ -1,5 +1,5 @@
 import pytest
-from coincurve import PrivateKey
+from coincurve.keys import PrivateKey
 
 from aleph_client.chains.nuls1 import NulsSignature
 
@@ -33,6 +33,7 @@ async def test_sign_message():
         pri_key=private_key.secret, message=message
     )
 
+    assert sign.sig_ser is not None
     assert len(sign.sig_ser) == 70
 
     assert sign

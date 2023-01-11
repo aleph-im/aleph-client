@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 
 try:
-    import magic  # type:ignore
+    import magic
 except ImportError:
     logger.info("Could not import library 'magic', MIME type detection disabled")
     magic = None  # type:ignore

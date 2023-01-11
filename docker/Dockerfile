@@ -28,7 +28,7 @@ COPY . .
 USER root
 RUN chown -R user:user /opt/aleph-client
 
-RUN pip install -e .[testing,ethereum,solana]
+RUN pip install -e .[testing,ethereum,solana,tezos]
 
 RUN mkdir /data
 RUN chown user:user /data

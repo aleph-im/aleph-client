@@ -7,30 +7,6 @@ from typing import Optional, Dict, List
 from zipfile import BadZipFile
 
 import typer
-
-from aleph_client import synchronous
-from aleph_client.account import _load_account
-from aleph_client.commands import help_strings
-from aleph_client.commands.utils import volume_to_dict
-from aleph_client.conf import settings
-from aleph_client.types import AccountFromPrivateKey
-from aleph_client.utils import create_archive
-
-logger = logging.getLogger(__name__)
-app = typer.Typer()
-
-from aleph_client.asynchronous import (
-    get_fallback_session,
-    StorageEnum,
-)
-
-from aleph_client.commands.utils import (
-    setup_logging,
-    input_multiline,
-    prompt_for_volumes,
-    yes_no_input,
-)
-
 from aleph_message.models import (
     ProgramMessage,
     StoreMessage,
@@ -38,6 +14,23 @@ from aleph_message.models import (
     ProgramContent,
 )
 
+from aleph_client import synchronous
+from aleph_client.account import _load_account
+from aleph_client.asynchronous import get_fallback_session
+from aleph_client.commands import help_strings
+from aleph_client.commands.utils import (
+    setup_logging,
+    input_multiline,
+    prompt_for_volumes,
+    yes_no_input,
+)
+from aleph_client.commands.utils import volume_to_dict
+from aleph_client.conf import settings
+from aleph_client.types import AccountFromPrivateKey
+from aleph_client.types import StorageEnum
+from aleph_client.utils import create_archive
+
+logger = logging.getLogger(__name__)
 app = typer.Typer()
 
 

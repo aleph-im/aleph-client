@@ -6,7 +6,7 @@ from aleph_client.asynchronous import (
     create_post,
     get_messages,
 )
-from tests.integration.test_utils import try_until
+from tests.integration.toolkit import try_until
 from .config import REFERENCE_NODE, TARGET_NODE
 
 
