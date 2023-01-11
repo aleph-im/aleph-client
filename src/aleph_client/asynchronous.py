@@ -5,10 +5,8 @@ import hashlib
 import json
 import logging
 import queue
-import threading
 import time
 from datetime import datetime
-from functools import lru_cache
 from pathlib import Path
 from typing import (
     Optional,
@@ -21,6 +19,8 @@ from typing import (
 )
 from typing import Type, Mapping, Tuple, NoReturn
 
+import aiohttp
+from aiohttp import ClientSession
 from aleph_message.models import (
     ForgetContent,
     MessageType,
@@ -36,9 +36,11 @@ from aleph_message.models import (
     ProgramMessage,
     ItemType,
 )
+from aleph_message.models.program import ProgramContent, Encoding
 from pydantic import ValidationError
 
 from aleph_client.types import Account, StorageEnum, GenericMessage, MessageStatus
+from .conf import settings
 from .exceptions import (
     MessageNotFoundError,
     MultipleMessagesError,
@@ -46,6 +48,7 @@ from .exceptions import (
     BroadcastError,
 )
 from .models import MessagesResponse
+from .user_session import UserSession
 from .utils import get_message_type_value
 
 logger = logging.getLogger(__name__)
@@ -56,86 +59,51 @@ except ImportError:
     logger.info("Could not import library 'magic', MIME type detection disabled")
     magic = None  # type:ignore
 
-from .conf import settings
 
-import aiohttp
-from aiohttp import ClientSession
-
-from aleph_message.models.program import ProgramContent, Encoding
-
-
-@lru_cache()
-def _get_fallback_session(thread_id: Optional[int]) -> ClientSession:
-    if settings.API_UNIX_SOCKET:
-        connector = aiohttp.UnixConnector(path=settings.API_UNIX_SOCKET)
-        return aiohttp.ClientSession(connector=connector)
-    else:
-        return aiohttp.ClientSession()
-
-
-def get_fallback_session() -> ClientSession:
-    thread_id = threading.get_native_id()
-    return _get_fallback_session(thread_id=thread_id)
-
-
-async def ipfs_push(
-    content: Mapping,
-    session: ClientSession,
-    api_server: str,
-) -> str:
+async def ipfs_push(session: UserSession, content: Mapping) -> str:
     """Push arbitrary content as JSON to the IPFS service."""
-    url = f"{api_server}/api/v0/ipfs/add_json"
+
+    url = "/api/v0/ipfs/add_json"
     logger.debug(f"Pushing to IPFS on {url}")
 
-    async with session.post(url, json=content) as resp:
+    async with session.http_session.post(url, json=content) as resp:
         resp.raise_for_status()
         return (await resp.json()).get("hash")
 
 
-async def storage_push(
-    content: Mapping,
-    session: ClientSession,
-    api_server: str,
-) -> str:
+async def storage_push(session: UserSession, content: Mapping) -> str:
     """Push arbitrary content as JSON to the storage service."""
-    url = f"{api_server}/api/v0/storage/add_json"
+
+    url = "/api/v0/storage/add_json"
     logger.debug(f"Pushing to storage on {url}")
 
-    async with session.post(url, json=content) as resp:
+    async with session.http_session.post(url, json=content) as resp:
         resp.raise_for_status()
         return (await resp.json()).get("hash")
 
 
-async def ipfs_push_file(
-    file_content,
-    session: ClientSession,
-    api_server: str,
-) -> str:
+async def ipfs_push_file(session: UserSession, file_content: Union[str, bytes]) -> str:
     """Push a file to the IPFS service."""
     data = aiohttp.FormData()
     data.add_field("file", file_content)
 
-    url = f"{api_server}/api/v0/ipfs/add_file"
+    url = "/api/v0/ipfs/add_file"
     logger.debug(f"Pushing file to IPFS on {url}")
 
-    async with session.post(url, data=data) as resp:
+    async with session.http_session.post(url, data=data) as resp:
         resp.raise_for_status()
         return (await resp.json()).get("hash")
 
 
-async def storage_push_file(
-    file_content,
-    session: ClientSession,
-    api_server: str,
-) -> str:
+async def storage_push_file(session: UserSession, file_content) -> str:
     """Push a file to the storage service."""
     data = aiohttp.FormData()
     data.add_field("file", file_content)
 
-    url = f"{api_server}/api/v0/storage/add_file"
+    url = "/api/v0/storage/add_file"
     logger.debug(f"Posting file on {url}")
 
-    async with session.post(url, data=data) as resp:
+    async with session.http_session.post(url, data=data) as resp:
         resp.raise_for_status()
         return (await resp.json()).get("hash")
 
@@ -194,20 +162,18 @@ async def _handle_broadcast_deprecated_response(
 
 
 async def _broadcast_deprecated(
-    message_dict: Mapping[str, Any],
-    session: ClientSession,
-    api_server: str = settings.API_HOST,
-):
+    session: UserSession, message_dict: Mapping[str, Any]
+) -> None:
 
     """
     Broadcast a message on the Aleph network using the deprecated
     /ipfs/pubsub/pub/ endpoint.
     """
 
-    url = f"{api_server}/api/v0/ipfs/pubsub/pub"
+    url = "/api/v0/ipfs/pubsub/pub"
     logger.debug(f"Posting message on {url}")
 
-    async with session.post(
+    async with session.http_session.post(
         url,
         json={"topic": "ALEPH-TEST", "data": json.dumps(message_dict)},
     ) as response:
@@ -246,10 +212,9 @@ BROADCAST_MESSAGE_FIELDS = {
 
 
 async def _broadcast(
+    session: UserSession,
     message: AlephMessage,
     sync: bool,
-    session: ClientSession,
-    api_server: str,
 ) -> MessageStatus:
     """
     Broadcast a message on the Aleph network.
@@ -258,12 +223,12 @@ async def _broadcast(
     if the first method is not available.
     """
 
-    url = f"{api_server}/api/v0/messages"
+    url = "/api/v0/messages"
     logger.debug(f"Posting message on {url}")
 
     message_dict = message.dict(include=BROADCAST_MESSAGE_FIELDS)
 
-    async with session.post(
+    async with session.http_session.post(
         url,
         json={"sync": sync, "message": message_dict},
     ) as response:
@@ -272,9 +237,7 @@ async def _broadcast(
             logger.warning(
                 "POST /messages/ not found. Defaulting to legacy endpoint..."
             )
-            await _broadcast_deprecated(
-                message_dict=message_dict, session=session, api_server=api_server
-            )
+            await _broadcast_deprecated(message_dict=message_dict, session=session)
             return MessageStatus.PENDING
         else:
             message_status = await _handle_broadcast_response(
@@ -284,14 +247,12 @@ async def _broadcast(
 
 
 async def create_post(
-    account: Account,
+    session: UserSession,
     post_content,
     post_type: str,
     ref: Optional[str] = None,
     address: Optional[str] = None,
     channel: Optional[str] = None,
-    session: Optional[ClientSession] = None,
-    api_server: Optional[str] = None,
     inline: bool = True,
     storage_engine: StorageEnum = StorageEnum.storage,
     sync: bool = False,
@@ -299,20 +260,17 @@ async def create_post(
     """
     Create a POST message on the Aleph network. It is associated with a channel and owned by an account.
 
-    :param account: The account that will sign and own the message
+    :param session: The current user session object
     :param post_content: The content of the message
     :param post_type: An arbitrary content type that helps to describe the post_content
     :param ref: A reference to a previous message that it replaces
     :param address: The address that will be displayed as the author of the message
     :param channel: The channel that the message will be posted on
-    :param session: An optional aiohttp session to use for the request
-    :param api_server: An optional API server to use for the request (Default: "https://api2.aleph.im")
     :param inline: An optional flag to indicate if the content should be inlined in the message or not
     :param storage_engine: An optional storage engine to use for the message, if not inlined (Default: "storage")
     :param sync: If true, waits for the message to be processed by the API server (Default: False)
     """
-    address = address or settings.ADDRESS_TO_USE or account.get_address()
-    api_server = api_server or settings.API_HOST
+    address = address or settings.ADDRESS_TO_USE or session.account.get_address()
 
     content = PostContent(
         type=post_type,
@@ -323,12 +281,10 @@ async def create_post(
     )
 
     return await submit(
-        account=account,
+        session=session,
         content=content.dict(exclude_none=True),
         message_type=MessageType.post,
         channel=channel,
-        api_server=api_server,
-        session=session,
         allow_inlining=inline,
         storage_engine=storage_engine,
         sync=sync,
@@ -336,31 +292,26 @@ async def create_post(
 
 
 async def create_aggregate(
-    account: Account,
-    key,
-    content,
+    session: UserSession,
+    key: str,
+    content: Mapping[str, Any],
     address: Optional[str] = None,
     channel: Optional[str] = None,
-    session: Optional[ClientSession] = None,
-    api_server: Optional[str] = None,
     inline: bool = True,
     sync: bool = False,
 ) -> Tuple[AggregateMessage, MessageStatus]:
     """
     Create an AGGREGATE message. It is meant to be used as a quick access storage associated with an account.
 
-    :param account: Account to use to sign the message
+    :param session: The current user session object
     :param key: Key to use to store the content
     :param content: Content to store
     :param address: Address to use to sign the message
     :param channel: Channel to use (Default: "TEST")
-    :param session: Session to use (Default: get_fallback_session())
-    :param api_server: API server to use (Default: "https://api2.aleph.im")
     :param inline: Whether to write content inside the message (Default: True)
     :param sync: If true, waits for the message to be processed by the API server (Default: False)
     """
-    address = address or settings.ADDRESS_TO_USE or account.get_address()
-    api_server = api_server or settings.API_HOST
+    address = address or settings.ADDRESS_TO_USE or session.account.get_address()
 
     content_ = AggregateContent(
         key=key,
@@ -370,19 +321,17 @@ async def create_aggregate(
     )
 
     return await submit(
-        account=account,
+        session=session,
         content=content_.dict(exclude_none=True),
         message_type=MessageType.aggregate,
         channel=channel,
-        api_server=api_server,
-        session=session,
         allow_inlining=inline,
         sync=sync,
     )
 
 
 async def create_store(
-    account: Account,
+    session: UserSession,
     address: Optional[str] = None,
     file_content: Optional[bytes] = None,
     file_path: Optional[Union[str, Path]] = None,
@@ -392,8 +341,6 @@ async def create_store(
     storage_engine: StorageEnum = StorageEnum.storage,
     extra_fields: Optional[dict] = None,
     channel: Optional[str] = None,
-    session: Optional[ClientSession] = None,
-    api_server: Optional[str] = None,
     sync: bool = False,
 ) -> Tuple[StoreMessage, MessageStatus]:
     """
@@ -401,7 +348,7 @@ async def create_store(
 
     Can be passed either a file path, an IPFS hash or the file's content as raw bytes.
 
-    :param account: Account to use to sign the message
+    :param session: The current user session object
     :param address: Address to display as the author of the message (Default: account.get_address())
     :param file_content: Byte stream of the file to store (Default: None)
     :param file_path: Path to the file to store (Default: None)
@@ -411,15 +358,11 @@ async def create_store(
     :param storage_engine: Storage engine to use (Default: "storage")
     :param extra_fields: Extra fields to add to the STORE message (Default: None)
     :param channel: Channel to post the message to (Default: "TEST")
-    :param session: aiohttp session to use (Default: get_fallback_session())
-    :param api_server: Aleph API server to use (Default: "https://api2.aleph.im")
     :param sync: If true, waits for the message to be processed by the API server (Default: False)
     """
-    address = address or settings.ADDRESS_TO_USE or account.get_address()
-    api_server = api_server or settings.API_HOST
+    address = address or settings.ADDRESS_TO_USE or session.account.get_address()
 
     extra_fields = extra_fields or {}
-    session = session or get_fallback_session()
 
     if file_hash is None:
         if file_content is None:
@@ -432,12 +375,10 @@ async def create_store(
 
         if storage_engine == StorageEnum.storage:
             file_hash = await storage_push_file(
-                file_content, session=session, api_server=api_server
+                session=session, file_content=file_content
             )
         elif storage_engine == StorageEnum.ipfs:
-            file_hash = await ipfs_push_file(
-                file_content, session=session, api_server=api_server
-            )
+            file_hash = await ipfs_push_file(session=session, file_content=file_content)
         else:
             raise ValueError(f"Unknown storage engine: '{storage_engine}'")
 
@@ -463,19 +404,17 @@ async def create_store(
     content = StoreContent(**values)
 
     return await submit(
-        account=account,
+        session=session,
         content=content.dict(exclude_none=True),
         message_type=MessageType.store,
         channel=channel,
-        api_server=api_server,
-        session=session,
         allow_inlining=True,
         sync=sync,
     )
 
 
 async def create_program(
-    account: Account,
+    session: UserSession,
     program_ref: str,
     entrypoint: str,
     runtime: str,
@@ -483,8 +422,6 @@ async def create_program(
     storage_engine: StorageEnum = StorageEnum.storage,
     channel: Optional[str] = None,
     address: Optional[str] = None,
-    session: Optional[ClientSession] = None,
-    api_server: Optional[str] = None,
     sync: bool = False,
     memory: Optional[int] = None,
     vcpus: Optional[int] = None,
@@ -497,7 +434,7 @@ async def create_program(
     """
     Post a (create) PROGRAM message.
 
-    :param account: Account to use to sign the message
+    :param session: The current user session object
     :param program_ref: Reference to the program to run
     :param entrypoint: Entrypoint to run
     :param runtime: Runtime to use
@@ -505,8 +442,6 @@ async def create_program(
     :param storage_engine: Storage engine to use (Default: "storage")
     :param channel: Channel to use (Default: "TEST")
     :param address: Address to use (Default: account.get_address())
-    :param session: Session to use (Default: get_fallback_session())
-    :param api_server: API server to use (Default: "https://api2.aleph.im")
     :param sync: If true, waits for the message to be processed by the API server
     :param memory: Memory in MB for the VM to be allocated (Default: 128)
     :param vcpus: Number of vCPUs to allocate (Default: 1)
@@ -516,8 +451,7 @@ async def create_program(
     :param volumes: Volumes to mount
     :param subscriptions: Patterns of Aleph messages to forward to the program's event receiver
     """
-    address = address or settings.ADDRESS_TO_USE or account.get_address()
-    api_server = api_server or settings.API_HOST
+    address = address or settings.ADDRESS_TO_USE or session.account.get_address()
 
     volumes = volumes if volumes is not None else []
     memory = memory or settings.DEFAULT_VM_MEMORY
@@ -573,26 +507,22 @@ async def create_program(
     assert content.on.persistent == persistent
 
     return await submit(
-        account=account,
+        session=session,
         content=content.dict(exclude_none=True),
         message_type=MessageType.program,
         channel=channel,
-        api_server=api_server,
         storage_engine=storage_engine,
-        session=session,
         sync=sync,
     )
 
 
 async def forget(
-    account: Account,
+    session: UserSession,
     hashes: List[str],
     reason: Optional[str],
     storage_engine: StorageEnum = StorageEnum.storage,
     channel: Optional[str] = None,
     address: Optional[str] = None,
-    session: Optional[ClientSession] = None,
-    api_server: Optional[str] = None,
     sync: bool = False,
 ) -> Tuple[ForgetMessage, MessageStatus]:
     """
@@ -601,18 +531,15 @@ async def forget(
     Targeted messages need to be signed by the same account that is attempting to forget them,
     if the creating address did not delegate the access rights to the forgetting account.
 
-    :param account: Account to use to sign the message
+    :param session: The current user session object
     :param hashes: Hashes of the messages to forget
     :param reason: Reason for forgetting the messages
     :param storage_engine: Storage engine to use (Default: "storage")
     :param channel: Channel to use (Default: "TEST")
     :param address: Address to use (Default: account.get_address())
-    :param session: Session to use (Default: get_fallback_session())
-    :param api_server: API server to use (Default: "https://api2.aleph.im")
     :param sync: If true, waits for the message to be processed by the API server (Default: False)
     """
-    address = address or settings.ADDRESS_TO_USE or account.get_address()
-    api_server = api_server or settings.API_HOST
+    address = address or settings.ADDRESS_TO_USE or session.account.get_address()
 
     content = ForgetContent(
         hashes=hashes,
@@ -622,13 +549,11 @@ async def forget(
     )
 
     return await submit(
-        account,
+        session=session,
         content=content.dict(exclude_none=True),
         message_type=MessageType.forget,
         channel=channel,
-        api_server=api_server,
         storage_engine=storage_engine,
-        session=session,
         allow_inlining=True,
         sync=sync,
     )
@@ -641,19 +566,17 @@ def compute_sha256(s: str) -> str:
 
 
 async def _prepare_aleph_message(
-    account: Account,
+    session: UserSession,
     message_type: MessageType,
     content: Dict[str, Any],
     channel: Optional[str],
-    session: aiohttp.ClientSession,
-    api_server: str,
     allow_inlining: bool = True,
     storage_engine: StorageEnum = StorageEnum.storage,
 ) -> AlephMessage:
 
     message_dict: Dict[str, Any] = {
-        "sender": account.get_address(),
-        "chain": account.CHAIN,
+        "sender": session.account.get_address(),
+        "chain": session.account.CHAIN,
         "type": message_type,
         "content": content,
         "time": time.time(),
@@ -669,75 +592,65 @@ async def _prepare_aleph_message(
     else:
         if storage_engine == StorageEnum.ipfs:
             message_dict["item_hash"] = await ipfs_push(
-                content, session=session, api_server=api_server
+                session=session,
+                content=content,
             )
             message_dict["item_type"] = ItemType.ipfs
         else:  # storage
             assert storage_engine == StorageEnum.storage
             message_dict["item_hash"] = await storage_push(
-                content, session=session, api_server=api_server
+                session=session,
+                content=content,
             )
             message_dict["item_type"] = ItemType.storage
 
-    message_dict = await account.sign_message(message_dict)
+    message_dict = await session.account.sign_message(message_dict)
     return Message(**message_dict)
 
 
 async def submit(
-    account: Account,
+    session: UserSession,
     content: Dict[str, Any],
     message_type: MessageType,
-    api_server: str,
     channel: Optional[str] = None,
     storage_engine: StorageEnum = StorageEnum.storage,
-    session: Optional[ClientSession] = None,
     allow_inlining: bool = True,
     sync: bool = False,
 ) -> Tuple[AlephMessage, MessageStatus]:
 
-    session = session or get_fallback_session()
-
     message = await _prepare_aleph_message(
-        account=account,
+        session=session,
         message_type=message_type,
         content=content,
         channel=channel,
-        session=session,
-        api_server=api_server,
         allow_inlining=allow_inlining,
         storage_engine=storage_engine,
     )
-    message_status = await _broadcast(
-        message=message, session=session, api_server=api_server, sync=sync
-    )
+    message_status = await _broadcast(session=session, message=message, sync=sync)
     return message, message_status
 
 
 async def fetch_aggregate(
+    session: UserSession,
     address: str,
     key: str,
     limit: int = 100,
-    session: Optional[ClientSession] = None,
-    api_server: Optional[str] = None,
 ) -> Dict[str, Dict]:
     """
     Fetch a value from the aggregate store by owner address and item key.
 
+    :param session: The current user session object
     :param address: Address of the owner of the aggregate
     :param key: Key of the aggregate
     :param limit: Maximum number of items to fetch (Default: 100)
-    :param session: Session to use (Default: get_fallback_session())
-    :param api_server: API server to use (Default: "https://api2.aleph.im")
     """
-    session = session or get_fallback_session()
-    api_server = api_server or settings.API_HOST
 
     params: Dict[str, Any] = {"keys": key}
     if limit:
         params["limit"] = limit
 
-    async with session.get(
-        f"{api_server}/api/v0/aggregates/{address}.json", params=params
+    async with session.http_session.get(
+        f"/api/v0/aggregates/{address}.json", params=params
     ) as resp:
         result = await resp.json()
         data = result.get("data", dict())
@@ -745,23 +658,19 @@ async def fetch_aggregate(
 
 
 async def fetch_aggregates(
+    session: UserSession,
     address: str,
     keys: Optional[Iterable[str]] = None,
     limit: int = 100,
-    session: Optional[ClientSession] = None,
-    api_server: Optional[str] = None,
 ) -> Dict[str, Dict]:
     """
     Fetch key-value pairs from the aggregate store by owner address.
 
+    :param session: The current user session object
     :param address: Address of the owner of the aggregate
     :param keys: Keys of the aggregates to fetch (Default: all items)
     :param limit: Maximum number of items to fetch (Default: 100)
-    :param session: Session to use (Default: get_fallback_session())
-    :param api_server: API server to use (Default: "https://api2.aleph.im")
     """
-    session = session or get_fallback_session()
-    api_server = api_server or settings.API_HOST
 
     keys_str = ",".join(keys) if keys else ""
     params: Dict[str, Any] = {}
@@ -770,8 +679,8 @@ async def fetch_aggregates(
     if limit:
         params["limit"] = limit
 
-    async with session.get(
-        f"{api_server}/api/v0/aggregates/{address}.json",
+    async with session.http_session.get(
+        f"/api/v0/aggregates/{address}.json",
         params=params,
     ) as resp:
         result = await resp.json()
@@ -780,6 +689,7 @@ async def fetch_aggregates(
 
 
 async def get_posts(
+    session: UserSession,
     pagination: int = 200,
     page: int = 1,
     types: Optional[Iterable[str]] = None,
@@ -791,12 +701,11 @@ async def get_posts(
     chains: Optional[Iterable[str]] = None,
     start_date: Optional[Union[datetime, float]] = None,
     end_date: Optional[Union[datetime, float]] = None,
-    session: Optional[ClientSession] = None,
-    api_server: Optional[str] = None,
 ) -> Dict[str, Dict]:
     """
     Fetch a list of posts from the network.
 
+    :param session: The current user session object
     :param pagination: Number of items to fetch (Default: 200)
     :param page: Page to fetch, begins at 1 (Default: 1)
     :param types: Types of posts to fetch (Default: all types)
@@ -808,11 +717,7 @@ async def get_posts(
     :param chains: Chains of the posts to fetch (Default: all chains)
     :param start_date: Earliest date to fetch messages from
     :param end_date: Latest date to fetch messages from
-    :param session: Session to use (Default: get_fallback_session())
-    :param api_server: API server to use (Default: "https://api2.aleph.im")
     """
-    session = session or get_fallback_session()
-    api_server = api_server or settings.API_HOST
 
     params: Dict[str, Any] = dict(pagination=pagination, page=page)
 
@@ -840,34 +745,30 @@ async def get_posts(
             end_date = end_date.timestamp()
         params["endDate"] = end_date
 
-    async with session.get(f"{api_server}/api/v0/posts.json", params=params) as resp:
+    async with session.http_session.get("/api/v0/posts.json", params=params) as resp:
         resp.raise_for_status()
         return await resp.json()
 
 
 async def download_file(
+    session: UserSession,
     file_hash: str,
-    session: Optional[ClientSession] = None,
-    api_server: Optional[str] = None,
 ) -> bytes:
     """
     Get a file from the storage engine as raw bytes.
 
     Warning: Downloading large files can be slow and memory intensive.
 
+    :param session: The current user session object
     :param file_hash: The hash of the file to retrieve.
-    :param session: The aiohttp session to use. (Default: get_fallback_session())
-    :param api_server: The API server to use. (Default: "https://api2.aleph.im")
     """
-    session = session or get_fallback_session()
-    api_server = api_server or settings.API_HOST
-
-    async with session.get(f"{api_server}/api/v0/storage/raw/{file_hash}") as response:
+    async with session.http_session.get(f"/api/v0/storage/raw/{file_hash}") as response:
         response.raise_for_status()
         return await response.read()
 
 
 async def get_messages(
+    session: UserSession,
     pagination: int = 200,
     page: int = 1,
     message_type: Optional[MessageType] = None,
@@ -881,14 +782,13 @@ async def get_messages(
     chains: Optional[Iterable[str]] = None,
     start_date: Optional[Union[datetime, float]] = None,
     end_date: Optional[Union[datetime, float]] = None,
-    session: Optional[ClientSession] = None,
-    api_server: Optional[str] = None,
     ignore_invalid_messages: bool = True,
     invalid_messages_log_level: int = logging.NOTSET,
 ) -> MessagesResponse:
     """
     Fetch a list of messages from the network.
 
+    :param session: The current user session object
     :param pagination: Number of items to fetch (Default: 200)
     :param page: Page to fetch, begins at 1 (Default: 1)
     :param message_type: Filter by message type, can be "AGGREGATE", "POST", "PROGRAM", "VM", "STORE" or "FORGET"
@@ -902,13 +802,9 @@ async def get_messages(
     :param chains: Filter by sender address chain
     :param start_date: Earliest date to fetch messages from
     :param end_date: Latest date to fetch messages from
-    :param session: Session to use (Default: get_fallback_session())
-    :param api_server: API server to use (Default: "https://api2.aleph.im")
     :param ignore_invalid_messages: Ignore invalid messages (Default: False)
     :param invalid_messages_log_level: Log level to use for invalid messages (Default: logging.NOTSET)
     """
-    session = session or get_fallback_session()
-    api_server = api_server or settings.API_HOST
     ignore_invalid_messages = (
         True if ignore_invalid_messages is None else ignore_invalid_messages
     )
@@ -948,7 +844,7 @@ async def get_messages(
             end_date = end_date.timestamp()
         params["endDate"] = end_date
 
-    async with session.get(f"{api_server}/api/v0/messages.json", params=params) as resp:
+    async with session.http_session.get("/api/v0/messages.json", params=params) as resp:
         resp.raise_for_status()
         response_json = await resp.json()
         messages_raw = response_json["messages"]
@@ -983,26 +879,23 @@ async def get_messages(
 
 
 async def get_message(
+    session: UserSession,
     item_hash: str,
     message_type: Optional[Type[GenericMessage]] = None,
     channel: Optional[str] = None,
-    session: Optional[ClientSession] = None,
-    api_server: Optional[str] = None,
 ) -> GenericMessage:
     """
     Get a single message from its `item_hash` and perform some basic validation.
 
+    :param session: The current user session object
     :param item_hash: Hash of the message to fetch
     :param message_type: Type of message to fetch
     :param channel: Channel of the message to fetch
-    :param session: Session to use (Default: get_fallback_session())
-    :param api_server: API server to use (Default: "https://api2.aleph.im")
     """
     messages_response = await get_messages(
-        hashes=[item_hash],
         session=session,
+        hashes=[item_hash],
         channels=[channel] if channel else None,
-        api_server=api_server,
     )
     if len(messages_response.messages) < 1:
         raise MessageNotFoundError(f"No such hash {item_hash}")
@@ -1022,6 +915,7 @@ async def get_message(
 
 
 async def watch_messages(
+    session: UserSession,
     message_type: Optional[MessageType] = None,
     content_types: Optional[Iterable[str]] = None,
     refs: Optional[Iterable[str]] = None,
@@ -1032,12 +926,11 @@ async def watch_messages(
     chains: Optional[Iterable[str]] = None,
     start_date: Optional[Union[datetime, float]] = None,
     end_date: Optional[Union[datetime, float]] = None,
-    session: Optional[ClientSession] = None,
-    api_server: Optional[str] = None,
 ) -> AsyncIterable[AlephMessage]:
     """
     Iterate over current and future matching messages asynchronously.
 
+    :param session: The current user session object
     :param message_type: Type of message to watch
     :param content_types: Content types to watch
     :param refs: References to watch
@@ -1048,12 +941,7 @@ async def watch_messages(
     :param chains: Chains to watch
     :param start_date: Start date from when to watch
     :param end_date: End date until when to watch
-    :param session: Session to use (Default: get_fallback_session())
-    :param api_server: API server to use (Default: "https://api2.aleph.im")
     """
-    session = session or get_fallback_session()
-    api_server = api_server or settings.API_HOST
-
     params: Dict[str, Any] = dict()
 
     if message_type is not None:
@@ -1082,8 +970,8 @@ async def watch_messages(
             end_date = end_date.timestamp()
         params["endDate"] = end_date
 
-    async with session.ws_connect(
-        f"{api_server}/api/ws0/messages", params=params
+    async with session.http_session.ws_connect(
+        f"/api/ws0/messages", params=params
     ) as ws:
         logger.debug("Websocket connected")
         async for msg in ws:

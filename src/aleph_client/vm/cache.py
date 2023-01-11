@@ -1,13 +1,9 @@
-import re
-import fnmatch
 import abc
+import fnmatch
+import re
 from typing import Union, Optional, Any, Dict, List, NewType
 
-from aiohttp import ClientSession
-
-from aleph_client.asynchronous import get_fallback_session
-from ..conf import settings
-
+import aiohttp
 
 CacheKey = NewType("CacheKey", str)
 
@@ -45,18 +41,16 @@ class BaseVmCache(abc.ABC):
 class VmCache(BaseVmCache):
     """Virtual Machines can use this cache to store temporary data in memory on the host."""
 
-    session: ClientSession
+    session: aiohttp.ClientSession
     cache: Dict[str, bytes]
-    api_host: str
 
-    def __init__(self, session: Optional[ClientSession] = None, api_host: Optional[str] = None):
-        self.session = session or get_fallback_session()
+    def __init__(self, session: aiohttp.ClientSession):
+        self.session = session
         self.cache = {}
-        self.api_host = api_host if api_host else settings.API_HOST
 
     async def get(self, key: str) -> Optional[bytes]:
         sanitized_key = sanitize_cache_key(key)
-        async with self.session.get(f"{self.api_host}/cache/{sanitized_key}") as resp:
+        async with self.session.get(f"/cache/{sanitized_key}") as resp:
             if resp.status == 404:
                 return None
 
@@ -66,15 +60,13 @@ class VmCache(BaseVmCache):
     async def set(self, key: str, value: Union[str, bytes]) -> Any:
         sanitized_key = sanitize_cache_key(key)
         data = value if isinstance(value, bytes) else value.encode()
-        async with self.session.put(
-            f"{self.api_host}/cache/{sanitized_key}", data=data
-        ) as resp:
+        async with self.session.put(f"/cache/{sanitized_key}", data=data) as resp:
             resp.raise_for_status()
             return await resp.json()
 
     async def delete(self, key: str) -> Any:
         sanitized_key = sanitize_cache_key(key)
-        async with self.session.delete(f"{self.api_host}/cache/{sanitized_key}") as resp:
+        async with self.session.delete(f"/cache/{sanitized_key}") as resp:
             resp.raise_for_status()
             return await resp.json()
 
@@ -83,9 +75,7 @@ class VmCache(BaseVmCache):
             raise ValueError(
                 "Pattern may only contain letters, numbers, underscore, ?, *, ^, -"
             )
-        async with self.session.get(
-            f"{self.api_host}/cache/?pattern={pattern}"
-        ) as resp:
+        async with self.session.get(f"/cache/?pattern={pattern}") as resp:
             resp.raise_for_status()
             return await resp.json()
 

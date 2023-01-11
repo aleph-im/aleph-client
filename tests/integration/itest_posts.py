@@ -6,6 +6,7 @@ from aleph_client.asynchronous import (
     create_post,
     get_messages,
 )
+from aleph_client.user_session import UserSession
 from tests.integration.toolkit import try_until
 from .config import REFERENCE_NODE, TARGET_NODE
 
@@ -16,29 +17,27 @@ async def create_message_on_target(
     """
     Create a POST message on the target node, then fetch it from the reference node.
     """
-
-    post_message, message_status = await create_post(
-        account=fixture_account,
-        post_content=None,
-        post_type="POST",
-        channel="INTEGRATION_TESTS",
-        session=None,
-        api_server=emitter_node,
-    )
+    async with UserSession(account=fixture_account, api_server=emitter_node) as tx_session:
+        post_message, message_status = await create_post(
+            session=tx_session,
+            post_content=None,
+            post_type="POST",
+            channel="INTEGRATION_TESTS",
+        )
 
     def response_contains_messages(response: MessagesResponse) -> bool:
         return len(response.messages) > 0
 
-    # create_message = Message(**created_message_dict)
-    response_dict = await try_until(
-        get_messages,
-        response_contains_messages,
-        timeout=5,
-        hashes=[post_message.item_hash],
-        api_server=receiver_node,
-    )
+    async with UserSession(account=fixture_account, api_server=receiver_node) as rx_session:
+        responses = await try_until(
+            get_messages,
+            response_contains_messages,
+            session=rx_session,
+            timeout=5,
+            hashes=[post_message.item_hash],
+        )
 
-    message_from_target = Message(**response_dict["messages"][0])
+    message_from_target = responses.messages[0]
     assert post_message.item_hash == message_from_target.item_hash
 
 

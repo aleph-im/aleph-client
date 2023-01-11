@@ -1,3 +1,4 @@
+import aiohttp
 import pytest
 
 from aleph_client.vm.cache import TestVmCache, sanitize_cache_key
@@ -5,6 +6,8 @@ from aleph_client.vm.cache import TestVmCache, sanitize_cache_key
 
 @pytest.mark.asyncio
 async def test_local_vm_cache():
+    http_session = aiohttp.ClientSession(base_url="http://localhost:8000")
+
     cache = TestVmCache()
     assert (await cache.get("doesnotexist")) is None
     assert len(await (cache.keys())) == 0

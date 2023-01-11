@@ -1,4 +1,3 @@
-import asyncio
 import json
 import os.path
 import subprocess
@@ -15,7 +14,6 @@ from aleph_message.models import (
 
 from aleph_client import synchronous
 from aleph_client.account import _load_account
-from aleph_client.asynchronous import get_fallback_session
 from aleph_client.commands import help_strings
 from aleph_client.commands.utils import (
     setup_logging,
@@ -78,20 +76,16 @@ def post(
             typer.echo("Not valid JSON")
             raise typer.Exit(code=2)
 
-    try:
-        result: PostMessage = synchronous.create_post(
-            account=account,
-            post_content=content,
-            post_type=type,
-            ref=ref,
-            channel=channel,
-            inline=True,
-            storage_engine=storage_engine,
-        )
-        typer.echo(result.json(indent=4))
-    finally:
-        # Prevent aiohttp unclosed connector warning
-        asyncio.run(get_fallback_session().close())
+    result: PostMessage = synchronous.create_post(
+        account=account,
+        post_content=content,
+        post_type=type,
+        ref=ref,
+        channel=channel,
+        inline=True,
+        storage_engine=storage_engine,
+    )
+    typer.echo(result.json(indent=4))
 
 
 @app.command()
@@ -146,17 +140,13 @@ def forget_messages(
         reason: Optional[str],
         channel: str,
 ):
-    try:
-        result: ForgetMessage = synchronous.forget(
-            account=account,
-            hashes=hashes,
-            reason=reason,
-            channel=channel,
-        )
-        typer.echo(f"{result.json(indent=4)}")
-    finally:
-        # Prevent aiohttp unclosed connector warning
-        asyncio.run(get_fallback_session().close())
+    result: ForgetMessage = synchronous.forget(
+        account=account,
+        hashes=hashes,
+        reason=reason,
+        channel=channel,
+    )
+    typer.echo(f"{result.json(indent=4)}")
 
 
 @app.command()
