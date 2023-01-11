@@ -1,12 +1,21 @@
 import re
 import fnmatch
 import abc
-from typing import Union, Optional, Any, Dict, List
+from typing import Union, Optional, Any, Dict, List, NewType
 
 from aiohttp import ClientSession
 
 from aleph_client.asynchronous import get_fallback_session
 from ..conf import settings
+
+
+CacheKey = NewType("CacheKey", str)
+
+
+def sanitize_cache_key(key: str) -> CacheKey:
+    if not re.match(r"^\w+$", key):
+        raise ValueError("Key may only contain letters, numbers and underscore")
+    return CacheKey(key)
 
 
 class BaseVmCache(abc.ABC):
@@ -50,9 +59,8 @@ class VmCache(BaseVmCache):
         self.api_host = api_host if api_host else settings.API_HOST
 
     async def get(self, key: str) -> Optional[bytes]:
-        if not re.match(r"^\w+$", key):
-            raise ValueError("Key may only contain letters, numbers and underscore")
-        async with self.session.get(f"{self.api_host}/cache/{key}") as resp:
+        sanitized_key = sanitize_cache_key(key)
+        async with self.session.get(f"{self.api_host}/cache/{sanitized_key}") as resp:
             if resp.status == 404:
                 return None
 
@@ -60,19 +68,17 @@ class VmCache(BaseVmCache):
             return await resp.read()
 
     async def set(self, key: str, value: Union[str, bytes]) -> Any:
-        if not re.match(r"^\w+$", key):
-            raise ValueError("Key may only contain letters, numbers and underscore")
+        sanitized_key = sanitize_cache_key(key)
         data = value if isinstance(value, bytes) else value.encode()
         async with self.session.put(
-            f"{self.api_host}/cache/{key}", data=data
+            f"{self.api_host}/cache/{sanitized_key}", data=data
         ) as resp:
             resp.raise_for_status()
             return await resp.json()
 
     async def delete(self, key: str) -> Any:
-        if not re.match(r"^\w+$", key):
-            raise ValueError("Key may only contain letters, numbers and underscore")
-        async with self.session.delete(f"{self.api_host}/cache/{key}") as resp:
+        sanitized_key = sanitize_cache_key(key)
+        async with self.session.delete(f"{self.api_host}/cache/{sanitized_key}") as resp:
             resp.raise_for_status()
             return await resp.json()
 
@@ -96,20 +102,17 @@ class TestVmCache(BaseVmCache):
         self._cache: Dict[str, bytes] = {}
 
     async def get(self, key: str) -> Optional[bytes]:
-        if not re.match(r"^\w+$", key):
-            raise ValueError("Key may only contain letters, numbers and underscore")
-        return self._cache.get(key)
+        sanitized_key = sanitize_cache_key(key)
+        return self._cache.get(sanitized_key)
 
     async def set(self, key: str, value: Union[str, bytes]) -> None:
-        if not re.match(r"^\w+$", key):
-            raise ValueError("Key may only contain letters, numbers and underscore")
+        sanitized_key = sanitize_cache_key(key)
         data = value if isinstance(value, bytes) else value.encode()
-        self._cache[key] = data
+        self._cache[sanitized_key] = data
 
     async def delete(self, key: str) -> None:
-        if not re.match(r"^\w+$", key):
-            raise ValueError("Key may only contain letters, numbers and underscore")
-        del self._cache[key]
+        sanitized_key = sanitize_cache_key(key)
+        del self._cache[sanitized_key]
 
     async def keys(self, pattern: str = "*") -> List[str]:
         if not re.match(r"^[\w?*^\-]+$", pattern):

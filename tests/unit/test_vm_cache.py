@@ -1,9 +1,11 @@
 import pytest
 
-from aleph_client.vm.cache import TestVmCache, BaseVmCache
+from aleph_client.vm.cache import TestVmCache, sanitize_cache_key
 
 
-async def test_cache(cache: BaseVmCache):
+@pytest.mark.asyncio
+async def test_local_vm_cache():
+    cache = TestVmCache()
     assert (await cache.get("doesnotexist")) is None
     assert len(await (cache.keys())) == 0
     key = "thisdoesexist"
@@ -17,7 +19,13 @@ async def test_cache(cache: BaseVmCache):
     assert len(await (cache.keys())) == 0
 
 
-@pytest.mark.asyncio
-async def test_local_vm_cache():
-    cache = TestVmCache()
-    await test_cache(cache)
+def test_sanitize_cache_keys():
+    assert sanitize_cache_key("abc")
+    assert sanitize_cache_key("abc123")
+    assert sanitize_cache_key("abc_123")
+    with pytest.raises(ValueError):
+        sanitize_cache_key("abc-123")
+    with pytest.raises(ValueError):
+        sanitize_cache_key("abc!123")
+    with pytest.raises(ValueError):
+        assert sanitize_cache_key("*")
