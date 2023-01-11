@@ -38,12 +38,12 @@ async def source_post(request):
         if secret != app['secret']:
             return web.json_response({'status': 'error',
                                       'message': 'unauthorized secret'})
-    value = await create_post(app['account'], data,
+    message, _status = await create_post(app['account'], data,
                               'event', channel=app['channel'],
                               api_server='https://api2.aleph.im')
 
     return web.json_response({'status': 'success',
-                              'item_hash': value['item_hash']})
+                              'item_hash': message.item_hash})
     
 
 @click.command()

@@ -70,8 +70,8 @@ def main():
     account = get_fallback_account()
     while True:
         metrics = collect_metrics()
-        ret = send_metrics(account, metrics)
-        print("sent", ret['item_hash'])
+        message, status = send_metrics(account, metrics)
+        print("sent", message.item_hash)
         time.sleep(10)
 
 

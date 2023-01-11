@@ -1,7 +1,7 @@
 import asyncio
 import queue
 import threading
-from typing import List, Optional, Dict, Iterable, Type
+from typing import Any, Callable, List, Optional, Dict, Iterable, Type, Protocol, TypeVar, Awaitable
 
 from aiohttp import ClientSession
 from aleph_message.models import AlephMessage
@@ -12,7 +12,10 @@ from .conf import settings
 from .types import Account, StorageEnum, GenericMessage
 
 
-def wrap_async(func):
+T = TypeVar("T")
+
+
+def wrap_async(func: Callable[..., Awaitable[T]]) -> Callable[..., T]:
     """Wrap an asynchronous function into a synchronous one,
     for easy use in synchronous code.
     """
@@ -35,7 +38,6 @@ ipfs_push = wrap_async(asynchronous.ipfs_push)
 storage_push = wrap_async(asynchronous.storage_push)
 ipfs_push_file = wrap_async(asynchronous.ipfs_push_file)
 storage_push_file = wrap_async(asynchronous.storage_push_file)
-broadcast = wrap_async(asynchronous.broadcast)
 create_aggregate = wrap_async(asynchronous.create_aggregate)
 create_store = wrap_async(asynchronous.create_store)
 submit = wrap_async(asynchronous.submit)

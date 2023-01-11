@@ -15,6 +15,7 @@ class Settings(BaseSettings):
 
     PRIVATE_KEY_STRING: Optional[str] = None
     API_HOST: str = "https://api2.aleph.im"
+    MAX_INLINE_SIZE: int = 50000
     API_UNIX_SOCKET: Optional[str] = None
     REMOTE_CRYPTO_HOST: Optional[str] = None
     REMOTE_CRYPTO_UNIX_SOCKET: Optional[str] = None

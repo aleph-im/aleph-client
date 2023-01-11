@@ -12,6 +12,14 @@ class StorageEnum(str, Enum):
     storage = "storage"
 
 
+# TODO: this class is duplicated in pyaleph. Move it to aleph-message.
+class MessageStatus(str, Enum):
+    PENDING = "pending"
+    PROCESSED = "processed"
+    REJECTED = "rejected"
+    FORGOTTEN = "forgotten"
+
+
 # Use a protocol to avoid importing crypto libraries
 class Account(Protocol):
     CHAIN: str

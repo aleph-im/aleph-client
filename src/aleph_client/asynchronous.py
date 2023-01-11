@@ -9,8 +9,17 @@ import threading
 import time
 from datetime import datetime
 from functools import lru_cache
-from typing import Type, Mapping, Optional, Union, Any, Dict, List, Iterable, AsyncIterable
 from pathlib import Path
+from typing import (
+    Optional,
+    Union,
+    Any,
+    Dict,
+    List,
+    Iterable,
+    AsyncIterable,
+)
+from typing import Type, Mapping, Tuple, NoReturn
 
 from aleph_message.models import (
     ForgetContent,
@@ -29,8 +38,13 @@ from aleph_message.models import (
 )
 from pydantic import ValidationError
 
-from aleph_client.types import Account, StorageEnum, GenericMessage
-from .exceptions import MessageNotFoundError, MultipleMessagesError
+from aleph_client.types import Account, StorageEnum, GenericMessage, MessageStatus
+from .exceptions import (
+    MessageNotFoundError,
+    MultipleMessagesError,
+    InvalidMessageError,
+    BroadcastError,
+)
 from .models import MessagesResponse
 from .utils import get_message_type_value
 
@@ -144,26 +158,29 @@ def _log_publication_status(publication_status: Mapping[str, Any]):
         )
 
 
-async def _handle_broadcast_error(response: aiohttp.ClientResponse) -> None:
+async def _handle_broadcast_error(response: aiohttp.ClientResponse) -> NoReturn:
     if response.status == 500:
         # Assume a broadcast error, no need to read the JSON
         if response.content_type == "application/json":
-            logger.error("Internal error - broadcast failed on all protocols")
+            error_msg = "Internal error - broadcast failed on all protocols"
         else:
-            logger.error(
-                "Internal error - the message was not broadcast: %s",
-                await response.text(),
-            )
-            response.raise_for_status()
+            error_msg = f"Internal error - the message was not broadcast: {await response.text()}"
+
+        logger.error(error_msg)
+        raise BroadcastError(error_msg)
     elif response.status == 422:
+        errors = await response.json()
         logger.error(
             "The message could not be processed because of the following errors: %s",
-            await response.json(),
+            errors,
         )
+        raise InvalidMessageError(errors)
     else:
-        logger.error(
-            "Unexpected HTTP response (%d): %s", response.status, await response.text()
+        error_msg = (
+            f"Unexpected HTTP response ({response.status}: {await response.text()})"
         )
+        logger.error(error_msg)
+        raise BroadcastError(error_msg)
 
 
 async def _handle_broadcast_deprecated_response(
@@ -177,7 +194,7 @@ async def _handle_broadcast_deprecated_response(
 
 
 async def _broadcast_deprecated(
-    message: Mapping[str, Any],
+    message_dict: Mapping[str, Any],
     session: ClientSession,
     api_server: str = settings.API_HOST,
 ):
@@ -192,37 +209,63 @@ async def _broadcast_deprecated(
 
     async with session.post(
         url,
-        json={"topic": "ALEPH-TEST", "data": json.dumps(message)},
+        json={"topic": "ALEPH-TEST", "data": json.dumps(message_dict)},
     ) as response:
         await _handle_broadcast_deprecated_response(response)
 
 
 async def _handle_broadcast_response(
     response: aiohttp.ClientResponse, sync: bool
-) -> None:
-    if response.status not in (200, 202):
-        await _handle_broadcast_error(response)
-    else:
+) -> MessageStatus:
+    if response.status in (200, 202):
         status = await response.json()
         _log_publication_status(status["publication_status"])
 
-        if sync and response.status == 202:
-            logger.warning("Timed out while waiting for processing of sync message")
+        if response.status == 202:
+            if sync:
+                logger.warning("Timed out while waiting for processing of sync message")
+            return MessageStatus.PENDING
+
+        return MessageStatus.PROCESSED
+
+    else:
+        await _handle_broadcast_error(response)
 
 
-async def broadcast(
-    message,
+BROADCAST_MESSAGE_FIELDS = {
+    "sender",
+    "chain",
+    "signature",
+    "type",
+    "item_hash",
+    "item_type",
+    "item_content",
+    "time",
+    "channel",
+}
+
+
+async def _broadcast(
+    message: AlephMessage,
+    sync: bool,
     session: ClientSession,
     api_server: str,
-    sync: bool = True,
-) -> None:
-    """Broadcast a message on the Aleph network via pubsub for nodes to pick it up."""
+) -> MessageStatus:
+    """
+    Broadcast a message on the Aleph network.
+
+    Uses the POST /messages/ endpoint or the deprecated /ipfs/pubsub/pub/ endpoint
+    if the first method is not available.
+    """
+
     url = f"{api_server}/api/v0/messages"
     logger.debug(f"Posting message on {url}")
 
+    message_dict = message.dict(include=BROADCAST_MESSAGE_FIELDS)
+
     async with session.post(
         url,
-        json={"sync": sync, "message": message},
+        json={"sync": sync, "message": message_dict},
     ) as response:
         # The endpoint may be unavailable on this node, try the deprecated version.
         if response.status == 404:
@@ -230,10 +273,14 @@ async def broadcast(
                 "POST /messages/ not found. Defaulting to legacy endpoint..."
             )
             await _broadcast_deprecated(
-                message=message, session=session, api_server=api_server
+                message_dict=message_dict, session=session, api_server=api_server
             )
+            return MessageStatus.PENDING
         else:
-            await _handle_broadcast_response(response=response, sync=sync)
+            message_status = await _handle_broadcast_response(
+                response=response, sync=sync
+            )
+            return message_status
 
 
 async def create_post(
@@ -247,7 +294,8 @@ async def create_post(
     api_server: Optional[str] = None,
     inline: bool = True,
     storage_engine: StorageEnum = StorageEnum.storage,
-) -> PostMessage:
+    sync: bool = False,
+) -> Tuple[PostMessage, MessageStatus]:
     """
     Create a POST message on the Aleph network. It is associated with a channel and owned by an account.
 
@@ -261,8 +309,10 @@ async def create_post(
     :param api_server: An optional API server to use for the request (Default: "https://api2.aleph.im")
     :param inline: An optional flag to indicate if the content should be inlined in the message or not
     :param storage_engine: An optional storage engine to use for the message, if not inlined (Default: "storage")
+    :param sync: If true, waits for the message to be processed by the API server (Default: False)
     """
     address = address or settings.ADDRESS_TO_USE or account.get_address()
+    api_server = api_server or settings.API_HOST
 
     content = PostContent(
         type=post_type,
@@ -279,8 +329,9 @@ async def create_post(
         channel=channel,
         api_server=api_server,
         session=session,
-        inline=inline,
+        allow_inlining=inline,
         storage_engine=storage_engine,
+        sync=sync,
     )
 
 
@@ -293,7 +344,8 @@ async def create_aggregate(
     session: Optional[ClientSession] = None,
     api_server: Optional[str] = None,
     inline: bool = True,
-) -> AggregateMessage:
+    sync: bool = False,
+) -> Tuple[AggregateMessage, MessageStatus]:
     """
     Create an AGGREGATE message. It is meant to be used as a quick access storage associated with an account.
 
@@ -305,8 +357,10 @@ async def create_aggregate(
     :param session: Session to use (Default: get_fallback_session())
     :param api_server: API server to use (Default: "https://api2.aleph.im")
     :param inline: Whether to write content inside the message (Default: True)
+    :param sync: If true, waits for the message to be processed by the API server (Default: False)
     """
     address = address or settings.ADDRESS_TO_USE or account.get_address()
+    api_server = api_server or settings.API_HOST
 
     content_ = AggregateContent(
         key=key,
@@ -322,7 +376,8 @@ async def create_aggregate(
         channel=channel,
         api_server=api_server,
         session=session,
-        inline=inline,
+        allow_inlining=inline,
+        sync=sync,
     )
 
 
@@ -339,7 +394,8 @@ async def create_store(
     channel: Optional[str] = None,
     session: Optional[ClientSession] = None,
     api_server: Optional[str] = None,
-) -> StoreMessage:
+    sync: bool = False,
+) -> Tuple[StoreMessage, MessageStatus]:
     """
     Create a STORE message to store a file on the Aleph network.
 
@@ -357,16 +413,20 @@ async def create_store(
     :param channel: Channel to post the message to (Default: "TEST")
     :param session: aiohttp session to use (Default: get_fallback_session())
     :param api_server: Aleph API server to use (Default: "https://api2.aleph.im")
+    :param sync: If true, waits for the message to be processed by the API server (Default: False)
     """
     address = address or settings.ADDRESS_TO_USE or account.get_address()
+    api_server = api_server or settings.API_HOST
+
     extra_fields = extra_fields or {}
     session = session or get_fallback_session()
-    api_server = api_server or settings.API_HOST
 
     if file_hash is None:
         if file_content is None:
             if file_path is None:
-                raise ValueError("Please specify at least a file_content, a file_hash or a file_path")
+                raise ValueError(
+                    "Please specify at least a file_content, a file_hash or a file_path"
+                )
             else:
                 file_content = open(file_path, "rb").read()
 
@@ -409,7 +469,8 @@ async def create_store(
         channel=channel,
         api_server=api_server,
         session=session,
-        inline=True,
+        allow_inlining=True,
+        sync=sync,
     )
 
 
@@ -424,6 +485,7 @@ async def create_program(
     address: Optional[str] = None,
     session: Optional[ClientSession] = None,
     api_server: Optional[str] = None,
+    sync: bool = False,
     memory: Optional[int] = None,
     vcpus: Optional[int] = None,
     timeout_seconds: Optional[float] = None,
@@ -431,7 +493,7 @@ async def create_program(
     encoding: Encoding = Encoding.zip,
     volumes: Optional[List[Mapping]] = None,
     subscriptions: Optional[List[Mapping]] = None,
-) -> ProgramMessage:
+) -> Tuple[ProgramMessage, MessageStatus]:
     """
     Post a (create) PROGRAM message.
 
@@ -445,6 +507,7 @@ async def create_program(
     :param address: Address to use (Default: account.get_address())
     :param session: Session to use (Default: get_fallback_session())
     :param api_server: API server to use (Default: "https://api2.aleph.im")
+    :param sync: If true, waits for the message to be processed by the API server
     :param memory: Memory in MB for the VM to be allocated (Default: 128)
     :param vcpus: Number of vCPUs to allocate (Default: 1)
     :param timeout_seconds: Timeout in seconds (Default: 30.0)
@@ -454,6 +517,8 @@ async def create_program(
     :param subscriptions: Patterns of Aleph messages to forward to the program's event receiver
     """
     address = address or settings.ADDRESS_TO_USE or account.get_address()
+    api_server = api_server or settings.API_HOST
+
     volumes = volumes if volumes is not None else []
     memory = memory or settings.DEFAULT_VM_MEMORY
     vcpus = vcpus or settings.DEFAULT_VM_VCPUS
@@ -500,18 +565,6 @@ async def create_program(
                 else "",
             },
             "volumes": volumes,
-            # {
-            #     "mount": "/opt/venv",
-            #     "ref": "5f31b0706f59404fad3d0bff97ef89ddf24da4761608ea0646329362c662ba51",
-            #     "use_latest": False
-            # },
-            # {
-            #     "comment": "Working data persisted on the VM supervisor, not available on other nodes",
-            #     "mount": "/var/lib/sqlite",
-            #     "name": "database",
-            #     "persistence": "host",
-            #     "size_mib": 5
-            # }
             "time": time.time(),
         }
     )
@@ -527,6 +580,7 @@ async def create_program(
         api_server=api_server,
         storage_engine=storage_engine,
         session=session,
+        sync=sync,
     )
 
 
@@ -539,7 +593,8 @@ async def forget(
     address: Optional[str] = None,
     session: Optional[ClientSession] = None,
     api_server: Optional[str] = None,
-) -> ForgetMessage:
+    sync: bool = False,
+) -> Tuple[ForgetMessage, MessageStatus]:
     """
     Post a FORGET message to remove previous messages from the network.
 
@@ -554,8 +609,10 @@ async def forget(
     :param address: Address to use (Default: account.get_address())
     :param session: Session to use (Default: get_fallback_session())
     :param api_server: API server to use (Default: "https://api2.aleph.im")
+    :param sync: If true, waits for the message to be processed by the API server (Default: False)
     """
     address = address or settings.ADDRESS_TO_USE or account.get_address()
+    api_server = api_server or settings.API_HOST
 
     content = ForgetContent(
         hashes=hashes,
@@ -571,62 +628,89 @@ async def forget(
         channel=channel,
         api_server=api_server,
         storage_engine=storage_engine,
-        session=session
+        session=session,
+        allow_inlining=True,
+        sync=sync,
     )
 
 
-async def submit(
-    account: Account,
-    content: Mapping,
-    message_type: MessageType,
-    channel: Optional[str] = None,
-    api_server: Optional[str] = None,
-    storage_engine: StorageEnum = StorageEnum.storage,
-    session: Optional[ClientSession] = None,
-    inline: bool = True,
-) -> AlephMessage:
-    """Main function to post a message to the network. Use the other functions in this module if you can."""
-    channel = channel or settings.DEFAULT_CHANNEL
-    api_server = api_server or settings.API_HOST
-    session = session or get_fallback_session()
+def compute_sha256(s: str) -> str:
+    h = hashlib.sha256()
+    h.update(s.encode("utf-8"))
+    return h.hexdigest()
 
-    message: Dict[str, Any] = {
-        # 'item_hash': ipfs_hash,
-        "chain": account.CHAIN,
-        "channel": channel,
+
+async def _prepare_aleph_message(
+    account: Account,
+    message_type: MessageType,
+    content: Dict[str, Any],
+    channel: Optional[str],
+    session: aiohttp.ClientSession,
+    api_server: str,
+    allow_inlining: bool = True,
+    storage_engine: StorageEnum = StorageEnum.storage,
+) -> AlephMessage:
+
+    message_dict: Dict[str, Any] = {
         "sender": account.get_address(),
+        "chain": account.CHAIN,
         "type": message_type,
+        "content": content,
         "time": time.time(),
+        "channel": channel,
     }
 
     item_content: str = json.dumps(content, separators=(",", ":"))
 
-    if inline and (len(item_content) < 50000):
-        message["item_content"] = item_content
-        h = hashlib.sha256()
-        h.update(message["item_content"].encode("utf-8"))
-        message["item_hash"] = h.hexdigest()
-        message["item_type"] = ItemType.inline
+    if allow_inlining and (len(item_content) < settings.MAX_INLINE_SIZE):
+        message_dict["item_content"] = item_content
+        message_dict["item_hash"] = compute_sha256(item_content)
+        message_dict["item_type"] = ItemType.inline
     else:
         if storage_engine == StorageEnum.ipfs:
-            message["item_hash"] = await ipfs_push(
+            message_dict["item_hash"] = await ipfs_push(
                 content, session=session, api_server=api_server
             )
-            message["item_type"] = ItemType.ipfs
+            message_dict["item_type"] = ItemType.ipfs
         else:  # storage
             assert storage_engine == StorageEnum.storage
-            message["item_hash"] = await storage_push(
+            message_dict["item_hash"] = await storage_push(
                 content, session=session, api_server=api_server
             )
-            message["item_type"] = ItemType.storage
+            message_dict["item_type"] = ItemType.storage
 
-    message = await account.sign_message(message)
-    await broadcast(message, session=session, api_server=api_server)
+    message_dict = await account.sign_message(message_dict)
+    return Message(**message_dict)
 
-    # let's add the content to the object so users can access it.
-    message["content"] = content
 
-    return Message(**message)
+async def submit(
+    account: Account,
+    content: Dict[str, Any],
+    message_type: MessageType,
+    api_server: str,
+    channel: Optional[str] = None,
+    storage_engine: StorageEnum = StorageEnum.storage,
+    session: Optional[ClientSession] = None,
+    allow_inlining: bool = True,
+    sync: bool = False,
+) -> Tuple[AlephMessage, MessageStatus]:
+
+    session = session or get_fallback_session()
+
+    message = await _prepare_aleph_message(
+        account=account,
+        message_type=message_type,
+        content=content,
+        channel=channel,
+        session=session,
+        api_server=api_server,
+        allow_inlining=allow_inlining,
+        storage_engine=storage_engine,
+    )
+    message_status = await _broadcast(
+        message=message, session=session, api_server=api_server, sync=sync
+    )
+    return message, message_status
 
 
 async def fetch_aggregate(
@@ -762,9 +846,9 @@ async def get_posts(
 
 
 async def download_file(
-        file_hash: str,
-        session: Optional[ClientSession] = None,
-        api_server: Optional[str] = None
+    file_hash: str,
+    session: Optional[ClientSession] = None,
+    api_server: Optional[str] = None,
 ) -> bytes:
     """
     Get a file from the storage engine as raw bytes.
@@ -825,8 +909,14 @@ async def get_messages(
     """
     session = session or get_fallback_session()
     api_server = api_server or settings.API_HOST
-    ignore_invalid_messages = True if ignore_invalid_messages is None else ignore_invalid_messages
-    invalid_messages_log_level = logging.NOTSET if invalid_messages_log_level is None else invalid_messages_log_level
+    ignore_invalid_messages = (
+        True if ignore_invalid_messages is None else ignore_invalid_messages
+    )
+    invalid_messages_log_level = (
+        logging.NOTSET
+        if invalid_messages_log_level is None
+        else invalid_messages_log_level
+    )
 
     params: Dict[str, Any] = dict(pagination=pagination, page=page)
 
