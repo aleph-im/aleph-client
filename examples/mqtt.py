@@ -2,21 +2,15 @@
 """
 # -*- coding: utf-8 -*-
 
-import os
-
-# import requests
-import platform
-
-# import socket
-import time
-import aiomqtt
 import asyncio
-import click
-from aleph_client.main import create_aggregate, create_post
+from typing import Dict
 
-# from aleph_client.chains.nuls1 import NULSAccount, get_fallback_account
-from aleph_client.chains.ethereum import ETHAccount
+import aiomqtt
+import click
+
 from aleph_client.chains.common import get_fallback_private_key
+from aleph_client.chains.ethereum import ETHAccount
+from aleph_client.main import create_aggregate
 
 
 def get_input_data(value):
@@ -32,7 +26,6 @@ def get_input_data(value):
 
 
 def send_metrics(account, metrics):
-    # metric_payload = {}
     return create_aggregate(account, "metrics", metrics, channel="SYSINFO")
 
 
@@ -54,7 +47,6 @@ def on_connect(client, userdata, flags, rc):
 
 # The callback for when a PUBLISH message is received from the server.
 def on_message(client, userdata, msg):
-    # return create_aggregate(account, 'metrics', metrics, channel='SYSINFO')
     userdata["received"] = True
     state = userdata["state"]
     parts = msg.topic.strip("/").split("/")
@@ -83,7 +75,7 @@ async def gateway(
         pkey = get_fallback_private_key()
 
     account = ETHAccount(private_key=pkey)
-    state = dict()
+    state: Dict = dict()
     userdata = {"account": account, "state": state, "received": False}
     client = aiomqtt.Client(loop, userdata=userdata, transport=transport)
     client.on_connect = on_connect
@@ -98,15 +90,14 @@ async def gateway(
     asyncio.ensure_future(client.loop_forever())
 
     await client.connect(host, port, keepalive)
-    # client.loop_forever()
     while True:
         await asyncio.sleep(10)
         if not userdata["received"]:
             await client.reconnect()
 
         for key, value in state.items():
-            ret = create_aggregate(account, key, value, channel="IOT_TEST")
-            print("sent", ret["item_hash"])
+            message, status = create_aggregate(account, key, value, channel="IOT_TEST")
+            print("sent", message.item_hash)
             userdata["received"] = False
 
 
