@@ -245,8 +245,8 @@ async def create_post(
     channel: Optional[str] = None,
     session: Optional[ClientSession] = None,
     api_server: Optional[str] = None,
-    inline: Optional[bool] = None,
-    storage_engine: Optional[StorageEnum] = None,
+    inline: bool = True,
+    storage_engine: StorageEnum = StorageEnum.storage,
 ) -> PostMessage:
     """
     Create a POST message on the Aleph network. It is associated with a channel and owned by an account.
@@ -292,7 +292,7 @@ async def create_aggregate(
     channel: Optional[str] = None,
     session: Optional[ClientSession] = None,
     api_server: Optional[str] = None,
-    inline: Optional[bool] = None,
+    inline: bool = True,
 ) -> AggregateMessage:
     """
     Create an AGGREGATE message. It is meant to be used as a quick access storage associated with an account.
@@ -332,9 +332,9 @@ async def create_store(
     file_content: Optional[bytes] = None,
     file_path: Optional[Union[str, Path]] = None,
     file_hash: Optional[str] = None,
-    guess_mime_type: Optional[bool] = None,
+    guess_mime_type: bool = False,
     ref: Optional[str] = None,
-    storage_engine: Optional[StorageEnum] = None,
+    storage_engine: StorageEnum = StorageEnum.storage,
     extra_fields: Optional[dict] = None,
     channel: Optional[str] = None,
     session: Optional[ClientSession] = None,
@@ -359,8 +359,6 @@ async def create_store(
     :param api_server: Aleph API server to use (Default: "https://api2.aleph.im")
     """
     address = address or settings.ADDRESS_TO_USE or account.get_address()
-    guess_mime_type = False if guess_mime_type is None else guess_mime_type
-    storage_engine = storage_engine or settings.DEFAULT_STORAGE_ENGINE
     extra_fields = extra_fields or {}
     session = session or get_fallback_session()
     api_server = api_server or settings.API_HOST
@@ -421,7 +419,7 @@ async def create_program(
     entrypoint: str,
     runtime: str,
     environment_variables: Optional[Mapping[str, str]] = None,
-    storage_engine: Optional[StorageEnum] = None,
+    storage_engine: StorageEnum = StorageEnum.storage,
     channel: Optional[str] = None,
     address: Optional[str] = None,
     session: Optional[ClientSession] = None,
@@ -429,8 +427,8 @@ async def create_program(
     memory: Optional[int] = None,
     vcpus: Optional[int] = None,
     timeout_seconds: Optional[float] = None,
-    persistent: Optional[bool] = None,
-    encoding: Optional[Encoding] = None,
+    persistent: bool = False,
+    encoding: Encoding = Encoding.zip,
     volumes: Optional[List[Mapping]] = None,
     subscriptions: Optional[List[Mapping]] = None,
 ) -> ProgramMessage:
@@ -455,14 +453,11 @@ async def create_program(
     :param volumes: Volumes to mount
     :param subscriptions: Patterns of Aleph messages to forward to the program's event receiver
     """
-    storage_engine = storage_engine or settings.DEFAULT_STORAGE_ENGINE
     address = address or settings.ADDRESS_TO_USE or account.get_address()
     volumes = volumes if volumes is not None else []
     memory = memory or settings.DEFAULT_VM_MEMORY
     vcpus = vcpus or settings.DEFAULT_VM_VCPUS
     timeout_seconds = timeout_seconds or settings.DEFAULT_VM_TIMEOUT
-    persistent = False if persistent is None else persistent
-    encoding = encoding or Encoding.zip
 
     # TODO: Check that program_ref, runtime and data_ref exist
 
@@ -539,7 +534,7 @@ async def forget(
     account: Account,
     hashes: List[str],
     reason: Optional[str],
-    storage_engine: Optional[StorageEnum] = None,
+    storage_engine: StorageEnum = StorageEnum.storage,
     channel: Optional[str] = None,
     address: Optional[str] = None,
     session: Optional[ClientSession] = None,
@@ -586,16 +581,14 @@ async def submit(
     message_type: MessageType,
     channel: Optional[str] = None,
     api_server: Optional[str] = None,
-    storage_engine: Optional[StorageEnum] = None,
+    storage_engine: StorageEnum = StorageEnum.storage,
     session: Optional[ClientSession] = None,
-    inline: Optional[bool] = None,
+    inline: bool = True,
 ) -> AlephMessage:
     """Main function to post a message to the network. Use the other functions in this module if you can."""
     channel = channel or settings.DEFAULT_CHANNEL
     api_server = api_server or settings.API_HOST
-    storage_engine = storage_engine or settings.DEFAULT_STORAGE_ENGINE
     session = session or get_fallback_session()
-    inline = True if inline is None else inline
 
     message: Dict[str, Any] = {
         # 'item_hash': ipfs_hash,
@@ -639,7 +632,7 @@ async def submit(
 async def fetch_aggregate(
     address: str,
     key: str,
-    limit: Optional[int] = None,
+    limit: int = 100,
     session: Optional[ClientSession] = None,
     api_server: Optional[str] = None,
 ) -> Dict[str, Dict]:
@@ -652,7 +645,6 @@ async def fetch_aggregate(
     :param session: Session to use (Default: get_fallback_session())
     :param api_server: API server to use (Default: "https://api2.aleph.im")
     """
-    limit = limit or 100
     session = session or get_fallback_session()
     api_server = api_server or settings.API_HOST
 
@@ -671,7 +663,7 @@ async def fetch_aggregate(
 async def fetch_aggregates(
     address: str,
     keys: Optional[Iterable[str]] = None,
-    limit: Optional[int] = None,
+    limit: int = 100,
     session: Optional[ClientSession] = None,
     api_server: Optional[str] = None,
 ) -> Dict[str, Dict]:
@@ -684,7 +676,6 @@ async def fetch_aggregates(
     :param session: Session to use (Default: get_fallback_session())
     :param api_server: API server to use (Default: "https://api2.aleph.im")
     """
-    limit = limit or 100
     session = session or get_fallback_session()
     api_server = api_server or settings.API_HOST
 
@@ -808,8 +799,8 @@ async def get_messages(
     end_date: Optional[Union[datetime, float]] = None,
     session: Optional[ClientSession] = None,
     api_server: Optional[str] = None,
-    ignore_invalid_messages: Optional[bool] = None,
-    invalid_messages_log_level: Optional[int] = None,
+    ignore_invalid_messages: bool = True,
+    invalid_messages_log_level: int = logging.NOTSET,
 ) -> MessagesResponse:
     """
     Fetch a list of messages from the network.
