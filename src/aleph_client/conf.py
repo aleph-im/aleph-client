@@ -2,7 +2,6 @@ from pathlib import Path
 from shutil import which
 from typing import Optional
 
-from .types import StorageEnum
 from pydantic import BaseSettings, Field
 
 
