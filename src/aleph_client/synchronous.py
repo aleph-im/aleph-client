@@ -5,7 +5,7 @@ from typing import List, Optional, Dict, Iterable, Type
 
 from aiohttp import ClientSession
 from aleph_message.models import AlephMessage
-from aleph_message.models.program import ProgramContent, Encoding  # type: ignore
+from aleph_message.models.program import ProgramContent, Encoding
 
 from . import asynchronous
 from .conf import settings

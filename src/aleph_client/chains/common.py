@@ -2,7 +2,7 @@ import os
 from abc import abstractmethod, ABC
 from typing import Dict
 
-from coincurve import PrivateKey
+from coincurve.keys import PrivateKey
 from ecies import decrypt, encrypt
 
 from aleph_client.conf import settings

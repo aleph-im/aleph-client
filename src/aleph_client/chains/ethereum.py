@@ -1,7 +1,7 @@
 from typing import Dict
 
 from eth_account import Account
-from eth_account.account import LocalAccount
+from eth_account.signers.local import LocalAccount
 from eth_account.messages import encode_defunct
 
 from .common import (

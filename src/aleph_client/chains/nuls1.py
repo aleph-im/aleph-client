@@ -6,7 +6,7 @@ import struct
 from binascii import hexlify, unhexlify
 from typing import Optional
 
-from coincurve import PrivateKey, PublicKey
+from coincurve.keys import PrivateKey, PublicKey
 
 from .common import (
     get_public_key,
@@ -203,20 +203,6 @@ def public_key_to_hash(pub_key, chain_id=8964, address_type=1):
 
 
 class BaseNulsData:
-    def _pre_parse(self, buffer, cursor=None, length=None):
-        if cursor is not None:
-            buffer = buffer[cursor:]
-        if length is not None:
-            buffer = buffer[:length]
-
-        if (
-            (bytes is None)
-            or (len(bytes) == 0)
-            or (len(bytes) == 4)
-            or (bytes == PLACE_HOLDER)
-        ):
-            return
-
     def _prepare(self, item):
         if item is None:
             return PLACE_HOLDER
@@ -294,42 +280,13 @@ class NulsSignature(BaseNulsData):
         message = VarInt(len(message)).encode() + message
         # LOGGER.debug("Comparing with %r" % (MESSAGE_TEMPLATE.format(message).encode()))
         try:
+            if self.sig_ser is None:
+                raise TypeError("sig_ser is None")
             good = pub.verify(self.sig_ser, MESSAGE_TEMPLATE.format(message).encode())
         except Exception:
             LOGGER.exception("Verification failed")
             good = False
         return good
-
-
-class NulsDigestData(BaseNulsData):
-    HASH_LENGTH = 34
-    DIGEST_ALG_SHA256 = 0
-    DIGEST_ALG_SHA160 = 1
-
-    def __init__(self, data=None, alg_type=None):
-        self.digest_bytes = None
-        self.alg_type = None
-
-        if data is not None and alg_type is None:
-            self.parse(data)
-
-        elif data is not None and alg_type is not None:
-            self.digest_bytes = data
-            self.alg_type = alg_type
-
-    @property
-    def size(self):
-        return self.HASH_LENGTH
-
-    def parse(self, buffer, cursor=0):
-        self.alg_type = buffer[cursor]
-        pos, self.digest_bytes = read_by_length(buffer, cursor=cursor + 1)
-
-    def serialize(self):
-        return bytes([self.alg_type, len(self.digest_bytes)]) + self.digest_bytes
-
-    def __str__(self):
-        return self.serialize().hex()
 
 
 def get_address(public_key=None, private_key=None, chain_id=261):
@@ -350,7 +307,7 @@ class NULSAccount(BaseAccount):
     async def sign_message(self, message):
         message = self._setup_sender(message)
 
-        sig = NulsSignature.sign_message(
+        sig = await NulsSignature.sign_message(
             self.private_key, get_verification_buffer(message)
         )
 

@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import List, Dict, Callable, Awaitable, Optional
+from typing import List, Dict, Callable, Awaitable, Optional, Any, MutableMapping, Mapping
 
 AsgiApplication = Callable
 
@@ -9,7 +9,7 @@ class EventHandler:
     filters: List[Dict]
     handler: Callable
 
-    def matches(self, scope: Dict) -> bool:
+    def matches(self, scope: Mapping[str, Any]) -> bool:
         for filter in self.filters:
             # if [filter matches scope]: TODO
             if True:
@@ -49,9 +49,9 @@ class AlephApp:
 
     async def __call__(
         self,
-        scope: Dict,
-        receive: Optional[Awaitable] = None,
-        send: Optional[Callable[[Dict], Awaitable]] = None,
+        scope: MutableMapping[str, Any],
+        receive: Optional[Callable[[], Awaitable[Any]]] = None,
+        send: Optional[Callable[[Dict[Any, Any]], Awaitable[Any]]] = None,
     ):
         if scope["type"] in ("http", "websocket"):
             if self.http_app:
@@ -64,7 +64,10 @@ class AlephApp:
                     # event_handler.handler(scope=scope, receive=receive, send=send)
                     async def send_handler_result():
                         result = await event_handler.handler(event=scope)
-                        await send(result)
+                        if send:
+                            await send(result)
+                        else:
+                            raise ValueError("No send method specified")
 
                     return send_handler_result()
         else:

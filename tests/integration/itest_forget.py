@@ -5,7 +5,7 @@ import pytest
 from aleph_client.asynchronous import create_post, get_posts, get_messages, forget
 from aleph_client.types import Account
 from .config import REFERENCE_NODE, TARGET_NODE, TEST_CHANNEL
-from .test_utils import try_until
+from .toolkit import try_until
 
 
 async def create_and_forget_post(
@@ -115,8 +115,8 @@ async def test_forget_a_forget_message(fixture_account):
     get_forget_message_response = await get_messages(
         hashes=[forget_message_hash], channels=[TEST_CHANNEL], api_server=TARGET_NODE
     )
-    assert len(get_forget_message_response["messages"]) == 1
-    forget_message = get_forget_message_response["messages"][0]
+    assert len(get_forget_message_response.messages) == 1
+    forget_message = get_forget_message_response.messages[0]
     print(forget_message)
 
     assert "forgotten_by" not in forget_message
