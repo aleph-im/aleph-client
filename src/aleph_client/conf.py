@@ -61,6 +61,3 @@ if settings.CONFIG_HOME is None:
 assert settings.CONFIG_HOME
 if str(settings.PRIVATE_KEY_FILE) == "ethereum.key":
     settings.PRIVATE_KEY_FILE = Path(settings.CONFIG_HOME, "private-keys", "ethereum.key")
-
-if "pytest" in sys.modules:
-    settings.PRIVATE_KEY_FILE = Path(settings.CONFIG_HOME, "private-keys", "ethereum_test.key")
