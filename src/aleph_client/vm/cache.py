@@ -21,8 +21,6 @@ def sanitize_cache_key(key: str) -> CacheKey:
 class BaseVmCache(abc.ABC):
     """Virtual Machines can use this cache to store temporary data in memory on the host."""
 
-    session: ClientSession
-
     @abc.abstractmethod
     async def get(self, key: str) -> Optional[bytes]:
         """Get the value for a given key string."""
@@ -47,6 +45,7 @@ class BaseVmCache(abc.ABC):
 class VmCache(BaseVmCache):
     """Virtual Machines can use this cache to store temporary data in memory on the host."""
 
+    session: ClientSession
     cache: Dict[str, bytes]
     api_host: str
 
