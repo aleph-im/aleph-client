@@ -17,9 +17,7 @@ app = typer.Typer()
 
 @app.command()
 def create(
-    from_private_key: Optional[str] = typer.Option(
-        None, help=help_strings.PRIVATE_KEY
-    ),
+    from_private_key: Optional[str] = typer.Option(None, help=help_strings.PRIVATE_KEY),
     debug: bool = False,
 ):
     """Create or import a private key."""
@@ -27,7 +25,9 @@ def create(
     setup_logging(debug)
 
     typer.echo("Generating private key file.")
-    private_key_file = typer.prompt("Enter file in which to save the key", settings.PRIVATE_KEY_FILE)
+    private_key_file = typer.prompt(
+        "Enter file in which to save the key", settings.PRIVATE_KEY_FILE
+    )
 
     if os.path.exists(private_key_file):
         typer.echo(f"Error: key already exists: '{private_key_file}'")

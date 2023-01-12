@@ -80,10 +80,9 @@ def volume_to_dict(volume: List[str]) -> Optional[Dict[str, Union[str, int]]]:
             p = param.split("=")
             if p[1].isdigit():
                 dict_store[p[0]] = int(p[1])
-            elif p[1] in ['True', 'true', 'False', 'false']:
+            elif p[1] in ["True", "true", "False", "false"]:
                 dict_store[p[0]] = bool(p[1].capitalize())
             else:
                 dict_store[p[0]] = p[1]
 
     return dict_store
-

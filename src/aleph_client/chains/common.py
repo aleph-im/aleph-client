@@ -86,7 +86,6 @@ def get_fallback_private_key(path: Optional[Path] = None) -> bytes:
         with open(path, "rb") as prvfile:
             print(prvfile.read())
 
-
         default_key_path = path.parent / "default.key"
         if not default_key_path.is_symlink():
             # Create a symlink to use this key by default

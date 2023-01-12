@@ -31,9 +31,8 @@ app.add_typer(
     aggregate.app, name="aggregate", help="Manage aggregate messages on Aleph.im"
 )
 
-app.add_typer(
-    account.app, name="account", help="Manage account"
-)
+app.add_typer(account.app, name="account", help="Manage account")
+
 
 @app.command()
 def whoami(
