@@ -300,6 +300,11 @@ async def create_program(
         program_ref: str,
         entrypoint: str,
         runtime: str,
+        allow_amend: bool,
+        use_latest: bool,
+        reproducible: bool,
+        internet: bool,
+        aleph_api: bool,
         environment_variables: Optional[Dict[str, str]] = None,
         storage_engine: StorageEnum = StorageEnum.storage,
         channel: str = settings.DEFAULT_CHANNEL,
@@ -313,6 +318,7 @@ async def create_program(
         encoding: Encoding = Encoding.zip,
         volumes: Optional[List[Dict]] = None,
         subscriptions: Optional[List[Dict]] = None,
+
 ) -> ProgramMessage:
     volumes = volumes if volumes is not None else []
     address = address or account.get_address()
@@ -331,18 +337,18 @@ async def create_program(
         **{
             "type": "vm-function",
             "address": address,
-            "allow_amend": False,
+            "allow_amend": allow_amend,
             "code": {
                 "encoding": encoding,
                 "entrypoint": entrypoint,
                 "ref": program_ref,
-                "use_latest": True,
+                "use_latest": use_latest,
             },
             "on": triggers,
             "environment": {
-                "reproducible": False,
-                "internet": True,
-                "aleph_api": True,
+                "reproducible": reproducible,
+                "internet": internet,
+                "aleph_api": aleph_api,
             },
             "variables": environment_variables,
             "resources": {
@@ -352,7 +358,7 @@ async def create_program(
             },
             "runtime": {
                 "ref": runtime,
-                "use_latest": True,
+                "use_latest": use_latest,
                 "comment": "Official Aleph runtime"
                 if runtime == settings.DEFAULT_RUNTIME_ID
                 else "",

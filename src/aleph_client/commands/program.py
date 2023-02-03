@@ -49,8 +49,13 @@ def upload(
         memory: int = typer.Option(
             settings.DEFAULT_VM_MEMORY, help="Maximum memory allocation on vm in MiB"
         ),
+        allow_amend: bool = typer.Option(False, help='Deployed VM image may be changed and deployed on the same URL'),
+        use_latest: bool = typer.Option(True, help='Use latest version of the base docker image'),
+        reproducible: bool = typer.Option(False, help=' (Not Implemented)--> Check output is same for other nodes'),
+        internet: bool = typer.Option(True, help='VM should have internet connectivity'),
+        aleph_api: bool = typer.Option(True, help='VM needs access to Aleph messages AP'),
         vcpus: int = typer.Option(
-            settings.DEFAULT_VM_VCPUS, help="Number of virtual cpus to allocate."
+            settings.DEFAULT_VM_VCPUS, help="Number of virtual CPUS to allocate."
         ),
         timeout_seconds: float = typer.Option(
             settings.DEFAULT_VM_TIMEOUT,
@@ -185,6 +190,11 @@ def upload(
             program_ref=program_ref,
             entrypoint=entrypoint,
             runtime=runtime,
+            allow_amend=allow_amend,
+            use_latest=use_latest,
+            reproducible=reproducible,
+            internet=internet,
+            aleph_api=aleph_api,
             storage_engine=StorageEnum.storage,
             channel=channel,
             memory=memory,
