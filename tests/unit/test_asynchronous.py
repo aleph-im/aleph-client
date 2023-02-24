@@ -7,6 +7,7 @@ from aleph_message.models import (
     StoreMessage,
     ProgramMessage,
     ForgetMessage,
+    ItemHash
 )
 
 from aleph_client.types import StorageEnum, MessageStatus
@@ -64,7 +65,8 @@ async def test_create_post(ethereum_account):
 async def test_create_aggregate(ethereum_account):
     _get_fallback_session.cache_clear()
 
-    content = {"Hello": "World"}
+    # The content must be a dict
+    content = {"message": "Hello World"}
 
     mock_session = new_mock_session_with_post_success()
 
@@ -79,7 +81,7 @@ async def test_create_aggregate(ethereum_account):
     aggregate_message, message_status = await create_aggregate(
         account=ethereum_account,
         key="hello",
-        content="world",
+        content={"message": "world"},
         channel="TEST",
         session=mock_session,
         api_server="https://example.org",
@@ -143,11 +145,15 @@ async def test_create_program(ethereum_account):
 
     mock_session = new_mock_session_with_post_success()
 
+    # ItemHash must start with Qm or bafy for ipfs, 64 characters for Aleph storage 
+    fake_program_hash = ItemHash("FAKE-PROG-HASH-" + "X"*49)
+    fake_runtime_hash = ItemHash("FAKE-RUNTIME-HASH-" + "X"*46)
+
     program_message, message_status = await create_program(
         account=ethereum_account,
-        program_ref="FAKE-HASH",
+        program_ref=fake_program_hash,
         entrypoint="main:app",
-        runtime="FAKE-HASH",
+        runtime=fake_runtime_hash,
         channel="TEST",
         session=mock_session,
         api_server="https://example.org",
