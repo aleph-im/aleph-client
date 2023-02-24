@@ -11,10 +11,10 @@ from tempfile import NamedTemporaryFile
 
 import pytest
 
-from aleph_client.chains.common import get_fallback_private_key
-import aleph_client.chains.ethereum as ethereum
-import aleph_client.chains.sol as solana
-import aleph_client.chains.tezos as tezos
+from aleph.sdk.chains.common import get_fallback_private_key
+import aleph.sdk.chains.ethereum as ethereum
+import aleph.sdk.chains.sol as solana
+import aleph.sdk.chains.tezos as tezos
 
 @pytest.fixture
 def fallback_private_key() -> bytes:

@@ -8,8 +8,8 @@ from pathlib import Path
 
 import typer
 
-from aleph_client.types import AccountFromPrivateKey
-from aleph_client.account import _load_account
+from aleph.sdk.types import AccountFromPrivateKey
+from aleph.sdk.account import _load_account
 from aleph_client.conf import settings
 from .commands import files, message, program, help_strings, aggregate, account
 

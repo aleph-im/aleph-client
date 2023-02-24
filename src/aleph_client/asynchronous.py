@@ -39,14 +39,14 @@ from aleph_message.models import (
 )
 from pydantic import ValidationError
 
-from aleph_client.types import Account, StorageEnum, GenericMessage, MessageStatus
+from aleph.sdk.types import Account, StorageEnum, GenericMessage, MessageStatus
 from .exceptions import (
     MessageNotFoundError,
     MultipleMessagesError,
     InvalidMessageError,
     BroadcastError,
 )
-from .models import MessagesResponse
+from aleph.sdk.models import MessagesResponse
 from .utils import get_message_type_value
 
 logger = logging.getLogger(__name__)

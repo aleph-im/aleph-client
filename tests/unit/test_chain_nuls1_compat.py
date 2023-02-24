@@ -9,8 +9,8 @@ import pytest
 import secp256k1
 from coincurve.keys import PrivateKey
 
-from aleph_client.chains.common import get_fallback_private_key
-from aleph_client.chains.nuls1 import NulsSignature, VarInt, MESSAGE_TEMPLATE, LOGGER
+from aleph.sdk.chains.common import get_fallback_private_key
+from aleph.sdk.chains.nuls1 import NulsSignature, VarInt, MESSAGE_TEMPLATE, LOGGER
 
 SECRET = (
     b"\xc4\xfe\xe65\x96\x14\xb4:\r: \x05;\x12j\x9bJ"

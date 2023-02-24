@@ -3,7 +3,7 @@ from typing import Callable, Dict
 import pytest
 
 from aleph_client.asynchronous import create_post, get_posts, get_messages, forget
-from aleph_client.types import Account
+from aleph.sdk.types import Account
 from .config import REFERENCE_NODE, TARGET_NODE, TEST_CHANNEL
 from .toolkit import try_until
 

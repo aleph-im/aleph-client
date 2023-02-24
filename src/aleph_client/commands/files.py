@@ -7,12 +7,12 @@ import typer
 from aleph_message.models import StoreMessage
 
 from aleph_client import synchronous
-from aleph_client.account import _load_account
+from aleph.sdk.account import _load_account
 from aleph_client.asynchronous import get_fallback_session
 from aleph_client.commands import help_strings
 from aleph_client.commands.utils import setup_logging
 from aleph_client.conf import settings
-from aleph_client.types import AccountFromPrivateKey, StorageEnum
+from aleph.sdk.types import AccountFromPrivateKey, StorageEnum
 
 logger = logging.getLogger(__name__)
 app = typer.Typer()
