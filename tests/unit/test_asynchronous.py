@@ -10,7 +10,7 @@ from aleph_message.models import (
     ItemHash
 )
 
-from aleph_client.types import StorageEnum, MessageStatus
+from aleph.sdk.types import StorageEnum, MessageStatus
 
 from aleph_client.asynchronous import (
     create_post,
@@ -65,7 +65,7 @@ async def test_create_post(ethereum_account):
 async def test_create_aggregate(ethereum_account):
     _get_fallback_session.cache_clear()
 
-    # The content must be a dict
+    # The content must be a dict since aleph-message 0.3.0
     content = {"message": "Hello World"}
 
     mock_session = new_mock_session_with_post_success()

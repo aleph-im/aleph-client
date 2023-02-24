@@ -9,7 +9,7 @@ from aleph_client.asynchronous import (
 from tests.integration.toolkit import try_until
 from .config import REFERENCE_NODE, TARGET_NODE
 
-from aleph_client.types import Account
+from aleph.sdk.types import Account
 
 
 async def create_aggregate_on_target(

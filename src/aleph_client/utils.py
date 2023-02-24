@@ -9,7 +9,7 @@ from aleph_message.models import MessageType
 from aleph_message.models.program import Encoding
 
 from aleph_client.conf import settings
-from aleph_client.types import GenericMessage
+from aleph.sdk.types import GenericMessage
 
 logger = logging.getLogger(__name__)
 

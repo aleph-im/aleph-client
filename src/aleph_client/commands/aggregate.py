@@ -1,7 +1,7 @@
 import typer
 from typing import Optional
-from aleph_client.types import AccountFromPrivateKey
-from aleph_client.account import _load_account
+from aleph.sdk.types import AccountFromPrivateKey
+from aleph.sdk.account import _load_account
 from aleph_client.conf import settings
 from pathlib import Path
 from aleph_client import synchronous

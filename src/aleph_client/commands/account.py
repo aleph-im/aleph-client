@@ -2,9 +2,9 @@ import os
 import typer
 import logging
 from typing import Optional
-from aleph_client.types import AccountFromPrivateKey
-from aleph_client.chains.common import generate_key
-from aleph_client.account import _load_account
+from aleph.sdk.types import AccountFromPrivateKey
+from aleph.sdk.chains.common import generate_key
+from aleph.sdk.account import _load_account
 from aleph_client.conf import settings
 
 from aleph_client.commands import help_strings

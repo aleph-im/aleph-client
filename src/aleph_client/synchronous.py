@@ -9,7 +9,7 @@ from aleph_message.models.program import ProgramContent, Encoding
 
 from . import asynchronous
 from .conf import settings
-from .types import Account, StorageEnum, GenericMessage
+from aleph.sdk.types import Account, StorageEnum, GenericMessage
 
 
 T = TypeVar("T")

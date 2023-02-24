@@ -3,7 +3,7 @@ from tempfile import NamedTemporaryFile
 
 import pytest
 
-from aleph_client.chains.tezos import TezosAccount, get_fallback_account
+from aleph.sdk.chains.tezos import TezosAccount, get_fallback_account
 from dataclasses import dataclass, asdict
 
 

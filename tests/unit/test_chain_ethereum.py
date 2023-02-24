@@ -4,7 +4,7 @@ from tempfile import NamedTemporaryFile
 import pytest
 from dataclasses import dataclass, asdict
 
-from aleph_client.chains.ethereum import ETHAccount, get_fallback_account
+from aleph.sdk.chains.ethereum import ETHAccount, get_fallback_account
 
 
 @dataclass

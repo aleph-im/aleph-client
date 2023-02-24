@@ -1,4 +1,4 @@
-from aleph_client.chains.common import (
+from aleph.sdk.chains.common import (
     get_verification_buffer,
     get_public_key,
     BaseAccount,
