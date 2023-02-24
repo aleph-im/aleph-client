@@ -35,6 +35,7 @@ from aleph_message.models import (
     StoreMessage,
     ProgramMessage,
     ItemType,
+    ItemHash
 )
 from pydantic import ValidationError
 
@@ -476,7 +477,7 @@ async def create_store(
 
 async def create_program(
     account: Account,
-    program_ref: str,
+    program_ref: ItemHash,
     entrypoint: str,
     runtime: str,
     environment_variables: Optional[Mapping[str, str]] = None,
