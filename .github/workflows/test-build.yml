@@ -12,6 +12,10 @@ jobs:
     steps:
       - uses: actions/checkout@v2
 
+      - name: Workaround github issue https://github.com/actions/runner-images/issues/7192
+        if: startsWith(matrix.os, 'ubuntu-')
+        run: sudo echo RESET grub-efi/install_devices | sudo debconf-communicate grub-pc
+
       - name: Install required system packages for macOS
         if: startsWith(matrix.os, 'macos-')
         run: |
