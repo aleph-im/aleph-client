@@ -9,8 +9,9 @@ from aleph_message.models import (
     ForgetMessage,
     ItemHash
 )
+from aleph_message.status import MessageStatus
 
-from aleph.sdk.types import StorageEnum, MessageStatus
+from aleph.sdk.types import StorageEnum
 
 from aleph_client.asynchronous import (
     create_post,

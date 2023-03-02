@@ -37,9 +37,10 @@ from aleph_message.models import (
     ItemType,
     ItemHash
 )
+from aleph_message.status import MessageStatus
 from pydantic import ValidationError
 
-from aleph.sdk.types import Account, StorageEnum, GenericMessage, MessageStatus
+from aleph.sdk.types import Account, StorageEnum, GenericMessage
 from .exceptions import (
     MessageNotFoundError,
     MultipleMessagesError,
