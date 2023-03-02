@@ -28,6 +28,7 @@ COPY . .
 USER root
 RUN chown -R user:user /opt/aleph-client
 
+RUN git config --global --add safe.directory /opt/aleph-client
 RUN pip install -e .[testing,ethereum,solana,tezos]
 
 RUN mkdir /data
