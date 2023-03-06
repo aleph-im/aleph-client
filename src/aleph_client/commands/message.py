@@ -1,4 +1,3 @@
-import asyncio
 import json
 import os.path
 import subprocess
@@ -7,23 +6,20 @@ from pathlib import Path
 from typing import Optional, Dict, List
 
 import typer
+from aleph.sdk import AlephClient, AuthenticatedAlephClient
+from aleph.sdk.account import _load_account
+from aleph.sdk.types import AccountFromPrivateKey, StorageEnum
 from aleph_message.models import (
-    PostMessage,
-    ForgetMessage,
     AlephMessage,
     ProgramMessage,
 )
 
-from aleph_client import synchronous
-from aleph.sdk.account import _load_account
-from aleph_client.asynchronous import get_fallback_session
 from aleph_client.commands import help_strings
 from aleph_client.commands.utils import (
     setup_logging,
     input_multiline,
 )
 from aleph_client.conf import settings
-from aleph.sdk.types import AccountFromPrivateKey, StorageEnum
 
 app = typer.Typer()
 
@@ -50,7 +46,7 @@ def post(
     setup_logging(debug)
 
     account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
-    storage_engine: str
+    storage_engine: StorageEnum
     content: Dict
 
     if path:
@@ -79,9 +75,8 @@ def post(
             typer.echo("Not valid JSON")
             raise typer.Exit(code=2)
 
-    try:
-        result: PostMessage = synchronous.create_post(
-            account=account,
+    with AuthenticatedAlephClient(account=account, api_server=settings.API_HOST) as client:
+        result, status = client.create_post(
             post_content=content,
             post_type=type,
             ref=ref,
@@ -89,11 +84,8 @@ def post(
             inline=True,
             storage_engine=storage_engine,
         )
-        
-        typer.echo(json.dumps(result[0].dict(), indent=4))
-    finally:
-        # Prevent aiohttp unclosed connector warning
-        asyncio.run(get_fallback_session().close())
+
+        typer.echo(json.dumps(result.dict(), indent=4))
 
 
 @app.command()
@@ -138,33 +130,13 @@ def amend(
         new_content.ref = existing_message.item_hash
 
     typer.echo(new_content)
-    message, _status = synchronous.submit(
-        api_server=settings.API_HOST,
-        account=account,
-        content=new_content.dict(exclude_none=True),
-        message_type=existing_message.type,
-        channel=existing_message.channel,
-    )
-    typer.echo(f"{message.json(indent=4)}")
-
-
-def forget_messages(
-        account: AccountFromPrivateKey,
-        hashes: List[str],
-        reason: Optional[str],
-        channel: str,
-):
-    try:
-        result: ForgetMessage = synchronous.forget(
-            account=account,
-            hashes=hashes,
-            reason=reason,
-            channel=channel,
+    with AuthenticatedAlephClient(account=account, api_server=settings.API_HOST) as client:
+        message, _status = client.submit(
+            content=new_content.dict(),
+            message_type=existing_message.type,
+            channel=existing_message.channel,
         )
-        typer.echo(f"{result.json(indent=4)}")
-    finally:
-        # Prevent aiohttp unclosed connector warning
-        asyncio.run(get_fallback_session().close())
+    typer.echo(f"{message.json(indent=4)}")
 
 
 @app.command()
@@ -188,10 +160,11 @@ def forget(
 
     setup_logging(debug)
 
-    account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
-
     hash_list: List[str] = hashes.split(",")
-    forget_messages(account, hash_list, reason, channel)
+
+    account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
+    with AuthenticatedAlephClient(account=account, api_server=settings.API_HOST) as client:
+        client.forget(hashes=hash_list, reason=reason, channel=channel)
 
 
 @app.command()
@@ -204,9 +177,7 @@ def watch(
 
     setup_logging(debug)
 
-    original: AlephMessage = synchronous.get_message(item_hash=ref)
-
-    for message in synchronous.watch_messages(
-            refs=[ref], addresses=[original.content.address]
-    ):
-        typer.echo(f"{message.json(indent=indent)}")
+    with AlephClient(api_server=settings.API_HOST) as client:
+        original: AlephMessage = client.get_message(item_hash=ref)
+        for message in client.watch_messages(refs=[ref], addresses=[original.content.address]):
+            typer.echo(f"{message.json(indent=indent)}")
