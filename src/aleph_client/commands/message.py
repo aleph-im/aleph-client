@@ -11,6 +11,7 @@ from aleph_message.models import (
     PostMessage,
     ForgetMessage,
     AlephMessage,
+    ProgramMessage,
 )
 
 from aleph_client import synchronous
@@ -129,11 +130,17 @@ def amend(
     content_type = type(existing_message).__annotations__["content"]
     new_content_dict = json.loads(new_content_json)
     new_content = content_type(**new_content_dict)
-    new_content.ref = existing_message.item_hash
+
+    if isinstance(existing_message, ProgramMessage):
+        new_content.replaces = existing_message.item_hash
+    else:
+        new_content.ref = existing_message.item_hash
+
     typer.echo(new_content)
     message, _status = synchronous.submit(
+        api_server=settings.API_HOST,
         account=account,
-        content=new_content.dict(),
+        content=new_content.dict(exclude_none=True),
         message_type=existing_message.type,
         channel=existing_message.channel,
     )
