@@ -53,7 +53,7 @@ class AlephApp:
         receive: Optional[Callable[[], Awaitable[Any]]] = None,
         send: Optional[Callable[[Dict[Any, Any]], Awaitable[Any]]] = None,
     ):
-        if scope["type"] in ("http", "websocket"):
+        if scope["type"] in ("http", "websocket", "lifespan"):
             if self.http_app:
                 await self.http_app(scope=scope, receive=receive, send=send)
             else:
