@@ -27,7 +27,6 @@ from aleph_message.models import (
     AggregateContent,
     PostContent,
     StoreContent,
-    InstanceContent,
     PostMessage,
     Message,
     ForgetMessage,
@@ -38,6 +37,7 @@ from aleph_message.models import (
     InstanceMessage,
     ItemType,
 )
+from aleph_message.models.executable import InstanceContent
 from pydantic import ValidationError
 
 from aleph_client.types import Account, StorageEnum, GenericMessage, MessageStatus
