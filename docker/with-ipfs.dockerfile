@@ -18,6 +18,8 @@ EXPOSE 5001
 # IPFS Gateway
 EXPOSE 8080
 
+# Preinstall dependencies for faster steps
+RUN pip install --upgrade git+https://github.com/aleph-im/aleph-message@nesitor-add-executable-program
 
 # === Install Aleph-Client ===
 
