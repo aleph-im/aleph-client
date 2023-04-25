@@ -6,6 +6,7 @@ from aleph_message.models import (
     AggregateMessage,
     StoreMessage,
     ProgramMessage,
+    InstanceMessage,
     ForgetMessage,
 )
 
@@ -17,6 +18,7 @@ from aleph_client.asynchronous import (
     create_aggregate,
     create_store,
     create_program,
+    create_instance,
     forget,
 )
 
@@ -155,6 +157,24 @@ async def test_create_program(ethereum_account):
 
     assert mock_session.post.called
     assert isinstance(program_message, ProgramMessage)
+
+
+@pytest.mark.asyncio
+async def test_create_instance(ethereum_account):
+    _get_fallback_session.cache_clear()
+
+    mock_session = new_mock_session_with_post_success()
+
+    instance_message, message_status = await create_instance(
+        account=ethereum_account,
+        rootfs="FAKE-HASH",
+        channel="TEST",
+        session=mock_session,
+        api_server="https://example.org",
+    )
+
+    assert mock_session.post.called
+    assert isinstance(instance_message, InstanceMessage)
 
 
 @pytest.mark.asyncio

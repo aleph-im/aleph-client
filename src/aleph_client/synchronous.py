@@ -124,6 +124,64 @@ def create_program(
     )
 
 
+def create_instance(
+        account: Account,
+        rootfs: str,
+        rootfs_size: int,
+        rootfs_name: str,
+        environment_variables: Optional[Dict[str, str]] = None,
+        storage_engine: StorageEnum = StorageEnum.storage,
+        channel: Optional[str] = None,
+        address: Optional[str] = None,
+        session: Optional[ClientSession] = None,
+        api_server: Optional[str] = None,
+        memory: Optional[int] = None,
+        vcpus: Optional[int] = None,
+        timeout_seconds: Optional[float] = None,
+        persistent: bool = False,
+        volumes: Optional[List[Dict]] = None,
+        subscriptions: Optional[List[Dict]] = None,
+):
+    """
+    Post a (create) INSTANCE message.
+
+    :param account: Account to use to sign the message
+    :param rootfs: Root filesystem to use
+    :param rootfs_size: Size of root filesystem
+    :param rootfs_name: Name of root filesystem
+    :param environment_variables: Environment variables to pass to the program
+    :param storage_engine: Storage engine to use (DEFAULT: "storage")
+    :param channel: Channel to use (DEFAULT: "TEST")
+    :param address: Address to use (DEFAULT: account.get_address())
+    :param session: Session to use (DEFAULT: get_fallback_session())
+    :param api_server: API server to use (DEFAULT: "https://api2.aleph.im")
+    :param memory: Memory in MB for the VM to be allocated (DEFAULT: 128)
+    :param vcpus: Number of vCPUs to allocate (DEFAULT: 1)
+    :param timeout_seconds: Timeout in seconds (DEFAULT: 30.0)
+    :param persistent: Whether the program should be persistent or not (DEFAULT: False)
+    :param volumes: Volumes to mount
+    :param subscriptions: Patterns of Aleph messages to forward to the program's event receiver
+    """
+    return wrap_async(asynchronous.create_instance)(
+        account=account,
+        environment_variables=environment_variables,
+        rootfs=rootfs,
+        rootfs_size=rootfs_size,
+        rootfs_name=rootfs_name,
+        storage_engine=storage_engine,
+        channel=channel,
+        address=address,
+        session=session,
+        api_server=api_server,
+        memory=memory,
+        vcpus=vcpus,
+        timeout_seconds=timeout_seconds,
+        persistent=persistent,
+        volumes=volumes,
+        subscriptions=subscriptions,
+    )
+
+
 def watch_messages(*args, **kwargs) -> Iterable[AlephMessage]:
     """
     Iterate over current and future matching messages synchronously.

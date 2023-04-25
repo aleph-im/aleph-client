@@ -27,6 +27,7 @@ from aleph_message.models import (
     AggregateContent,
     PostContent,
     StoreContent,
+    InstanceContent,
     PostMessage,
     Message,
     ForgetMessage,
@@ -34,6 +35,7 @@ from aleph_message.models import (
     AggregateMessage,
     StoreMessage,
     ProgramMessage,
+    InstanceMessage,
     ItemType,
 )
 from pydantic import ValidationError
@@ -576,6 +578,109 @@ async def create_program(
         account=account,
         content=content.dict(exclude_none=True),
         message_type=MessageType.program,
+        channel=channel,
+        api_server=api_server,
+        storage_engine=storage_engine,
+        session=session,
+        sync=sync,
+    )
+
+
+async def create_instance(
+        account: Account,
+        rootfs: str,
+        rootfs_size: int,
+        rootfs_name: str,
+        environment_variables: Optional[Mapping[str, str]] = None,
+        storage_engine: StorageEnum = StorageEnum.storage,
+        channel: Optional[str] = None,
+        address: Optional[str] = None,
+        session: Optional[ClientSession] = None,
+        api_server: Optional[str] = None,
+        sync: bool = False,
+        memory: Optional[int] = None,
+        vcpus: Optional[int] = None,
+        timeout_seconds: Optional[float] = None,
+        persistent: bool = False,
+        volumes: Optional[List[Mapping]] = None,
+        subscriptions: Optional[List[Mapping]] = None,
+) -> Tuple[InstanceMessage, MessageStatus]:
+    """
+    Post a (create) INSTANCE message.
+
+    :param account: Account to use to sign the message
+    :param rootfs: Root filesystem to use
+    :param rootfs_size: Size of root filesystem
+    :param rootfs_name: Name of root filesystem
+    :param environment_variables: Environment variables to pass to the program
+    :param storage_engine: Storage engine to use (Default: "storage")
+    :param channel: Channel to use (Default: "TEST")
+    :param address: Address to use (Default: account.get_address())
+    :param session: Session to use (Default: get_fallback_session())
+    :param api_server: API server to use (Default: "https://api2.aleph.im")
+    :param sync: If true, waits for the message to be processed by the API server
+    :param memory: Memory in MB for the VM to be allocated (Default: 128)
+    :param vcpus: Number of vCPUs to allocate (Default: 1)
+    :param timeout_seconds: Timeout in seconds (Default: 30.0)
+    :param persistent: Whether the program should be persistent or not (Default: False)
+    :param volumes: Volumes to mount
+    :param subscriptions: Patterns of Aleph messages to forward to the program's event receiver
+    """
+    address = address or settings.ADDRESS_TO_USE or account.get_address()
+    api_server = api_server or settings.API_HOST
+
+    volumes = volumes if volumes is not None else []
+    memory = memory or settings.DEFAULT_VM_MEMORY
+    vcpus = vcpus or settings.DEFAULT_VM_VCPUS
+    timeout_seconds = timeout_seconds or settings.DEFAULT_VM_TIMEOUT
+
+    # Register the different ways to trigger a VM
+    if subscriptions:
+        # Trigger on HTTP calls and on Aleph message subscriptions.
+        triggers = {"http": True, "persistent": persistent, "message": subscriptions}
+    else:
+        # Trigger on HTTP calls.
+        triggers = {"http": True, "persistent": persistent}
+
+    content = InstanceContent(
+        **{
+            "type": "vm-instance",
+            "address": address,
+            "allow_amend": False,
+            "on": triggers,
+            "environment": {
+                "reproducible": False,
+                "internet": True,
+                "aleph_api": True,
+            },
+            "variables": environment_variables,
+            "resources": {
+                "vcpus": vcpus,
+                "memory": memory,
+                "seconds": timeout_seconds,
+            },
+            "rootfs": {
+                "parent": rootfs,
+                "name": rootfs_name,
+                "size_mib": rootfs_size,
+                "persistence": "host",
+                "use_latest": True,
+                "comment": "Official Aleph Debian root filesystem"
+                if rootfs == settings.DEFAULT_ROOTFS_ID
+                else "",
+            },
+            "volumes": volumes,
+            "time": time.time(),
+        }
+    )
+
+    # Ensure that the version of aleph-message used supports the field.
+    assert content.on.persistent == persistent
+
+    return await submit(
+        account=account,
+        content=content.dict(exclude_none=True),
+        message_type=MessageType.instance,
         channel=channel,
         api_server=api_server,
         storage_engine=storage_engine,
