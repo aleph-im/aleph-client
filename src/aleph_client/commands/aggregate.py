@@ -1,17 +1,16 @@
-import typer
-from typing import Optional
-from aleph.sdk.types import AccountFromPrivateKey
-from aleph.sdk.account import _load_account
-from aleph_client.conf import settings
 from pathlib import Path
+from typing import Optional
+
+import typer
+from aleph.sdk.account import _load_account
+from aleph.sdk.types import AccountFromPrivateKey
+from aleph_message.models import MessageType
+
 from aleph_client import synchronous
 from aleph_client.commands import help_strings
-
 from aleph_client.commands.message import forget_messages
-
 from aleph_client.commands.utils import setup_logging
-
-from aleph_message.models import MessageType
+from aleph_client.conf import settings
 
 app = typer.Typer()
 

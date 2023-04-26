@@ -1,16 +1,15 @@
 import asyncio
 import queue
 import threading
-from typing import Any, Callable, List, Optional, Dict, Iterable, Type, Protocol, TypeVar, Awaitable
+from typing import Awaitable, Callable, Dict, Iterable, List, Optional, Type, TypeVar
 
 from aiohttp import ClientSession
+from aleph.sdk.types import Account, GenericMessage, StorageEnum
 from aleph_message.models import AlephMessage
-from aleph_message.models.program import ProgramContent, Encoding
+from aleph_message.models.program import Encoding
 
 from . import asynchronous
 from .conf import settings
-from aleph.sdk.types import Account, StorageEnum, GenericMessage
-
 
 T = TypeVar("T")
 
@@ -48,11 +47,11 @@ get_messages = wrap_async(asynchronous.get_messages)
 
 
 def get_message(
-        item_hash: str,
-        message_type: Optional[Type[GenericMessage]] = None,
-        channel: Optional[str] = None,
-        session: Optional[ClientSession] = None,
-        api_server: str = settings.API_HOST,
+    item_hash: str,
+    message_type: Optional[Type[GenericMessage]] = None,
+    channel: Optional[str] = None,
+    session: Optional[ClientSession] = None,
+    api_server: str = settings.API_HOST,
 ) -> GenericMessage:
     return wrap_async(asynchronous.get_message)(
         item_hash=item_hash,
@@ -64,23 +63,23 @@ def get_message(
 
 
 def create_program(
-        account: Account,
-        program_ref: str,
-        entrypoint: str,
-        runtime: str,
-        environment_variables: Optional[Dict[str, str]] = None,
-        storage_engine: StorageEnum = StorageEnum.storage,
-        channel: Optional[str] = None,
-        address: Optional[str] = None,
-        session: Optional[ClientSession] = None,
-        api_server: Optional[str] = None,
-        memory: Optional[int] = None,
-        vcpus: Optional[int] = None,
-        timeout_seconds: Optional[float] = None,
-        persistent: bool = False,
-        encoding: Encoding = Encoding.zip,
-        volumes: Optional[List[Dict]] = None,
-        subscriptions: Optional[List[Dict]] = None,
+    account: Account,
+    program_ref: str,
+    entrypoint: str,
+    runtime: str,
+    environment_variables: Optional[Dict[str, str]] = None,
+    storage_engine: StorageEnum = StorageEnum.storage,
+    channel: Optional[str] = None,
+    address: Optional[str] = None,
+    session: Optional[ClientSession] = None,
+    api_server: Optional[str] = None,
+    memory: Optional[int] = None,
+    vcpus: Optional[int] = None,
+    timeout_seconds: Optional[float] = None,
+    persistent: bool = False,
+    encoding: Encoding = Encoding.zip,
+    volumes: Optional[List[Dict]] = None,
+    subscriptions: Optional[List[Dict]] = None,
 ):
     """
     Post a (create) PROGRAM message.

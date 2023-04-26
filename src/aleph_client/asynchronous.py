@@ -11,43 +11,46 @@ from datetime import datetime
 from functools import lru_cache
 from pathlib import Path
 from typing import (
-    Optional,
-    Union,
     Any,
-    Dict,
-    List,
-    Iterable,
     AsyncIterable,
+    Dict,
+    Iterable,
+    List,
+    Mapping,
+    NoReturn,
+    Optional,
+    Tuple,
+    Type,
+    Union,
 )
-from typing import Type, Mapping, Tuple, NoReturn
 
+from aleph.sdk.models import MessagesResponse
+from aleph.sdk.types import Account, GenericMessage, StorageEnum
 from aleph_message.models import (
-    ForgetContent,
-    MessageType,
     AggregateContent,
-    PostContent,
-    StoreContent,
-    PostMessage,
-    Message,
-    ForgetMessage,
-    AlephMessage,
     AggregateMessage,
-    StoreMessage,
-    ProgramMessage,
+    AlephMessage,
+    ForgetContent,
+    ForgetMessage,
+    ItemHash,
     ItemType,
-    ItemHash
+    Message,
+    MessageType,
+    PostContent,
+    PostMessage,
+    ProgramMessage,
+    StoreContent,
+    StoreMessage,
 )
 from aleph_message.status import MessageStatus
 from pydantic import ValidationError
 
-from aleph.sdk.types import Account, StorageEnum, GenericMessage
 from .exceptions import (
+    BroadcastError,
+    InvalidMessageError,
     MessageNotFoundError,
     MultipleMessagesError,
-    InvalidMessageError,
-    BroadcastError,
 )
-from aleph.sdk.models import MessagesResponse
 from .utils import get_message_type_value
 
 logger = logging.getLogger(__name__)
@@ -58,12 +61,11 @@ except ImportError:
     logger.info("Could not import library 'magic', MIME type detection disabled")
     magic = None  # type:ignore
 
-from .conf import settings
-
 import aiohttp
 from aiohttp import ClientSession
+from aleph_message.models.program import Encoding, ProgramContent
 
-from aleph_message.models.program import ProgramContent, Encoding
+from .conf import settings
 
 
 @lru_cache()

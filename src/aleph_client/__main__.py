@@ -3,16 +3,16 @@ Aleph Client command-line interface.
 """
 
 import os
-from typing import Optional
 from pathlib import Path
+from typing import Optional
 
 import typer
-
-from aleph.sdk.types import AccountFromPrivateKey
 from aleph.sdk.account import _load_account
-from aleph_client.conf import settings
-from .commands import files, message, program, help_strings, aggregate, account
+from aleph.sdk.types import AccountFromPrivateKey
 
+from aleph_client.conf import settings
+
+from .commands import account, aggregate, files, help_strings, message, program
 
 app = typer.Typer()
 
@@ -31,9 +31,8 @@ app.add_typer(
     aggregate.app, name="aggregate", help="Manage aggregate messages on Aleph.im"
 )
 
-app.add_typer(
-    account.app, name="account", help="Manage account"
-)
+app.add_typer(account.app, name="account", help="Manage account")
+
 
 @app.command()
 def whoami(
