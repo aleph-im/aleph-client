@@ -1,5 +1,6 @@
 import logging
 import os
+from pathlib import Path
 from typing import Optional
 
 import typer
@@ -48,3 +49,55 @@ def create(
     with open(private_key_file, "wb") as prvfile:
         prvfile.write(private_key)
         typer.echo(f"Private key created => {private_key_file}")
+
+
+@app.command()
+def address(
+    private_key: Optional[str] = typer.Option(
+        settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY
+    ),
+    private_key_file: Optional[Path] = typer.Option(
+        settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE
+    ),
+):
+    """
+    Display your public address.
+    """
+
+    if private_key is not None:
+        private_key_file = None
+    elif private_key_file and not private_key_file.exists():
+        typer.echo("No private key available", color=typer.colors.RED)
+        raise typer.Exit(code=1)
+
+    account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
+    typer.echo(account.get_address())
+
+
+@app.command()
+def private_key(
+        private_key: Optional[str] = typer.Option(
+            settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY
+        ),
+        private_key_file: Optional[Path] = typer.Option(
+            settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE
+        ),
+):
+    """
+        Display your private key.
+        """
+
+    if private_key is not None:
+        private_key_file = None
+    elif private_key_file and not private_key_file.exists():
+        typer.echo("No private key available", color=typer.colors.RED)
+        raise typer.Exit(code=1)
+
+    account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
+    typer.echo(account.)
+
+
+@app.command()
+def path():
+    if settings.PRIVATE_KEY_FILE:
+        print(settings.PRIVATE_KEY_FILE)

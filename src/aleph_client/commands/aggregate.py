@@ -8,7 +8,7 @@ from aleph_message.models import MessageType
 
 from aleph_client import synchronous
 from aleph_client.commands import help_strings
-from aleph_client.commands.message import forget_messages
+from aleph.sdk.client import AuthenticatedAlephClient
 from aleph_client.commands.utils import setup_logging
 from aleph_client.conf import settings
 
@@ -42,4 +42,8 @@ def forget(
         content_keys=[key],
     )
     hash_list = [message["item_hash"] for message in message_response.messages]
-    forget_messages(account, hash_list, reason, channel)
+
+    with AuthenticatedAlephClient(
+            account=account, api_server=settings.API_HOST
+    ) as client:
+        client.forget(hashes=hash_list, reason=reason, channel=channel)
