@@ -1,15 +1,30 @@
 import abc
 import fnmatch
 import re
+import threading
+from functools import lru_cache
 from typing import Any, Dict, List, NewType, Optional, Union
 
+import aiohttp
 from aiohttp import ClientSession
-
-from aleph_client.asynchronous import get_fallback_session
 
 from ..conf import settings
 
 CacheKey = NewType("CacheKey", str)
+
+
+@lru_cache()
+def _get_fallback_session(thread_id: Optional[int]) -> ClientSession:
+    if settings.API_UNIX_SOCKET:
+        connector = aiohttp.UnixConnector(path=settings.API_UNIX_SOCKET)
+        return aiohttp.ClientSession(connector=connector)
+    else:
+        return aiohttp.ClientSession()
+
+
+def get_fallback_session() -> ClientSession:
+    thread_id = threading.get_native_id()
+    return _get_fallback_session(thread_id=thread_id)
 
 
 def sanitize_cache_key(key: str) -> CacheKey:

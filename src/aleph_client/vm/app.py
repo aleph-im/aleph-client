@@ -27,7 +27,7 @@ class EventHandler:
 
 
 class AlephApp:
-    """ASGI compatible wrapper for apps running inside Aleph Virtual Machines.
+    """ASGI compatible wrapper for apps running inside aleph.im Virtual Machines.
     The wrapper adds support to register functions to react to non-HTTP events.
     """
 

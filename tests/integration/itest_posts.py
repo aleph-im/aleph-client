@@ -1,12 +1,9 @@
 import pytest
 from aleph_message import Message
-from aleph_message.models import PostMessage, MessagesResponse
+from aleph_message.models import MessagesResponse
 
-from aleph_client.asynchronous import (
-    create_post,
-    get_messages,
-)
 from tests.integration.toolkit import try_until
+
 from .config import REFERENCE_NODE, TARGET_NODE
 
 

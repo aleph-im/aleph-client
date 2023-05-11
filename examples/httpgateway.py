@@ -1,23 +1,11 @@
 """ Server metrics upload.
 """
-# -*- coding: utf-8 -*-
 
-import os
-
-# import requests
-import platform
-
-# import socket
-import time
-import asyncio
 import click
-from aleph_client.asynchronous import create_post
-
-# from aleph_client.chains.nuls1 import NULSAccount, get_fallback_account
-from aleph_client.chains.ethereum import ETHAccount
-from aleph_client.chains.common import get_fallback_private_key
-
 from aiohttp import web
+from aleph.sdk import AuthenticatedAlephClient
+from aleph.sdk.chains.common import get_fallback_private_key
+from aleph.sdk.chains.ethereum import ETHAccount
 
 app = web.Application()
 routes = web.RouteTableDef()
@@ -42,13 +30,15 @@ async def source_post(request):
             return web.json_response(
                 {"status": "error", "message": "unauthorized secret"}
             )
-    message, _status = await create_post(
-        app["account"],
-        data,
-        "event",
-        channel=app["channel"],
-        api_server="https://api2.aleph.im",
-    )
+
+    async with AuthenticatedAlephClient(
+        account=app["account"], api_server="https://api2.aleph.im"
+    ) as client:
+        message, _status = await client.create_post(
+            data,
+            "event",
+            channel=app["channel"],
+        )
 
     return web.json_response({"status": "success", "item_hash": message.item_hash})
 
@@ -65,7 +55,6 @@ async def source_post(request):
 @click.option("--secret", default=None, help="Needed secret to be allowed to post")
 def main(host, port, channel, pkey=None, secret=None):
     app.add_routes(routes)
-    loop = asyncio.get_event_loop()
 
     app["secret"] = secret
     app["channel"] = channel

@@ -9,12 +9,12 @@
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 
-import pytest
-
-from aleph.sdk.chains.common import get_fallback_private_key
 import aleph.sdk.chains.ethereum as ethereum
 import aleph.sdk.chains.sol as solana
 import aleph.sdk.chains.tezos as tezos
+import pytest
+from aleph.sdk.chains.common import get_fallback_private_key
+
 
 @pytest.fixture
 def fallback_private_key() -> bytes:

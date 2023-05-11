@@ -1,7 +1,25 @@
 import logging
 from typing import Dict, List, Optional, Union
 
+from aleph.sdk.types import GenericMessage
+from pygments import highlight
+from pygments.formatters.terminal256 import Terminal256Formatter
+from pygments.lexers import JsonLexer
 from typer import echo
+
+
+def colorful_json(obj: str):
+    """Render a JSON string with colors."""
+    return highlight(
+        obj,
+        lexer=JsonLexer(),
+        formatter=Terminal256Formatter(),
+    )
+
+
+def colorful_message_json(message: GenericMessage):
+    """Render a message in JSON with colors."""
+    return colorful_json(message.json(sort_keys=True, indent=4))
 
 
 def input_multiline() -> str:

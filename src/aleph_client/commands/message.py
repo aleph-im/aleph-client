@@ -2,20 +2,93 @@ import json
 import os.path
 import subprocess
 import tempfile
+from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional
 
 import typer
 from aleph.sdk import AlephClient, AuthenticatedAlephClient
 from aleph.sdk.account import _load_account
+from aleph.sdk.conf import settings as sdk_settings
+from aleph.sdk.models import MessagesResponse
 from aleph.sdk.types import AccountFromPrivateKey, StorageEnum
-from aleph_message.models import AlephMessage, ProgramMessage
+from aleph_message.models import AlephMessage, ItemHash, MessageType, ProgramMessage
 
 from aleph_client.commands import help_strings
-from aleph_client.commands.utils import input_multiline, setup_logging
-from aleph_client.conf import settings
+from aleph_client.commands.utils import (
+    colorful_json,
+    colorful_message_json,
+    input_multiline,
+    setup_logging,
+)
 
 app = typer.Typer()
+
+
+@app.command()
+def get(
+    item_hash: str,
+):
+    with AlephClient(api_server=sdk_settings.API_HOST) as client:
+        message = client.get_message(item_hash=ItemHash(item_hash))
+    typer.echo(colorful_message_json(message))
+
+
+@app.command()
+def find(
+    pagination: int = 200,
+    page: int = 1,
+    message_type: Optional[str] = None,
+    content_types: Optional[str] = None,
+    content_keys: Optional[str] = None,
+    refs: Optional[str] = None,
+    addresses: Optional[str] = None,
+    tags: Optional[str] = None,
+    hashes: Optional[str] = None,
+    channels: Optional[str] = None,
+    chains: Optional[str] = None,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    ignore_invalid_messages: bool = True,
+):
+    message_type = MessageType(message_type) if message_type else None
+    content_types = content_types.split(",") if content_types else None
+    content_keys = content_keys.split(",") if content_keys else None
+    refs = refs.split(",") if refs else None
+    addresses = addresses.split(",") if addresses else None
+    tags = tags.split(",") if tags else None
+    hashes = hashes.split(",") if hashes else None
+    channels = channels.split(",") if channels else None
+    chains = chains.split(",") if chains else None
+    if start_date:
+        try:
+            start_date = float(start_date)
+        except ValueError:
+            start_date = datetime.fromisoformat(start_date)
+    if end_date:
+        try:
+            end_date = float(end_date)
+        except ValueError:
+            end_date = datetime.fromisoformat(end_date)
+
+    with AlephClient(api_server=sdk_settings.API_HOST) as client:
+        response: MessagesResponse = client.get_messages(
+            pagination=pagination,
+            page=page,
+            message_type=message_type,
+            content_types=content_types,
+            content_keys=content_keys,
+            refs=refs,
+            addresses=addresses,
+            tags=tags,
+            hashes=hashes,
+            channels=channels,
+            chains=chains,
+            start_date=start_date,
+            end_date=end_date,
+            ignore_invalid_messages=ignore_invalid_messages,
+        )
+    typer.echo(colorful_json(response.json(sort_keys=True, indent=4)))
 
 
 @app.command()
@@ -26,16 +99,16 @@ def post(
     ),
     type: str = typer.Option("test", help="Text representing the message object type"),
     ref: Optional[str] = typer.Option(None, help=help_strings.REF),
-    channel: str = typer.Option(settings.DEFAULT_CHANNEL, help=help_strings.CHANNEL),
+    channel: Optional[str] = typer.Option(default=None, help=help_strings.CHANNEL),
     private_key: Optional[str] = typer.Option(
-        settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY
+        sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY
     ),
     private_key_file: Optional[Path] = typer.Option(
-        settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE
+        sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE
     ),
     debug: bool = False,
 ):
-    """Post a message on Aleph.im."""
+    """Post a message on aleph.im."""
 
     setup_logging(debug)
 
@@ -70,7 +143,7 @@ def post(
             raise typer.Exit(code=2)
 
     with AuthenticatedAlephClient(
-        account=account, api_server=settings.API_HOST
+        account=account, api_server=sdk_settings.API_HOST
     ) as client:
         result, status = client.create_post(
             post_content=content,
@@ -86,22 +159,23 @@ def post(
 
 @app.command()
 def amend(
-    hash: str = typer.Argument(..., help="Hash reference of the message to amend"),
+    item_hash: str = typer.Argument(..., help="Hash reference of the message to amend"),
     private_key: Optional[str] = typer.Option(
-        settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY
+        sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY
     ),
     private_key_file: Optional[Path] = typer.Option(
-        settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE
+        sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE
     ),
     debug: bool = False,
 ):
-    """Amend an existing Aleph message."""
+    """Amend an existing aleph.im message."""
 
     setup_logging(debug)
 
     account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
 
-    existing_message: AlephMessage = synchronous.get_message(item_hash=hash)
+    with AlephClient(api_server=sdk_settings.API_HOST) as client:
+        existing_message: AlephMessage = client.get_message(item_hash=item_hash)
 
     editor: str = os.getenv("EDITOR", default="nano")
     with tempfile.NamedTemporaryFile(suffix="json") as fd:
@@ -145,16 +219,16 @@ def forget(
     reason: Optional[str] = typer.Option(
         None, help="A description of why the messages are being forgotten."
     ),
-    channel: str = typer.Option(settings.DEFAULT_CHANNEL, help=help_strings.CHANNEL),
+    channel: Optional[str] = typer.Option(default=None, help=help_strings.CHANNEL),
     private_key: Optional[str] = typer.Option(
-        settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY
+        sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY
     ),
     private_key_file: Optional[Path] = typer.Option(
-        settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE
+        sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE
     ),
     debug: bool = False,
 ):
-    """Forget an existing Aleph message."""
+    """Forget an existing aleph.im message."""
 
     setup_logging(debug)
 
@@ -162,7 +236,7 @@ def forget(
 
     account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
     with AuthenticatedAlephClient(
-        account=account, api_server=settings.API_HOST
+        account=account, api_server=sdk_settings.API_HOST
     ) as client:
         client.forget(hashes=hash_list, reason=reason, channel=channel)
 
@@ -177,7 +251,7 @@ def watch(
 
     setup_logging(debug)
 
-    with AlephClient(api_server=settings.API_HOST) as client:
+    with AlephClient(api_server=sdk_settings.API_HOST) as client:
         original: AlephMessage = client.get_message(item_hash=ref)
         for message in client.watch_messages(
             refs=[ref], addresses=[original.content.address]

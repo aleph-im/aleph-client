@@ -1,7 +1,6 @@
 import pytest
-from coincurve.keys import PrivateKey
-
 from aleph.sdk.chains.nuls1 import NulsSignature
+from coincurve.keys import PrivateKey
 
 SECRET = (
     b"\xc4\xfe\xe65\x96\x14\xb4:\r: \x05;\x12j\x9bJ"

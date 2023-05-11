@@ -7,10 +7,9 @@ from typing import Dict
 
 import aiomqtt
 import click
-
-from aleph_client.chains.common import get_fallback_private_key
-from aleph_client.chains.ethereum import ETHAccount
-from aleph_client.main import create_aggregate
+from aleph.sdk.chains.common import get_fallback_private_key
+from aleph.sdk.chains.ethereum import ETHAccount
+from aleph.sdk.client import AuthenticatedAlephClient
 
 
 def get_input_data(value):
@@ -26,7 +25,10 @@ def get_input_data(value):
 
 
 def send_metrics(account, metrics):
-    return create_aggregate(account, "metrics", metrics, channel="SYSINFO")
+    with AuthenticatedAlephClient(
+        account=account, api_server="https://api2.aleph.im"
+    ) as client:
+        return client.create_aggregate("metrics", metrics, channel="SYSINFO")
 
 
 def on_disconnect(client, userdata, rc):
@@ -90,15 +92,20 @@ async def gateway(
     asyncio.ensure_future(client.loop_forever())
 
     await client.connect(host, port, keepalive)
-    while True:
-        await asyncio.sleep(10)
-        if not userdata["received"]:
-            await client.reconnect()
+    async with AuthenticatedAlephClient(
+        account=account, api_server="https://api2.aleph.im"
+    ) as aleph_client:
+        while True:
+            await asyncio.sleep(10)
+            if not userdata["received"]:
+                await client.reconnect()
 
-        for key, value in state.items():
-            message, status = create_aggregate(account, key, value, channel="IOT_TEST")
-            print("sent", message.item_hash)
-            userdata["received"] = False
+            for key, value in state.items():
+                message, status = aleph_client.create_aggregate(
+                    key, value, channel="IOT_TEST"
+                )
+                print("sent", message.item_hash)
+                userdata["received"] = False
 
 
 @click.command()

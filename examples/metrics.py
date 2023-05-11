@@ -7,9 +7,8 @@ import platform
 import time
 
 import psutil
-
-from aleph_client.chains.ethereum import get_fallback_account
-from aleph_client.synchronous import create_aggregate
+from aleph.sdk import AuthenticatedAlephClient
+from aleph.sdk.account import _load_account
 
 
 def get_sysinfo():
@@ -50,7 +49,10 @@ def get_cpu_cores():
 
 
 def send_metrics(account, metrics):
-    return create_aggregate(account, "metrics", metrics, channel="SYSINFO")
+    with AuthenticatedAlephClient(
+        account=account, api_server="https://api2.aleph.im"
+    ) as client:
+        return client.create_aggregate("metrics", metrics, channel="SYSINFO")
 
 
 def collect_metrics():
@@ -63,7 +65,7 @@ def collect_metrics():
 
 
 def main():
-    account = get_fallback_account()
+    account = _load_account()
     while True:
         metrics = collect_metrics()
         message, status = send_metrics(account, metrics)
