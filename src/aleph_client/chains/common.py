@@ -1,19 +1,34 @@
 import os
 from abc import abstractmethod, ABC
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Dict, Optional, Any, Mapping
 
 from coincurve.keys import PrivateKey
 from ecies import decrypt, encrypt
+from aleph_message.models import Chain, MessageType
 
 from aleph_client.conf import settings
 
 
-def get_verification_buffer(message):
-    """Returns a serialized string to verify the message integrity
-    (this is was it signed)
+def get_verification_buffer(message: Mapping[str, Any]) -> bytes:
     """
-    return "{chain}\n{sender}\n{type}\n{item_hash}".format(**message).encode("utf-8")
+    Returns a buffer to sign to authenticate the message on the aleph.im network.
+    """
+
+    # Support both strings and enums. Python 3.11 changed the formatting of enums,
+    # so we must use `.value`.
+    chain = message["chain"]
+    chain_str = chain.value if isinstance(chain, Chain) else chain
+
+    message_type = message["type"]
+    message_type_str = (
+        message_type.value if isinstance(message_type, MessageType) else message_type
+    )
+
+    buffer = (
+        f"{chain_str}\n{message['sender']}\n{message_type_str}\n{message['item_hash']}"
+    )
+    return buffer.encode("utf-8")
 
 
 def get_public_key(private_key):
@@ -85,7 +100,6 @@ def get_fallback_private_key(path: Optional[Path] = None) -> bytes:
 
         with open(path, "rb") as prvfile:
             print(prvfile.read())
-
 
         default_key_path = path.parent / "default.key"
         if not default_key_path.is_symlink():
