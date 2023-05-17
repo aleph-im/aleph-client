@@ -38,7 +38,7 @@ def pin(
     account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
 
     try:
-        result: StoreMessage = synchronous.create_store(
+        message, status = synchronous.create_store(
             account=account,
             file_hash=hash,
             storage_engine=StorageEnum.ipfs,
@@ -46,7 +46,7 @@ def pin(
             ref=ref,
         )
         logger.debug("Upload finished")
-        typer.echo(f"{result.json(indent=4)}")
+        typer.echo(f"{message.json(indent=4)}")
     finally:
         # Prevent aiohttp unclosed connector warning
         asyncio.run(get_fallback_session().close())
@@ -86,7 +86,7 @@ def upload(
                 else StorageEnum.storage
             )
             logger.debug("Uploading file")
-            result: StoreMessage = synchronous.create_store(
+            message, status = synchronous.create_store(
                 account=account,
                 file_content=file_content,
                 storage_engine=storage_engine,
@@ -95,7 +95,7 @@ def upload(
                 ref=ref,
             )
             logger.debug("Upload finished")
-            typer.echo(f"{result.json(indent=4)}")
+            typer.echo(f"{message.json(indent=4)}")
     finally:
         # Prevent aiohttp unclosed connector warning
         asyncio.run(get_fallback_session().close())

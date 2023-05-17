@@ -80,7 +80,7 @@ def post(
             raise typer.Exit(code=2)
 
     try:
-        result: PostMessage = synchronous.create_post(
+        message, status = synchronous.create_post(
             account=account,
             post_content=content,
             post_type=type,
@@ -89,7 +89,7 @@ def post(
             inline=True,
             storage_engine=storage_engine,
         )
-        typer.echo(result.json(indent=4))
+        typer.echo(message.json(indent=4))
     finally:
         # Prevent aiohttp unclosed connector warning
         asyncio.run(get_fallback_session().close())
@@ -154,13 +154,13 @@ def forget_messages(
         channel: str,
 ):
     try:
-        result: ForgetMessage = synchronous.forget(
+        message, status = synchronous.forget(
             account=account,
             hashes=hashes,
             reason=reason,
             channel=channel,
         )
-        typer.echo(f"{result.json(indent=4)}")
+        typer.echo(f"{message.json(indent=4)}")
     finally:
         # Prevent aiohttp unclosed connector warning
         asyncio.run(get_fallback_session().close())
