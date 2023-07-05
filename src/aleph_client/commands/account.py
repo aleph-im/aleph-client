@@ -21,6 +21,9 @@ app = typer.Typer()
 @app.command()
 def create(
     private_key: Optional[str] = typer.Option(None, help=help_strings.PRIVATE_KEY),
+    private_key_file: Optional[Path] = typer.Option(
+        ..., help=help_strings.PRIVATE_KEY_FILE
+    ),
     replace: bool = False,
     debug: bool = False,
 ):
@@ -28,14 +31,15 @@ def create(
 
     setup_logging(debug)
 
-    private_key_path = Path(
-        typer.prompt(
-            "Enter file in which to save the key", sdk_settings.PRIVATE_KEY_FILE
+    if private_key_file is None:
+        private_key_file = Path(
+            typer.prompt(
+                "Enter file in which to save the key", sdk_settings.PRIVATE_KEY_FILE
+            )
         )
-    )
 
-    if private_key_path.exists() and not replace:
-        typer.echo(f"Error: key already exists: '{private_key_path}'", color=RED)
+    if private_key_file.exists() and not replace:
+        typer.echo(f"Error: key already exists: '{private_key_file}'", color=RED)
         raise typer.Exit(1)
 
     private_key_bytes: bytes
@@ -50,9 +54,9 @@ def create(
         typer.echo("An unexpected error occurred!", color=RED)
         raise typer.Exit(2)
 
-    private_key_path.parent.mkdir(parents=True, exist_ok=True)
-    private_key_path.write_bytes(private_key_bytes)
-    typer.echo(f"Private key stored in {private_key_path}", color=GREEN)
+    private_key_file.parent.mkdir(parents=True, exist_ok=True)
+    private_key_file.write_bytes(private_key_bytes)
+    typer.echo(f"Private key stored in {private_key_file}", color=GREEN)
 
 
 @app.command()
