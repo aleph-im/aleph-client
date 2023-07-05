@@ -1,3 +1,4 @@
+import subprocess
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 
@@ -52,31 +53,39 @@ def test_account_export_private_key(account_file: Path):
 
 
 def test_message_get():
-    result = runner.invoke(
-        app,
+    # Use subprocess to avoid border effects between tests caused by the initialisation
+    # of the aiohttp client session out of an async context in the SDK. This avoids
+    # a "no running event loop" error when running several tests back to back.
+    result = subprocess.run(
         [
+            "aleph",
             "message",
             "get",
             "bd79839bf96e595a06da5ac0b6ba51dea6f7e2591bb913deccded04d831d29f4",
         ],
+        capture_output=True,
     )
-    assert result.exit_code == 0
-    assert "0x101d8D16372dBf5f1614adaE95Ee5CCE61998Fc9" in result.stdout
+    assert result.returncode == 0
+    assert b"0x101d8D16372dBf5f1614adaE95Ee5CCE61998Fc9" in result.stdout
 
 
 def test_message_find():
-    result = runner.invoke(
-        app,
+    result = subprocess.run(
         [
+            "aleph",
             "message",
             "find",
             "--pagination=1",
             "--page=1",
             "--start-date=1234",
             "--chains=ETH",
-            "--hashes=bd79839bf96e595a06da5ac0b6ba51dea6f7e2591bb913deccded04d831d29f4"
+            "--hashes=bd79839bf96e595a06da5ac0b6ba51dea6f7e2591bb913deccded04d831d29f4",
         ],
+        capture_output=True,
     )
-    assert result.exit_code == 0
-    assert "0x101d8D16372dBf5f1614adaE95Ee5CCE61998Fc9" in result.stdout
-    assert "bd79839bf96e595a06da5ac0b6ba51dea6f7e2591bb913deccded04d831d29f4" in result.stdout
+    assert result.returncode == 0
+    assert b"0x101d8D16372dBf5f1614adaE95Ee5CCE61998Fc9" in result.stdout
+    assert (
+        b"bd79839bf96e595a06da5ac0b6ba51dea6f7e2591bb913deccded04d831d29f4"
+        in result.stdout
+    )
