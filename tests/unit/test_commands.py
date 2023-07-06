@@ -7,12 +7,13 @@ from aleph.sdk.chains.common import generate_key
 from typer.testing import CliRunner
 
 from aleph_client.__main__ import app
+from typing import Generator
 
 runner = CliRunner()
 
 
 @pytest.fixture
-def empty_account_file() -> Path:
+def empty_account_file() -> Generator[Path, None, None]:
     with NamedTemporaryFile() as key_file:
         yield Path(key_file.name)
 
