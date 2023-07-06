@@ -11,6 +11,7 @@ from aleph.sdk.conf import settings as sdk_settings
 from aleph.sdk.types import AccountFromPrivateKey
 from typer.colors import GREEN, RED
 
+
 from aleph_client.commands import help_strings
 from aleph_client.commands.utils import setup_logging
 
@@ -39,7 +40,8 @@ def create(
         )
 
     if private_key_file.exists() and not replace:
-        typer.echo(f"Error: key already exists: '{private_key_file}'", color=RED)
+        typer.secho(f"Error: key already exists: '{private_key_file}'", fg=RED)
+
         raise typer.Exit(1)
 
     private_key_bytes: bytes
@@ -51,12 +53,12 @@ def create(
         private_key_bytes = generate_key()
 
     if not private_key_bytes:
-        typer.echo("An unexpected error occurred!", color=RED)
+        typer.secho("An unexpected error occurred!", fg=RED)
         raise typer.Exit(2)
 
     private_key_file.parent.mkdir(parents=True, exist_ok=True)
     private_key_file.write_bytes(private_key_bytes)
-    typer.echo(f"Private key stored in {private_key_file}", color=GREEN)
+    typer.secho(f"Private key stored in {private_key_file}", fg=RED)
 
 
 @app.command()
@@ -75,7 +77,7 @@ def address(
     if private_key is not None:
         private_key_file = None
     elif private_key_file and not private_key_file.exists():
-        typer.echo("No private key available", color=RED)
+        typer.secho("No private key available", fg=RED)
         raise typer.Exit(code=1)
 
     account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
@@ -98,7 +100,7 @@ def export_private_key(
     if private_key is not None:
         private_key_file = None
     elif private_key_file and not private_key_file.exists():
-        typer.echo("No private key available", color=RED)
+        typer.secho("No private key available", fg=RED)
         raise typer.Exit(code=1)
 
     account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
@@ -106,7 +108,7 @@ def export_private_key(
         private_key_hex: str = base64.b16encode(account.private_key).decode().lower()
         typer.echo(f"0x{private_key_hex}")
     else:
-        typer.echo(f"Private key cannot be read for {account}", color=RED)
+        typer.secho(f"Private key cannot be read for {account}", fg=RED)
 
 
 @app.command()

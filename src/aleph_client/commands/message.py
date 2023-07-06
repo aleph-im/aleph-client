@@ -25,6 +25,17 @@ from aleph_client.commands.utils import (
 app = typer.Typer()
 
 
+def str_to_datetime(date: Optional[str]) -> Optional[datetime]:
+    if date is None:
+        return None
+    try:
+        date_f = float(date)
+        return datetime.fromtimestamp(date_f)
+    except ValueError:
+        pass
+    return datetime.fromisoformat(date)
+
+
 @app.command()
 def get(
     item_hash: str,
@@ -60,16 +71,9 @@ def find(
     hashes = hashes.split(",") if hashes else None
     channels = channels.split(",") if channels else None
     chains = chains.split(",") if chains else None
-    if start_date:
-        try:
-            start_date = float(start_date)
-        except ValueError:
-            start_date = datetime.fromisoformat(start_date)
-    if end_date:
-        try:
-            end_date = float(end_date)
-        except ValueError:
-            end_date = datetime.fromisoformat(end_date)
+
+    start_time = str_to_datetime(start_date)
+    end_time = str_to_datetime(end_date)
 
     with AlephClient(api_server=sdk_settings.API_HOST) as client:
         response: MessagesResponse = client.get_messages(
@@ -84,8 +88,8 @@ def find(
             hashes=hashes,
             channels=channels,
             chains=chains,
-            start_date=start_date,
-            end_date=end_date,
+            start_date=start_time,
+            end_date=end_time,
             ignore_invalid_messages=ignore_invalid_messages,
         )
     typer.echo(colorful_json(response.json(sort_keys=True, indent=4)))
@@ -201,7 +205,7 @@ def amend(
 
     typer.echo(new_content)
     with AuthenticatedAlephClient(
-        account=account, api_server=settings.API_HOST
+        account=account, api_server=sdk_settings.API_HOST
     ) as client:
         message, _status = client.submit(
             content=new_content.dict(),
