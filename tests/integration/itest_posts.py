@@ -18,16 +18,16 @@ async def get_message(item_hash: str):
 
 
 async def create_message_on_target(
-        fixture_account, emitter_node: str, receiver_node: str
+    fixture_account, emitter_node: str, receiver_node: str
 ):
     """
     Create a POST message on the target node, then fetch it from the reference node.
     """
-    data = {'content': 'test'}
+    data = {"content": "test"}
     async with AuthenticatedAlephClient(
-            account=fixture_account, api_server=sdk_settings.API_HOST
+        account=fixture_account, api_server=sdk_settings.API_HOST
     ) as client:
-        result, status = await client.create_post(
+        message, status = await client.create_post(
             post_content=data,
             post_type="POST",
             ref=None,
@@ -40,10 +40,11 @@ async def create_message_on_target(
         lambda r: r is not None and r.content is not None,
         timeout=50,
         time_between_attempts=0.5,
-        item_hash=result.item_hash,
+        item_hash=message.item_hash,
     )
+    assert status == 0
+    assert response.content == message.content
 
-    assert response.content == result.content
 
 @pytest.mark.asyncio
 async def test_create_message_on_target(fixture_account):
