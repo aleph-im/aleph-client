@@ -63,14 +63,26 @@ def find(
     ignore_invalid_messages: bool = True,
 ):
     message_type = MessageType(message_type) if message_type else None
-    content_types = content_types.split(",") if content_types else None
-    content_keys = content_keys.split(",") if content_keys else None
-    refs = refs.split(",") if refs else None
-    addresses = addresses.split(",") if addresses else None
-    tags = tags.split(",") if tags else None
-    hashes = hashes.split(",") if hashes else None
-    channels = channels.split(",") if channels else None
-    chains = chains.split(",") if chains else None
+    
+    content_types_s: Optional[list[str]] = None
+    content_keys_s: Optional[list[str]] = None
+    refs_s: Optional[list[str]] = None
+    addresses_s: Optional[list[str]] = None
+    tags_s: Optional[list[str]] = None
+    hashes_s: Optional[list[str]] = None
+    channels_s: Optional[list[str]] = None
+    chains_s: Optional[list[str]] = None
+
+    content_types_s = content_types.split(",") if content_types else None
+    content_keys_s = content_keys.split(",") if content_keys else None
+    refs_s = refs.split(",") if refs else None
+    addresses_s = addresses.split(",") if addresses else None
+    tags_s = tags.split(",") if tags else None
+    hashes_s = hashes.split(",") if hashes else None
+    channels_s = channels.split(",") if channels else None
+    chains_s = chains.split(",") if chains else None
+
+    message_type = MessageType(message_type) if message_type else None
 
     start_time = str_to_datetime(start_date)
     end_time = str_to_datetime(end_date)
@@ -80,14 +92,14 @@ def find(
             pagination=pagination,
             page=page,
             message_type=message_type,
-            content_types=content_types,
-            content_keys=content_keys,
-            refs=refs,
-            addresses=addresses,
-            tags=tags,
-            hashes=hashes,
-            channels=channels,
-            chains=chains,
+            content_types=content_types_s,
+            content_keys=content_keys_s,
+            refs=refs_s,
+            addresses=addresses_s,
+            tags=tags_s,
+            hashes=hashes_s,
+            channels=channels_s,
+            chains=chains_s,
             start_date=start_time,
             end_date=end_time,
             ignore_invalid_messages=ignore_invalid_messages,
