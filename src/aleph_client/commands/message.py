@@ -64,23 +64,23 @@ def find(
 ):
     message_type = MessageType(message_type) if message_type else None
     
-    content_types_s: Optional[list[str]] = None
-    content_keys_s: Optional[list[str]] = None
-    refs_s: Optional[list[str]] = None
-    addresses_s: Optional[list[str]] = None
-    tags_s: Optional[list[str]] = None
-    hashes_s: Optional[list[str]] = None
-    channels_s: Optional[list[str]] = None
-    chains_s: Optional[list[str]] = None
+    parsed_content_types: Optional[List[str]] = None
+    parsed_content_keys: Optional[List[str]] = None
+    parsed_refs: Optional[List[str]] = None
+    parsed_addresses: Optional[List[str]] = None
+    parsed_tags: Optional[List[str]] = None
+    parsed_hashes: Optional[List[str]] = None
+    parsed_channels: Optional[List[str]] = None
+    parsed_chains: Optional[List[str]] = None
 
-    content_types_s = content_types.split(",") if content_types else None
-    content_keys_s = content_keys.split(",") if content_keys else None
-    refs_s = refs.split(",") if refs else None
-    addresses_s = addresses.split(",") if addresses else None
-    tags_s = tags.split(",") if tags else None
-    hashes_s = hashes.split(",") if hashes else None
-    channels_s = channels.split(",") if channels else None
-    chains_s = chains.split(",") if chains else None
+    parsed_content_types = content_types.split(",") if content_types else None
+    parsed_content_keys = content_keys.split(",") if content_keys else None
+    parsed_refs = refs.split(",") if refs else None
+    parsed_addresses = addresses.split(",") if addresses else None
+    parsed_tags = tags.split(",") if tags else None
+    parsed_hashes = hashes.split(",") if hashes else None
+    parsed_channels = channels.split(",") if channels else None
+    parsed_chains = chains.split(",") if chains else None
 
     message_type = MessageType(message_type) if message_type else None
 
@@ -92,14 +92,14 @@ def find(
             pagination=pagination,
             page=page,
             message_type=message_type,
-            content_types=content_types_s,
-            content_keys=content_keys_s,
-            refs=refs_s,
-            addresses=addresses_s,
-            tags=tags_s,
-            hashes=hashes_s,
-            channels=channels_s,
-            chains=chains_s,
+            content_types=parsed_content_types,
+            content_keys=parsed_content_keys,
+            refs=parsed_refs,
+            addresses=parsed_addresses,
+            tags=parsed_tags,
+            hashes=parsed_hashes,
+            channels=parsed_channels,
+            chains=parsed_chains,
             start_date=start_time,
             end_date=end_time,
             ignore_invalid_messages=ignore_invalid_messages,
