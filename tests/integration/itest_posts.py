@@ -6,6 +6,7 @@ from .config import REFERENCE_NODE, TARGET_NODE
 from aleph.sdk import AuthenticatedAlephClient
 from aleph.sdk.conf import settings as sdk_settings
 from aleph.sdk import AlephClient
+from aleph_message.status import MessageStatus
 
 
 async def get_message(item_hash: str):
@@ -33,16 +34,17 @@ async def create_message_on_target(
             ref=None,
             channel="INTEGRATION_TESTS",
             inline=True,
+            sync=True,
         )
 
     response = await try_until(
         get_message,
         lambda r: r is not None and r.content is not None,
-        timeout=50,
+        timeout=5,
         time_between_attempts=0.5,
         item_hash=message.item_hash,
     )
-    assert status == 0
+    assert status == MessageStatus.PROCESSED
     assert response.content == message.content
 
 
