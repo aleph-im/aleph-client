@@ -1,3 +1,4 @@
+import asyncio
 import json
 import os.path
 import subprocess
@@ -262,3 +263,30 @@ def watch(
             refs=[ref], addresses=[original.content.address]
         ):
             typer.echo(f"{message.json(indent=indent)}")
+
+
+@app.command()
+def sign(
+    message: str = typer.Option(..., help=help_strings.SIGNABLE_MESSAGE),
+    private_key: Optional[str] = typer.Option(
+        sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY
+    ),
+    private_key_file: Optional[Path] = typer.Option(
+        sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE
+    ),
+):
+    """Sign an aleph message with a private key."""
+
+    if private_key is not None:
+        private_key_file = None
+    elif private_key_file and not os.path.exists(private_key_file):
+        exit(0)
+
+    account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
+    loop = asyncio.get_event_loop()
+    try:
+        coroutine = account.sign_message(json.loads(message))
+        signed_message = loop.run_until_complete(coroutine)
+        typer.echo(signed_message["signature"])
+    finally:
+        loop.close()
