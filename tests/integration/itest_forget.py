@@ -6,6 +6,7 @@ from aleph.sdk.types import Account
 
 from .config import REFERENCE_NODE, TARGET_NODE, TEST_CHANNEL
 from .toolkit import try_until
+from aleph.sdk import AlephClient
 
 
 async def create_and_forget_post(
@@ -58,6 +59,7 @@ async def create_and_forget_post(
         print(forget_message)
 
         # Wait until the message is forgotten
+
         forgotten_posts = await wait_matching_posts(
             post_hash,
             lambda response: "forgotten_by" in response["posts"][0],
@@ -107,13 +109,12 @@ async def test_forget_a_forget_message(fixture_account):
         post = get_post_response["posts"][0]
 
         forget_message_hash = post["forgotten_by"][0]
-        forget_message, forget_status = await forget(
-            fixture_account,
-            hashes=[forget_message_hash],
-            reason="I want to remember this post. Maybe I can forget I forgot it?",
-            channel=TEST_CHANNEL,
-            api_server=TARGET_NODE,
-        )
+        async with AuthenticatedAlephClient(account=fixture_account, api_server=TARGET_NODE) as my_client:
+            forget_message, forget_status = await my_client.forget(
+                hashes=[forget_message_hash],
+                reason="I want to remember this post. Maybe I can forget I forgot it?",
+                channel=TEST_CHANNEL,
+            )
 
         print(forget_message)
 
