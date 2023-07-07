@@ -6,6 +6,7 @@ from pygments import highlight
 from pygments.formatters.terminal256 import Terminal256Formatter
 from pygments.lexers import JsonLexer
 from typer import echo
+from datetime import datetime
 
 
 def colorful_json(obj: str):
@@ -105,3 +106,19 @@ def volume_to_dict(volume: List[str]) -> Optional[Dict[str, Union[str, int]]]:
                 dict_store[p[0]] = p[1]
 
     return dict_store
+
+
+def str_to_datetime(date: Optional[str]) -> Optional[datetime]:
+    """
+    Converts a string representation of a date/time to a datetime object.
+
+    The function can accept either a timestamp or an ISO format datetime string as the input.
+    """
+    if date is None:
+        return None
+    try:
+        date_f = float(date)
+        return datetime.fromtimestamp(date_f)
+    except ValueError:
+        pass
+    return datetime.fromisoformat(date)

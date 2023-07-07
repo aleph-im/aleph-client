@@ -2,7 +2,6 @@ import json
 import os.path
 import subprocess
 import tempfile
-from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional
 
@@ -20,20 +19,10 @@ from aleph_client.commands.utils import (
     colorful_message_json,
     input_multiline,
     setup_logging,
+    str_to_datetime,
 )
 
 app = typer.Typer()
-
-
-def str_to_datetime(date: Optional[str]) -> Optional[datetime]:
-    if date is None:
-        return None
-    try:
-        date_f = float(date)
-        return datetime.fromtimestamp(date_f)
-    except ValueError:
-        pass
-    return datetime.fromisoformat(date)
 
 
 @app.command()
@@ -63,7 +52,7 @@ def find(
     ignore_invalid_messages: bool = True,
 ):
     message_type = MessageType(message_type) if message_type else None
-    
+
     parsed_content_types: Optional[List[str]] = None
     parsed_content_keys: Optional[List[str]] = None
     parsed_refs: Optional[List[str]] = None
