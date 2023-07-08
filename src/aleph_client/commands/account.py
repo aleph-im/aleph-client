@@ -1,3 +1,5 @@
+import os
+
 import base64
 import logging
 from pathlib import Path
@@ -123,7 +125,7 @@ def sign(
     private_key: Optional[str] = typer.Option(
         sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY
     ),
-    private_key_file: Optional[str] = typer.Option(
+    private_key_file: Optional[Path] = typer.Option(
         sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE
     ),
     debug: bool = False,
@@ -138,5 +140,5 @@ def sign(
         exit(0)
 
     account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
-    signature = account.sign_arbitrary(message.encode)
+    signature = account.sign_arbitrary(message)
     typer.echo(signature)
