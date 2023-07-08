@@ -132,6 +132,11 @@ def sign(
 
     setup_logging(debug)
 
+    if private_key is not None:
+        private_key_file = None
+    elif private_key_file and not os.path.exists(private_key_file):
+        exit(0)
+
     account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
     signature = account.sign_arbitrary(message.encode)
     typer.echo(signature)
