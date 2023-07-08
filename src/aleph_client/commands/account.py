@@ -115,3 +115,23 @@ def export_private_key(
 def path():
     if sdk_settings.PRIVATE_KEY_FILE:
         typer.echo(sdk_settings.PRIVATE_KEY_FILE)
+
+
+@app.command()
+def sign(
+    message: str = typer.Option(..., help="Message to sign"),
+    private_key: Optional[str] = typer.Option(
+        sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY
+    ),
+    private_key_file: Optional[str] = typer.Option(
+        sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE
+    ),
+    debug: bool = False,
+):
+    """Sign a message using your private key."""
+
+    setup_logging(debug)
+
+    account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
+    signature = account.sign_arbitrary(message.encode)
+    typer.echo(signature)
