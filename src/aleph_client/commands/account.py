@@ -1,3 +1,4 @@
+import asyncio
 import os
 
 import base64
@@ -140,5 +141,10 @@ def sign(
         exit(0)
 
     account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
-    signature = account.sign_arbitrary(message)
-    typer.echo(signature)
+    loop = asyncio.get_event_loop()
+    try:
+        coroutine = account.sign_arbitrary(message)
+        signature = loop.run_until_complete(coroutine)
+        typer.echo(signature)
+    finally:
+        loop.close()
