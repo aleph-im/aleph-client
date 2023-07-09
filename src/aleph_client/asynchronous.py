@@ -490,6 +490,7 @@ async def create_program(
     vcpus: Optional[int] = None,
     timeout_seconds: Optional[float] = None,
     persistent: bool = False,
+    allow_amend: bool = False,
     encoding: Encoding = Encoding.zip,
     volumes: Optional[List[Mapping]] = None,
     subscriptions: Optional[List[Mapping]] = None,
@@ -512,6 +513,7 @@ async def create_program(
     :param vcpus: Number of vCPUs to allocate (Default: 1)
     :param timeout_seconds: Timeout in seconds (Default: 30.0)
     :param persistent: Whether the program should be persistent or not (Default: False)
+    :param allow_amend: Whether the program can be updated by its author (Default: False)
     :param encoding: Encoding to use (Default: Encoding.zip)
     :param volumes: Volumes to mount
     :param subscriptions: Patterns of Aleph messages to forward to the program's event receiver
@@ -538,7 +540,7 @@ async def create_program(
         **{
             "type": "vm-function",
             "address": address,
-            "allow_amend": False,
+            "allow_amend": allow_amend,
             "code": {
                 "encoding": encoding,
                 "entrypoint": entrypoint,

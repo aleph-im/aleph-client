@@ -66,6 +66,7 @@ def upload(
 
         debug: bool = False,
         persistent: bool = False,
+        allow_amend: bool = False,
         persistent_volume: Optional[List[str]] = typer.Option(
             None,
             help='''Takes 3 parameters                                                                                                                             
@@ -184,6 +185,7 @@ def upload(
             vcpus=vcpus,
             timeout_seconds=timeout_seconds,
             persistent=persistent,
+            allow_amend=allow_amend,
             encoding=encoding,
             volumes=volumes,
             subscriptions=subscriptions,
