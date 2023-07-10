@@ -1,15 +1,30 @@
-import re
-import fnmatch
 import abc
-from typing import Union, Optional, Any, Dict, List, NewType
+import fnmatch
+import re
+import threading
+from functools import lru_cache
+from typing import Any, Dict, List, NewType, Optional, Union
 
+import aiohttp
 from aiohttp import ClientSession
 
-from aleph_client.asynchronous import get_fallback_session
 from ..conf import settings
 
-
 CacheKey = NewType("CacheKey", str)
+
+
+@lru_cache()
+def _get_fallback_session(thread_id: Optional[int]) -> ClientSession:
+    if settings.API_UNIX_SOCKET:
+        connector = aiohttp.UnixConnector(path=settings.API_UNIX_SOCKET)
+        return aiohttp.ClientSession(connector=connector)
+    else:
+        return aiohttp.ClientSession()
+
+
+def get_fallback_session() -> ClientSession:
+    thread_id = threading.get_native_id()
+    return _get_fallback_session(thread_id=thread_id)
 
 
 def sanitize_cache_key(key: str) -> CacheKey:
@@ -49,7 +64,9 @@ class VmCache(BaseVmCache):
     cache: Dict[str, bytes]
     api_host: str
 
-    def __init__(self, session: Optional[ClientSession] = None, api_host: Optional[str] = None):
+    def __init__(
+        self, session: Optional[ClientSession] = None, api_host: Optional[str] = None
+    ):
         self.session = session or get_fallback_session()
         self.cache = {}
         self.api_host = api_host if api_host else settings.API_HOST
@@ -74,7 +91,9 @@ class VmCache(BaseVmCache):
 
     async def delete(self, key: str) -> Any:
         sanitized_key = sanitize_cache_key(key)
-        async with self.session.delete(f"{self.api_host}/cache/{sanitized_key}") as resp:
+        async with self.session.delete(
+            f"{self.api_host}/cache/{sanitized_key}"
+        ) as resp:
             resp.raise_for_status()
             return await resp.json()
 

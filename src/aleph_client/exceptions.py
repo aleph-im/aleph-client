@@ -21,7 +21,7 @@ class MultipleMessagesError(QueryError):
 
 class BroadcastError(Exception):
     """
-    Data could not be broadcast to the Aleph network.
+    Data could not be broadcast to the aleph.im network.
     """
 
     pass
@@ -29,7 +29,7 @@ class BroadcastError(Exception):
 
 class InvalidMessageError(BroadcastError):
     """
-    The message could not be broadcast because it does not follow the Aleph
+    The message could not be broadcast because it does not follow the aleph.im
     message specification.
     """
 

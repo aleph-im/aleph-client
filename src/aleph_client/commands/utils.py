@@ -1,6 +1,26 @@
 import logging
+from typing import Dict, List, Optional, Union
+
+from aleph.sdk.types import GenericMessage
+from pygments import highlight
+from pygments.formatters.terminal256 import Terminal256Formatter
+from pygments.lexers import JsonLexer
 from typer import echo
-from typing import Optional, List, Dict, Union
+from datetime import datetime
+
+
+def colorful_json(obj: str):
+    """Render a JSON string with colors."""
+    return highlight(
+        obj,
+        lexer=JsonLexer(),
+        formatter=Terminal256Formatter(),
+    )
+
+
+def colorful_message_json(message: GenericMessage):
+    """Render a message in JSON with colors."""
+    return colorful_json(message.json(sort_keys=True, indent=4))
 
 
 def input_multiline() -> str:
@@ -80,10 +100,25 @@ def volume_to_dict(volume: List[str]) -> Optional[Dict[str, Union[str, int]]]:
             p = param.split("=")
             if p[1].isdigit():
                 dict_store[p[0]] = int(p[1])
-            elif p[1] in ['True', 'true', 'False', 'false']:
+            elif p[1] in ["True", "true", "False", "false"]:
                 dict_store[p[0]] = bool(p[1].capitalize())
             else:
                 dict_store[p[0]] = p[1]
 
     return dict_store
 
+
+def str_to_datetime(date: Optional[str]) -> Optional[datetime]:
+    """
+    Converts a string representation of a date/time to a datetime object.
+
+    The function can accept either a timestamp or an ISO format datetime string as the input.
+    """
+    if date is None:
+        return None
+    try:
+        date_f = float(date)
+        return datetime.fromtimestamp(date_f)
+    except ValueError:
+        pass
+    return datetime.fromisoformat(date)

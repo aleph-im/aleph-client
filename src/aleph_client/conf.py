@@ -1,11 +1,9 @@
-import pathlib
+import os
 from pathlib import Path
 from shutil import which
 from typing import Optional
 
 from pydantic import BaseSettings, Field
-import os
-import sys
 
 
 class Settings(BaseSettings):
@@ -17,7 +15,7 @@ class Settings(BaseSettings):
         default=Path("ethereum.key"),
         description="Path to the private key used to sign messages",
     )
-    
+
     PRIVATE_KEY_STRING: Optional[str] = None
     API_HOST: str = "https://api2.aleph.im"
     MAX_INLINE_SIZE: int = 50000
@@ -60,4 +58,6 @@ if settings.CONFIG_HOME is None:
 
 assert settings.CONFIG_HOME
 if str(settings.PRIVATE_KEY_FILE) == "ethereum.key":
-    settings.PRIVATE_KEY_FILE = Path(settings.CONFIG_HOME, "private-keys", "ethereum.key")
+    settings.PRIVATE_KEY_FILE = Path(
+        settings.CONFIG_HOME, "private-keys", "ethereum.key"
+    )

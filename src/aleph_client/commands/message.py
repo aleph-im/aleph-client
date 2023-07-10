@@ -1,56 +1,124 @@
-import asyncio
 import json
 import os.path
 import subprocess
 import tempfile
 from pathlib import Path
-from typing import Optional, Dict, List
+from typing import Dict, List, Optional
 
 import typer
-from aleph_message.models import (
-    PostMessage,
-    ForgetMessage,
-    AlephMessage,
-    ProgramMessage,
-)
+from aleph.sdk import AlephClient, AuthenticatedAlephClient
+from aleph.sdk.account import _load_account
+from aleph.sdk.conf import settings as sdk_settings
+from aleph.sdk.models import MessagesResponse
+from aleph.sdk.types import AccountFromPrivateKey, StorageEnum
+from aleph_message.models import AlephMessage, ItemHash, MessageType, ProgramMessage
 
-from aleph_client import synchronous
-from aleph_client.account import _load_account
-from aleph_client.asynchronous import get_fallback_session
 from aleph_client.commands import help_strings
 from aleph_client.commands.utils import (
-    setup_logging,
+    colorful_json,
+    colorful_message_json,
     input_multiline,
+    setup_logging,
+    str_to_datetime,
 )
-from aleph_client.conf import settings
-from aleph_client.types import AccountFromPrivateKey, StorageEnum
 
 app = typer.Typer()
 
 
 @app.command()
-def post(
-        path: Optional[Path] = typer.Option(
-            None,
-            help="Path to the content you want to post. If omitted, you can input your content directly",
-        ),
-        type: str = typer.Option("test", help="Text representing the message object type"),
-        ref: Optional[str] = typer.Option(None, help=help_strings.REF),
-        channel: str = typer.Option(settings.DEFAULT_CHANNEL, help=help_strings.CHANNEL),
-        private_key: Optional[str] = typer.Option(
-            settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY
-        ),
-        private_key_file: Optional[Path] = typer.Option(
-            settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE
-        ),
-        debug: bool = False,
+def get(
+    item_hash: str,
 ):
-    """Post a message on Aleph.im."""
+    with AlephClient(api_server=sdk_settings.API_HOST) as client:
+        message = client.get_message(item_hash=ItemHash(item_hash))
+    typer.echo(colorful_message_json(message))
+
+
+@app.command()
+def find(
+    pagination: int = 200,
+    page: int = 1,
+    message_type: Optional[str] = None,
+    content_types: Optional[str] = None,
+    content_keys: Optional[str] = None,
+    refs: Optional[str] = None,
+    addresses: Optional[str] = None,
+    tags: Optional[str] = None,
+    hashes: Optional[str] = None,
+    channels: Optional[str] = None,
+    chains: Optional[str] = None,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    ignore_invalid_messages: bool = True,
+):
+    message_type = MessageType(message_type) if message_type else None
+
+    parsed_content_types: Optional[List[str]] = None
+    parsed_content_keys: Optional[List[str]] = None
+    parsed_refs: Optional[List[str]] = None
+    parsed_addresses: Optional[List[str]] = None
+    parsed_tags: Optional[List[str]] = None
+    parsed_hashes: Optional[List[str]] = None
+    parsed_channels: Optional[List[str]] = None
+    parsed_chains: Optional[List[str]] = None
+
+    parsed_content_types = content_types.split(",") if content_types else None
+    parsed_content_keys = content_keys.split(",") if content_keys else None
+    parsed_refs = refs.split(",") if refs else None
+    parsed_addresses = addresses.split(",") if addresses else None
+    parsed_tags = tags.split(",") if tags else None
+    parsed_hashes = hashes.split(",") if hashes else None
+    parsed_channels = channels.split(",") if channels else None
+    parsed_chains = chains.split(",") if chains else None
+
+    message_type = MessageType(message_type) if message_type else None
+
+    start_time = str_to_datetime(start_date)
+    end_time = str_to_datetime(end_date)
+
+    with AlephClient(api_server=sdk_settings.API_HOST) as client:
+        response: MessagesResponse = client.get_messages(
+            pagination=pagination,
+            page=page,
+            message_type=message_type,
+            content_types=parsed_content_types,
+            content_keys=parsed_content_keys,
+            refs=parsed_refs,
+            addresses=parsed_addresses,
+            tags=parsed_tags,
+            hashes=parsed_hashes,
+            channels=parsed_channels,
+            chains=parsed_chains,
+            start_date=start_time,
+            end_date=end_time,
+            ignore_invalid_messages=ignore_invalid_messages,
+        )
+    typer.echo(colorful_json(response.json(sort_keys=True, indent=4)))
+
+
+@app.command()
+def post(
+    path: Optional[Path] = typer.Option(
+        None,
+        help="Path to the content you want to post. If omitted, you can input your content directly",
+    ),
+    type: str = typer.Option("test", help="Text representing the message object type"),
+    ref: Optional[str] = typer.Option(None, help=help_strings.REF),
+    channel: Optional[str] = typer.Option(default=None, help=help_strings.CHANNEL),
+    private_key: Optional[str] = typer.Option(
+        sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY
+    ),
+    private_key_file: Optional[Path] = typer.Option(
+        sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE
+    ),
+    debug: bool = False,
+):
+    """Post a message on aleph.im."""
 
     setup_logging(debug)
 
     account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
-    storage_engine: str
+    storage_engine: StorageEnum
     content: Dict
 
     if path:
@@ -79,9 +147,10 @@ def post(
             typer.echo("Not valid JSON")
             raise typer.Exit(code=2)
 
-    try:
-        result: PostMessage = synchronous.create_post(
-            account=account,
+    with AuthenticatedAlephClient(
+        account=account, api_server=sdk_settings.API_HOST
+    ) as client:
+        result, status = client.create_post(
             post_content=content,
             post_type=type,
             ref=ref,
@@ -89,30 +158,29 @@ def post(
             inline=True,
             storage_engine=storage_engine,
         )
-        typer.echo(result.json(indent=4))
-    finally:
-        # Prevent aiohttp unclosed connector warning
-        asyncio.run(get_fallback_session().close())
+
+        typer.echo(json.dumps(result.dict(), indent=4))
 
 
 @app.command()
 def amend(
-        hash: str = typer.Argument(..., help="Hash reference of the message to amend"),
-        private_key: Optional[str] = typer.Option(
-            settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY
-        ),
-        private_key_file: Optional[Path] = typer.Option(
-            settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE
-        ),
-        debug: bool = False,
+    item_hash: str = typer.Argument(..., help="Hash reference of the message to amend"),
+    private_key: Optional[str] = typer.Option(
+        sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY
+    ),
+    private_key_file: Optional[Path] = typer.Option(
+        sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE
+    ),
+    debug: bool = False,
 ):
-    """Amend an existing Aleph message."""
+    """Amend an existing aleph.im message."""
 
     setup_logging(debug)
 
     account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
 
-    existing_message: AlephMessage = synchronous.get_message(item_hash=hash)
+    with AlephClient(api_server=sdk_settings.API_HOST) as client:
+        existing_message: AlephMessage = client.get_message(item_hash=item_hash)
 
     editor: str = os.getenv("EDITOR", default="nano")
     with tempfile.NamedTemporaryFile(suffix="json") as fd:
@@ -137,75 +205,60 @@ def amend(
         new_content.ref = existing_message.item_hash
 
     typer.echo(new_content)
-    message, _status = synchronous.submit(
-        api_server=settings.API_HOST,
-        account=account,
-        content=new_content.dict(exclude_none=True),
-        message_type=existing_message.type,
-        channel=existing_message.channel,
-    )
-    typer.echo(f"{message.json(indent=4)}")
-
-
-def forget_messages(
-        account: AccountFromPrivateKey,
-        hashes: List[str],
-        reason: Optional[str],
-        channel: str,
-):
-    try:
-        result: ForgetMessage = synchronous.forget(
-            account=account,
-            hashes=hashes,
-            reason=reason,
-            channel=channel,
+    with AuthenticatedAlephClient(
+        account=account, api_server=sdk_settings.API_HOST
+    ) as client:
+        message, _status = client.submit(
+            content=new_content.dict(),
+            message_type=existing_message.type,
+            channel=existing_message.channel,
         )
-        typer.echo(f"{result.json(indent=4)}")
-    finally:
-        # Prevent aiohttp unclosed connector warning
-        asyncio.run(get_fallback_session().close())
+    typer.echo(f"{message.json(indent=4)}")
 
 
 @app.command()
 def forget(
-        hashes: str = typer.Argument(
-            ..., help="Comma separated list of hash references of messages to forget"
-        ),
-        reason: Optional[str] = typer.Option(
-            None, help="A description of why the messages are being forgotten."
-        ),
-        channel: str = typer.Option(settings.DEFAULT_CHANNEL, help=help_strings.CHANNEL),
-        private_key: Optional[str] = typer.Option(
-            settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY
-        ),
-        private_key_file: Optional[Path] = typer.Option(
-            settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE
-        ),
-        debug: bool = False,
+    hashes: str = typer.Argument(
+        ..., help="Comma separated list of hash references of messages to forget"
+    ),
+    reason: Optional[str] = typer.Option(
+        None, help="A description of why the messages are being forgotten."
+    ),
+    channel: Optional[str] = typer.Option(default=None, help=help_strings.CHANNEL),
+    private_key: Optional[str] = typer.Option(
+        sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY
+    ),
+    private_key_file: Optional[Path] = typer.Option(
+        sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE
+    ),
+    debug: bool = False,
 ):
-    """Forget an existing Aleph message."""
+    """Forget an existing aleph.im message."""
 
     setup_logging(debug)
 
-    account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
-
     hash_list: List[str] = hashes.split(",")
-    forget_messages(account, hash_list, reason, channel)
+
+    account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
+    with AuthenticatedAlephClient(
+        account=account, api_server=sdk_settings.API_HOST
+    ) as client:
+        client.forget(hashes=hash_list, reason=reason, channel=channel)
 
 
 @app.command()
 def watch(
-        ref: str = typer.Argument(..., help="Hash reference of the message to watch"),
-        indent: Optional[int] = typer.Option(None, help="Number of indents to use"),
-        debug: bool = False,
+    ref: str = typer.Argument(..., help="Hash reference of the message to watch"),
+    indent: Optional[int] = typer.Option(None, help="Number of indents to use"),
+    debug: bool = False,
 ):
     """Watch a hash for amends and print amend hashes"""
 
     setup_logging(debug)
 
-    original: AlephMessage = synchronous.get_message(item_hash=ref)
-
-    for message in synchronous.watch_messages(
+    with AlephClient(api_server=sdk_settings.API_HOST) as client:
+        original: AlephMessage = client.get_message(item_hash=ref)
+        for message in client.watch_messages(
             refs=[ref], addresses=[original.content.address]
-    ):
-        typer.echo(f"{message.json(indent=indent)}")
+        ):
+            typer.echo(f"{message.json(indent=indent)}")

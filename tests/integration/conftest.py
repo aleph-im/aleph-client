@@ -1,7 +1,8 @@
-import pytest
-from aleph_client.chains.common import get_fallback_private_key
-from aleph_client.chains.ethereum import ETHAccount
 import asyncio
+
+import pytest
+from aleph.sdk.chains.common import get_fallback_private_key
+from aleph.sdk.chains.ethereum import ETHAccount
 
 
 @pytest.fixture

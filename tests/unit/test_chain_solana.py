@@ -1,15 +1,13 @@
 import json
+from dataclasses import asdict, dataclass
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 
 import base58
 import pytest
-from dataclasses import dataclass, asdict
-
+from aleph.sdk.chains.common import get_verification_buffer
+from aleph.sdk.chains.sol import SOLAccount, get_fallback_account
 from nacl.signing import VerifyKey
-
-from aleph_client.chains.common import get_verification_buffer
-from aleph_client.chains.sol import SOLAccount, get_fallback_account
 
 
 @dataclass
@@ -33,7 +31,9 @@ def test_get_fallback_account():
 
 @pytest.mark.asyncio
 async def test_SOLAccount(solana_account):
-    message = asdict(Message("SOL", solana_account.get_address(), "SomeType", "ItemHash"))
+    message = asdict(
+        Message("SOL", solana_account.get_address(), "SomeType", "ItemHash")
+    )
     initial_message = message.copy()
     await solana_account.sign_message(message)
     assert message["signature"]
