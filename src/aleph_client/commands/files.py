@@ -3,7 +3,7 @@ from pathlib import Path
 from typing import Optional
 
 import typer
-from aleph.sdk import AuthenticatedAlephClient
+from aleph.sdk import AuthenticatedAlephClient, AlephClient
 from aleph.sdk.account import _load_account
 from aleph.sdk.conf import settings as sdk_settings
 from aleph.sdk.types import AccountFromPrivateKey, StorageEnum
@@ -11,7 +11,7 @@ from aleph_message.models import StoreMessage
 from aleph_message.status import MessageStatus
 
 from aleph_client.commands import help_strings
-from aleph_client.commands.utils import setup_logging
+from aleph_client.commands.utils import setup_logging, write_file_from_bytes
 
 logger = logging.getLogger(__name__)
 app = typer.Typer()
@@ -98,3 +98,34 @@ def upload(
             )
             logger.debug("Upload finished")
             typer.echo(f"{result.json(indent=4)}")
+
+
+@app.command()
+def download(
+    item_hash: str = typer.Argument(..., help="IPFS hash to pin on aleph.im"),
+    use_ipfs: Optional[bool] = typer.Option(
+        default=False, help="Download on IPFS client (100MB + file)"
+    ),
+    path: Optional[str] = typer.Option(None, help="Path of the file to download"),
+    debug: bool = False,
+):
+    """Download a file on aleph.im."""
+
+    setup_logging(debug)
+
+    # If no path given then path == item_hash
+    if path is None:
+        path = item_hash
+
+    with AlephClient(api_server=sdk_settings.API_HOST) as client:
+        try:
+            typer.echo("Downloading file ...")
+            if not use_ipfs:
+                file_content = client.download_file(item_hash)
+            else:
+                file_content = client.download_file_ipfs(item_hash)
+            write_file_from_bytes(path, file_content)
+            typer.secho(f"File: '{path}' downloaded", fg=typer.colors.GREEN)
+
+        except Exception as e:
+            typer.secho(f"Error downloading file: {str(e)}", fg=typer.colors.RED)

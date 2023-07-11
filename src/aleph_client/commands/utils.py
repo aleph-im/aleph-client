@@ -7,6 +7,7 @@ from pygments.formatters.terminal256 import Terminal256Formatter
 from pygments.lexers import JsonLexer
 from typer import echo
 from datetime import datetime
+from pathlib import Path
 
 
 def colorful_json(obj: str):
@@ -122,3 +123,14 @@ def str_to_datetime(date: Optional[str]) -> Optional[datetime]:
     except ValueError:
         pass
     return datetime.fromisoformat(date)
+
+
+def write_file_from_bytes(
+    path: str,
+    content: bytes,
+):
+    """
+    write content of file download to byte into a path
+    """
+    file_path = Path(path)
+    file_path.write_bytes(content)

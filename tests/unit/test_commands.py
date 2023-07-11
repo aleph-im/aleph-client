@@ -90,3 +90,39 @@ def test_message_find():
         b"bd79839bf96e595a06da5ac0b6ba51dea6f7e2591bb913deccded04d831d29f4"
         in result.stdout
     )
+
+
+@pytest.mark.parametrize(
+    "file_hash, content",
+    [("QmeomffUNfmQy76CQGy9NdmqEnnHU9soCexBnGU3ezPHVH", "test\n")],
+)
+def test_file_download(file_hash, content):
+    result = subprocess.run(
+        [
+            "file",
+            "download",
+            file_hash,
+        ],
+        capture_output=True,
+        timeout=20,
+    )
+
+    with open(file_hash) as file:
+        content_file = file.read()
+
+    assert content_file == content
+
+
+@pytest.mark.parametrize(
+    "file_hash, content",
+    [("QmeomffUNfmQy76CQGy9NdmqEnnHU9soCexBnGU3ezPHVH", "test\n")],
+)
+def test_file_download_ipfs(file_hash, content):
+    result = subprocess.run(
+        ["file", "download", file_hash, "--use-ipfs"], capture_output=True, timeout=30
+    )
+
+    with open(file_hash) as file:
+        content_file = file.read()
+
+    assert content_file == content
