@@ -12,7 +12,7 @@ from aleph_message.models import StoreMessage
 from aleph_message.status import MessageStatus
 
 from aleph_client.commands import help_strings
-from aleph_client.commands.utils import setup_logging, write_file_from_bytes
+from aleph_client.commands.utils import setup_logging
 
 logger = logging.getLogger(__name__)
 app = typer.Typer()
