@@ -73,3 +73,35 @@ def test_message_find():
         b"bd79839bf96e595a06da5ac0b6ba51dea6f7e2591bb913deccded04d831d29f4"
         in result.stdout
     )
+
+
+def test_sign_message():
+    result = subprocess.run(
+        [
+            "aleph",
+            "message",
+            "sign",
+            "--message",
+            "{\"chain\":\"SupportedChains.Ethereum\",\"sender\":\"0x48A87924135892bEE2F264547a0D69909b3bA5C6\",\"type\":\"authorization_challenge\",\"item_hash\":\"d5b64a7c115e477a1e292e937143c1e7bfcf5442f43423f639eb8d9f57a91c76b776e90cc53ba1e7150a5d7521a428b721a101427e37f3d00a6c3cd124cf118b\"}",
+        ],
+        capture_output=True,
+    )
+
+    assert result.returncode == 0
+    assert b"signature" in result.stdout
+
+
+def test_sign_raw():
+    result = subprocess.run(
+        [
+            "aleph",
+            "account",
+            "sign",
+            "--message",
+            "some message",
+        ],
+        capture_output=True,
+    )
+
+    assert result.returncode == 0
+    assert b"0x" in result.stdout
