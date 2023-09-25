@@ -1,8 +1,7 @@
 import asyncio
-import os
-
 import base64
 import logging
+import os
 from pathlib import Path
 from typing import Optional
 
@@ -12,8 +11,7 @@ from aleph.sdk.chains.common import generate_key
 from aleph.sdk.chains.ethereum import ETHAccount
 from aleph.sdk.conf import settings as sdk_settings
 from aleph.sdk.types import AccountFromPrivateKey
-from typer.colors import GREEN, RED
-
+from typer.colors import RED
 
 from aleph_client.commands import help_strings
 from aleph_client.commands.utils import setup_logging
