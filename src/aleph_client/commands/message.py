@@ -2,6 +2,7 @@ import asyncio
 import json
 import os.path
 import subprocess
+import sys
 import tempfile
 from pathlib import Path
 from typing import Dict, List, Optional
@@ -267,7 +268,7 @@ def watch(
 
 @app.command()
 def sign(
-    message: str = typer.Option(..., help=help_strings.SIGNABLE_MESSAGE),
+    message: Optional[str] = typer.Option(None, help=help_strings.SIGNABLE_MESSAGE),
     private_key: Optional[str] = typer.Option(
         sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY
     ),
@@ -275,18 +276,22 @@ def sign(
         sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE
     ),
 ):
-    """Sign an aleph message with a private key."""
+    """Sign an aleph message with a private key. If no --message is provided, the message will be read from stdin."""
 
     if private_key is not None:
         private_key_file = None
     elif private_key_file and not os.path.exists(private_key_file):
         exit(0)
 
+    if message is None:
+        # take from stdin
+        message = ''.join(sys.stdin.readlines())
+
     account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
     loop = asyncio.get_event_loop()
     try:
         coroutine = account.sign_message(json.loads(message))
         signed_message = loop.run_until_complete(coroutine)
-        typer.echo(signed_message["signature"])
+        typer.echo(json.dumps(signed_message))
     finally:
         loop.close()

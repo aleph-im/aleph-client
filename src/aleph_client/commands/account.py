@@ -2,6 +2,7 @@ import asyncio
 import base64
 import logging
 import os
+import sys
 from pathlib import Path
 from typing import Optional
 
@@ -120,7 +121,7 @@ def path():
 
 @app.command()
 def sign(
-    message: str = typer.Option(..., help="Message to sign"),
+    message: Optional[str] = typer.Option(None, help="Message to sign"),
     private_key: Optional[str] = typer.Option(
         sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY
     ),
@@ -138,11 +139,15 @@ def sign(
     elif private_key_file and not os.path.exists(private_key_file):
         exit(0)
 
+    if message is None:
+        # take from stdin
+        message = ''.join(sys.stdin.readlines())
+
     account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
     loop = asyncio.get_event_loop()
     try:
-        coroutine = account.sign_arbitrary(message)
+        coroutine = account.sign_raw(message.encode())
         signature = loop.run_until_complete(coroutine)
-        typer.echo(signature)
+        typer.echo(signature.hex())
     finally:
         loop.close()
