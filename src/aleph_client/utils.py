@@ -7,7 +7,7 @@ from zipfile import BadZipFile, ZipFile
 
 from aleph.sdk.types import GenericMessage
 from aleph_message.models import MessageType
-from aleph_message.models.program import Encoding
+from aleph_message.models.execution.program import Encoding
 
 from aleph_client.conf import settings
 
