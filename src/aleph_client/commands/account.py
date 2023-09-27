@@ -119,8 +119,8 @@ def path():
         typer.echo(sdk_settings.PRIVATE_KEY_FILE)
 
 
-@app.command()
-def sign(
+@app.command("sign-bytes")
+def sign_bytes(
     message: Optional[str] = typer.Option(None, help="Message to sign"),
     private_key: Optional[str] = typer.Option(
         sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY
@@ -141,13 +141,9 @@ def sign(
 
     if message is None:
         # take from stdin
-        message = ''.join(sys.stdin.readlines())
+        message = "\n".join(sys.stdin.readlines())
 
     account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
-    loop = asyncio.get_event_loop()
-    try:
-        coroutine = account.sign_raw(message.encode())
-        signature = loop.run_until_complete(coroutine)
-        typer.echo(signature.hex())
-    finally:
-        loop.close()
+    coroutine = account.sign_raw(message.encode())
+    signature = asyncio.run(coroutine)
+    typer.echo(signature.hex())

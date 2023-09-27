@@ -285,13 +285,9 @@ def sign(
 
     if message is None:
         # take from stdin
-        message = ''.join(sys.stdin.readlines())
+        message = "\n".join(sys.stdin.readlines())
 
     account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
-    loop = asyncio.get_event_loop()
-    try:
-        coroutine = account.sign_message(json.loads(message))
-        signed_message = loop.run_until_complete(coroutine)
-        typer.echo(json.dumps(signed_message))
-    finally:
-        loop.close()
+    coroutine = account.sign_message(json.loads(message))
+    signed_message = asyncio.run(coroutine)
+    typer.echo(json.dumps(signed_message, indent=4))
