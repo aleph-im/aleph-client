@@ -1,28 +1,11 @@
 import subprocess
 from pathlib import Path
-from tempfile import NamedTemporaryFile
 
-import pytest
-from aleph.sdk.chains.common import generate_key
 from typer.testing import CliRunner
 
 from aleph_client.__main__ import app
-from typing import Generator
 
 runner = CliRunner()
-
-
-@pytest.fixture
-def empty_account_file() -> Generator[Path, None, None]:
-    with NamedTemporaryFile() as key_file:
-        yield Path(key_file.name)
-
-
-@pytest.fixture
-def account_file(empty_account_file: Path) -> Path:
-    private_key = generate_key()
-    empty_account_file.write_bytes(private_key)
-    return empty_account_file
 
 
 def test_account_create(account_file: Path):
