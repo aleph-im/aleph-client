@@ -275,19 +275,14 @@ def sign(
     private_key_file: Optional[Path] = typer.Option(
         sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE
     ),
+    debug: bool = False,
 ):
     """Sign an aleph message with a private key. If no --message is provided, the message will be read from stdin."""
 
-    if private_key is not None:
-        private_key_file = None
-    elif private_key_file and not os.path.exists(private_key_file):
-        exit(0)
-
-    if message is None:
-        # take from stdin
-        message = "\n".join(sys.stdin.readlines())
+    setup_logging(debug)
 
     account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
+
     coroutine = account.sign_message(json.loads(message))
     signed_message = asyncio.run(coroutine)
     typer.echo(json.dumps(signed_message, indent=4))

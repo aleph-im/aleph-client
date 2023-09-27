@@ -134,15 +134,6 @@ def sign_bytes(
 
     setup_logging(debug)
 
-    if private_key is not None:
-        private_key_file = None
-    elif private_key_file and not os.path.exists(private_key_file):
-        exit(0)
-
-    if message is None:
-        # take from stdin
-        message = "\n".join(sys.stdin.readlines())
-
     account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
     coroutine = account.sign_raw(message.encode())
     signature = asyncio.run(coroutine)
