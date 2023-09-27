@@ -1,7 +1,6 @@
 import asyncio
 import base64
 import logging
-import os
 import sys
 from pathlib import Path
 from typing import Optional
@@ -135,6 +134,11 @@ def sign_bytes(
     setup_logging(debug)
 
     account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
+
+    if message is None:
+        # take from stdin
+        message = "\n".join(sys.stdin.readlines())
+
     coroutine = account.sign_raw(message.encode())
     signature = asyncio.run(coroutine)
     typer.echo(signature.hex())
