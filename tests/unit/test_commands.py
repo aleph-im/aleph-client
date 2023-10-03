@@ -97,7 +97,7 @@ def test_file_download(file_hash, content):
 
 @pytest.mark.parametrize(
     "file_hash, content",
-    [("QmeomffUNfmQy76CQGy9NdmqEnnHU9soCexBnGU3ezPHVH", "test\n")],
+    [("QmbFMke1KXqnYyBBWxB74N4c5SBnJMVAiMNRcGu6x1AwQH", "")],
 )
 def test_file_download_ipfs(file_hash, content):
     with NamedTemporaryFile() as temp_file:

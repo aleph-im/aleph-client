@@ -124,9 +124,10 @@ def download(
             file_path = Path(path)
             with file_path.open(mode="wb") as f:
                 if not use_ipfs:
-                    client.download_file_to_buffer(item_hash, output_buffer=f)
+                    output_buffer = client.download_file(item_hash)
                 else:
-                    client.download_file_ipfs_to_buffer(item_hash, output_buffer=f)
+                    output_buffer = client.download_file_ipfs(item_hash)
+                f.write(output_buffer)
             typer.secho(f"File: '{path}' downloaded", fg=typer.colors.GREEN)
 
         except Exception as e:
