@@ -1,9 +1,11 @@
 import subprocess
 from pathlib import Path
+from tempfile import NamedTemporaryFile
 
 from typer.testing import CliRunner
 
 from aleph_client.__main__ import app
+import pytest
 
 runner = CliRunner()
 
@@ -115,5 +117,4 @@ def test_file_download_ipfs(file_hash, content):
 
         with open(temp_file.name) as file:
             content_file = file.read()
-
     assert content_file == content
