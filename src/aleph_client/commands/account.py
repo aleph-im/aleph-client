@@ -3,7 +3,9 @@ import logging
 from pathlib import Path
 from typing import Optional
 
+import requests
 import typer
+from aleph.sdk import AlephClient
 from aleph.sdk.account import _load_account
 from aleph.sdk.chains.common import generate_key
 from aleph.sdk.chains.ethereum import ETHAccount
@@ -11,9 +13,8 @@ from aleph.sdk.conf import settings as sdk_settings
 from aleph.sdk.types import AccountFromPrivateKey
 from typer.colors import GREEN, RED
 
-
 from aleph_client.commands import help_strings
-from aleph_client.commands.utils import setup_logging
+from aleph_client.commands.utils import setup_logging, colorful_json
 
 logger = logging.getLogger(__name__)
 app = typer.Typer()
@@ -115,3 +116,26 @@ def export_private_key(
 def path():
     if sdk_settings.PRIVATE_KEY_FILE:
         typer.echo(sdk_settings.PRIVATE_KEY_FILE)
+
+
+@app.command()
+def balance(
+    address: str = typer.Argument(..., help="IPFS hash to pin on aleph.im"),
+):
+    if address:
+        uri = f"{sdk_settings.API_HOST}/api/v0/addresses/{address}/balance"
+        try:
+            response = requests.get(uri)
+
+            if response.status_code == 200:
+                balance_data = response.json()
+
+                typer.echo(
+                    balance_data
+                )  # we send json & not just .get("balance") for retro compatibility of next pyaleph release
+            else:
+                typer.echo(
+                    f"Failed to retrieve balance for address {address}. Status code: {response.status_code}"
+                )
+        except Exception as e:
+            typer.echo(f"Error: {str(e)}")
