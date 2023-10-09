@@ -1,4 +1,5 @@
 import base64
+import json
 import logging
 from pathlib import Path
 from typing import Optional
@@ -120,22 +121,30 @@ def path():
 
 @app.command()
 def balance(
-    address: str = typer.Argument(..., help="IPFS hash to pin on aleph.im"),
+    address: Optional[str] = typer.Option(None, help="Address"),
+    private_key: Optional[str] = typer.Option(
+        sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY
+    ),
+    private_key_file: Optional[Path] = typer.Option(
+        sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE
+    ),
 ):
+    account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
+
+    if account and not address:
+        address = account.get_address()
+
     if address:
         uri = f"{sdk_settings.API_HOST}/api/v0/addresses/{address}/balance"
-        try:
-            response = requests.get(uri)
 
+        with requests.get(uri) as response:
             if response.status_code == 200:
                 balance_data = response.json()
-
-                typer.echo(
-                    balance_data
-                )  # we send json & not just .get("balance") for retro compatibility of next pyaleph release
+                formatted_balance_data = json.dumps(balance_data, indent=4)
+                typer.echo(formatted_balance_data)
             else:
                 typer.echo(
                     f"Failed to retrieve balance for address {address}. Status code: {response.status_code}"
                 )
-        except Exception as e:
-            typer.echo(f"Error: {str(e)}")
+    else:
+        typer.echo("Error: Please provide either a private key, private key file, or an address.")
