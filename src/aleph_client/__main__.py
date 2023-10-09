@@ -30,7 +30,7 @@ app.add_typer(about.app, name="about", help="Display the informations of Aleph C
 
 app.add_typer(node.app, name="node", help="Get node info on aleph.im network")
 app.add_typer(
-    domain.app, name="domain", help="Add and link a Custom Domain on aleph.im VM"
+    domain.app, name="domain", help="Manage custom Domain (dns) on aleph.im"
 )
 
 if __name__ == "__main__":
