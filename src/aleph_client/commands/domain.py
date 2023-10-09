@@ -1,4 +1,3 @@
-import logging
 from pathlib import Path
 from time import sleep
 from typing import Optional, cast
@@ -13,11 +12,9 @@ from aleph.sdk.types import AccountFromPrivateKey
 from aleph_client.commands import help_strings
 from aleph_client.commands.utils import coro
 from aleph_message.models import AggregateMessage, MessageType
-from pydantic import BaseModel
 from rich.console import Console
 from rich.prompt import Confirm, Prompt
 from rich.table import Table
-from typer.colors import GREEN, RED
 
 app = typer.Typer()
 
@@ -66,8 +63,9 @@ async def attach_resource(account: AccountFromPrivateKey, fqdn: Hostname, item_h
     table.add_column("New resource", justify="right", style="green", no_wrap=True)
     table.add_column("Resource type", style="magenta")
 
-    current_resource = None
-    resource_type = None
+    current_resource = ""
+    resource_type: TargetType
+
     print(domain_info)
     if domain_info is not None:
         current_resource = domain_info["info"]["message_id"]
