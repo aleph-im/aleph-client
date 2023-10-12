@@ -51,11 +51,50 @@ async def check_domain_records(fqdn, target, owner):
     return status
 
 
-async def attach_resource(account: AccountFromPrivateKey, fqdn: Hostname, item_hash: Optional[str] = None, detach: Optional[bool] = False):
+async def detach_resource(account: AccountFromPrivateKey, fqdn: Hostname):
     domain_info = await get_aggregate_domain_info(account, fqdn)
     console = Console()
 
-    while not item_hash and detach is False:
+    table = Table(title=f"Detach resource of: {fqdn}")
+    table.add_column("Current resource", justify="right", style="red", no_wrap=True)
+    table.add_column("New resource", justify="right", style="green", no_wrap=True)
+    table.add_column("Resource type", style="magenta")
+
+    domain_validator = DomainValidator()
+
+    if domain_info is not None and domain_info.get("info"):
+        current_resource = domain_info["info"]["message_id"]
+
+    resource_type = await domain_validator.get_target_type(fqdn)
+    table.add_row(f"{current_resource[:16]}...{current_resource[-16:]}", "", resource_type)
+
+    console.print(table)
+
+    if Confirm.ask("Continue"):
+        """Update aggregate message"""
+
+        async with AuthenticatedAlephClient(
+                account=account, api_server=sdk_settings.API_HOST
+        ) as client:
+            aggregate_content = {
+                fqdn: None
+            }
+
+            aggregate_message, message_status = await client.create_aggregate(
+                key="domains",
+                content=aggregate_content,
+                channel="ALEPH-CLOUDSOLUTIONS"
+            )
+
+            console.log("[green bold]Resource detached!")
+            console.log(f"Visualise on: https://explorer.aleph.im/address/ETH/{account.get_address()}/message/AGGREGATE/{aggregate_message.item_hash}")
+
+
+async def attach_resource(account: AccountFromPrivateKey, fqdn: Hostname, item_hash: Optional[str] = None):
+    domain_info = await get_aggregate_domain_info(account, fqdn)
+    console = Console()
+
+    while not item_hash:
         item_hash = Prompt.ask("Enter Hash reference of the resource to attach")
 
     table = Table(title=f"Attach resource to: {fqdn}")
@@ -84,19 +123,14 @@ async def attach_resource(account: AccountFromPrivateKey, fqdn: Hostname, item_h
         async with AuthenticatedAlephClient(
                 account=account, api_server=sdk_settings.API_HOST
         ) as client:
-            if detach:
-                aggregate_content = {
-                    fqdn: None
+            aggregate_content = {
+                fqdn: {
+                    "message_id": item_hash,
+                    "type": resource_type,
+                    # console page compatibility
+                    "programType": resource_type
                 }
-            else:
-                aggregate_content = {
-                    fqdn: {
-                        "message_id": item_hash,
-                        "type": resource_type,
-                        # console page compatibility
-                        "programType": resource_type
-                    }
-                }
+            }
 
             aggregate_message, message_status = await client.create_aggregate(
                 key="domains",
@@ -104,7 +138,7 @@ async def attach_resource(account: AccountFromPrivateKey, fqdn: Hostname, item_h
                 channel="ALEPH-CLOUDSOLUTIONS"
             )
 
-            console.log("[green bold]Aleph message created!")
+            console.log("[green bold]Resource attached!")
             console.log(f"Visualise on: https://explorer.aleph.im/address/ETH/{account.get_address()}/message/AGGREGATE/{aggregate_message.item_hash}")
 
 
@@ -223,7 +257,7 @@ async def detach(
     """Unlink Custom Domain."""
     account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
 
-    await attach_resource(account, fqdn, None, True)
+    await detach_resource(account, fqdn)
     raise typer.Exit()
 
 
