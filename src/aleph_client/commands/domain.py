@@ -51,11 +51,11 @@ async def check_domain_records(fqdn, target, owner):
     return status
 
 
-async def attach_resource(account: AccountFromPrivateKey, fqdn: Hostname, item_hash: Optional[str] = None):
+async def attach_resource(account: AccountFromPrivateKey, fqdn: Hostname, item_hash: Optional[str] = None, detach: Optional[bool] = False):
     domain_info = await get_aggregate_domain_info(account, fqdn)
     console = Console()
 
-    while not item_hash:
+    while not item_hash and detach is False:
         item_hash = Prompt.ask("Enter Hash reference of the resource to attach")
 
     table = Table(title=f"Attach resource to: {fqdn}")
@@ -63,16 +63,16 @@ async def attach_resource(account: AccountFromPrivateKey, fqdn: Hostname, item_h
     table.add_column("New resource", justify="right", style="green", no_wrap=True)
     table.add_column("Resource type", style="magenta")
 
-    current_resource = ""
-    resource_type: TargetType
+    current_resource = "null"
+    domain_validator = DomainValidator()
 
-    print(domain_info)
-    if domain_info is not None:
+    """
+    Detect target type on the fly to be able to switch to another type
+    """
+    resource_type = await domain_validator.get_target_type(fqdn)
+
+    if domain_info is not None and domain_info.get("info"):
         current_resource = domain_info["info"]["message_id"]
-        resource_type = TargetType(domain_info["info"]["type"].lower())
-    else:
-        domain_validator = DomainValidator()
-        resource_type = await domain_validator.get_target_type(fqdn)
 
     table.add_row(f"{current_resource[:16]}...{current_resource[-16:]}", f"{item_hash[:16]}...{item_hash[-16:]}", resource_type)
 
@@ -84,14 +84,19 @@ async def attach_resource(account: AccountFromPrivateKey, fqdn: Hostname, item_h
         async with AuthenticatedAlephClient(
                 account=account, api_server=sdk_settings.API_HOST
         ) as client:
-            aggregate_content = {
-                fqdn: {
-                    "message_id": item_hash,
-                    "type": resource_type,
-                    # console page compatibility
-                    "programType": resource_type
+            if detach:
+                aggregate_content = {
+                    fqdn: None
                 }
-            }
+            else:
+                aggregate_content = {
+                    fqdn: {
+                        "message_id": item_hash,
+                        "type": resource_type,
+                        # console page compatibility
+                        "programType": resource_type
+                    }
+                }
 
             aggregate_message, message_status = await client.create_aggregate(
                 key="domains",
@@ -99,7 +104,7 @@ async def attach_resource(account: AccountFromPrivateKey, fqdn: Hostname, item_h
                 channel="ALEPH-CLOUDSOLUTIONS"
             )
 
-            console.log(f"[green bold]Aleph message created!")
+            console.log("[green bold]Aleph message created!")
             console.log(f"Visualise on: https://explorer.aleph.im/address/ETH/{account.get_address()}/message/AGGREGATE/{aggregate_message.item_hash}")
 
 
@@ -195,8 +200,7 @@ async def attach(
     private_key_file: Optional[Path] = typer.Option(
         sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE
     ),
-    fqdn: str = typer.Argument(..., help=help_strings.CUSTOM_DOMAIN_NAME
-                                      ),
+    fqdn: str = typer.Argument(..., help=help_strings.CUSTOM_DOMAIN_NAME),
     item_hash: Optional[str] = typer.Option(None, help=help_strings.CUSTOM_DOMAIN_ITEM_HASH),
 ):
     """Attach resource to a Custom Domain."""
@@ -207,37 +211,64 @@ async def attach(
 
 @app.command()
 @coro
-async def info(
-        fqdn: str = typer.Argument(..., help=help_strings.CUSTOM_DOMAIN_NAME)
+async def detach(
+    private_key: Optional[str] = typer.Option(
+        sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY
+    ),
+    private_key_file: Optional[Path] = typer.Option(
+        sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE
+    ),
+    fqdn: str = typer.Argument(..., help=help_strings.CUSTOM_DOMAIN_NAME)
 ):
+    """Unlink Custom Domain."""
+    account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
+
+    await attach_resource(account, fqdn, None, True)
+    raise typer.Exit()
+
+
+@app.command()
+@coro
+async def info(
+    private_key: Optional[str] = typer.Option(
+        sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY
+    ),
+    private_key_file: Optional[Path] = typer.Option(
+        sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE
+    ),
+    fqdn: str = typer.Argument(..., help=help_strings.CUSTOM_DOMAIN_NAME)
+):
+    """Show Custom Domain Details."""
+    account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
+
+    console = Console()
     domain_validator = DomainValidator()
-    target = None
-    try:
-        res = await domain_validator.resolver.query(fqdn, "CNAME")
-        cname_value = res.cname
-        if sdk_settings.DNS_IPFS_DOMAIN in cname_value:
-            target = "ipfs"
-        elif sdk_settings.DNS_PROGRAM_DOMAIN in cname_value:
-            target = "program"
-        elif sdk_settings.DNS_INSTANCE_DOMAIN in cname_value:
-            target = "instance"
-    except Exception:
-        typer.echo(f"Domain: {fqdn} not configured")
+
+    domain_info = await get_aggregate_domain_info(account, fqdn)
+    if domain_info is None or domain_info.get("info") is None:
+        console.log(f"Domain: {fqdn} not configured")
         raise typer.Exit()
 
-    print(target)
-    if target is not None:
-        try:
-            status = await domain_validator.check_domain(fqdn, target)
-            print(status)
-            if target == "ipfs":
-                pass
-            elif target == "program":
-                pass
-            if target == "instance":
-                ipv6 = await domain_validator.get_ipv6_addresses(fqdn)
-                typer.echo(ipv6)
-        except Exception:
-            raise typer.Exit()
-    else:
-        raise typer.Exit()
+    table = Table(title=f"Domain info: {fqdn}")
+    table.add_column("Resource type", justify="right", style="cyan", no_wrap=True)
+    table.add_column("Attached resource", justify="right", style="cyan", no_wrap=True)
+    table.add_column("Final resource", justify="right", style="cyan", no_wrap=True)
+
+    resource_type = TargetType(domain_info["info"]["type"])
+    final_resource = "Unknown"
+
+    try:
+        if resource_type == TargetType.IPFS:
+            final_resource = ""
+        elif resource_type == TargetType.PROGRAM:
+            final_resource = domain_info["info"]["message_id"]
+        if resource_type == TargetType.INSTANCE:
+            ips = await domain_validator.get_ipv6_addresses(fqdn)
+            final_resource = ",".join(ips)
+    except Exception:
+        pass
+
+    table.add_row(resource_type, domain_info["info"]["message_id"], final_resource)
+
+    console.print(table)
+    raise typer.Exit()
