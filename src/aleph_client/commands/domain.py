@@ -286,7 +286,7 @@ async def info(
     table = Table(title=f"Domain info: {fqdn}")
     table.add_column("Resource type", justify="right", style="cyan", no_wrap=True)
     table.add_column("Attached resource", justify="right", style="cyan", no_wrap=True)
-    table.add_column("Final resource", justify="right", style="cyan", no_wrap=True)
+    table.add_column("Target resource", justify="right", style="cyan", no_wrap=True)
 
     resource_type = TargetType(domain_info["info"]["type"])
     final_resource = "Unknown"
