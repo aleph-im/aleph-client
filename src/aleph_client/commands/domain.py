@@ -32,7 +32,6 @@ async def get_aggregate_domain_info(account, fqdn):
             aggregate = cast(AggregateMessage, message)
             if aggregate.content.key == "domains":
                 for domain, info in aggregate.content.content.items():
-                    print("===", domain, fqdn)
                     if domain == fqdn:
                         return {
                             "timestamp": aggregate.content.time,
