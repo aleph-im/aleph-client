@@ -73,3 +73,12 @@ def test_message_find():
         b"bd79839bf96e595a06da5ac0b6ba51dea6f7e2591bb913deccded04d831d29f4"
         in result.stdout
     )
+
+
+def test_file_list():
+    result = subprocess.run(
+        ["aleph", "file", "list", "0xd463495a6FEaC9921FD0C3a595B81E7B2C02B57d"],
+        capture_output=True,
+    )
+    assert result.returncode == 0
+    assert b"0xd463495a6FEaC9921FD0C3a595B81E7B2C02B57d" in result.stdout

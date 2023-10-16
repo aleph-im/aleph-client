@@ -4,7 +4,7 @@ Aleph Client command-line interface.
 
 import typer
 
-from .commands import account, aggregate, files, message, program
+from .commands import account, aggregate, files, message, program, node
 
 app = typer.Typer()
 
@@ -25,6 +25,7 @@ app.add_typer(
     program.app, name="program", help="Upload and update programs on aleph.im VM"
 )
 
+app.add_typer(node.app, name="node", help="Get node info on aleph.im network")
 
 if __name__ == "__main__":
     app()
