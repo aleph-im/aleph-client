@@ -84,6 +84,7 @@ def test_message_find():
 
 
 def test_file_upload():
+    #  Test upload a file to aleph network by creating a file and upload it to an aleph node
     with NamedTemporaryFile() as temp_file:
         temp_file.write(b"Hello World \n")
         result = subprocess.run(
