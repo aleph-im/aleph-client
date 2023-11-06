@@ -147,4 +147,6 @@ def balance(
                     f"Failed to retrieve balance for address {address}. Status code: {response.status_code}"
                 )
     else:
-        typer.echo("Error: Please provide either a private key, private key file, or an address.")
+        typer.echo(
+            "Error: Please provide either a private key, private key file, or an address."
+        )
