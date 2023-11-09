@@ -1,5 +1,7 @@
+import asyncio
 import base64
 import logging
+import sys
 from pathlib import Path
 from typing import Optional
 
@@ -9,8 +11,7 @@ from aleph.sdk.chains.common import generate_key
 from aleph.sdk.chains.ethereum import ETHAccount
 from aleph.sdk.conf import settings as sdk_settings
 from aleph.sdk.types import AccountFromPrivateKey
-from typer.colors import GREEN, RED
-
+from typer.colors import RED
 
 from aleph_client.commands import help_strings
 from aleph_client.commands.utils import setup_logging
@@ -115,3 +116,29 @@ def export_private_key(
 def path():
     if sdk_settings.PRIVATE_KEY_FILE:
         typer.echo(sdk_settings.PRIVATE_KEY_FILE)
+
+
+@app.command("sign-bytes")
+def sign_bytes(
+    message: Optional[str] = typer.Option(None, help="Message to sign"),
+    private_key: Optional[str] = typer.Option(
+        sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY
+    ),
+    private_key_file: Optional[Path] = typer.Option(
+        sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE
+    ),
+    debug: bool = False,
+):
+    """Sign a message using your private key."""
+
+    setup_logging(debug)
+
+    account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
+
+    if message is None:
+        # take from stdin
+        message = "\n".join(sys.stdin.readlines())
+
+    coroutine = account.sign_raw(message.encode())
+    signature = asyncio.run(coroutine)
+    typer.echo(signature.hex())

@@ -1,11 +1,27 @@
+import json
 import subprocess
 from pathlib import Path
-
+from aleph.sdk.chains.ethereum import ETHAccount
 from typer.testing import CliRunner
 
 from aleph_client.__main__ import app
 
 runner = CliRunner()
+
+
+def get_account(my_account_file: Path) -> ETHAccount:
+    with open(my_account_file, "rb") as fd:
+        private_key = fd.read()
+    return ETHAccount(private_key=private_key)
+
+
+def get_test_message(account: ETHAccount):
+    return {
+        "chain": "ETH",
+        "sender": account.get_address(),
+        "type": "AGGREGATE",
+        "item_hash": "0x1234",
+    }
 
 
 def test_account_create(account_file: Path):
@@ -73,3 +89,57 @@ def test_message_find():
         b"bd79839bf96e595a06da5ac0b6ba51dea6f7e2591bb913deccded04d831d29f4"
         in result.stdout
     )
+
+
+def test_sign_message(account_file):
+    account = get_account(account_file)
+    message = get_test_message(account)
+    result = subprocess.run(
+        [
+            "aleph",
+            "message",
+            "sign",
+            "--private-key-file",
+            str(account_file),
+            "--message",
+            json.dumps(message),
+        ],
+        capture_output=True,
+    )
+
+    assert result.returncode == 0
+    assert b"signature" in result.stdout
+
+
+def test_sign_message_stdin(account_file):
+    account = get_account(account_file)
+    message = get_test_message(account)
+    cmd = f"""echo '{json.dumps(message)}' | aleph message sign --private-key-file {account_file}"""
+    result = subprocess.run(cmd, shell=True, capture_output=True)
+
+    assert result.returncode == 0
+    assert b"signature" in result.stdout
+
+
+def test_sign_raw():
+    result = subprocess.run(
+        [
+            "aleph",
+            "account",
+            "sign-bytes",
+            "--message",
+            "some message",
+        ],
+        capture_output=True,
+    )
+
+    assert result.returncode == 0
+    assert b"0x" in result.stdout
+
+
+def test_sign_raw_stdin():
+    cmd = 'echo "some message" | aleph account sign-bytes'
+    result = subprocess.run(cmd, shell=True, capture_output=True)
+
+    assert result.returncode == 0
+    assert b"0x" in result.stdout

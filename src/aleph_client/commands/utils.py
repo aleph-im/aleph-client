@@ -1,4 +1,5 @@
 import logging
+from datetime import datetime
 from typing import Dict, List, Optional, Union
 
 from aleph.sdk.types import GenericMessage
@@ -6,7 +7,6 @@ from pygments import highlight
 from pygments.formatters.terminal256 import Terminal256Formatter
 from pygments.lexers import JsonLexer
 from typer import echo
-from datetime import datetime
 
 
 def colorful_json(obj: str):
