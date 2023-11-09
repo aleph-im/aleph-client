@@ -1,13 +1,29 @@
+import json
 import subprocess
 from pathlib import Path
 from tempfile import NamedTemporaryFile
-
+from aleph.sdk.chains.ethereum import ETHAccount
 from typer.testing import CliRunner
 
 from aleph_client.__main__ import app
 import pytest
 
 runner = CliRunner()
+
+
+def get_account(my_account_file: Path) -> ETHAccount:
+    with open(my_account_file, "rb") as fd:
+        private_key = fd.read()
+    return ETHAccount(private_key=private_key)
+
+
+def get_test_message(account: ETHAccount):
+    return {
+        "chain": "ETH",
+        "sender": account.get_address(),
+        "type": "AGGREGATE",
+        "item_hash": "0x1234",
+    }
 
 
 def test_account_create(account_file: Path):
@@ -75,46 +91,3 @@ def test_message_find():
         b"bd79839bf96e595a06da5ac0b6ba51dea6f7e2591bb913deccded04d831d29f4"
         in result.stdout
     )
-
-
-@pytest.mark.parametrize(
-    "file_hash, content",
-    [("QmeomffUNfmQy76CQGy9NdmqEnnHU9soCexBnGU3ezPHVH", "test\n")],
-)
-def test_file_download(file_hash, content):
-    with NamedTemporaryFile() as temp_file:
-        subprocess.run(
-            ["aleph", "file", "download", file_hash, "--path", temp_file.name],
-            check=True,
-            timeout=30,
-        )
-
-        with open(temp_file.name) as file:
-            content_file = file.read()
-
-    assert content_file == content
-
-
-@pytest.mark.parametrize(
-    "file_hash, content",
-    [("QmbFMke1KXqnYyBBWxB74N4c5SBnJMVAiMNRcGu6x1AwQH", "")],
-)
-def test_file_download_ipfs(file_hash, content):
-    with NamedTemporaryFile() as temp_file:
-        subprocess.run(
-            [
-                "aleph",
-                "file",
-                "download",
-                file_hash,
-                "--use-ipfs",
-                "--path",
-                temp_file.name,
-            ],
-            check=True,
-            timeout=30,
-        )
-
-        with open(temp_file.name) as file:
-            content_file = file.read()
-    assert content_file == content

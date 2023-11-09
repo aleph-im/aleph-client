@@ -1,6 +1,8 @@
+import asyncio
 import json
 import os.path
 import subprocess
+import sys
 import tempfile
 from pathlib import Path
 from typing import Dict, List, Optional
@@ -262,3 +264,29 @@ def watch(
             refs=[ref], addresses=[original.content.address]
         ):
             typer.echo(f"{message.json(indent=indent)}")
+
+
+@app.command()
+def sign(
+    message: Optional[str] = typer.Option(None, help=help_strings.SIGNABLE_MESSAGE),
+    private_key: Optional[str] = typer.Option(
+        sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY
+    ),
+    private_key_file: Optional[Path] = typer.Option(
+        sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE
+    ),
+    debug: bool = False,
+):
+    """Sign an aleph message with a private key. If no --message is provided, the message will be read from stdin."""
+
+    setup_logging(debug)
+
+    account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
+
+    if message is None:
+        # take from stdin
+        message = "\n".join(sys.stdin.readlines())
+
+    coroutine = account.sign_message(json.loads(message))
+    signed_message = asyncio.run(coroutine)
+    typer.echo(json.dumps(signed_message, indent=4))
