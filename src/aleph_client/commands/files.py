@@ -19,7 +19,7 @@ app = AsyncTyper()
 
 
 @app.command()
-def pin(
+async def pin(
     item_hash: str = typer.Argument(..., help="IPFS hash to pin on aleph.im"),
     channel: Optional[str] = typer.Option(default=None, help=help_strings.CHANNEL),
     private_key: Optional[str] = typer.Option(
@@ -37,12 +37,12 @@ def pin(
 
     account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
 
-    with AuthenticatedAlephHttpClient(
+    async with AuthenticatedAlephHttpClient(
         account=account, api_server=sdk_settings.API_HOST
     ) as client:
         result: StoreMessage
         status: MessageStatus
-        result, status = client.create_store(
+        result, status = await client.create_store(
             file_hash=item_hash,
             storage_engine=StorageEnum.ipfs,
             channel=channel,
@@ -53,7 +53,7 @@ def pin(
 
 
 @app.command()
-def upload(
+async def upload(
     path: Path = typer.Argument(..., help="Path of the file to upload"),
     channel: Optional[str] = typer.Option(default=None, help=help_strings.CHANNEL),
     private_key: Optional[str] = typer.Option(
@@ -71,7 +71,7 @@ def upload(
 
     account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
 
-    with AuthenticatedAlephHttpClient(
+    async with AuthenticatedAlephHttpClient(
         account=account, api_server=sdk_settings.API_HOST
     ) as client:
         if not path.is_file():
@@ -90,7 +90,7 @@ def upload(
             logger.debug("Uploading file")
             result: StoreMessage
             status: MessageStatus
-            result, status = client.create_store(
+            result, status = await client.create_store(
                 file_content=file_content,
                 storage_engine=storage_engine,
                 channel=channel,
