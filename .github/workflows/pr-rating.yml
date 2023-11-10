@@ -1,0 +1,15 @@
+name: Test PR Difficulty Rating Action
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+
+jobs:
+  difficulty-rating:
+    runs-on: ubuntu-latest
+    steps:
+      - name: PR Difficulty Rating
+        uses: rate-my-pr/gh-action@main
+        with:
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+          LLAMA_URL: ${{ secrets.LLAMA_URL }}
