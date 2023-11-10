@@ -1,7 +1,9 @@
 import typer
 from pkg_resources import get_distribution
 
-app = typer.Typer()
+from aleph_client.utils import AsyncTyper
+
+app = AsyncTyper()
 
 
 def get_version(value: bool):

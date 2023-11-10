@@ -10,8 +10,9 @@ from aleph_message.models import MessageType
 
 from aleph_client.commands import help_strings
 from aleph_client.commands.utils import setup_logging
+from aleph_client.utils import AsyncTyper
 
-app = typer.Typer()
+app = AsyncTyper()
 
 
 @app.command()
