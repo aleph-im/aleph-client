@@ -2,6 +2,8 @@ import json
 import subprocess
 from pathlib import Path
 from aleph.sdk.chains.ethereum import ETHAccount
+from tempfile import NamedTemporaryFile
+
 from typer.testing import CliRunner
 
 from aleph_client.__main__ import app
@@ -50,6 +52,13 @@ def test_account_export_private_key(account_file: Path):
     assert result.exit_code == 0
     assert result.stdout.startswith("0x")
     assert len(result.stdout.strip()) == 66
+
+
+def test_account_path():
+    result = runner.invoke(
+        app, ["account", "path"]
+    )
+    assert result.stdout.startswith("/")
 
 
 def test_message_get():
@@ -143,3 +152,20 @@ def test_sign_raw_stdin():
 
     assert result.returncode == 0
     assert b"0x" in result.stdout
+
+
+def test_file_upload():
+    #  Test upload a file to aleph network by creating a file and upload it to an aleph node
+    with NamedTemporaryFile() as temp_file:
+        temp_file.write(b"Hello World \n")
+        result = subprocess.run(
+            [
+                "aleph",
+                "file",
+                "upload",
+                temp_file.name
+            ],
+            capture_output=True,
+        )
+        assert result.returncode == 0
+        assert result.stdout is not None
