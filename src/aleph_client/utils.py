@@ -1,10 +1,14 @@
+import asyncio
+import inspect
 import logging
 import os
+from functools import wraps, partial
 from pathlib import Path
 from shutil import make_archive
 from typing import Tuple, Type
 from zipfile import BadZipFile, ZipFile
 
+import typer
 from aleph.sdk.types import GenericMessage
 from aleph_message.models import MessageType
 from aleph_message.models.execution.program import Encoding
@@ -60,3 +64,26 @@ def get_message_type_value(message_type: Type[GenericMessage]) -> MessageType:
     """Returns the value of the 'type' field of a message type class."""
     type_literal = message_type.__annotations__["type"]
     return type_literal.__args__[0]  # Get the value from a Literal
+
+
+class AsyncTyper(typer.Typer):
+    @staticmethod
+    def maybe_run_async(decorator, f):
+        if inspect.iscoroutinefunction(f):
+
+            @wraps(f)
+            def runner(*args, **kwargs):
+                return asyncio.run(f(*args, **kwargs))
+
+            decorator(runner)
+        else:
+            decorator(f)
+        return f
+
+    def callback(self, *args, **kwargs):
+        decorator = super().callback(*args, **kwargs)
+        return partial(self.maybe_run_async, decorator)
+
+    def command(self, *args, **kwargs):
+        decorator = super().command(*args, **kwargs)
+        return partial(self.maybe_run_async, decorator)
