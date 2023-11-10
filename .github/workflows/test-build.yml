@@ -22,6 +22,13 @@ jobs:
           brew update
           brew tap cuber/homebrew-libsecp256k1
           brew install libsecp256k1
+
+      - name: Set up Python for macOS
+        if: startsWith(matrix.os, 'macos')
+        uses: actions/setup-python@v2
+        with:
+          python-version: 3.11
+
       
       - name: Install required system packages only for Ubuntu Linux
         if: startsWith(matrix.os, 'ubuntu-')

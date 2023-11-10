@@ -4,9 +4,11 @@ Aleph Client command-line interface.
 
 import typer
 
+from aleph_client.utils import AsyncTyper
 from .commands import about, account, aggregate, files, message, program
 
-app = typer.Typer()
+app = AsyncTyper()
+
 
 @app.callback()
 def common(
@@ -15,6 +17,7 @@ def common(
     v: bool = typer.Option(None, "-v", callback=about.get_version, help="Show Aleph CLI Version"),
 ):
     pass
+
 
 app.add_typer(account.app, name="account", help="Manage account")
 app.add_typer(

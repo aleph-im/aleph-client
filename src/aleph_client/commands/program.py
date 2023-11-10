@@ -6,7 +6,7 @@ from typing import Dict, List, Optional
 from zipfile import BadZipFile
 
 import typer
-from aleph.sdk import AuthenticatedAlephClient
+from aleph.sdk import AuthenticatedAlephHttpClient
 from aleph.sdk.account import _load_account
 from aleph.sdk.conf import settings as sdk_settings
 from aleph.sdk.types import AccountFromPrivateKey, StorageEnum
@@ -28,10 +28,10 @@ from aleph_client.commands.utils import (
     yes_no_input,
 )
 from aleph_client.conf import settings
-from aleph_client.utils import create_archive
+from aleph_client.utils import create_archive, AsyncTyper
 
 logger = logging.getLogger(__name__)
-app = typer.Typer()
+app = AsyncTyper()
 
 
 @app.command()
@@ -147,7 +147,7 @@ def upload(
     else:
         subscriptions = None
 
-    with AuthenticatedAlephClient(
+    with AuthenticatedAlephHttpClient(
         account=account, api_server=sdk_settings.API_HOST
     ) as client:
         # Upload the source code
@@ -225,7 +225,7 @@ def update(
     account = _load_account(private_key, private_key_file)
     path = path.absolute()
 
-    with AuthenticatedAlephClient(
+    with AuthenticatedAlephHttpClient(
         account=account, api_server=sdk_settings.API_HOST
     ) as client:
         program_message: ProgramMessage = client.get_message(
@@ -283,7 +283,7 @@ def unpersist(
 
     account = _load_account(private_key, private_key_file)
 
-    with AuthenticatedAlephClient(
+    with AuthenticatedAlephHttpClient(
         account=account, api_server=sdk_settings.API_HOST
     ) as client:
         existing: MessagesResponse = client.get_messages(hashes=[item_hash])

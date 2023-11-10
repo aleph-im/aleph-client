@@ -8,10 +8,11 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 import typer
-from aleph.sdk import AlephClient, AuthenticatedAlephClient
+from aleph.sdk import AlephHttpClient, AuthenticatedAlephHttpClient
 from aleph.sdk.account import _load_account
 from aleph.sdk.conf import settings as sdk_settings
-from aleph.sdk.models import MessagesResponse
+from aleph.sdk.query.responses import MessagesResponse
+from aleph.sdk.query.filters import MessageFilter
 from aleph.sdk.types import AccountFromPrivateKey, StorageEnum
 from aleph_message.models import AlephMessage, ItemHash, MessageType, ProgramMessage
 
@@ -23,24 +24,25 @@ from aleph_client.commands.utils import (
     setup_logging,
     str_to_datetime,
 )
+from aleph_client.utils import AsyncTyper
 
-app = typer.Typer()
+app = AsyncTyper()
 
 
 @app.command()
-def get(
+async def get(
     item_hash: str,
 ):
-    with AlephClient(api_server=sdk_settings.API_HOST) as client:
-        message = client.get_message(item_hash=ItemHash(item_hash))
+    async with AlephHttpClient(api_server=sdk_settings.API_HOST) as client:
+        message = await client.get_message(item_hash=ItemHash(item_hash))
     typer.echo(colorful_message_json(message))
 
 
 @app.command()
-def find(
+async def find(
     pagination: int = 200,
     page: int = 1,
-    message_type: Optional[str] = None,
+    message_types: Optional[str] = None,
     content_types: Optional[str] = None,
     content_keys: Optional[str] = None,
     refs: Optional[str] = None,
@@ -53,17 +55,7 @@ def find(
     end_date: Optional[str] = None,
     ignore_invalid_messages: bool = True,
 ):
-    message_type = MessageType(message_type) if message_type else None
-
-    parsed_content_types: Optional[List[str]] = None
-    parsed_content_keys: Optional[List[str]] = None
-    parsed_refs: Optional[List[str]] = None
-    parsed_addresses: Optional[List[str]] = None
-    parsed_tags: Optional[List[str]] = None
-    parsed_hashes: Optional[List[str]] = None
-    parsed_channels: Optional[List[str]] = None
-    parsed_chains: Optional[List[str]] = None
-
+    parsed_message_types = message_types.split(",") if message_types else None
     parsed_content_types = content_types.split(",") if content_types else None
     parsed_content_keys = content_keys.split(",") if content_keys else None
     parsed_refs = refs.split(",") if refs else None
@@ -73,33 +65,37 @@ def find(
     parsed_channels = channels.split(",") if channels else None
     parsed_chains = chains.split(",") if chains else None
 
-    message_type = MessageType(message_type) if message_type else None
+    message_types = [
+        MessageType(message_type) for message_type in parsed_message_types
+    ] if parsed_message_types else None
 
     start_time = str_to_datetime(start_date)
     end_time = str_to_datetime(end_date)
 
-    with AlephClient(api_server=sdk_settings.API_HOST) as client:
-        response: MessagesResponse = client.get_messages(
-            pagination=pagination,
+    async with AlephHttpClient(api_server=sdk_settings.API_HOST) as client:
+        response: MessagesResponse = await client.get_messages(
+            page_size=pagination,
             page=page,
-            message_type=message_type,
-            content_types=parsed_content_types,
-            content_keys=parsed_content_keys,
-            refs=parsed_refs,
-            addresses=parsed_addresses,
-            tags=parsed_tags,
-            hashes=parsed_hashes,
-            channels=parsed_channels,
-            chains=parsed_chains,
-            start_date=start_time,
-            end_date=end_time,
+            message_filter=MessageFilter(
+                message_types=message_types,
+                content_types=parsed_content_types,
+                content_keys=parsed_content_keys,
+                refs=parsed_refs,
+                addresses=parsed_addresses,
+                tags=parsed_tags,
+                hashes=parsed_hashes,
+                channels=parsed_channels,
+                chains=parsed_chains,
+                start_date=start_time,
+                end_date=end_time,
+            ),
             ignore_invalid_messages=ignore_invalid_messages,
         )
     typer.echo(colorful_json(response.json(sort_keys=True, indent=4)))
 
 
 @app.command()
-def post(
+async def post(
     path: Optional[Path] = typer.Option(
         None,
         help="Path to the content you want to post. If omitted, you can input your content directly",
@@ -149,10 +145,10 @@ def post(
             typer.echo("Not valid JSON")
             raise typer.Exit(code=2)
 
-    with AuthenticatedAlephClient(
+    async with AuthenticatedAlephHttpClient(
         account=account, api_server=sdk_settings.API_HOST
     ) as client:
-        result, status = client.create_post(
+        result, status = await client.create_post(
             post_content=content,
             post_type=type,
             ref=ref,
@@ -165,7 +161,7 @@ def post(
 
 
 @app.command()
-def amend(
+async def amend(
     item_hash: str = typer.Argument(..., help="Hash reference of the message to amend"),
     private_key: Optional[str] = typer.Option(
         sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY
@@ -181,8 +177,8 @@ def amend(
 
     account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
 
-    with AlephClient(api_server=sdk_settings.API_HOST) as client:
-        existing_message: AlephMessage = client.get_message(item_hash=item_hash)
+    async with AlephHttpClient(api_server=sdk_settings.API_HOST) as client:
+        existing_message: AlephMessage = await client.get_message(item_hash=item_hash)
 
     editor: str = os.getenv("EDITOR", default="nano")
     with tempfile.NamedTemporaryFile(suffix="json") as fd:
@@ -207,10 +203,10 @@ def amend(
         new_content.ref = existing_message.item_hash
 
     typer.echo(new_content)
-    with AuthenticatedAlephClient(
+    async with AuthenticatedAlephHttpClient(
         account=account, api_server=sdk_settings.API_HOST
     ) as client:
-        message, _status = client.submit(
+        message, _status = await client.submit(
             content=new_content.dict(),
             message_type=existing_message.type,
             channel=existing_message.channel,
@@ -219,7 +215,7 @@ def amend(
 
 
 @app.command()
-def forget(
+async def forget(
     hashes: str = typer.Argument(
         ..., help="Comma separated list of hash references of messages to forget"
     ),
@@ -242,14 +238,14 @@ def forget(
     hash_list: List[str] = hashes.split(",")
 
     account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
-    with AuthenticatedAlephClient(
+    async with AuthenticatedAlephHttpClient(
         account=account, api_server=sdk_settings.API_HOST
     ) as client:
-        client.forget(hashes=hash_list, reason=reason, channel=channel)
+        await client.forget(hashes=hash_list, reason=reason, channel=channel)
 
 
 @app.command()
-def watch(
+async def watch(
     ref: str = typer.Argument(..., help="Hash reference of the message to watch"),
     indent: Optional[int] = typer.Option(None, help="Number of indents to use"),
     debug: bool = False,
@@ -258,11 +254,12 @@ def watch(
 
     setup_logging(debug)
 
-    with AlephClient(api_server=sdk_settings.API_HOST) as client:
-        original: AlephMessage = client.get_message(item_hash=ref)
-        for message in client.watch_messages(
+    async with AlephHttpClient(api_server=sdk_settings.API_HOST) as client:
+        original: AlephMessage = await client.get_message(item_hash=ref)
+        async for message in client.watch_messages(
+            message_filter=MessageFilter(
             refs=[ref], addresses=[original.content.address]
-        ):
+        )):
             typer.echo(f"{message.json(indent=indent)}")
 
 

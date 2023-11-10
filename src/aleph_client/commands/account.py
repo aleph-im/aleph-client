@@ -15,9 +15,10 @@ from typer.colors import RED
 
 from aleph_client.commands import help_strings
 from aleph_client.commands.utils import setup_logging
+from aleph_client.utils import AsyncTyper
 
 logger = logging.getLogger(__name__)
-app = typer.Typer()
+app = AsyncTyper()
 
 
 @app.command()
