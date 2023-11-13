@@ -1,15 +1,19 @@
 name: Test PR Difficulty Rating Action
 
+permissions:
+  pull-requests: write
+
 on:
   pull_request:
-    types: [opened, reopened, synchronize]
+    types: [opened, reopened, ready_for_review]
 
 jobs:
   difficulty-rating:
     runs-on: ubuntu-latest
+    if: github.event.pull_request.draft == false
     steps:
       - name: PR Difficulty Rating
-        uses: rate-my-pr/gh-action@main
+        uses: rate-my-pr/rate@v1.0.11
         with:
-          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           LLAMA_URL: ${{ secrets.LLAMA_URL }}
