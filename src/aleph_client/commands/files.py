@@ -125,11 +125,10 @@ async def download(
 
     async with AlephHttpClient(api_server=sdk_settings.API_HOST) as client:
         logger.info(f"Downloading {hash} ...")
-        async with AlephHttpClient(api_server=sdk_settings.API_HOST) as client:
-            with open(output_file_path, "wb") as fd:
-                if use_ipfs:
-                    await client.download_file_to_buffer(hash, fd)
-                else:
-                    await client.download_file_to_buffer(hash, fd)
+        with open(output_file_path, "wb") as fd:
+            if not use_ipfs:
+                await client.download_file_to_buffer(hash, fd)
+            else:
+                await client.download_file_ipfs_to_buffer(hash, fd)
 
         logger.debug("File downloaded successfully.")
