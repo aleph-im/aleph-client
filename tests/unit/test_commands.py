@@ -163,7 +163,7 @@ def test_sign_raw_stdin():
 
 
 def test_file_upload():
-    #  Test upload a file to aleph network by creating a file and upload it to an aleph node
+    # Test upload a file to aleph network by creating a file and upload it to an aleph node
     with NamedTemporaryFile() as temp_file:
         temp_file.write(b"Hello World \n")
         result = runner.invoke(
@@ -172,3 +172,17 @@ def test_file_upload():
         )
         assert result.exit_code == 0
         assert result.stdout is not None
+
+
+def test_file_download():
+    # Test download a file to aleph network
+    result = runner.invoke(
+        app,
+        [
+            "file",
+            "download",
+            "QmeomffUNfmQy76CQGy9NdmqEnnHU9soCexBnGU3ezPHVH",
+        ],  # 5 bytes file
+    )
+    assert result.exit_code == 0
+    assert result.stdout is not None

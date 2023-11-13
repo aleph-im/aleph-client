@@ -3,7 +3,7 @@ from pathlib import Path
 from typing import Optional
 
 import typer
-from aleph.sdk import AuthenticatedAlephHttpClient
+from aleph.sdk import AlephHttpClient, AuthenticatedAlephHttpClient
 from aleph.sdk.account import _load_account
 from aleph.sdk.conf import settings as sdk_settings
 from aleph.sdk.types import AccountFromPrivateKey, StorageEnum
@@ -99,3 +99,37 @@ async def upload(
             )
             logger.debug("Upload finished")
             typer.echo(f"{result.json(indent=4)}")
+
+
+@app.command()
+async def download(
+    hash: str = typer.Argument(..., help="hash to download from aleph."),
+    use_ipfs: bool = typer.Option(
+        default=False, help="Download using IPFS instead of storage"
+    ),
+    output_path: Path = typer.Option(Path("."), help="Output directory path"),
+    file_name: str = typer.Option(None, help="Output file name (without extension)"),
+    file_extension: str = typer.Option(None, help="Output file extension"),
+    debug: bool = False,
+):
+    """Download a file on aleph.im."""
+
+    setup_logging(debug)
+
+    output_path.mkdir(parents=True, exist_ok=True)
+
+    file_name = file_name if file_name else hash
+    file_extension = file_extension if file_extension else ""
+
+    output_file_path = output_path / f"{file_name}{file_extension}"
+
+    async with AlephHttpClient(api_server=sdk_settings.API_HOST) as client:
+        logger.info(f"Downloading {hash} ...")
+        async with AlephHttpClient(api_server=sdk_settings.API_HOST) as client:
+            with open(output_file_path, "wb") as fd:
+                if use_ipfs:
+                    await client.download_file_to_buffer(hash, fd)
+                else:
+                    await client.download_file_to_buffer(hash, fd)
+
+        logger.debug("File downloaded successfully.")
