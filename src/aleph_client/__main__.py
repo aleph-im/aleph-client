@@ -5,7 +5,7 @@ Aleph Client command-line interface.
 import typer
 
 from aleph_client.utils import AsyncTyper
-from .commands import about, account, aggregate, files, message, program
+from .commands import about, account, aggregate, files, message, program, node
 
 app = AsyncTyper()
 
@@ -13,8 +13,12 @@ app = AsyncTyper()
 @app.callback()
 def common(
     ctx: typer.Context,
-    version: bool = typer.Option(None, "--version", callback=about.get_version, help="Show Aleph CLI Version"),
-    v: bool = typer.Option(None, "-v", callback=about.get_version, help="Show Aleph CLI Version"),
+    version: bool = typer.Option(
+        None, "--version", callback=about.get_version, help="Show Aleph CLI Version"
+    ),
+    v: bool = typer.Option(
+        None, "-v", callback=about.get_version, help="Show Aleph CLI Version"
+    ),
 ):
     pass
 
@@ -34,10 +38,9 @@ app.add_typer(
 app.add_typer(
     program.app, name="program", help="Upload and update programs on aleph.im VM"
 )
-app.add_typer(
-    about.app, name="about", help="Display the informations of Aleph CLI"
-)
+app.add_typer(about.app, name="about", help="Display the informations of Aleph CLI")
 
+app.add_typer(node.app, name="node", help="Get node info on aleph.im network")
 
 if __name__ == "__main__":
     app()
