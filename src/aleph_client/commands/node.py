@@ -28,7 +28,7 @@ class NodeInfo:
 
 
 def _fetch_nodes() -> NodeInfo:
-""" Fetch node aggregates and format it as NodeInfo """
+    """ Fetch node aggregates and format it as NodeInfo """
     response = requests.get(node_link)
     return NodeInfo(**response.json())
 
