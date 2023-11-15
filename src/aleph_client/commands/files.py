@@ -176,7 +176,6 @@ class GetAccountFilesQueryParams(BaseModel):
     )
 
 
-# Your list command
 @app.command()
 def list(
     address: Optional[str] = typer.Option(None, help="Address"),
