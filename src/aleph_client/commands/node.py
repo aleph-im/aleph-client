@@ -27,8 +27,8 @@ class NodeInfo:
         self.core_node.sort(key=lambda x: x.get("score", 0), reverse=True)
 
 
-# Fetch node aggregates and format it inside class
 def _fetch_nodes() -> NodeInfo:
+""" Fetch node aggregates and format it as NodeInfo """
     response = requests.get(node_link)
     return NodeInfo(**response.json())
 
