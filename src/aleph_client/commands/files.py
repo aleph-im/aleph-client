@@ -206,9 +206,9 @@ def list(
         uri = f"{sdk_settings.API_HOST}/api/v0/addresses/{address}/files"
         with requests.get(uri, params=query_params.dict()) as response:
             if response.status_code == 200:
-                balance_data = response.json()
-                formatted_balance_data = json.dumps(balance_data, indent=4)
-                typer.echo(formatted_balance_data)
+                files_data = response.json()
+                formatted_files_data = json.dumps(files_data, indent=4)
+                typer.echo(formatted_files_data)
             else:
                 typer.echo(
                     f"Failed to retrieve files for address {address}. Status code: {response.status_code}"
