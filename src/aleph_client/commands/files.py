@@ -1,5 +1,6 @@
 import json
 import logging
+from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
@@ -12,6 +13,9 @@ from aleph.sdk.types import AccountFromPrivateKey, StorageEnum
 from aleph_message.models import StoreMessage
 from aleph_message.status import MessageStatus
 from pydantic import BaseModel, Field
+from rich import box
+from rich.console import Console
+from rich.table import Table
 
 from aleph_client.commands import help_strings
 from aleph_client.commands.utils import setup_logging
@@ -176,6 +180,52 @@ class GetAccountFilesQueryParams(BaseModel):
     )
 
 
+def _show_files(files_data: dict) -> None:
+    table = Table(title="Files Information", box=box.SIMPLE_HEAVY)
+    table.add_column("File Hash", style="cyan", no_wrap=True, min_width=None)
+    table.add_column("Size (MB)", style="magenta", min_width=None)
+    table.add_column("Type", style="green", min_width=None)
+    table.add_column("Created", style="blue", min_width=None)
+    table.add_column("Item Hash", style="yellow", min_width=None, no_wrap=True)
+
+    console = Console()
+
+    # Add files to the table
+    for file_info in files_data["files"]:
+        created = datetime.strptime(file_info["created"], "%Y-%m-%dT%H:%M:%S.%f%z")
+        formatted_created = created.strftime("%Y-%m-%d %H:%M:%S")
+        size_in_mb = float(file_info["size"]) / (1024 * 1024)
+        table.add_row(
+            file_info["file_hash"],
+            f"{size_in_mb:.4f} MB",
+            file_info["type"],
+            formatted_created,
+            file_info["item_hash"],
+        )
+
+    pagination_page = files_data["pagination_page"]
+    pagination_total = files_data["pagination_total"]
+    pagination_per_page = files_data["pagination_per_page"]
+    address = files_data["address"]
+    total_size = float(files_data["total_size"]) / (1024 * 1024)
+
+    console.print(
+        f"\n[bold]Address:[/bold] {address}",
+    )
+    console.print(f"[bold]Total Size:[/bold] ~ {total_size:.4f} MB")
+
+    console.print("\n[bold]Pagination:[/bold]")
+    console.print(
+        f"[bold]Page:[/bold] {pagination_page}",
+    )
+    console.print(
+        f"[bold]Total Pages:[/bold] {pagination_total}",
+    )
+    console.print(f"[bold]Items Per Page:[/bold] {pagination_per_page}")
+
+    console.print(table)
+
+
 @app.command()
 def list(
     address: Optional[str] = typer.Option(None, help="Address"),
@@ -191,7 +241,11 @@ def list(
         -1,
         help="Order in which files should be listed: -1 means most recent messages first, 1 means older messages first.",
     ),
+    export_json: bool = typer.Option(
+        default=False, help="Print as json instead of rich table"
+    ),
 ):
+    """List all files for a given address"""
     account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
 
     if account and not address:
@@ -208,7 +262,10 @@ def list(
             if response.status_code == 200:
                 files_data = response.json()
                 formatted_files_data = json.dumps(files_data, indent=4)
-                typer.echo(formatted_files_data)
+                if not export_json:
+                    _show_files(files_data)
+                else:
+                    typer.echo(formatted_files_data)
             else:
                 typer.echo(
                     f"Failed to retrieve files for address {address}. Status code: {response.status_code}"
