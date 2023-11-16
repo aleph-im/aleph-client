@@ -1,4 +1,5 @@
 import datetime
+import json as json_lib
 import logging
 import re
 import unicodedata
@@ -28,7 +29,7 @@ class NodeInfo:
 
 
 def _fetch_nodes() -> NodeInfo:
-    """ Fetch node aggregates and format it as NodeInfo """
+    """Fetch node aggregates and format it as NodeInfo"""
     response = requests.get(node_link)
     return NodeInfo(**response.json())
 
@@ -130,6 +131,9 @@ def _show_core(node_info):
 
 @app.command()
 def compute(
+    json: bool = typer.Option(
+        default=False, help="Print as json instead of rich table"
+    ),
     debug: bool = False,
 ):
     """Get all compute node on aleph network"""
@@ -137,15 +141,24 @@ def compute(
     setup_logging(debug)
 
     compute_info: NodeInfo = _fetch_nodes()
-    _show_compute(compute_info)
+    if not json:
+        _show_compute(compute_info)
+    else:
+        typer.echo(json_lib.dumps(compute_info.nodes, indent=4))
 
 
 @app.command()
 def core(
+    json: bool = typer.Option(
+        default=False, help="Print as json instead of rich table"
+    ),
     debug: bool = False,
 ):
     """Get all core node on aleph"""
     setup_logging(debug)
 
     core_info: NodeInfo = _fetch_nodes()
-    _show_core(core_info)
+    if not json:
+        _show_core(core_info)
+    else:
+        typer.echo(json_lib.dumps(core_info.core_node, indent=4))
