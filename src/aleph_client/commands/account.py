@@ -1,9 +1,12 @@
 import asyncio
 import base64
+import json
 import logging
 import sys
 from pathlib import Path
 from typing import Optional
+
+import requests
 
 import typer
 from aleph.sdk.account import _load_account
@@ -143,3 +146,35 @@ def sign_bytes(
     coroutine = account.sign_raw(message.encode())
     signature = asyncio.run(coroutine)
     typer.echo(signature.hex())
+
+@app.command()
+def balance(
+    address: Optional[str] = typer.Option(None, help="Address"),
+    private_key: Optional[str] = typer.Option(
+        sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY
+    ),
+    private_key_file: Optional[Path] = typer.Option(
+        sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE
+    ),
+):
+    account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
+
+    if account and not address:
+        address = account.get_address()
+
+    if address:
+        uri = f"{sdk_settings.API_HOST}/api/v0/addresses/{address}/balance"
+
+        with requests.get(uri) as response:
+            if response.status_code == 200:
+                balance_data = response.json()
+                formatted_balance_data = json.dumps(balance_data, indent=4)
+                typer.echo(formatted_balance_data)
+            else:
+                typer.echo(
+                    f"Failed to retrieve balance for address {address}. Status code: {response.status_code}"
+                )
+    else:
+        typer.echo(
+            "Error: Please provide either a private key, private key file, or an address."
+        )

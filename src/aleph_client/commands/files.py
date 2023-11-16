@@ -1,7 +1,10 @@
+import json as json_lib
 import logging
+from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
+import requests
 import typer
 from aleph.sdk import AlephHttpClient, AuthenticatedAlephHttpClient
 from aleph.sdk.account import _load_account
@@ -9,6 +12,10 @@ from aleph.sdk.conf import settings as sdk_settings
 from aleph.sdk.types import AccountFromPrivateKey, StorageEnum
 from aleph_message.models import StoreMessage
 from aleph_message.status import MessageStatus
+from pydantic import BaseModel, Field
+from rich import box
+from rich.console import Console
+from rich.table import Table
 
 from aleph_client.commands import help_strings
 from aleph_client.commands.utils import setup_logging
@@ -132,3 +139,138 @@ async def download(
                 await client.download_file_ipfs_to_buffer(hash, fd)
 
         logger.debug("File downloaded successfully.")
+
+
+@app.command()
+async def forget(
+    item_hash: str = typer.Argument(..., help="Hash to forget"),
+    reason: str = typer.Argument(..., help="reason to forget"),
+    channel: Optional[str] = typer.Option(None, help="channel"),
+    private_key: Optional[str] = typer.Option(
+        sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY
+    ),
+    private_key_file: Optional[Path] = typer.Option(
+        sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE
+    ),
+    debug: bool = False,
+):
+    """forget a file and his message on aleph.im."""
+
+    setup_logging(debug)
+
+    account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
+
+    async with AuthenticatedAlephHttpClient(
+        account=account, api_server=sdk_settings.API_HOST
+    ) as client:
+        value = await client.forget(hashes=[item_hash], reason=reason, channel=channel)
+        typer.echo(f"{value[0].json(indent=4)}")
+
+
+class GetAccountFilesQueryParams(BaseModel):
+    pagination: int = Field(
+        default=100,
+        ge=0,
+        description="Maximum number of files to return. Specifying 0 removes this limit.",
+    )
+    page: int = Field(default=1, ge=1, description="Offset in pages. Starts at 1.")
+    sort_order: int = Field(
+        default=-1,
+        description="Order in which files should be listed: -1 means most recent messages first, 1 means older messages first.",
+    )
+
+
+def _show_files(files_data: dict) -> None:
+    table = Table(title="Files Information", box=box.SIMPLE_HEAVY)
+    table.add_column("File Hash", style="cyan", no_wrap=True, min_width=None)
+    table.add_column("Size (MB)", style="magenta", min_width=None)
+    table.add_column("Type", style="green", min_width=None)
+    table.add_column("Created", style="blue", min_width=None)
+    table.add_column("Item Hash", style="yellow", min_width=None, no_wrap=True)
+
+    console = Console()
+
+    # Add files to the table
+    for file_info in files_data["files"]:
+        created = datetime.strptime(file_info["created"], "%Y-%m-%dT%H:%M:%S.%f%z")
+        formatted_created = created.strftime("%Y-%m-%d %H:%M:%S")
+        size_in_mb = float(file_info["size"]) / (1024 * 1024)
+        table.add_row(
+            file_info["file_hash"],
+            f"{size_in_mb:.4f} MB",
+            file_info["type"],
+            formatted_created,
+            file_info["item_hash"],
+        )
+
+    pagination_page = files_data["pagination_page"]
+    pagination_total = files_data["pagination_total"]
+    pagination_per_page = files_data["pagination_per_page"]
+    address = files_data["address"]
+    total_size = float(files_data["total_size"]) / (1024 * 1024)
+
+    console.print(
+        f"\n[bold]Address:[/bold] {address}",
+    )
+    console.print(f"[bold]Total Size:[/bold] ~ {total_size:.4f} MB")
+
+    console.print("\n[bold]Pagination:[/bold]")
+    console.print(
+        f"[bold]Page:[/bold] {pagination_page}",
+    )
+    console.print(
+        f"[bold]Total Pages:[/bold] {pagination_total}",
+    )
+    console.print(f"[bold]Items Per Page:[/bold] {pagination_per_page}")
+
+    console.print(table)
+
+
+@app.command()
+def list(
+    address: Optional[str] = typer.Option(None, help="Address"),
+    private_key: Optional[str] = typer.Option(
+        sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY
+    ),
+    private_key_file: Optional[Path] = typer.Option(
+        sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE
+    ),
+    pagination: int = typer.Option(100, help="Maximum number of files to return."),
+    page: int = typer.Option(1, help="Offset in pages."),
+    sort_order: int = typer.Option(
+        -1,
+        help="Order in which files should be listed: -1 means most recent messages first, 1 means older messages first.",
+    ),
+    json: bool = typer.Option(
+        default=False, help="Print as json instead of rich table"
+    ),
+):
+    """List all files for a given address"""
+    account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
+
+    if account and not address:
+        address = account.get_address()
+
+    if address:
+        # Build the query parameters
+        query_params = GetAccountFilesQueryParams(
+            pagination=pagination, page=page, sort_order=sort_order
+        )
+
+        uri = f"{sdk_settings.API_HOST}/api/v0/addresses/{address}/files"
+        with requests.get(uri, params=query_params.dict()) as response:
+            if response.status_code == 200:
+                files_data = response.json()
+                formatted_files_data = json_lib.dumps(files_data, indent=4)
+                if not json:
+                    _show_files(files_data)
+                else:
+                    typer.echo(formatted_files_data)
+            else:
+                typer.echo(
+                    f"Failed to retrieve files for address {address}. Status code: {response.status_code}"
+                )
+    else:
+        typer.echo(
+            "Error: Please provide either a private key, private key file, or an address."
+        )
