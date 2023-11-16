@@ -1,4 +1,4 @@
-import json
+import json as json_lib
 import logging
 from datetime import datetime
 from pathlib import Path
@@ -241,7 +241,7 @@ def list(
         -1,
         help="Order in which files should be listed: -1 means most recent messages first, 1 means older messages first.",
     ),
-    export_json: bool = typer.Option(
+    json: bool = typer.Option(
         default=False, help="Print as json instead of rich table"
     ),
 ):
@@ -261,8 +261,8 @@ def list(
         with requests.get(uri, params=query_params.dict()) as response:
             if response.status_code == 200:
                 files_data = response.json()
-                formatted_files_data = json.dumps(files_data, indent=4)
-                if not export_json:
+                formatted_files_data = json_lib.dumps(files_data, indent=4)
+                if not json:
                     _show_files(files_data)
                 else:
                     typer.echo(formatted_files_data)
