@@ -10,8 +10,6 @@ from .commands import about, account, aggregate, domain, files, message, node, p
 
 app = AsyncTyper()
 
-app = typer.Typer()
-
 app.add_typer(account.app, name="account", help="Manage account")
 app.add_typer(
     aggregate.app, name="aggregate", help="Manage aggregate messages on aleph.im"
