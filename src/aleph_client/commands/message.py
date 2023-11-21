@@ -11,8 +11,8 @@ import typer
 from aleph.sdk import AlephHttpClient, AuthenticatedAlephHttpClient
 from aleph.sdk.account import _load_account
 from aleph.sdk.conf import settings as sdk_settings
-from aleph.sdk.query.responses import MessagesResponse
 from aleph.sdk.query.filters import MessageFilter
+from aleph.sdk.query.responses import MessagesResponse
 from aleph.sdk.types import AccountFromPrivateKey, StorageEnum
 from aleph.sdk.utils import extended_json_encoder
 from aleph_message.models import AlephMessage, ItemHash, MessageType, ProgramMessage
@@ -66,9 +66,11 @@ async def find(
     parsed_channels = channels.split(",") if channels else None
     parsed_chains = chains.split(",") if chains else None
 
-    message_types = [
-        MessageType(message_type) for message_type in parsed_message_types
-    ] if parsed_message_types else None
+    message_types = (
+        [MessageType(message_type) for message_type in parsed_message_types]
+        if parsed_message_types
+        else None
+    )
 
     start_time = str_to_datetime(start_date)
     end_time = str_to_datetime(end_date)
@@ -259,8 +261,9 @@ async def watch(
         original: AlephMessage = await client.get_message(item_hash=ref)
         async for message in client.watch_messages(
             message_filter=MessageFilter(
-            refs=[ref], addresses=[original.content.address]
-        )):
+                refs=[ref], addresses=[original.content.address]
+            )
+        ):
             typer.echo(f"{message.json(indent=indent)}")
 
 

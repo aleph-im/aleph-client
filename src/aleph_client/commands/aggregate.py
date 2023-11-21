@@ -17,8 +17,6 @@ from aleph_client.utils import AsyncTyper
 
 app = AsyncTyper()
 
-from aleph_client.commands.utils import colorful_message_json
-
 
 @app.command()
 async def forget(
@@ -131,5 +129,3 @@ async def get(
             typer.echo(json.dumps(aggregates, indent=4, default=extended_json_encoder))
         else:
             typer.echo("No aggregates found for the given key and content.")
-
-

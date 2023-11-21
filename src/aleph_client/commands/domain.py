@@ -4,28 +4,38 @@ from typing import Optional, cast
 
 import typer
 from aleph.sdk.account import _load_account
-from aleph.sdk.client import AlephClient, AuthenticatedAlephClient
+from aleph.sdk.client import AlephHttpClient, AuthenticatedAlephHttpClient
 from aleph.sdk.conf import settings as sdk_settings
-from aleph.sdk.domain import DomainValidator, Hostname, TargetType, hostname_from_url
+from aleph.sdk.domain import (
+    DomainValidator,
+    Hostname,
+    TargetType,
+    get_target_type,
+    hostname_from_url,
+)
 from aleph.sdk.exceptions import DomainConfigurationError
+from aleph.sdk.query.filters import MessageFilter
 from aleph.sdk.types import AccountFromPrivateKey
-from aleph_client.commands import help_strings
-from aleph_client.commands.utils import coro
 from aleph_message.models import AggregateMessage, MessageType
 from rich.console import Console
 from rich.prompt import Confirm, Prompt
 from rich.table import Table
 
-app = typer.Typer()
+from aleph_client.commands import help_strings
+from aleph_client.utils import AsyncTyper
+
+app = AsyncTyper()
 
 
 async def get_aggregate_domain_info(account, fqdn):
-    async with AlephClient(api_server=sdk_settings.API_HOST) as client:
+    async with AlephHttpClient(api_server=sdk_settings.API_HOST) as client:
         aggregates = await client.get_messages(
-            addresses=[str(account.get_address())],
-            message_type=MessageType.aggregate,
+            message_filter=MessageFilter(
+                addresses=[str(account.get_address())],
+                message_types=[MessageType.aggregate],
+            ),
             page=1,
-            pagination=1000
+            page_size=1000,
         )
 
         for message in aggregates.messages:
@@ -33,10 +43,7 @@ async def get_aggregate_domain_info(account, fqdn):
             if aggregate.content.key == "domains":
                 for domain, info in aggregate.content.content.items():
                     if domain == fqdn:
-                        return {
-                            "timestamp": aggregate.content.time,
-                            "info": info
-                        }
+                        return {"timestamp": aggregate.content.time, "info": info}
         return None
 
 
@@ -59,37 +66,39 @@ async def detach_resource(account: AccountFromPrivateKey, fqdn: Hostname):
     table.add_column("New resource", justify="right", style="green", no_wrap=True)
     table.add_column("Resource type", style="magenta")
 
-    domain_validator = DomainValidator()
-
     if domain_info is not None and domain_info.get("info"):
         current_resource = domain_info["info"]["message_id"]
+    else:
+        current_resource = "null"
 
-    resource_type = await domain_validator.get_target_type(fqdn)
-    table.add_row(f"{current_resource[:16]}...{current_resource[-16:]}", "", resource_type)
+    resource_type = await get_target_type(fqdn)
+    table.add_row(
+        f"{current_resource[:16]}...{current_resource[-16:]}", "", resource_type
+    )
 
     console.print(table)
 
     if Confirm.ask("Continue"):
         """Update aggregate message"""
 
-        async with AuthenticatedAlephClient(
-                account=account, api_server=sdk_settings.API_HOST
+        async with AuthenticatedAlephHttpClient(
+            account=account, api_server=sdk_settings.API_HOST
         ) as client:
-            aggregate_content = {
-                fqdn: None
-            }
+            aggregate_content = {fqdn: None}
 
             aggregate_message, message_status = await client.create_aggregate(
-                key="domains",
-                content=aggregate_content,
-                channel="ALEPH-CLOUDSOLUTIONS"
+                key="domains", content=aggregate_content, channel="ALEPH-CLOUDSOLUTIONS"
             )
 
             console.log("[green bold]Resource detached!")
-            console.log(f"Visualise on: https://explorer.aleph.im/address/ETH/{account.get_address()}/message/AGGREGATE/{aggregate_message.item_hash}")
+            console.log(
+                f"Visualise on: https://explorer.aleph.im/address/ETH/{account.get_address()}/message/AGGREGATE/{aggregate_message.item_hash}"
+            )
 
 
-async def attach_resource(account: AccountFromPrivateKey, fqdn: Hostname, item_hash: Optional[str] = None):
+async def attach_resource(
+    account: AccountFromPrivateKey, fqdn: Hostname, item_hash: Optional[str] = None
+):
     domain_info = await get_aggregate_domain_info(account, fqdn)
     console = Console()
 
@@ -101,48 +110,50 @@ async def attach_resource(account: AccountFromPrivateKey, fqdn: Hostname, item_h
     table.add_column("New resource", justify="right", style="green", no_wrap=True)
     table.add_column("Resource type", style="magenta")
 
-    current_resource = "null"
-    domain_validator = DomainValidator()
-
     """
     Detect target type on the fly to be able to switch to another type
     """
-    resource_type = await domain_validator.get_target_type(fqdn)
+    resource_type = await get_target_type(fqdn)
 
     if domain_info is not None and domain_info.get("info"):
         current_resource = domain_info["info"]["message_id"]
+    else:
+        current_resource = "null"
 
-    table.add_row(f"{current_resource[:16]}...{current_resource[-16:]}", f"{item_hash[:16]}...{item_hash[-16:]}", resource_type)
+    table.add_row(
+        f"{current_resource[:16]}...{current_resource[-16:]}",
+        f"{item_hash[:16]}...{item_hash[-16:]}",
+        resource_type,
+    )
 
     console.print(table)
 
     if Confirm.ask("Continue"):
         """Create aggregate message"""
 
-        async with AuthenticatedAlephClient(
-                account=account, api_server=sdk_settings.API_HOST
+        async with AuthenticatedAlephHttpClient(
+            account=account, api_server=sdk_settings.API_HOST
         ) as client:
             aggregate_content = {
                 fqdn: {
                     "message_id": item_hash,
                     "type": resource_type,
                     # console page compatibility
-                    "programType": resource_type
+                    "programType": resource_type,
                 }
             }
 
             aggregate_message, message_status = await client.create_aggregate(
-                key="domains",
-                content=aggregate_content,
-                channel="ALEPH-CLOUDSOLUTIONS"
+                key="domains", content=aggregate_content, channel="ALEPH-CLOUDSOLUTIONS"
             )
 
             console.log("[green bold]Resource attached!")
-            console.log(f"Visualise on: https://explorer.aleph.im/address/ETH/{account.get_address()}/message/AGGREGATE/{aggregate_message.item_hash}")
+            console.log(
+                f"Visualise on: https://explorer.aleph.im/address/ETH/{account.get_address()}/message/AGGREGATE/{aggregate_message.item_hash}"
+            )
 
 
 @app.command()
-@coro
 async def add(
     private_key: Optional[str] = typer.Option(
         sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY
@@ -150,12 +161,16 @@ async def add(
     private_key_file: Optional[Path] = typer.Option(
         sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE
     ),
-    fqdn: str = typer.Argument(..., help=help_strings.CUSTOM_DOMAIN_NAME
-                                      ),
-    target: Optional[TargetType] = typer.Option(None,
-                            help=help_strings.CUSTOM_DOMAIN_TARGET_TYPES),
-    item_hash: Optional[str] = typer.Option(None, help=help_strings.CUSTOM_DOMAIN_ITEM_HASH),
-    owner: Optional[str] = typer.Option(None, help=help_strings.CUSTOM_DOMAIN_OWNER_ADDRESS)
+    fqdn: str = typer.Argument(..., help=help_strings.CUSTOM_DOMAIN_NAME),
+    target: Optional[TargetType] = typer.Option(
+        None, help=help_strings.CUSTOM_DOMAIN_TARGET_TYPES
+    ),
+    item_hash: Optional[str] = typer.Option(
+        None, help=help_strings.CUSTOM_DOMAIN_ITEM_HASH
+    ),
+    owner: Optional[str] = typer.Option(
+        None, help=help_strings.CUSTOM_DOMAIN_OWNER_ADDRESS
+    ),
 ):
     """Add and link a Custom Domain."""
     account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
@@ -165,7 +180,10 @@ async def add(
     fqdn = hostname_from_url(fqdn)
 
     if target is None:
-        target = Prompt.ask("Select a resource type", choices={i.name.lower(): i.value.lower() for i in TargetType})
+        target = Prompt.ask(
+            "Select a target resource type",
+            choices=[TargetType.IPFS, TargetType.PROGRAM, TargetType.INSTANCE],
+        )
 
     table = Table(title=f"Required DNS entries for: {fqdn}")
 
@@ -174,10 +192,12 @@ async def add(
     table.add_column("DNS NAME", style="magenta")
     table.add_column("DNS VALUE", justify="right", style="green")
 
-    owner = account.get_address()
+    owner = owner or account.get_address()
     dns_rules = domain_validator.get_required_dns_rules(fqdn, target, owner)
     for rule_id, rule in enumerate(dns_rules):
-        table.add_row(str(rule_id), rule["dns"]["type"], rule["dns"]["name"], rule["dns"]["value"])
+        table.add_row(
+            str(rule_id), rule.dns["type"], rule.dns["name"], rule.dns["value"]
+        )
 
     console.print(table)
 
@@ -191,7 +211,7 @@ async def add(
             checks = await check_domain_records(fqdn, target, owner)
             completed_rules = []
             for index, rule in enumerate(dns_rules):
-                if checks[rule["rule_name"]] is True:
+                if checks[rule.name] is True:
                     """Pass configured rules"""
                     completed_rules.append(rule)
                     console.log(f"record: {index} [bold green] OK")
@@ -202,8 +222,8 @@ async def add(
 
             if dns_rules:
                 rule = dns_rules[0]
-                console.log(f"[green]{rule['info']}")
-                status.update(f"{msg_status} [bold red]{rule['on_error']}")
+                console.log(f"[green]{rule.info}")
+                status.update(f"{msg_status} [bold red]{rule.on_error}")
 
                 max_retries -= 1
                 sleep(10)
@@ -225,7 +245,6 @@ async def add(
 
 
 @app.command()
-@coro
 async def attach(
     private_key: Optional[str] = typer.Option(
         sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY
@@ -234,16 +253,18 @@ async def attach(
         sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE
     ),
     fqdn: str = typer.Argument(..., help=help_strings.CUSTOM_DOMAIN_NAME),
-    item_hash: Optional[str] = typer.Option(None, help=help_strings.CUSTOM_DOMAIN_ITEM_HASH),
+    item_hash: Optional[str] = typer.Option(
+        None, help=help_strings.CUSTOM_DOMAIN_ITEM_HASH
+    ),
 ):
     """Attach resource to a Custom Domain."""
     account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
 
-    await attach_resource(account, fqdn, item_hash)
+    await attach_resource(account, Hostname(fqdn), item_hash)
     raise typer.Exit()
 
+
 @app.command()
-@coro
 async def detach(
     private_key: Optional[str] = typer.Option(
         sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY
@@ -251,17 +272,16 @@ async def detach(
     private_key_file: Optional[Path] = typer.Option(
         sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE
     ),
-    fqdn: str = typer.Argument(..., help=help_strings.CUSTOM_DOMAIN_NAME)
+    fqdn: str = typer.Argument(..., help=help_strings.CUSTOM_DOMAIN_NAME),
 ):
     """Unlink Custom Domain."""
     account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
 
-    await detach_resource(account, fqdn)
+    await detach_resource(account, Hostname(fqdn))
     raise typer.Exit()
 
 
 @app.command()
-@coro
 async def info(
     private_key: Optional[str] = typer.Option(
         sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY
@@ -269,7 +289,7 @@ async def info(
     private_key_file: Optional[Path] = typer.Option(
         sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE
     ),
-    fqdn: str = typer.Argument(..., help=help_strings.CUSTOM_DOMAIN_NAME)
+    fqdn: str = typer.Argument(..., help=help_strings.CUSTOM_DOMAIN_NAME),
 ):
     """Show Custom Domain Details."""
     account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
@@ -290,16 +310,13 @@ async def info(
     resource_type = TargetType(domain_info["info"]["type"])
     final_resource = "Unknown"
 
-    try:
-        if resource_type == TargetType.IPFS:
-            final_resource = ""
-        elif resource_type == TargetType.PROGRAM:
-            final_resource = domain_info["info"]["message_id"]
-        if resource_type == TargetType.INSTANCE:
-            ips = await domain_validator.get_ipv6_addresses(fqdn)
-            final_resource = ",".join(ips)
-    except Exception:
-        pass
+    if resource_type == TargetType.IPFS:
+        final_resource = ""
+    elif resource_type == TargetType.PROGRAM:
+        final_resource = domain_info["info"]["message_id"]
+    if resource_type == TargetType.INSTANCE:
+        ips = await domain_validator.get_ipv6_addresses(Hostname(fqdn))
+        final_resource = ",".join([str(ip) for ip in ips])
 
     table.add_row(resource_type, domain_info["info"]["message_id"], final_resource)
 
