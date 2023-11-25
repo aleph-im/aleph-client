@@ -200,7 +200,7 @@ def upload(
         )
 
         typer.echo(
-            f"Your program has been uploaded on aleph.im .\n\n"
+            f"Your program has been uploaded on aleph.im\n\n"
             "Available on:\n"
             f"  {settings.VM_URL_PATH.format(hash=item_hash)}\n"
             f"  {settings.VM_URL_HOST.format(hash_base32=hash_base32)}\n"
