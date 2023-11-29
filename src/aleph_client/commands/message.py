@@ -14,6 +14,7 @@ from aleph.sdk.conf import settings as sdk_settings
 from aleph.sdk.query.responses import MessagesResponse
 from aleph.sdk.query.filters import MessageFilter
 from aleph.sdk.types import AccountFromPrivateKey, StorageEnum
+from aleph.sdk.utils import extended_json_encoder
 from aleph_message.models import AlephMessage, ItemHash, MessageType, ProgramMessage
 
 from aleph_client.commands import help_strings
@@ -157,7 +158,7 @@ async def post(
             storage_engine=storage_engine,
         )
 
-        typer.echo(json.dumps(result.dict(), indent=4))
+        typer.echo(json.dumps(result.dict(), indent=4, default=extended_json_encoder))
 
 
 @app.command()
@@ -286,4 +287,4 @@ def sign(
 
     coroutine = account.sign_message(json.loads(message))
     signed_message = asyncio.run(coroutine)
-    typer.echo(json.dumps(signed_message, indent=4))
+    typer.echo(json.dumps(signed_message, indent=4, default=extended_json_encoder))

@@ -14,6 +14,7 @@ from aleph.sdk.chains.common import generate_key
 from aleph.sdk.chains.ethereum import ETHAccount
 from aleph.sdk.conf import settings as sdk_settings
 from aleph.sdk.types import AccountFromPrivateKey
+from aleph.sdk.utils import extended_json_encoder
 from typer.colors import RED
 
 from aleph_client.commands import help_strings
@@ -168,7 +169,7 @@ def balance(
         with requests.get(uri) as response:
             if response.status_code == 200:
                 balance_data = response.json()
-                formatted_balance_data = json.dumps(balance_data, indent=4)
+                formatted_balance_data = json.dumps(balance_data, indent=4, default=extended_json_encoder)
                 typer.echo(formatted_balance_data)
             else:
                 typer.echo(
