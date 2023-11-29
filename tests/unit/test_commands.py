@@ -105,7 +105,7 @@ def test_post_message(account_file):
             "--private-key-file",
             str(account_file),
             "--path",
-            test_file_path,
+            str(test_file_path),
         ],
     )
     assert result.exit_code == 0
