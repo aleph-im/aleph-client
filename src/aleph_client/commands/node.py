@@ -4,7 +4,7 @@ import logging
 import re
 import unicodedata
 
-import requests
+import aiohttp
 import typer
 from rich import text
 from rich.console import Console
@@ -12,9 +12,10 @@ from rich.markup import escape
 from rich.table import Table
 
 from aleph_client.commands.utils import setup_logging
+from aleph_client.utils import AsyncTyper
 
 logger = logging.getLogger(__name__)
-app = typer.Typer()
+app = AsyncTyper()
 
 node_link = "https://api2.aleph.im/api/v0/aggregates/0xa1B3bb7d2332383D96b7796B908fB7f7F3c2Be10.json?keys=corechannel"
 
@@ -28,10 +29,16 @@ class NodeInfo:
         self.core_node.sort(key=lambda x: x.get("score", 0), reverse=True)
 
 
-def _fetch_nodes() -> NodeInfo:
+async def _fetch_nodes() -> NodeInfo:
     """Fetch node aggregates and format it as NodeInfo"""
-    response = requests.get(node_link)
-    return NodeInfo(**response.json())
+    async with aiohttp.ClientSession() as session:
+        async with session.get(node_link) as resp:
+            if resp.status != 200:
+                logger.error("Unable to fetch node information")
+                raise typer.Exit(1)
+
+            data = await resp.json()
+            return NodeInfo(**data)
 
 
 def _escape_and_normalize(string: str) -> str:
@@ -130,7 +137,7 @@ def _show_core(node_info):
 
 
 @app.command()
-def compute(
+async def compute(
     json: bool = typer.Option(
         default=False, help="Print as json instead of rich table"
     ),
@@ -140,7 +147,7 @@ def compute(
 
     setup_logging(debug)
 
-    compute_info: NodeInfo = _fetch_nodes()
+    compute_info: NodeInfo = await _fetch_nodes()
     if not json:
         _show_compute(compute_info)
     else:
@@ -148,7 +155,7 @@ def compute(
 
 
 @app.command()
-def core(
+async def core(
     json: bool = typer.Option(
         default=False, help="Print as json instead of rich table"
     ),
@@ -157,7 +164,7 @@ def core(
     """Get all core node on aleph"""
     setup_logging(debug)
 
-    core_info: NodeInfo = _fetch_nodes()
+    core_info: NodeInfo = await _fetch_nodes()
     if not json:
         _show_core(core_info)
     else:
