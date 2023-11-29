@@ -28,7 +28,7 @@ from aleph_client.commands.utils import (
     yes_no_input,
 )
 from aleph_client.conf import settings
-from aleph_client.utils import create_archive, AsyncTyper
+from aleph_client.utils import AsyncTyper, create_archive
 
 logger = logging.getLogger(__name__)
 app = AsyncTyper()
@@ -67,24 +67,24 @@ def upload(
     persistent: bool = False,
     persistent_volume: Optional[List[str]] = typer.Option(
         None,
-        help="""Takes 3 parameters                                                                                                                             
-        A persistent volume is allocated on the host machine at any time                                             
-        eg: Use , to seperate the parameters and no spaces                                                                   
+        help="""Takes 3 parameters
+        A persistent volume is allocated on the host machine at any time
+        eg: Use , to seperate the parameters and no spaces
         --persistent_volume persistence=host,name=my-volume,size=100 ./my-program main:app
         """,
     ),
     ephemeral_volume: Optional[List[str]] = typer.Option(
         None,
-        help="""Takes 1 parameter Only                                           
-            Ephemeral volumes can move and be removed by the host,Garbage collected basically, when the VM isn't running                                  
-            eg: Use , to seperate the parameters and no spaces                                                                      
+        help="""Takes 1 parameter Only
+            Ephemeral volumes can move and be removed by the host,Garbage collected basically, when the VM isn't running
+            eg: Use , to seperate the parameters and no spaces
              --ephemeral-volume size_mib=100 ./my-program main:app """,
     ),
     immutable_volume: Optional[List[str]] = typer.Option(
         None,
-        help="""Takes 3 parameters                                           
-             Immutable volume is one whose contents do not change                                   
-             eg: Use , to seperate the parameters and no spaces                                                                      
+        help="""Takes 3 parameters
+             Immutable volume is one whose contents do not change
+             eg: Use , to seperate the parameters and no spaces
             --immutable-volume ref=25a393222692c2f73489dc6710ae87605a96742ceef7b91de4d7ec34bb688d94,use_latest=true,mount=/mnt/volume ./my-program main:app
              """,
     ),

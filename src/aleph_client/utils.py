@@ -2,7 +2,7 @@ import asyncio
 import inspect
 import logging
 import os
-from functools import wraps, partial
+from functools import partial, wraps
 from pathlib import Path
 from shutil import make_archive
 from typing import Tuple, Type
