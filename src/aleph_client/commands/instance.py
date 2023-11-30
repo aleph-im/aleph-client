@@ -1,33 +1,32 @@
-import json
 import logging
 from base64 import b16decode, b32encode
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import List, Optional, Union
 
 import typer
-from aleph.sdk import AuthenticatedAlephHttpClient, AlephHttpClient
+from aleph.sdk import AlephHttpClient, AuthenticatedAlephHttpClient
 from aleph.sdk.account import _load_account
 from aleph.sdk.conf import settings as sdk_settings
+from aleph.sdk.exceptions import ForgottenMessageError, MessageNotFoundError
 from aleph.sdk.types import AccountFromPrivateKey, StorageEnum
-from aleph.sdk.exceptions import MessageNotFoundError, ForgottenMessageError
-from aleph_message.models import (
-    ItemHash,
-    StoreMessage, InstanceMessage,
-)
+from aleph_message.models import InstanceMessage, ItemHash, StoreMessage
 
 from aleph_client.commands import help_strings
 from aleph_client.commands.utils import (
-    input_multiline,
-    prompt_for_volumes,
+    get_or_prompt_volumes,
     setup_logging,
-    volume_to_dict,
-    yes_no_input,
+    validated_prompt,
 )
 from aleph_client.conf import settings
 from aleph_client.utils import AsyncTyper
 
 logger = logging.getLogger(__name__)
 app = AsyncTyper()
+
+
+def load_ssh_pubkey(ssh_pubkey_file: Path) -> str:
+    with open(ssh_pubkey_file, "r") as f:
+        return f.read().strip()
 
 
 @app.command()
@@ -49,81 +48,77 @@ def create(
     private_key_file: Optional[Path] = typer.Option(
         sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE
     ),
+    ssh_pubkey_file: Path = typer.Option(
+        Path("~/.ssh/id_rsa.pub").expanduser(),
+        help="Path to a public ssh key to be added to the instance.",
+    ),
     print_messages: bool = typer.Option(False),
     print_instance_message: bool = typer.Option(False),
     rootfs: str = typer.Option(
         None,
         help="Hash of the rootfs to use for your instance. Defaults to aleph debian with Python3.8 and node. You can also create your own rootfs and pin it",
     ),
-    beta: bool = typer.Option(False),
     debug: bool = False,
     persistent_volume: Optional[List[str]] = typer.Option(
-        None,
-        help="""Takes 3 parameters                                                                                                                             
-        A persistent volume is allocated on the host machine at any time                                             
-        eg: Use , to seperate the parameters and no spaces                                                                   
-        --persistent_volume persistence=host,name=my-volume,size=100 ./my-program main:app
-        """,
+        None, help=help_strings.PERSISTENT_VOLUME
     ),
     ephemeral_volume: Optional[List[str]] = typer.Option(
-        None,
-        help="""Takes 1 parameter Only                                           
-            Ephemeral volumes can move and be removed by the host,Garbage collected basically, when the VM isn't running                                  
-            eg: Use , to seperate the parameters and no spaces                                                                      
-             --ephemeral-volume size_mib=100 ./my-program main:app """,
+        None, help=help_strings.EPHEMERAL_VOLUME
     ),
     immutable_volume: Optional[List[str]] = typer.Option(
         None,
-        help="""Takes 3 parameters                                           
-             Immutable volume is one whose contents do not change                                   
-             eg: Use , to seperate the parameters and no spaces                                                                      
-            --immutable-volume ref=25a393222692c2f73489dc6710ae87605a96742ceef7b91de4d7ec34bb688d94,use_latest=true,mount=/mnt/volume ./my-program main:app
-             """,
+        help=help_strings.IMMUATABLE_VOLUME,
     ),
 ):
-    """Register a program to run on aleph.im virtual machines from a zip archive."""
+    """Register a new instance on aleph.im"""
 
     setup_logging(debug)
+
+    def validate_ssh_pubkey_file(file: Union[str, Path]) -> Path:
+        if isinstance(file, str):
+            file = Path(file).expanduser()
+        if not file.exists():
+            raise ValueError(f"{file} does not exist")
+        if not file.is_file():
+            raise ValueError(f"{file} is not a file")
+        return file
+
+    try:
+        validate_ssh_pubkey_file(ssh_pubkey_file)
+    except ValueError:
+        ssh_pubkey_file = Path(
+            validated_prompt(
+                f"{ssh_pubkey_file} does not exist. Please enter a path to a public ssh key to be added to the instance.",
+                validate_ssh_pubkey_file,
+            )
+        )
+
+    ssh_pubkey = load_ssh_pubkey(ssh_pubkey_file)
 
     account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
 
     rootfs = (
-            rootfs
-            or input(f"Aleph ID of root volume (rootfs)? [default: {settings.DEFAULT_ROOTFS_ID}] ")
-            or settings.DEFAULT_ROOTFS_ID
+        rootfs
+        or input(
+            f"Aleph ID of root volume (rootfs)? [default: {settings.DEFAULT_ROOTFS_ID}] "
+        )
+        or settings.DEFAULT_ROOTFS_ID
     )
 
-    with AlephHttpClient(
-        api_server=sdk_settings.API_HOST
-    ) as client:
+    with AlephHttpClient(api_server=sdk_settings.API_HOST) as client:
         rootfs_message: StoreMessage = client.get_message(
             item_hash=rootfs, message_type=StoreMessage
         )
+        if not rootfs_message:
+            typer.echo("Given rootfs volume does not exist on aleph.im")
+            raise typer.Exit(code=1)
         rootfs_size = rootfs_message.content.size
 
-    volumes = []
-
-    # Check if the volumes are empty
-    if (
-        persistent_volume is None
-        or ephemeral_volume is None
-        or immutable_volume is None
-    ):
-        for volume in prompt_for_volumes():
-            volumes.append(volume)
-            typer.echo("\n")
-
-    # else parse all the volumes that have passed as the cli parameters and put it into volume list
-    else:
-        if len(persistent_volume) > 0:
-            persistent_volume_dict = volume_to_dict(volume=persistent_volume)
-            volumes.append(persistent_volume_dict)
-        if len(ephemeral_volume) > 0:
-            ephemeral_volume_dict = volume_to_dict(volume=ephemeral_volume)
-            volumes.append(ephemeral_volume_dict)
-        if len(immutable_volume) > 0:
-            immutable_volume_dict = volume_to_dict(volume=immutable_volume)
-            volumes.append(immutable_volume_dict)
+    volumes = get_or_prompt_volumes(
+        persistent_volume=persistent_volume,
+        ephemeral_volume=ephemeral_volume,
+        immutable_volume=immutable_volume,
+    )
 
     with AuthenticatedAlephHttpClient(
         account=account, api_server=sdk_settings.API_HOST
@@ -139,7 +134,7 @@ def create(
             vcpus=vcpus,
             timeout_seconds=timeout_seconds,
             volumes=volumes,
-            # TODO: Add missing parameters
+            ssh_keys=[ssh_pubkey],
         )
         if print_messages or print_instance_message:
             typer.echo(f"{message.json(indent=4)}")

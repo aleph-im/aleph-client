@@ -21,10 +21,9 @@ from aleph_message.status import MessageStatus
 
 from aleph_client.commands import help_strings
 from aleph_client.commands.utils import (
+    get_or_prompt_volumes,
     input_multiline,
-    prompt_for_volumes,
     setup_logging,
-    volume_to_dict,
     yes_no_input,
 )
 from aleph_client.conf import settings
@@ -62,34 +61,24 @@ def upload(
         None,
         help="Hash of the runtime to use for your program. Defaults to aleph debian with Python3.8 and node. You can also create your own runtime and pin it",
     ),
-    beta: bool = typer.Option(False),
+    beta: bool = typer.Option(
+        False,
+        help="If true, you will be prompted to add message subscriptions to your program",
+    ),
     debug: bool = False,
     persistent: bool = False,
     persistent_volume: Optional[List[str]] = typer.Option(
-        None,
-        help="""Takes 3 parameters
-        A persistent volume is allocated on the host machine at any time
-        eg: Use , to seperate the parameters and no spaces
-        --persistent_volume persistence=host,name=my-volume,size=100 ./my-program main:app
-        """,
+        None, help=help_strings.PERSISTENT_VOLUME
     ),
     ephemeral_volume: Optional[List[str]] = typer.Option(
-        None,
-        help="""Takes 1 parameter Only
-            Ephemeral volumes can move and be removed by the host,Garbage collected basically, when the VM isn't running
-            eg: Use , to seperate the parameters and no spaces
-             --ephemeral-volume size_mib=100 ./my-program main:app """,
+        None, help=help_strings.EPHEMERAL_VOLUME
     ),
     immutable_volume: Optional[List[str]] = typer.Option(
         None,
-        help="""Takes 3 parameters
-             Immutable volume is one whose contents do not change
-             eg: Use , to seperate the parameters and no spaces
-            --immutable-volume ref=25a393222692c2f73489dc6710ae87605a96742ceef7b91de4d7ec34bb688d94,use_latest=true,mount=/mnt/volume ./my-program main:app
-             """,
+        help=help_strings.IMMUATABLE_VOLUME,
     ),
 ):
-    """Register a program to run on aleph.im virtual machines from a zip archive."""
+    """Register a program to run on aleph.im. For more information, see https://docs.aleph.im/computing/"""
 
     setup_logging(debug)
 
@@ -112,29 +101,11 @@ def upload(
         or sdk_settings.DEFAULT_RUNTIME_ID
     )
 
-    volumes = []
-
-    # Check if the volumes are empty
-    if (
-        persistent_volume is None
-        or ephemeral_volume is None
-        or immutable_volume is None
-    ):
-        for volume in prompt_for_volumes():
-            volumes.append(volume)
-            typer.echo("\n")
-
-    # else  Parse all the volumes that have passed as the cli parameters and put it into volume list
-    else:
-        if len(persistent_volume) > 0:
-            persistent_volume_dict = volume_to_dict(volume=persistent_volume)
-            volumes.append(persistent_volume_dict)
-        if len(ephemeral_volume) > 0:
-            ephemeral_volume_dict = volume_to_dict(volume=ephemeral_volume)
-            volumes.append(ephemeral_volume_dict)
-        if len(immutable_volume) > 0:
-            immutable_volume_dict = volume_to_dict(volume=immutable_volume)
-            volumes.append(immutable_volume_dict)
+    volumes = get_or_prompt_volumes(
+        persistent_volume=persistent_volume,
+        ephemeral_volume=ephemeral_volume,
+        immutable_volume=immutable_volume,
+    )
 
     subscriptions: Optional[List[Dict]]
     if beta and yes_no_input("Subscribe to messages ?", default=False):

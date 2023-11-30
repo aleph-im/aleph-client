@@ -2,11 +2,19 @@
 Aleph Client command-line interface.
 """
 
-import typer
-
 from aleph_client.utils import AsyncTyper
 
-from .commands import about, account, aggregate, domain, files, message, node, program
+from .commands import (
+    about,
+    account,
+    aggregate,
+    domain,
+    files,
+    instance,
+    message,
+    node,
+    program,
+)
 
 app = AsyncTyper()
 
@@ -29,6 +37,9 @@ app.add_typer(about.app, name="about", help="Display the informations of Aleph C
 
 app.add_typer(node.app, name="node", help="Get node info on aleph.im network")
 app.add_typer(domain.app, name="domain", help="Manage custom Domain (dns) on aleph.im")
+app.add_typer(
+    instance.app, name="instance", help="Manage instances (VMs) on aleph.im network"
+)
 
 if __name__ == "__main__":
     app()
