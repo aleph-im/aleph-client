@@ -89,7 +89,7 @@ def create(
 
     rootfs = (
             rootfs
-            or input(f"Parent ref of rootfs ? [{settings.DEFAULT_ROOTFS_ID}] ")
+            or input(f"Aleph ID of root volume (rootfs)? [default: {settings.DEFAULT_ROOTFS_ID}] ")
             or settings.DEFAULT_ROOTFS_ID
     )
 
@@ -113,7 +113,7 @@ def create(
             volumes.append(volume)
             typer.echo("\n")
 
-    # else  Parse all the volumes that have passed as the cli parameters and put it into volume list
+    # else parse all the volumes that have passed as the cli parameters and put it into volume list
     else:
         if len(persistent_volume) > 0:
             persistent_volume_dict = volume_to_dict(volume=persistent_volume)

@@ -28,6 +28,12 @@ class Settings(BaseSettings):
     DEFAULT_RUNTIME_ID: str = (
         "bd79839bf96e595a06da5ac0b6ba51dea6f7e2591bb913deccded04d831d29f4"
     )
+    DEFAULT_ROOTFS_ID: str = (
+        "549ec451d9b099cad112d4aaa2c00ac40fb6729a92ff252ff22eef0b5c3cb613"
+    )
+    DEFAULT_ROOTFS_SIZE: int = 2_000
+    DEFAULT_ROOTFS_NAME: str = "main-rootfs"
+
     DEFAULT_VM_MEMORY: int = 128
     DEFAULT_VM_VCPUS: int = 1
     DEFAULT_VM_TIMEOUT: float = 30.0
