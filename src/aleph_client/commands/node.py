@@ -3,6 +3,7 @@ import json as json_lib
 import logging
 import re
 import unicodedata
+from typing import Optional
 
 import requests
 import typer
@@ -60,7 +61,7 @@ def _format_status(status):
     return text.Text(status, style="red", justify="left")
 
 
-def _show_compute(node_info):
+def _show_compute(node_info, only_active: bool, address=None):
     table = Table(title="Compute Node Information")
     table.add_column("Score", style="green", no_wrap=True, justify="right")
     table.add_column("Name", style="#029AFF", justify="left")
@@ -69,6 +70,10 @@ def _show_compute(node_info):
     table.add_column("Status", style="green", justify="right")
 
     for node in node_info.nodes:
+        if only_active and node["status"].lower() == "waiting":
+            continue
+        if address is not None and address != node["owner"]:
+            continue
         # Prevent escaping with name
         node_name = node["name"]
         node_name = _escape_and_normalize(node_name)
@@ -94,7 +99,7 @@ def _show_compute(node_info):
     console.print(table)
 
 
-def _show_core(node_info):
+def _show_core(node_info, only_active: bool, address=None):
     table = Table(title="Core Channel Node Information")
     table.add_column("Score", style="green", no_wrap=True, justify="right")
     table.add_column("Name", style="#029AFF", justify="left")
@@ -104,6 +109,11 @@ def _show_core(node_info):
     table.add_column("Status", style="green", justify="right")
 
     for node in node_info.core_node:
+        if only_active and (node["status"].lower() != "active" or node["score"] == 0.0):
+            continue
+        if address is not None and address != node["owner"]:
+            continue
+
         # Prevent escaping with name
         node_name = node["name"]
         node_name = _escape_and_normalize(node_name)
@@ -131,10 +141,14 @@ def _show_core(node_info):
 
 @app.command()
 def compute(
-    json: bool = typer.Option(
-        default=False, help="Print as json instead of rich table"
-    ),
-    debug: bool = False,
+        json: bool = typer.Option(
+            default=False, help="Print as json instead of rich table"
+        ),
+        active: bool = typer.Option(
+            default=False, help="Only show active node"
+        ),
+        address: Optional[str] = typer.Option(default=None, help="adress owner"),
+        debug: bool = False,
 ):
     """Get all compute node on aleph network"""
 
@@ -142,23 +156,28 @@ def compute(
 
     compute_info: NodeInfo = _fetch_nodes()
     if not json:
-        _show_compute(compute_info)
+        _show_compute(compute_info, active, address)
     else:
         typer.echo(json_lib.dumps(compute_info.nodes, indent=4))
 
 
 @app.command()
 def core(
-    json: bool = typer.Option(
-        default=False, help="Print as json instead of rich table"
-    ),
-    debug: bool = False,
+        json: bool = typer.Option(
+            default=False, help="Print as json instead of rich table"
+        ),
+        active: bool = typer.Option(
+            default=False, help="Only show active node"
+        ),
+        address: Optional[str] = typer.Option(default=None, help="address"),
+        debug: bool = False,
 ):
     """Get all core node on aleph"""
     setup_logging(debug)
 
     core_info: NodeInfo = _fetch_nodes()
+    # Func who filter the json and remove if active or if address
     if not json:
-        _show_core(core_info)
+        _show_core(core_info, active, address=address)
     else:
         typer.echo(json_lib.dumps(core_info.core_node, indent=4))
