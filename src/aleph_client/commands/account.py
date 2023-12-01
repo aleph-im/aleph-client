@@ -169,7 +169,7 @@ async def balance(
         async with aiohttp.ClientSession() as session:
             response = await session.get(uri)
             if response.status == 200:
-                balance_data = response.json()
+                balance_data = await response.json()
                 formatted_balance_data = json.dumps(balance_data, indent=4, default=extended_json_encoder)
                 typer.echo(formatted_balance_data)
             else:
