@@ -7,7 +7,7 @@ import typer
 from aleph.sdk import AlephHttpClient, AuthenticatedAlephHttpClient
 from aleph.sdk.account import _load_account
 from aleph.sdk.conf import settings as sdk_settings
-from aleph.sdk.exceptions import ForgottenMessageError, MessageNotFoundError
+from aleph.sdk.exceptions import ForgottenMessageError, MessageNotFoundError, InsufficientFundsError
 from aleph.sdk.types import AccountFromPrivateKey, StorageEnum
 from aleph_message.models import InstanceMessage, ItemHash, StoreMessage
 
@@ -137,20 +137,26 @@ async def create(
     async with AuthenticatedAlephHttpClient(
         account=account, api_server=sdk_settings.API_HOST
     ) as client:
-        # Register the instance
-        message, status = await client.create_instance(
-            sync=True,
-            rootfs=rootfs,
-            rootfs_size=rootfs_size,
-            rootfs_name=rootfs_name,
-            storage_engine=StorageEnum.storage,
-            channel=channel,
-            memory=memory,
-            vcpus=vcpus,
-            timeout_seconds=timeout_seconds,
-            volumes=volumes,
-            ssh_keys=[ssh_pubkey],
-        )
+        try:
+            message, status = await client.create_instance(
+                sync=True,
+                rootfs=rootfs,
+                rootfs_size=rootfs_size,
+                rootfs_name=rootfs_name,
+                storage_engine=StorageEnum.storage,
+                channel=channel,
+                memory=memory,
+                vcpus=vcpus,
+                timeout_seconds=timeout_seconds,
+                volumes=volumes,
+                ssh_keys=[ssh_pubkey],
+            )
+        except InsufficientFundsError as e:
+            typer.echo(
+                f"Instance creation failed due to insufficient funds.\n"
+                f"{account.get_address()} on {account.CHAIN} has {e.available_funds} ALEPH but needs {e.required_funds} ALEPH."
+            )
+            raise typer.Exit(code=1)
         if print_messages:
             typer.echo(f"{message.json(indent=4)}")
 
