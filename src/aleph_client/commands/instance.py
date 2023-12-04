@@ -13,8 +13,10 @@ from aleph_message.models import InstanceMessage, ItemHash, StoreMessage
 
 from aleph_client.commands import help_strings
 from aleph_client.commands.utils import (
+    default_prompt,
     get_or_prompt_volumes,
     setup_logging,
+    validated_int_prompt,
     validated_prompt,
 )
 from aleph_client.conf import settings
@@ -54,15 +56,15 @@ async def create(
     ),
     print_messages: bool = typer.Option(False),
     rootfs: str = typer.Option(
-        None,
+        settings.DEFAULT_ROOTFS_ID,
         help="Hash of the rootfs to use for your instance. Defaults to aleph debian with Python3.8 and node. You can also create your own rootfs and pin it",
     ),
-    rootfs_name: Optional[str] = typer.Option(
-        None,
+    rootfs_name: str = typer.Option(
+        settings.DEFAULT_ROOTFS_NAME,
         help="Name of the rootfs to use for your instance. If not set, content.metadata.name of the --rootfs store message will be used.",
     ),
-    rootfs_size: Optional[int] = typer.Option(
-        None,
+    rootfs_size: int = typer.Option(
+        settings.DEFAULT_ROOTFS_SIZE,
         help="Size of the rootfs to use for your instance. If not set, content.size of the --rootfs store message will be used.",
     ),
     debug: bool = False,
@@ -104,13 +106,7 @@ async def create(
 
     account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
 
-    rootfs = (
-        rootfs
-        or input(
-            f"Aleph ID of root volume (rootfs)? [default: {settings.DEFAULT_ROOTFS_ID}] "
-        )
-        or settings.DEFAULT_ROOTFS_ID
-    )
+    rootfs = default_prompt("Hash of the rootfs to use for your instance", rootfs)
 
     async with AlephHttpClient(api_server=sdk_settings.API_HOST) as client:
         rootfs_message: StoreMessage = await client.get_message(
@@ -119,22 +115,17 @@ async def create(
         if not rootfs_message:
             typer.echo("Given rootfs volume does not exist on aleph.im")
             raise typer.Exit(code=1)
-        rootfs_size = rootfs_message.content.size
         if rootfs_name is None and rootfs_message.content.metadata:
             rootfs_name = rootfs_message.content.metadata.get("name", None)
         if rootfs_size is None and rootfs_message.content.size:
             rootfs_size = rootfs_message.content.size
 
-    rootfs_name = (
-        rootfs_name
-        or input(f"Name of root volume? [default: {settings.DEFAULT_ROOTFS_NAME}] ")
-        or settings.DEFAULT_ROOTFS_NAME
+    rootfs_name = default_prompt(
+        f"Name of the rootfs to use for your instance", default=rootfs_name
     )
 
-    rootfs_size = (
-        rootfs_size
-        or input(f"Size in MiB ? [{settings.DEFAULT_ROOTFS_SIZE}] ")
-        or settings.DEFAULT_ROOTFS_SIZE
+    rootfs_size = validated_int_prompt(
+        f"Size in MiB?", rootfs_size, min_value=2000, max_value=100000
     )
 
     volumes = get_or_prompt_volumes(

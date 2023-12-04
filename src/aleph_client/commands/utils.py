@@ -154,6 +154,13 @@ def str_to_datetime(date: Optional[str]) -> Optional[datetime]:
 T = TypeVar("T")
 
 
+def default_prompt(
+    prompt: str,
+    default: str,
+) -> str:
+    return input(prompt + (f" [default: {default}]" if default else "")) or default
+
+
 def validated_prompt(
     prompt: str,
     validator: Callable[[str], T],
@@ -168,3 +175,20 @@ def validated_prompt(
         except ValueError as e:
             echo(f"Invalid input: {e}\nTry again.")
             continue
+
+
+def validated_int_prompt(
+    prompt: str,
+    default: Optional[int] = None,
+    min_value: Optional[int] = None,
+    max_value: Optional[int] = None,
+) -> int:
+    def validator(value: str) -> int:
+        value = int(value)
+        if min_value is not None and value < min_value:
+            raise ValueError(f"Value must be greater than or equal to {min_value}")
+        if max_value is not None and value > max_value:
+            raise ValueError(f"Value must be less than or equal to {max_value}")
+        return value
+
+    return validated_prompt(prompt, validator, default)
