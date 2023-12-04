@@ -6,14 +6,14 @@ import sys
 from pathlib import Path
 from typing import Optional
 
-import requests
-
+import aiohttp
 import typer
 from aleph.sdk.account import _load_account
 from aleph.sdk.chains.common import generate_key
 from aleph.sdk.chains.ethereum import ETHAccount
 from aleph.sdk.conf import settings as sdk_settings
 from aleph.sdk.types import AccountFromPrivateKey
+from aleph.sdk.utils import extended_json_encoder
 from typer.colors import RED
 
 from aleph_client.commands import help_strings
@@ -147,8 +147,9 @@ def sign_bytes(
     signature = asyncio.run(coroutine)
     typer.echo(signature.hex())
 
+
 @app.command()
-def balance(
+async def balance(
     address: Optional[str] = typer.Option(None, help="Address"),
     private_key: Optional[str] = typer.Option(
         sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY
@@ -165,14 +166,15 @@ def balance(
     if address:
         uri = f"{sdk_settings.API_HOST}/api/v0/addresses/{address}/balance"
 
-        with requests.get(uri) as response:
-            if response.status_code == 200:
-                balance_data = response.json()
-                formatted_balance_data = json.dumps(balance_data, indent=4)
+        async with aiohttp.ClientSession() as session:
+            response = await session.get(uri)
+            if response.status == 200:
+                balance_data = await response.json()
+                formatted_balance_data = json.dumps(balance_data, indent=4, default=extended_json_encoder)
                 typer.echo(formatted_balance_data)
             else:
                 typer.echo(
-                    f"Failed to retrieve balance for address {address}. Status code: {response.status_code}"
+                    f"Failed to retrieve balance for address {address}. Status code: {response.status}"
                 )
     else:
         typer.echo(

@@ -1,6 +1,6 @@
 import json
 from pathlib import Path
-from typing import Any, Mapping, Optional
+from typing import Optional
 
 import typer
 from aleph.sdk.account import _load_account
@@ -8,6 +8,7 @@ from aleph.sdk.client import AuthenticatedAlephHttpClient
 from aleph.sdk.conf import settings as sdk_settings
 from aleph.sdk.query.filters import MessageFilter
 from aleph.sdk.types import AccountFromPrivateKey
+from aleph.sdk.utils import extended_json_encoder
 from aleph_message.models import MessageType
 
 from aleph_client.commands import help_strings
@@ -15,8 +16,6 @@ from aleph_client.commands.utils import setup_logging
 from aleph_client.utils import AsyncTyper
 
 app = AsyncTyper()
-
-from aleph_client.commands.utils import colorful_message_json
 
 
 @app.command()
@@ -96,7 +95,7 @@ async def post(
             inline=inline,
             address=address,
         )
-        log_message = json.dumps(message.dict(), indent=4)
+        log_message = json.dumps(message.dict(), indent=4, default=extended_json_encoder)
         typer.echo(log_message)
 
 
@@ -127,8 +126,6 @@ async def get(
         aggregates = await client.fetch_aggregate(address=address, key=key)
 
         if aggregates:
-            typer.echo(json.dumps(aggregates, indent=4))
+            typer.echo(json.dumps(aggregates, indent=4, default=extended_json_encoder))
         else:
             typer.echo("No aggregates found for the given key and content.")
-
-

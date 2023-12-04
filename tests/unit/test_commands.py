@@ -95,6 +95,23 @@ def test_message_find():
     )
 
 
+def test_post_message(account_file):
+    test_file_path = Path(__file__).parent.parent / "test_post.json"
+    result = runner.invoke(
+        app,
+        [
+            "message",
+            "post",
+            "--private-key-file",
+            str(account_file),
+            "--path",
+            str(test_file_path),
+        ],
+    )
+    assert result.exit_code == 0
+    assert "item_hash" in result.stdout
+
+
 def test_sign_message(account_file):
     account = get_account(account_file)
     message = get_test_message(account)

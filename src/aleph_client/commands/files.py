@@ -4,7 +4,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
-import requests
+import aiohttp
 import typer
 from aleph.sdk import AlephHttpClient, AuthenticatedAlephHttpClient
 from aleph.sdk.account import _load_account
@@ -227,7 +227,7 @@ def _show_files(files_data: dict) -> None:
 
 
 @app.command()
-def list(
+async def list(
     address: Optional[str] = typer.Option(None, help="Address"),
     private_key: Optional[str] = typer.Option(
         sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY
@@ -258,9 +258,10 @@ def list(
         )
 
         uri = f"{sdk_settings.API_HOST}/api/v0/addresses/{address}/files"
-        with requests.get(uri, params=query_params.dict()) as response:
-            if response.status_code == 200:
-                files_data = response.json()
+        async with aiohttp.ClientSession() as session:
+            response = await session.get(uri, params=query_params.dict())
+            if response.status == 200:
+                files_data = await response.json()
                 formatted_files_data = json_lib.dumps(files_data, indent=4)
                 if not json:
                     _show_files(files_data)
@@ -268,7 +269,7 @@ def list(
                     typer.echo(formatted_files_data)
             else:
                 typer.echo(
-                    f"Failed to retrieve files for address {address}. Status code: {response.status_code}"
+                    f"Failed to retrieve files for address {address}. Status code: {response.status}"
                 )
     else:
         typer.echo(
