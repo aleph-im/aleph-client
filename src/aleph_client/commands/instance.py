@@ -30,7 +30,7 @@ def load_ssh_pubkey(ssh_pubkey_file: Path) -> str:
 
 
 @app.command()
-def create(
+async def create(
     channel: Optional[str] = typer.Option(default=None, help=help_strings.CHANNEL),
     memory: int = typer.Option(
         sdk_settings.DEFAULT_VM_MEMORY, help="Maximum memory allocation on vm in MiB"
@@ -53,10 +53,17 @@ def create(
         help="Path to a public ssh key to be added to the instance.",
     ),
     print_messages: bool = typer.Option(False),
-    print_instance_message: bool = typer.Option(False),
     rootfs: str = typer.Option(
         None,
         help="Hash of the rootfs to use for your instance. Defaults to aleph debian with Python3.8 and node. You can also create your own rootfs and pin it",
+    ),
+    rootfs_name: Optional[str] = typer.Option(
+        None,
+        help="Name of the rootfs to use for your instance. If not set, content.metadata.name of the --rootfs store message will be used.",
+    ),
+    rootfs_size: Optional[int] = typer.Option(
+        None,
+        help="Size of the rootfs to use for your instance. If not set, content.size of the --rootfs store message will be used.",
     ),
     debug: bool = False,
     persistent_volume: Optional[List[str]] = typer.Option(
@@ -105,14 +112,30 @@ def create(
         or settings.DEFAULT_ROOTFS_ID
     )
 
-    with AlephHttpClient(api_server=sdk_settings.API_HOST) as client:
-        rootfs_message: StoreMessage = client.get_message(
+    async with AlephHttpClient(api_server=sdk_settings.API_HOST) as client:
+        rootfs_message: StoreMessage = await client.get_message(
             item_hash=rootfs, message_type=StoreMessage
         )
         if not rootfs_message:
             typer.echo("Given rootfs volume does not exist on aleph.im")
             raise typer.Exit(code=1)
         rootfs_size = rootfs_message.content.size
+        if rootfs_name is None and rootfs_message.content.metadata:
+            rootfs_name = rootfs_message.content.metadata.get("name", None)
+        if rootfs_size is None and rootfs_message.content.size:
+            rootfs_size = rootfs_message.content.size
+
+    rootfs_name = (
+        rootfs_name
+        or input(f"Name of root volume? [default: {settings.DEFAULT_ROOTFS_NAME}] ")
+        or settings.DEFAULT_ROOTFS_NAME
+    )
+
+    rootfs_size = (
+        rootfs_size
+        or input(f"Size in MiB ? [{settings.DEFAULT_ROOTFS_SIZE}] ")
+        or settings.DEFAULT_ROOTFS_SIZE
+    )
 
     volumes = get_or_prompt_volumes(
         persistent_volume=persistent_volume,
@@ -120,14 +143,15 @@ def create(
         immutable_volume=immutable_volume,
     )
 
-    with AuthenticatedAlephHttpClient(
+    async with AuthenticatedAlephHttpClient(
         account=account, api_server=sdk_settings.API_HOST
     ) as client:
         # Register the instance
-        message, status = client.create_instance(
-            account=account,
+        message, status = await client.create_instance(
+            sync=True,
             rootfs=rootfs,
             rootfs_size=rootfs_size,
+            rootfs_name=rootfs_name,
             storage_engine=StorageEnum.storage,
             channel=channel,
             memory=memory,
@@ -136,7 +160,7 @@ def create(
             volumes=volumes,
             ssh_keys=[ssh_pubkey],
         )
-        if print_messages or print_instance_message:
+        if print_messages:
             typer.echo(f"{message.json(indent=4)}")
 
         item_hash: ItemHash = message.item_hash
@@ -145,10 +169,12 @@ def create(
         )
 
         typer.echo(
-            f"Your instance has been deployed on aleph.im\n\n"
-            "Available on:\n"
+            f"\nYour instance has been deployed on aleph.im\n\n"
+            f"Your SSH key has been added to the instance. You can connect in a few minutes to it using:\n"
+            # TODO: Resolve to IPv6 address
+            f"  ssh -i {ssh_pubkey_file} root@{hash_base32}.aleph.sh\n\n"
+            "Also available on:\n"
             f"  {settings.VM_URL_PATH.format(hash=item_hash)}\n"
-            f"  {settings.VM_URL_HOST.format(hash_base32=hash_base32)}\n"
             "Visualise on:\n  https://explorer.aleph.im/address/"
             f"{message.chain}/{message.sender}/message/INSTANCE/{item_hash}\n"
         )
