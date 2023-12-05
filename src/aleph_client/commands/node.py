@@ -143,7 +143,7 @@ async def compute(
         default=False, help="Print as json instead of rich table"
     ),
     active: bool = typer.Option(default=False, help="Only show active nodes"),
-    address: Optional[str] = typer.Option(default=None, help="adress owner"),
+    address: Optional[str] = typer.Option(default=None, help="Owner address to filter by"),
     debug: bool = False,
 ):
     """Get all compute node on aleph network"""
