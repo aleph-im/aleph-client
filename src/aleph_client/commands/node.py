@@ -3,6 +3,7 @@ import json as json_lib
 import logging
 import re
 import unicodedata
+from typing import Dict, List, Optional
 
 import aiohttp
 import typer
@@ -101,6 +102,18 @@ def _show_compute(node_info):
     console.print(table)
 
 
+def _filter_node(active: bool, address: Optional[str], core_info):
+    result = []
+    for node in core_info:
+        if active and node["status"] == "active" and node["score"] > 0:
+            result.append(node)
+        elif address and node["owner"] == address:
+            result.append(node)
+        elif not active and not address:
+            result.append(node)
+    return result
+
+
 def _show_core(node_info):
     table = Table(title="Core Channel Node Information")
     table.add_column("Score", style="green", no_wrap=True, justify="right")
@@ -110,7 +123,7 @@ def _show_core(node_info):
     table.add_column("Creation Time", style="#029AFF", justify="center")
     table.add_column("Status", style="green", justify="right")
 
-    for node in node_info.core_node:
+    for node in node_info:
         # Prevent escaping with name
         node_name = node["name"]
         node_name = _escape_and_normalize(node_name)
@@ -141,6 +154,10 @@ async def compute(
     json: bool = typer.Option(
         default=False, help="Print as json instead of rich table"
     ),
+    active: bool = typer.Option(default=False, help="Only show active nodes"),
+    address: Optional[str] = typer.Option(
+        default=None, help="Owner address to filter by"
+    ),
     debug: bool = False,
 ):
     """Get all compute node on aleph network"""
@@ -148,6 +165,10 @@ async def compute(
     setup_logging(debug)
 
     compute_info: NodeInfo = await _fetch_nodes()
+    compute_info.nodes = _filter_node(
+        core_info=compute_info.nodes, active=active, address=address
+    )
+
     if not json:
         _show_compute(compute_info)
     else:
@@ -159,13 +180,21 @@ async def core(
     json: bool = typer.Option(
         default=False, help="Print as json instead of rich table"
     ),
+    active: bool = typer.Option(default=False, help="Only show active nodes"),
+    address: Optional[str] = typer.Option(
+        default=None, help="Owner address to filter by"
+    ),
     debug: bool = False,
 ):
     """Get all core node on aleph"""
     setup_logging(debug)
 
     core_info: NodeInfo = await _fetch_nodes()
+    core_info.core_node = _filter_node(
+        core_info=core_info.core_node, active=active, address=address
+    )
+
     if not json:
-        _show_core(core_info)
+        _show_core(node_info=core_info.core_node)
     else:
         typer.echo(json_lib.dumps(core_info.core_node, indent=4))

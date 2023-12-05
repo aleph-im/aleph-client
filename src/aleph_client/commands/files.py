@@ -219,9 +219,9 @@ def _show_files(files_data: dict) -> None:
         f"[bold]Page:[/bold] {pagination_page}",
     )
     console.print(
-        f"[bold]Total Pages:[/bold] {pagination_total}",
+        f"[bold]Total Item:[/bold] {pagination_total}",
     )
-    console.print(f"[bold]Items Per Page:[/bold] {pagination_per_page}")
+    console.print(f"[bold]Items Max Per Page:[/bold] {pagination_per_page}")
 
     console.print(table)
 
