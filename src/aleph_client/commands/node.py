@@ -143,7 +143,9 @@ async def compute(
         default=False, help="Print as json instead of rich table"
     ),
     active: bool = typer.Option(default=False, help="Only show active nodes"),
-    address: Optional[str] = typer.Option(default=None, help="Owner address to filter by"),
+    address: Optional[str] = typer.Option(
+        default=None, help="Owner address to filter by"
+    ),
     debug: bool = False,
 ):
     """Get all compute node on aleph network"""
@@ -179,13 +181,15 @@ async def core(
         default=False, help="Print as json instead of rich table"
     ),
     active: bool = typer.Option(default=False, help="Only show active nodes"),
-    address: Optional[str] = typer.Option(default=None, help="Owner address to filter by"),
+    address: Optional[str] = typer.Option(
+        default=None, help="Owner address to filter by"
+    ),
     debug: bool = False,
 ):
     """Get all core node on aleph"""
     setup_logging(debug)
 
-    core_info: NodeInfo = _fetch_nodes()
+    core_info: NodeInfo = await _fetch_nodes()
     core_info.core_node = _filter_node(
         core_info=core_info.core_node, active=active, address=address
     )
