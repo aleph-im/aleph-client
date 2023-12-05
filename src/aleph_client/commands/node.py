@@ -102,6 +102,18 @@ def _show_compute(node_info):
     console.print(table)
 
 
+def _filter_node(active: bool, address: Optional[str], core_info):
+    result = []
+    for node in core_info:
+        if active and node["status"] == "active" and node["score"] > 0:
+            result.append(node)
+        elif address and node["owner"] == address:
+            result.append(node)
+        elif not active and not address:
+            result.append(node)
+    return result
+
+
 def _show_core(node_info):
     table = Table(title="Core Channel Node Information")
     table.add_column("Score", style="green", no_wrap=True, justify="right")
@@ -161,18 +173,6 @@ async def compute(
         _show_compute(compute_info)
     else:
         typer.echo(json_lib.dumps(compute_info.nodes, indent=4))
-
-
-def _filter_node(active: bool, address: Optional[str], core_info):
-    result = []
-    for node in core_info:
-        if active and node["status"] == "active" and node["score"] > 0:
-            result.append(node)
-        elif address and node["owner"] == address:
-            result.append(node)
-        elif not active and not address:
-            result.append(node)
-    return result
 
 
 @app.command()
