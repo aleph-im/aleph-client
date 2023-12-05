@@ -1,7 +1,8 @@
 import logging
 from datetime import datetime
-from typing import Dict, List, Optional, Union
+from typing import Callable, Dict, List, Optional, TypeVar, Union
 
+import typer
 from aleph.sdk.types import GenericMessage
 from pygments import highlight
 from pygments.formatters.terminal256 import Terminal256Formatter
@@ -108,6 +109,32 @@ def volume_to_dict(volume: List[str]) -> Optional[Dict[str, Union[str, int]]]:
     return dict_store
 
 
+def get_or_prompt_volumes(ephemeral_volume, immutable_volume, persistent_volume):
+    volumes = []
+    # Check if the volumes are empty
+    if (
+        persistent_volume is None
+        or ephemeral_volume is None
+        or immutable_volume is None
+    ):
+        for volume in prompt_for_volumes():
+            volumes.append(volume)
+            typer.echo("\n")
+
+    # else parse all the volumes that have passed as the cli parameters and put it into volume list
+    else:
+        if len(persistent_volume) > 0:
+            persistent_volume_dict = volume_to_dict(volume=persistent_volume)
+            volumes.append(persistent_volume_dict)
+        if len(ephemeral_volume) > 0:
+            ephemeral_volume_dict = volume_to_dict(volume=ephemeral_volume)
+            volumes.append(ephemeral_volume_dict)
+        if len(immutable_volume) > 0:
+            immutable_volume_dict = volume_to_dict(volume=immutable_volume)
+            volumes.append(immutable_volume_dict)
+    return volumes
+
+
 def str_to_datetime(date: Optional[str]) -> Optional[datetime]:
     """
     Converts a string representation of a date/time to a datetime object.
@@ -122,3 +149,46 @@ def str_to_datetime(date: Optional[str]) -> Optional[datetime]:
     except ValueError:
         pass
     return datetime.fromisoformat(date)
+
+
+T = TypeVar("T")
+
+
+def default_prompt(
+    prompt: str,
+    default: str,
+) -> str:
+    return input(prompt + (f" [default: {default}]" if default else "")) or default
+
+
+def validated_prompt(
+    prompt: str,
+    validator: Callable[[str], T],
+    default: Optional[T] = None,
+) -> T:
+    while True:
+        value = input(prompt + (f" [default: {default}]" if default else ""))
+        if value == "" and default is not None:
+            return default
+        try:
+            return validator(value)
+        except ValueError as e:
+            echo(f"Invalid input: {e}\nTry again.")
+            continue
+
+
+def validated_int_prompt(
+    prompt: str,
+    default: Optional[int] = None,
+    min_value: Optional[int] = None,
+    max_value: Optional[int] = None,
+) -> int:
+    def validator(value: str) -> int:
+        value = int(value)
+        if min_value is not None and value < min_value:
+            raise ValueError(f"Value must be greater than or equal to {min_value}")
+        if max_value is not None and value > max_value:
+            raise ValueError(f"Value must be less than or equal to {max_value}")
+        return value
+
+    return validated_prompt(prompt, validator, default)
