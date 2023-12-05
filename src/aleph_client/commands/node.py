@@ -142,7 +142,7 @@ async def compute(
     json: bool = typer.Option(
         default=False, help="Print as json instead of rich table"
     ),
-    active: bool = typer.Option(default=False, help="Only show active node"),
+    active: bool = typer.Option(default=False, help="Only show active nodes"),
     address: Optional[str] = typer.Option(default=None, help="adress owner"),
     debug: bool = False,
 ):
