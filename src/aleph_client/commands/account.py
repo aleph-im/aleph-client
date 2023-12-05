@@ -28,7 +28,7 @@ app = AsyncTyper()
 def create(
     private_key: Optional[str] = typer.Option(None, help=help_strings.PRIVATE_KEY),
     private_key_file: Optional[Path] = typer.Option(
-        ..., help=help_strings.PRIVATE_KEY_FILE
+        None, help=help_strings.PRIVATE_KEY_FILE
     ),
     replace: bool = False,
     debug: bool = False,
@@ -53,7 +53,7 @@ def create(
     if private_key is not None:
         # Validate the private key bytes by instantiating an account.
         _load_account(private_key_str=private_key, account_type=ETHAccount)
-        private_key_bytes = private_key.encode()
+        private_key_bytes = bytes.fromhex(private_key)
     else:
         private_key_bytes = generate_key()
 
