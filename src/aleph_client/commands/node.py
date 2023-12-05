@@ -150,7 +150,7 @@ async def compute(
 
     setup_logging(debug)
 
-    compute_info: NodeInfo = _fetch_nodes()
+    compute_info: NodeInfo = await _fetch_nodes()
     compute_info.nodes = _filter_node(
         core_info=compute_info.nodes, active=active, address=address
     )
