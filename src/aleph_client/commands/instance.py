@@ -178,8 +178,11 @@ async def create(
 
 
 @app.command()
-def delete(
+async def delete(
     item_hash: str,
+    reason: str = typer.Option(
+        "User deletion", help="Reason for deleting the instance"
+    ),
     private_key: Optional[str] = sdk_settings.PRIVATE_KEY_STRING,
     private_key_file: Optional[Path] = sdk_settings.PRIVATE_KEY_FILE,
     debug: bool = False,
@@ -190,11 +193,11 @@ def delete(
 
     account = _load_account(private_key, private_key_file)
 
-    with AuthenticatedAlephHttpClient(
+    async with AuthenticatedAlephHttpClient(
         account=account, api_server=sdk_settings.API_HOST
     ) as client:
         try:
-            existing_message: InstanceMessage = client.get_message(
+            existing_message: InstanceMessage = await client.get_message(
                 item_hash=item_hash, message_type=InstanceMessage
             )
         except MessageNotFoundError:
@@ -207,5 +210,5 @@ def delete(
             typer.echo("You are not the owner of this instance")
             raise typer.Exit(code=1)
 
-        message, status = client.forget(hashes=[item_hash])
+        message, status = await client.forget(hashes=[item_hash], reason=reason)
         typer.echo(f"{message.json(indent=4)}")
