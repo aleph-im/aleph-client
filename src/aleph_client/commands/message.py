@@ -4,6 +4,7 @@ import os.path
 import subprocess
 import sys
 import tempfile
+import time
 from pathlib import Path
 from typing import Dict, List, Optional
 
@@ -204,6 +205,7 @@ async def amend(
     else:
         new_content.ref = existing_message.item_hash
 
+    new_content.time = time.time()
     new_content.type = "amend"
 
     typer.echo(new_content)
