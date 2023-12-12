@@ -4,6 +4,7 @@ import os.path
 import subprocess
 import sys
 import tempfile
+import time
 from pathlib import Path
 from typing import Dict, List, Optional
 
@@ -15,8 +16,6 @@ from aleph.sdk.query.filters import MessageFilter
 from aleph.sdk.query.responses import MessagesResponse
 from aleph.sdk.types import AccountFromPrivateKey, StorageEnum
 from aleph.sdk.utils import extended_json_encoder
-from aleph_message.models import AlephMessage, ItemHash, MessageType, ProgramMessage
-
 from aleph_client.commands import help_strings
 from aleph_client.commands.utils import (
     colorful_json,
@@ -26,6 +25,7 @@ from aleph_client.commands.utils import (
     str_to_datetime,
 )
 from aleph_client.utils import AsyncTyper
+from aleph_message.models import AlephMessage, ItemHash, MessageType, ProgramMessage
 
 app = AsyncTyper()
 
@@ -205,11 +205,14 @@ async def amend(
     else:
         new_content.ref = existing_message.item_hash
 
+    new_content.time = time.time()
+    new_content.type = "amend"
+
     typer.echo(new_content)
     async with AuthenticatedAlephHttpClient(
         account=account, api_server=sdk_settings.API_HOST
     ) as client:
-        message, _status = await client.submit(
+        message, status, response = await client.submit(
             content=new_content.dict(),
             message_type=existing_message.type,
             channel=existing_message.channel,
