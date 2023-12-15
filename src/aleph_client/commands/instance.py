@@ -199,8 +199,9 @@ async def create(
 
         item_hash: ItemHash = message.item_hash
 
-        typer.echo(
-            f"\nYour instance has been deployed on aleph.im\n"
+        console = Console()
+        console.print(
+            f"\nYour instance {item_hash} has been deployed on aleph.im\n"
             f"Your SSH key has been added to the instance. You can connect in a few minutes to it using:\n\n"
             f"  ssh root@<ipv6 address>\n\n"
             f"Run the following command to get the IPv6 address of your instance:\n\n"

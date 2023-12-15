@@ -44,8 +44,7 @@ def setup_logging(debug: bool = False):
 
 
 def yes_no_input(text: str, default: bool) -> bool:
-    y_n = Prompt.ask(text, choices=["y", "n"], default=default)
-    return y_n == "y"
+    return Prompt.ask(text, choices=["y", "n"], default=default) == "y"
 
 
 def prompt_for_volumes():
