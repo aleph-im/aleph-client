@@ -28,8 +28,14 @@ class Settings(BaseSettings):
     DEFAULT_RUNTIME_ID: str = (
         "bd79839bf96e595a06da5ac0b6ba51dea6f7e2591bb913deccded04d831d29f4"
     )
-    DEFAULT_ROOTFS_ID: str = (
-        "549ec451d9b099cad112d4aaa2c00ac40fb6729a92ff252ff22eef0b5c3cb613"
+    DEBIAN_11_ROOTFS_ID: str = (
+        "887957042bb0e360da3485ed33175882ce72a70d79f1ba599400ff4802b7cee7"
+    )
+    DEBIAN_12_ROOTFS_ID: str = (
+        "6e30de68c6cedfa6b45240c2b51e52495ac6fb1bd4b36457b3d5ca307594d595"
+    )
+    UBUNTU_22_ROOTFS_ID: str = (
+        "77fef271aa6ff9825efa3186ca2e715d19e7108279b817201c69c34cedc74c27"
     )
     DEFAULT_ROOTFS_SIZE: int = 2_000
     DEFAULT_ROOTFS_NAME: str = "main-rootfs"

@@ -1,19 +1,29 @@
+import asyncio
 import logging
 from base64 import b16decode, b32encode
 from pathlib import Path
-from typing import List, Optional, Union
+from typing import List, Optional, Tuple, Union
 
 import typer
+from aiohttp import ClientResponseError, ClientSession
 from aleph.sdk import AlephHttpClient, AuthenticatedAlephHttpClient
 from aleph.sdk.account import _load_account
 from aleph.sdk.conf import settings as sdk_settings
-from aleph.sdk.exceptions import ForgottenMessageError, MessageNotFoundError, InsufficientFundsError
+from aleph.sdk.exceptions import (
+    ForgottenMessageError,
+    InsufficientFundsError,
+    MessageNotFoundError,
+)
+from aleph.sdk.query.filters import MessageFilter
 from aleph.sdk.types import AccountFromPrivateKey, StorageEnum
-from aleph_message.models import InstanceMessage, ItemHash, StoreMessage
+from aleph_message.models import InstanceMessage, ItemHash, MessageType, StoreMessage
+from rich import box
+from rich.console import Console
+from rich.prompt import Prompt
+from rich.table import Table
 
 from aleph_client.commands import help_strings
 from aleph_client.commands.utils import (
-    default_prompt,
     get_or_prompt_volumes,
     setup_logging,
     validated_int_prompt,
@@ -56,8 +66,8 @@ async def create(
     ),
     print_messages: bool = typer.Option(False),
     rootfs: str = typer.Option(
-        settings.DEFAULT_ROOTFS_ID,
-        help="Hash of the rootfs to use for your instance. Defaults to aleph debian with Python3.8 and node. You can also create your own rootfs and pin it",
+        "Ubuntu 22",
+        help="Hash of the rootfs to use for your instance. Defaults to Ubuntu 22. You can also create your own rootfs and pin it",
     ),
     rootfs_name: str = typer.Option(
         settings.DEFAULT_ROOTFS_NAME,
@@ -93,7 +103,7 @@ async def create(
         return file
 
     try:
-        validate_ssh_pubkey_file(ssh_pubkey_file)
+        ssh_pubkey_file = validate_ssh_pubkey_file(ssh_pubkey_file)
     except ValueError:
         ssh_pubkey_file = Path(
             validated_prompt(
@@ -106,7 +116,25 @@ async def create(
 
     account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
 
-    rootfs = default_prompt("Hash of the rootfs to use for your instance", rootfs)
+    os_map = {
+        settings.UBUNTU_22_ROOTFS_ID: "Ubuntu 22",
+        settings.DEBIAN_12_ROOTFS_ID: "Debian 12",
+        settings.DEBIAN_11_ROOTFS_ID: "Debian 11",
+    }
+
+    rootfs = Prompt.ask(
+        f"Do you want to use a custom rootfs or one of the following prebuilt ones?",
+        default=rootfs,
+        choices=[*os_map.values(), "custom"],
+    )
+
+    if rootfs == "custom":
+        rootfs = validated_prompt(
+            f"Enter the item hash of the rootfs to use for your instance",
+            lambda x: len(x) == 64,
+        )
+    else:
+        rootfs = next(k for k, v in os_map.items() if v == rootfs)
 
     async with AlephHttpClient(api_server=sdk_settings.API_HOST) as client:
         rootfs_message: StoreMessage = await client.get_message(
@@ -120,12 +148,21 @@ async def create(
         if rootfs_size is None and rootfs_message.content.size:
             rootfs_size = rootfs_message.content.size
 
-    rootfs_name = default_prompt(
-        f"Name of the rootfs to use for your instance", default=rootfs_name
+    rootfs_name = Prompt.ask(
+        f"Name of the rootfs to use for your instance",
+        default=os_map.get(rootfs, rootfs_name),
+    )
+
+    vcpus = validated_int_prompt(
+        f"Number of virtual cpus to allocate", vcpus, min_value=1, max_value=4
+    )
+
+    memory = validated_int_prompt(
+        f"Maximum memory allocation on vm in MiB", memory, min_value=256, max_value=8000
     )
 
     rootfs_size = validated_int_prompt(
-        f"Size in MiB?", rootfs_size, min_value=2000, max_value=100000
+        f"Disk size in MiB", rootfs_size, min_value=2000, max_value=100000
     )
 
     volumes = get_or_prompt_volumes(
@@ -161,19 +198,14 @@ async def create(
             typer.echo(f"{message.json(indent=4)}")
 
         item_hash: ItemHash = message.item_hash
-        hash_base32 = (
-            b32encode(b16decode(item_hash.upper())).strip(b"=").lower().decode()
-        )
 
-        typer.echo(
-            f"\nYour instance has been deployed on aleph.im\n\n"
-            f"Your SSH key has been added to the instance. You can connect in a few minutes to it using:\n"
-            # TODO: Resolve to IPv6 address
-            f"  ssh -i {ssh_pubkey_file} root@{hash_base32}.aleph.sh\n\n"
-            "Also available on:\n"
-            f"  {settings.VM_URL_PATH.format(hash=item_hash)}\n"
-            "Visualise on:\n  https://explorer.aleph.im/address/"
-            f"{message.chain}/{message.sender}/message/INSTANCE/{item_hash}\n"
+        console = Console()
+        console.print(
+            f"\nYour instance {item_hash} has been deployed on aleph.im\n"
+            f"Your SSH key has been added to the instance. You can connect in a few minutes to it using:\n\n"
+            f"  ssh root@<ipv6 address>\n\n"
+            f"Run the following command to get the IPv6 address of your instance:\n\n"
+            f"  aleph instance list\n\n"
         )
 
 
@@ -185,6 +217,7 @@ async def delete(
     ),
     private_key: Optional[str] = sdk_settings.PRIVATE_KEY_STRING,
     private_key_file: Optional[Path] = sdk_settings.PRIVATE_KEY_FILE,
+    print_message: bool = typer.Option(False),
     debug: bool = False,
 ):
     """Delete an instance, unallocating all resources associated with it. Immutable volumes will not be deleted."""
@@ -211,4 +244,86 @@ async def delete(
             raise typer.Exit(code=1)
 
         message, status = await client.forget(hashes=[item_hash], reason=reason)
-        typer.echo(f"{message.json(indent=4)}")
+        if print_message:
+            typer.echo(f"{message.json(indent=4)}")
+
+        typer.echo(
+            f"Instance {item_hash} has been deleted. It will be removed by the scheduler in a few minutes."
+        )
+
+
+async def _get_ipv6_address(message: InstanceMessage) -> Tuple[str, str]:
+    async with ClientSession() as session:
+        try:
+            resp = await session.get(
+                f"https://scheduler.api.aleph.cloud/api/v0/allocation/{message.item_hash}"
+            )
+            resp.raise_for_status()
+            status = await resp.json()
+            return status["vm_hash"], status["vm_ipv6"]
+        except ClientResponseError:
+            return message.item_hash, "Not available (yet)"
+
+
+async def _show_instances(messages: List[InstanceMessage]):
+    table = Table(box=box.SIMPLE_HEAVY)
+    table.add_column("Item Hash", style="cyan")
+    table.add_column("Vcpus", style="magenta")
+    table.add_column("Memory", style="magenta")
+    table.add_column("Disk size", style="magenta")
+    table.add_column("IPv6 address", style="yellow")
+
+    scheduler_responses = dict(
+        await asyncio.gather(*[_get_ipv6_address(message) for message in messages])
+    )
+
+    for message in messages:
+        table.add_row(
+            message.item_hash,
+            str(message.content.resources.vcpus),
+            str(message.content.resources.memory),
+            str(message.content.rootfs.size_mib),
+            scheduler_responses[message.item_hash],
+        )
+    console = Console()
+    console.print(table)
+    console.print(f"To connect to an instance, use:\n\n" f"  ssh root@<ipv6 address>\n")
+
+
+@app.command()
+async def list(
+    address: Optional[str] = typer.Option(None, help="Owner address of the instance"),
+    private_key: Optional[str] = typer.Option(
+        sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY
+    ),
+    private_key_file: Optional[Path] = typer.Option(
+        sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE
+    ),
+    json: bool = typer.Option(
+        default=False, help="Print as json instead of rich table"
+    ),
+    debug: bool = False,
+):
+    """List all instances associated with your private key"""
+
+    setup_logging(debug)
+
+    if address is None:
+        account = _load_account(private_key, private_key_file)
+        address = account.get_address()
+
+    async with AlephHttpClient(api_server=sdk_settings.API_HOST) as client:
+        resp = await client.get_messages(
+            message_filter=MessageFilter(
+                message_types=[MessageType.instance],
+                addresses=[address],
+            ),
+            page_size=100,
+        )
+        if not resp:
+            typer.echo("No instances found")
+            raise typer.Exit(code=1)
+        if json:
+            typer.echo(resp.json(indent=4))
+        else:
+            await _show_instances(resp.messages)
