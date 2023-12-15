@@ -8,6 +8,7 @@ from pygments import highlight
 from pygments.formatters.terminal256 import Terminal256Formatter
 from pygments.lexers import JsonLexer
 from typer import echo
+from rich.prompt import Prompt, IntPrompt, PromptError
 
 
 def colorful_json(obj: str):
@@ -42,37 +43,18 @@ def setup_logging(debug: bool = False):
     logging.basicConfig(level=level)
 
 
-def yes_no_input(text: str, default: Optional[bool] = None):
-    while True:
-        if default is True:
-            response = input(f"{text} [Y/n] ")
-        elif default is False:
-            response = input(f"{text} [y/N] ")
-        else:
-            response = input(f"{text} ")
-
-        if response.lower() in ("y", "yes"):
-            return True
-        elif response.lower() in ("n", "no"):
-            return False
-        elif response == "" and default is not None:
-            return default
-        else:
-            if default is None:
-                echo("Please enter 'y', 'yes', 'n' or 'no'")
-            else:
-                echo("Please enter 'y', 'yes', 'n', 'no' or nothing")
-            continue
+def yes_no_input(text: str, default: bool) -> bool:
+    return Prompt.ask(text, choices=["y", "n"], default=default)
 
 
 def prompt_for_volumes():
     while yes_no_input("Add volume ?", default=False):
-        comment = input("Description: ") or None
-        mount = input("Mount: ")
-        persistent = yes_no_input("Persist on VM host ?", default=False)
+        mount = Prompt.ask("Mount path: ")
+        comment = Prompt.ask("Comment: ")
+        persistent = yes_no_input("Persist on VM host?", default=False)
         if persistent:
-            name = input("Volume name: ")
-            size_mib = int(input("Size in MiB: "))
+            name = Prompt.ask("Name: ")
+            size_mib = validated_int_prompt("Size (MiB): ", min_value=1)
             yield {
                 "comment": comment,
                 "mount": mount,
@@ -81,7 +63,7 @@ def prompt_for_volumes():
                 "size_mib": size_mib,
             }
         else:
-            ref = input("Ref: ")
+            ref = Prompt.ask("Item hash: ")
             use_latest = yes_no_input("Use latest version ?", default=True)
             yield {
                 "comment": comment,
@@ -154,27 +136,24 @@ def str_to_datetime(date: Optional[str]) -> Optional[datetime]:
 T = TypeVar("T")
 
 
-def default_prompt(
-    prompt: str,
-    default: str,
-) -> str:
-    return input(prompt + (f" [default: {default}]" if default else "")) or default
-
-
 def validated_prompt(
     prompt: str,
-    validator: Callable[[str], T],
-    default: Optional[T] = None,
-) -> T:
+    validator: Callable[[str], bool],
+    default: Optional[str] = None,
+) -> str:
     while True:
-        value = input(prompt + (f" [default: {default}]" if default else ""))
-        if value == "" and default is not None:
-            return default
-        try:
-            return validator(value)
-        except ValueError as e:
-            echo(f"Invalid input: {e}\nTry again.")
+        value = Prompt.ask(
+            prompt,
+            default=default,
+        )
+        if PromptError:
+            echo(f"Invalid input: {value}\nTry again.")
             continue
+        if value is None and default is not None:
+            return default
+        if validator(value):
+            return value
+        echo(f"Invalid input: {value}\nTry again.")
 
 
 def validated_int_prompt(
@@ -183,12 +162,21 @@ def validated_int_prompt(
     min_value: Optional[int] = None,
     max_value: Optional[int] = None,
 ) -> int:
-    def validator(value: str) -> int:
-        value = int(value)
+    while True:
+        try:
+            value = IntPrompt.ask(
+                prompt + f" [min: {min_value or '-'}, max: {max_value or '-'}]",
+                default=default,
+            )
+        except PromptError:
+            echo(f"Invalid input: {value}\nTry again.")
+            continue
+        if value is None and default is not None:
+            return default
         if min_value is not None and value < min_value:
-            raise ValueError(f"Value must be greater than or equal to {min_value}")
+            echo(f"Invalid input: {value}\nTry again.")
+            continue
         if max_value is not None and value > max_value:
-            raise ValueError(f"Value must be less than or equal to {max_value}")
+            echo(f"Invalid input: {value}\nTry again.")
+            continue
         return value
-
-    return validated_prompt(prompt, validator, default)
