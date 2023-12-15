@@ -133,7 +133,7 @@ def sign_bytes(
     ),
     debug: bool = False,
 ):
-    """Sign a message using your private key."""
+    """Signs a UTF-8 encoded string with your private key and prints the signature."""
 
     setup_logging(debug)
 
