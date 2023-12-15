@@ -2,21 +2,25 @@ import asyncio
 import logging
 from base64 import b16decode, b32encode
 from pathlib import Path
-from typing import List, Optional, Union, Tuple
+from typing import List, Optional, Tuple, Union
 
-from aiohttp import ClientSession, ClientResponseError
-from rich.prompt import Prompt
-from rich import box
-from rich.console import Console
-from rich.table import Table
 import typer
+from aiohttp import ClientResponseError, ClientSession
 from aleph.sdk import AlephHttpClient, AuthenticatedAlephHttpClient
 from aleph.sdk.account import _load_account
 from aleph.sdk.conf import settings as sdk_settings
-from aleph.sdk.exceptions import ForgottenMessageError, MessageNotFoundError, InsufficientFundsError
-from aleph.sdk.types import AccountFromPrivateKey, StorageEnum
+from aleph.sdk.exceptions import (
+    ForgottenMessageError,
+    InsufficientFundsError,
+    MessageNotFoundError,
+)
 from aleph.sdk.query.filters import MessageFilter
-from aleph_message.models import InstanceMessage, ItemHash, StoreMessage, MessageType
+from aleph.sdk.types import AccountFromPrivateKey, StorageEnum
+from aleph_message.models import InstanceMessage, ItemHash, MessageType, StoreMessage
+from rich import box
+from rich.console import Console
+from rich.prompt import Prompt
+from rich.table import Table
 
 from aleph_client.commands import help_strings
 from aleph_client.commands.utils import (
@@ -99,7 +103,7 @@ async def create(
         return file
 
     try:
-        validate_ssh_pubkey_file(ssh_pubkey_file)
+        ssh_pubkey_file = validate_ssh_pubkey_file(ssh_pubkey_file)
     except ValueError:
         ssh_pubkey_file = Path(
             validated_prompt(
@@ -145,7 +149,8 @@ async def create(
             rootfs_size = rootfs_message.content.size
 
     rootfs_name = Prompt.ask(
-        f"Name of the rootfs to use for your instance", default=os_map.get(rootfs, rootfs_name)
+        f"Name of the rootfs to use for your instance",
+        default=os_map.get(rootfs, rootfs_name),
     )
 
     vcpus = validated_int_prompt(
@@ -267,12 +272,9 @@ async def _show_instances(messages: List[InstanceMessage]):
     table.add_column("Disk size", style="magenta")
     table.add_column("IPv6 address", style="yellow")
 
-    scheduler_responses = dict(await asyncio.gather(
-        *[
-            _get_ipv6_address(message)
-            for message in messages
-        ]
-    ))
+    scheduler_responses = dict(
+        await asyncio.gather(*[_get_ipv6_address(message) for message in messages])
+    )
 
     for message in messages:
         table.add_row(
@@ -284,10 +286,7 @@ async def _show_instances(messages: List[InstanceMessage]):
         )
     console = Console()
     console.print(table)
-    console.print(
-        f"To connect to an instance, use:\n\n"
-        f"  ssh root@<ipv6 address>\n"
-    )
+    console.print(f"To connect to an instance, use:\n\n" f"  ssh root@<ipv6 address>\n")
 
 
 @app.command()
@@ -327,4 +326,3 @@ async def list(
             typer.echo(resp.json(indent=4))
         else:
             await _show_instances(resp.messages)
-

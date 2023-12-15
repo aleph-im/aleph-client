@@ -1,14 +1,14 @@
 import logging
 from datetime import datetime
-from typing import Callable, Dict, List, Optional, TypeVar, Union
+from typing import Callable, Dict, List, Optional, TypeVar, Union, Any
 
 import typer
 from aleph.sdk.types import GenericMessage
 from pygments import highlight
 from pygments.formatters.terminal256 import Terminal256Formatter
 from pygments.lexers import JsonLexer
+from rich.prompt import IntPrompt, Prompt, PromptError
 from typer import echo
-from rich.prompt import Prompt, IntPrompt, PromptError
 
 
 def colorful_json(obj: str):
@@ -44,7 +44,8 @@ def setup_logging(debug: bool = False):
 
 
 def yes_no_input(text: str, default: bool) -> bool:
-    return Prompt.ask(text, choices=["y", "n"], default=default)
+    y_n = Prompt.ask(text, choices=["y", "n"], default=default)
+    return y_n == "y"
 
 
 def prompt_for_volumes():
@@ -138,21 +139,22 @@ T = TypeVar("T")
 
 def validated_prompt(
     prompt: str,
-    validator: Callable[[str], bool],
+    validator: Callable[[str], Any],
     default: Optional[str] = None,
 ) -> str:
     while True:
-        value = Prompt.ask(
-            prompt,
-            default=default,
-        )
-        if PromptError:
+        try:
+            value = Prompt.ask(
+                prompt,
+                default=default,
+            )
+        except PromptError:
             echo(f"Invalid input: {value}\nTry again.")
             continue
         if value is None and default is not None:
             return default
-        if validator(value):
-            return value
+        if validator(str(value)):
+            return str(value)
         echo(f"Invalid input: {value}\nTry again.")
 
 
@@ -171,8 +173,11 @@ def validated_int_prompt(
         except PromptError:
             echo(f"Invalid input: {value}\nTry again.")
             continue
-        if value is None and default is not None:
-            return default
+        if value is None:
+            if default is not None:
+                return default
+            else:
+                value = 0
         if min_value is not None and value < min_value:
             echo(f"Invalid input: {value}\nTry again.")
             continue
