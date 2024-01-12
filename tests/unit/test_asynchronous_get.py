@@ -48,7 +48,6 @@ async def test_get_posts():
     messages = response["messages"]
     assert set(messages[0].keys()).issuperset(
         {
-            "_id",
             "chain",
             "item_hash",
             "sender",
@@ -61,7 +60,7 @@ async def test_get_posts():
             "signature",
             "size",
             "time",
-            # 'confirmations',
+            'confirmations',
         }
     )
 
@@ -85,7 +84,6 @@ async def test_get_messages():
     messages = response["messages"]
     assert set(messages[0].keys()).issuperset(
         {
-            "_id",
             "chain",
             "item_hash",
             "sender",
@@ -98,6 +96,6 @@ async def test_get_messages():
             "signature",
             "size",
             "time",
-            # 'confirmations',
+            'confirmations',
         }
     )

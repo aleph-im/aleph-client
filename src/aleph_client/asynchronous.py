@@ -30,7 +30,7 @@ from typing import Optional, Iterable, Union, Any, Dict, List, AsyncIterable
 import aiohttp
 from aiohttp import ClientSession
 
-from aleph_message.models.program import ProgramContent, Encoding  # type: ignore
+from aleph_message.models.execution.program import ProgramContent, Encoding
 
 
 @lru_cache()

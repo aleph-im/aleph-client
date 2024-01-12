@@ -61,7 +61,7 @@ async def test_create_aggregate():
     await create_aggregate(
         account=account,
         key='hello',
-        content='world',
+        content={'my': 'world'},
         channel="TEST",
         session=mock_session,
         api_server="https://example.org",
@@ -85,7 +85,7 @@ async def test_create_store():
     mock_session = MagicMock()
 
     mock_ipfs_push_file = AsyncMock()
-    mock_ipfs_push_file.return_value = "FAKE-HASH"
+    mock_ipfs_push_file.return_value = bytes(32).hex()
 
     with patch('aleph_client.asynchronous.ipfs_push_file', mock_ipfs_push_file):
 
@@ -102,7 +102,7 @@ async def test_create_store():
         await create_store(
             account=account,
             # file_content=b"HELLO",
-            file_hash="FAKE-HASH",
+            file_hash=bytes(32).hex(),
             channel="TEST",
             storage_engine=StorageEnum.ipfs,
             session=mock_session,
@@ -110,7 +110,7 @@ async def test_create_store():
         )
 
     mock_storage_push_file = AsyncMock()
-    mock_storage_push_file.return_value = "FAKE-HASH"
+    mock_storage_push_file.return_value = bytes(32).hex()
 
     with patch('aleph_client.asynchronous.storage_push_file', mock_storage_push_file):
 
@@ -142,9 +142,9 @@ async def test_create_program():
 
     await create_program(
         account=account,
-        program_ref="FAKE-HASH",
+        program_ref=bytes(32).hex(),
         entrypoint="main:app",
-        runtime="FAKE-HASH",
+        runtime=bytes(32).hex(),
         channel="TEST",
         session=mock_session,
         api_server="https://example.org",
@@ -169,7 +169,7 @@ async def test_forget():
 
     await forget(
         account=account,
-        hashes=["FAKE-HASH"],
+        hashes=[bytes(32).hex()],
         reason="GDPR",
         channel="TEST",
         session=mock_session,
