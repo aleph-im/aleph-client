@@ -157,7 +157,7 @@ async def create_post(
     return await submit(
         account=account,
         content=content.dict(exclude_none=True),
-        message_type=MessageType.post,
+        message_type=MessageType.post.value,
         channel=channel,
         api_server=api_server,
         session=session,
@@ -188,7 +188,7 @@ async def create_aggregate(
     return await submit(
         account=account,
         content=content_.dict(exclude_none=True),
-        message_type=MessageType.aggregate,
+        message_type=MessageType.aggregate.value,
         channel=channel,
         api_server=api_server,
         session=session,
@@ -251,7 +251,7 @@ async def create_store(
     return await submit(
         account=account,
         content=content.dict(exclude_none=True),
-        message_type=MessageType.store,
+        message_type=MessageType.store.value,
         channel=channel,
         api_server=api_server,
         session=session,
@@ -337,7 +337,7 @@ async def create_program(
     return await submit(
         account=account,
         content=content.dict(exclude_none=True),
-        message_type=MessageType.program,
+        message_type=MessageType.program.value,
         channel=channel,
         api_server=api_server,
         storage_engine=storage_engine,
@@ -367,7 +367,7 @@ async def forget(
     return await submit(
         account,
         content=content.dict(exclude_none=True),
-        message_type=MessageType.forget,
+        message_type=MessageType.forget.value,
         channel=channel,
         api_server=api_server,
         storage_engine=storage_engine,
