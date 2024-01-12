@@ -4,7 +4,7 @@ import threading
 from typing import List, Optional, Dict
 
 from aiohttp import ClientSession
-from aleph_message.models.program import ProgramContent, Encoding  # type: ignore
+from aleph_message.models.execution.program import Encoding
 
 from . import asynchronous
 from .conf import settings
