@@ -1,6 +1,7 @@
 import pytest
 from aleph_client.asynchronous import get_messages, fetch_aggregates, get_fallback_session, \
-    fetch_aggregate, _get_fallback_session
+    fetch_aggregate, _get_fallback_session, create_aggregate
+from aleph_client.chains.ethereum import get_fallback_account
 
 
 @pytest.mark.asyncio
@@ -11,7 +12,7 @@ async def test_fetch_aggregate():
         address="0xa1B3bb7d2332383D96b7796B908fB7f7F3c2Be10",
         key="corechannel"
     )
-    assert response.keys() == {"nodes"}
+    assert response.keys() == {"nodes", "resource_nodes"}
 
 
 @pytest.mark.asyncio
@@ -22,7 +23,7 @@ async def test_fetch_aggregates():
         address="0xa1B3bb7d2332383D96b7796B908fB7f7F3c2Be10"
     )
     assert response.keys() == {"corechannel"}
-    assert response["corechannel"].keys() == {"nodes"}
+    assert response["corechannel"].keys() == {"nodes", "resource_nodes"}
 
 
 @pytest.mark.asyncio
@@ -43,7 +44,6 @@ async def test_get_posts():
 
     messages = response['messages']
     assert set(messages[0].keys()).issuperset({
-        '_id',
         'chain',
         'item_hash',
         'sender',
@@ -56,7 +56,7 @@ async def test_get_posts():
         'signature',
         'size',
         'time',
-        # 'confirmations',
+        'confirmations',
     })
 
 
@@ -79,7 +79,6 @@ async def test_get_messages():
 
     messages = response['messages']
     assert set(messages[0].keys()).issuperset({
-        '_id',
         'chain',
         'item_hash',
         'sender',
@@ -92,5 +91,19 @@ async def test_get_messages():
         'signature',
         'size',
         'time',
-        # 'confirmations',
+        'confirmations',
     })
+
+
+@pytest.mark.asyncio
+async def test_post_aggregate():
+    account = get_fallback_account()
+    message = await create_aggregate(
+        account=account,
+        key="test",
+        content={"hello": "world"},
+        channel="test",
+    )
+
+    print(message)
+

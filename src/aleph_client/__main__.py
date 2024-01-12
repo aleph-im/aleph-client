@@ -13,8 +13,8 @@ from typing import Optional, Dict, List
 from zipfile import ZipFile, BadZipFile
 
 import typer
-from aleph_message.models import ProgramMessage, StoreMessage, Message
-from aleph_message.models.program import Encoding
+from aleph_message.models import ProgramMessage, StoreMessage, parse_message
+from aleph_message.models.execution.base import Encoding
 from typer import echo
 
 from .asynchronous import (
@@ -492,7 +492,7 @@ def watch(
     """Watch a hash for amends and print amend hashes"""
 
     original_json = sync_get_messages(hashes=[ref])['messages'][0]
-    original = Message(**original_json)
+    original = parse_message(original_json)
 
     for message in sync_watch_messages(refs=[ref], addresses=[original.content.address]):
         print(json.dumps(message, indent=indent))

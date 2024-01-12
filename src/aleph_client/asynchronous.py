@@ -29,7 +29,7 @@ from typing_extensions import Protocol  # Python < 3.8
 import aiohttp
 from aiohttp import ClientSession
 
-from aleph_message.models.program import ProgramContent, Encoding  # type: ignore
+from aleph_message.models.execution.program import ProgramContent, Encoding
 
 
 class StorageEnum(str, Enum):
