@@ -1,6 +1,8 @@
 import logging
+import os
+import sys
 from datetime import datetime
-from typing import Callable, Dict, List, Optional, TypeVar, Union, Any
+from typing import Any, Callable, Dict, List, Optional, TypeVar, Union
 
 import typer
 from aleph.sdk.types import GenericMessage
@@ -184,3 +186,17 @@ def validated_int_prompt(
             echo(f"Invalid input: {value}\nTry again.")
             continue
         return value
+
+
+def is_environment_interactive() -> bool:
+    """
+    Check if the current environment is interactive and can answer questions.
+    """
+    return all(
+        (
+            sys.stdin.isatty(),
+            sys.stdout.isatty(),
+            not os.environ.get("CI", False),
+            not os.environ.get("DEBIAN_NONINTERACTIVE") == "noninteractive",
+        )
+    )

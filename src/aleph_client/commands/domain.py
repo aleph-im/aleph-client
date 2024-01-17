@@ -22,6 +22,7 @@ from rich.prompt import Confirm, Prompt
 from rich.table import Table
 
 from aleph_client.commands import help_strings
+from aleph_client.commands.utils import is_environment_interactive
 from aleph_client.utils import AsyncTyper
 
 app = AsyncTyper()
@@ -57,8 +58,12 @@ async def check_domain_records(fqdn, target, owner):
     return status
 
 
-async def detach_resource(account: AccountFromPrivateKey, fqdn: Hostname):
+async def detach_resource(
+    account: AccountFromPrivateKey, fqdn: Hostname, interactive: Optional[bool] = None
+):
     domain_info = await get_aggregate_domain_info(account, fqdn)
+    interactive = is_environment_interactive() if interactive is None else interactive
+
     console = Console()
 
     table = Table(title=f"Detach resource of: {fqdn}")
@@ -78,7 +83,7 @@ async def detach_resource(account: AccountFromPrivateKey, fqdn: Hostname):
 
     console.print(table)
 
-    if Confirm.ask("Continue"):
+    if (not interactive) or Confirm.ask("Continue"):
         """Update aggregate message"""
 
         async with AuthenticatedAlephHttpClient(
@@ -97,8 +102,13 @@ async def detach_resource(account: AccountFromPrivateKey, fqdn: Hostname):
 
 
 async def attach_resource(
-    account: AccountFromPrivateKey, fqdn: Hostname, item_hash: Optional[str] = None
+    account: AccountFromPrivateKey,
+    fqdn: Hostname,
+    item_hash: Optional[str] = None,
+    interactive: Optional[bool] = None,
 ):
+    interactive = is_environment_interactive() if interactive is None else interactive
+
     domain_info = await get_aggregate_domain_info(account, fqdn)
     console = Console()
 
@@ -128,7 +138,7 @@ async def attach_resource(
 
     console.print(table)
 
-    if Confirm.ask("Continue"):
+    if (not interactive) or Confirm.ask("Continue"):
         """Create aggregate message"""
 
         async with AuthenticatedAlephHttpClient(
@@ -171,9 +181,11 @@ async def add(
     owner: Optional[str] = typer.Option(
         None, help=help_strings.CUSTOM_DOMAIN_OWNER_ADDRESS
     ),
+    ask: bool = typer.Option(default=True, help=help_strings.ASK_FOR_CONFIRMATION),
 ):
     """Add and link a Custom Domain."""
     account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
+    interactive = False if (not ask) else is_environment_interactive()
 
     console = Console()
     domain_validator = DomainValidator()
@@ -230,7 +242,7 @@ async def add(
 
             if max_retries == 0:
                 status.stop()
-                continue_ = Confirm.ask("Continue?")
+                continue_ = (not interactive) or Confirm.ask("Continue?")
                 if continue_:
                     status.start()
                     max_retries = 5
@@ -238,7 +250,7 @@ async def add(
                     raise typer.Exit()
 
     """Attach option"""
-    if Confirm.ask(f"Attach ressource to [bold green]{fqdn}"):
+    if (not interactive) or Confirm.ask(f"Attach ressource to [bold green]{fqdn}"):
         await attach_resource(account, fqdn, item_hash)
 
     raise typer.Exit()
@@ -256,11 +268,14 @@ async def attach(
     item_hash: Optional[str] = typer.Option(
         None, help=help_strings.CUSTOM_DOMAIN_ITEM_HASH
     ),
+    ask: bool = typer.Option(default=True, help=help_strings.ASK_FOR_CONFIRMATION),
 ):
     """Attach resource to a Custom Domain."""
     account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
 
-    await attach_resource(account, Hostname(fqdn), item_hash)
+    await attach_resource(
+        account, Hostname(fqdn), item_hash, interactive=False if (not ask) else None
+    )
     raise typer.Exit()
 
 
@@ -273,11 +288,14 @@ async def detach(
         sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE
     ),
     fqdn: str = typer.Argument(..., help=help_strings.CUSTOM_DOMAIN_NAME),
+    ask: bool = typer.Option(default=True, help=help_strings.ASK_FOR_CONFIRMATION),
 ):
     """Unlink Custom Domain."""
     account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
 
-    await detach_resource(account, Hostname(fqdn))
+    await detach_resource(
+        account, Hostname(fqdn), interactive=False if (not ask) else None
+    )
     raise typer.Exit()
 
 
