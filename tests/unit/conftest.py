@@ -24,4 +24,5 @@ def empty_account_file() -> Generator[Path, None, None]:
 def account_file(empty_account_file: Path) -> Path:
     private_key = generate_key()
     empty_account_file.write_bytes(private_key)
+
     return empty_account_file
