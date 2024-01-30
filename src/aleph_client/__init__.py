@@ -8,3 +8,12 @@ except DistributionNotFound:
     __version__ = "unknown"
 finally:
     del get_distribution, DistributionNotFound
+
+# Deprecation check
+moved_types = ["AlephClient", "AuthenticatedAlephClient", "synchronous", "asynchronous"]
+
+
+def __getattr__(name):
+    if name in moved_types:
+        raise ImportError(f"The 'aleph_client.{name}' type is deprecated and has been removed from aleph_client. Please use `aleph.sdk.{name}` instead.")
+    raise AttributeError(f"module 'aleph_client' has no attribute '{name}'")
