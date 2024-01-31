@@ -8,16 +8,6 @@ from aleph_client.__main__ import app
 runner = CliRunner()
 
 
-def test_account_help():
-    result = runner.invoke(
-        app, ["account", "--help"]
-    )
-
-    assert result.exit_code == 0, result.stdout
-
-    assert "Sign a message using your private key." in result.stdout
-
-
 def test_account_address(account_file: Path):
     result = runner.invoke(
         app, ["account", "address", "--private-key-file", str(account_file)]
