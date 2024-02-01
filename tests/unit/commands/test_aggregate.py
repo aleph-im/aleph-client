@@ -35,7 +35,7 @@ def test_aggregate_get(account_file: Path):
 @pytest.mark.skip(reason="Not implemented.")
 def test_aggregate_post(account_file: Path):
     key = "key"
-    content = " {'c': 3, 'd': 4}"
+    content = "{'c': 3, 'd': 4}"
     address = "address"
     channel = "channel"
     inline = "no-inline"
