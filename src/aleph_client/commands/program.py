@@ -9,16 +9,8 @@ import typer
 from aleph.sdk import AuthenticatedAlephHttpClient
 from aleph.sdk.account import _load_account
 from aleph.sdk.conf import settings as sdk_settings
+from aleph.sdk.query.filters import MessageFilter
 from aleph.sdk.types import AccountFromPrivateKey, StorageEnum
-from aleph_message.models import (
-    ItemHash,
-    MessagesResponse,
-    ProgramContent,
-    ProgramMessage,
-    StoreMessage,
-)
-from aleph_message.status import MessageStatus
-
 from aleph_client.commands import help_strings
 from aleph_client.commands.utils import (
     get_or_prompt_volumes,
@@ -28,13 +20,21 @@ from aleph_client.commands.utils import (
 )
 from aleph_client.conf import settings
 from aleph_client.utils import AsyncTyper, create_archive
+from aleph_message.models import (
+    ItemHash,
+    MessagesResponse,
+    ProgramContent,
+    ProgramMessage,
+    StoreMessage,
+)
+from aleph_message.status import MessageStatus
 
 logger = logging.getLogger(__name__)
 app = AsyncTyper()
 
 
 @app.command()
-def upload(
+async def upload(
     path: Path = typer.Argument(..., help="Path to your source code"),
     entrypoint: str = typer.Argument(..., help="Your program entrypoint"),
     channel: Optional[str] = typer.Option(default=None, help=help_strings.CHANNEL),
@@ -118,7 +118,7 @@ def upload(
     else:
         subscriptions = None
 
-    with AuthenticatedAlephHttpClient(
+    async with AuthenticatedAlephHttpClient(
         account=account, api_server=sdk_settings.API_HOST
     ) as client:
         # Upload the source code
@@ -134,7 +134,7 @@ def upload(
             logger.debug("Uploading file")
             user_code: StoreMessage
             status: MessageStatus
-            user_code, status = client.create_store(
+            user_code, status = await client.create_store(
                 file_content=file_content,
                 storage_engine=storage_engine,
                 channel=channel,
@@ -147,7 +147,7 @@ def upload(
             program_ref = user_code.item_hash
 
         # Register the program
-        message, status = client.create_program(
+        message, status = await client.create_program(
             program_ref=program_ref,
             entrypoint=entrypoint,
             runtime=runtime,
@@ -181,7 +181,7 @@ def upload(
 
 
 @app.command()
-def update(
+async def update(
     item_hash: str,
     path: Path,
     private_key: Optional[str] = sdk_settings.PRIVATE_KEY_STRING,
@@ -196,7 +196,7 @@ def update(
     account = _load_account(private_key, private_key_file)
     path = path.absolute()
 
-    with AuthenticatedAlephHttpClient(
+    async with AuthenticatedAlephHttpClient(
         account=account, api_server=sdk_settings.API_HOST
     ) as client:
         program_message: ProgramMessage = client.get_message(
@@ -242,7 +242,7 @@ def update(
 
 
 @app.command()
-def unpersist(
+async def unpersist(
     item_hash: str,
     private_key: Optional[str] = sdk_settings.PRIVATE_KEY_STRING,
     private_key_file: Optional[Path] = sdk_settings.PRIVATE_KEY_FILE,
@@ -254,17 +254,21 @@ def unpersist(
 
     account = _load_account(private_key, private_key_file)
 
-    with AuthenticatedAlephHttpClient(
+    async with AuthenticatedAlephHttpClient(
         account=account, api_server=sdk_settings.API_HOST
     ) as client:
-        existing: MessagesResponse = client.get_messages(hashes=[item_hash])
+        existing: MessagesResponse = await client.get_messages(
+            message_filter=MessageFilter(
+                hashes=[item_hash]
+            )
+        )
         message: ProgramMessage = existing.messages[0]
         content: ProgramContent = message.content.copy()
 
         content.on.persistent = False
         content.replaces = message.item_hash
 
-        message, _status = client.submit(
+        message, _status, _ = await client.submit(
             content=content.dict(exclude_none=True),
             message_type=message.type,
             channel=message.channel,
