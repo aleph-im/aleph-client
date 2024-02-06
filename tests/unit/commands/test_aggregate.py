@@ -40,9 +40,10 @@ def test_aggregate_post(account_file: Path):
     channel = "channel"
     inline = "no-inline"
     sync = "no-sync"
+    debug = "no-debug"
 
     result = runner.invoke(
-        app, ["aggregate", "post", key, content, "--address", address, "--channel", channel, "--inline", inline, "--sync", sync, "--private-key-file", str(account_file)]
+        app, ["aggregate", "post", key, content, "--address", address, "--channel", channel, "--inline", inline, "--sync", sync, "--private-key-file", str(account_file), '--debug', debug]
     )
 
     assert result.exit_code == 0, result.stdout
