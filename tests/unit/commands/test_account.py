@@ -9,8 +9,11 @@ runner = CliRunner()
 
 
 def test_account_address(account_file: Path):
+    private_key = None
+    private_key_file = str(account_file)
+
     result = runner.invoke(
-        app, ["account", "address", "--private-key-file", str(account_file)]
+        app, ["account", "address", "--private-key-file", private_key_file]
     )
 
     assert result.exit_code == 0
@@ -22,8 +25,11 @@ def test_account_address(account_file: Path):
 
 @pytest.mark.skip(reason="Not implemented. It's failing the retrieve the balance for the address.")
 def test_account_balance(account_file: Path):
+    private_key = None
+    private_key_file = str(account_file)
+
     result = runner.invoke(
-        app, ["account", "balance", "--private-key-file", str(account_file)]
+        app, ["account", "balance", "--private-key-file", private_key_file]
     )
 
     assert result.exit_code == 0
