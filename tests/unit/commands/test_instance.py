@@ -1,4 +1,5 @@
 from typer.testing import CliRunner
+from pathlib import Path
 from aleph_client.__main__ import app
 import re
 import pytest
@@ -81,7 +82,7 @@ def test_instance_list(account_file: Path):
 	result = runner.invoke(
 		app, [
 			"instance", "list",
-			"--address", address
+			"--address", address,
 			"--private-key-file", private_key_file,
 			json,
 			debug,
