@@ -12,7 +12,8 @@ runner = CliRunner()
 @pytest.mark.skip(reason="Not implemented.")
 def test_domain_add(account_file: Path):
     fqdn = "aleph.im"
-    private_key = "private_key"
+    private_key = None
+    private_key_file = str(account_file)
     item_hash = "098f6bcd4621d373cade4e832627b4f6"
     target = "ipfs" # {ipfs|program|instance}
     owner = "owner"
@@ -21,8 +22,7 @@ def test_domain_add(account_file: Path):
     result = runner.invoke(
         app, [
             "domain", "add",  fqdn,
-            "--private-key", private_key,
-            "--private-key-file", str(account_file),
+            "--private-key-file", private_key_file,
             "--target", target,
             "--item-hash", item_hash,
             "--owner", owner,
