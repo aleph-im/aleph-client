@@ -46,15 +46,28 @@ def test_program_upload(account_file: Path):
     debug = "--debug" # [--debug|--no-debug]
     persistent = "--persistent" # [--persistent|--no-persistent]
     persistent_volume = "persistent_volume"
+    ephemeral_volume = "ephemeral_volume"
+    immutable_volume = "immutable_volume"
+
 
     result = runner.invoke(
         app, [
             "program", "update", path, entrypoint,
-
-
+            "--channel", channel,
+            "--memory", memory,
+            "--vcpus", vcpus,
+            "--timeout-seconds", timeout_seconds,
             "--private-key-file", private_key_file,
-            print_message,
+            print_messages,
+            print_code_message,
+            print_program_message,
+            "--runtime", runtime,
+            beta,
             debug,
+            persistent,
+            "--persistent-volume", persistent_volume,
+            "--ephemeral-volume", ephemeral_volume,
+            "--immutable-volume", immutable_volume
         ]
     )
 
