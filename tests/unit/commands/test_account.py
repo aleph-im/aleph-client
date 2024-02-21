@@ -27,7 +27,6 @@ def test_account_address(account_file: Path):
     assert len(result.stdout.strip()) == 42
 
 
-@pytest.mark.skip(reason="Not implemented. It's failing the retrieve the balance for the address.")
 def test_account_balance(account_file: Path):
     address = None
     private_key = None
