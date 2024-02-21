@@ -34,7 +34,7 @@ def test_about_version_help():
     result = runner.invoke(
         app, [
             "about",
-            "version"
+            "version",
             "--help"
         ]
     )
@@ -59,7 +59,7 @@ def test_account_address_help():
     result = runner.invoke(
         app, [
             "account",
-            "address"
+            "address",
             "--help"
         ]
     )
@@ -71,19 +71,7 @@ def test_account_balance_help():
     result = runner.invoke(
         app, [
             "account",
-            "address"
-            "--help"
-        ]
-    )
-
-    assert result.exit_code == 0, result.stdout
-
-
-def test_account_balance_help():
-    result = runner.invoke(
-        app, [
-            "account",
-            "balance"
+            "balance",
             "--help"
         ]
     )
@@ -95,7 +83,7 @@ def test_account_create_help():
     result = runner.invoke(
         app, [
             "account",
-            "create"
+            "create",
             "--help"
         ]
     )
@@ -107,7 +95,7 @@ def test_account_export_private_key_help():
     result = runner.invoke(
         app, [
             "account",
-            "export-private-key"
+            "export-private-key",
             "--help"
         ]
     )
@@ -119,7 +107,7 @@ def test_account_path_help():
     result = runner.invoke(
         app, [
             "account",
-            "path"
+            "path",
             "--help"
         ]
     )
@@ -131,7 +119,7 @@ def test_account_sign_bytes():
     result = runner.invoke(
         app, [
             "account",
-            "sign-bytes"
+            "sign-bytes",
             "--help"
         ]
     )
@@ -156,7 +144,7 @@ def test_aggregate_forget_help():
     result = runner.invoke(
         app, [
             "aggregate",
-            "forget"
+            "forget",
             "--help"
         ]
     )
@@ -168,7 +156,7 @@ def test_aggregate_get_help():
     result = runner.invoke(
         app, [
             "aggregate",
-            "get"
+            "get",
             "--help"
         ]
     )
@@ -180,7 +168,7 @@ def test_aggregate_post_help():
     result = runner.invoke(
         app, [
             "aggregate",
-            "post"
+            "post",
             "--help"
         ]
     )
@@ -205,7 +193,7 @@ def test_domain_add_help():
     result = runner.invoke(
         app, [
             "domain",
-            "add"
+            "add",
             "--help"
         ]
     )
@@ -217,7 +205,7 @@ def test_domain_attach_help():
     result = runner.invoke(
         app, [
             "domain",
-            "attach"
+            "attach",
             "--help"
         ]
     )
@@ -229,7 +217,7 @@ def test_domain_detach_help():
     result = runner.invoke(
         app, [
             "domain",
-            "detach"
+            "detach",
             "--help"
         ]
     )
@@ -241,7 +229,7 @@ def test_domain_info_help():
     result = runner.invoke(
         app, [
             "domain",
-            "info"
+            "info",
             "--help"
         ]
     )
@@ -266,7 +254,7 @@ def test_file_download_help():
     result = runner.invoke(
         app, [
             "file",
-            "download"
+            "download",
             "--help"
         ]
     )
@@ -278,7 +266,7 @@ def test_file_forget_help():
     result = runner.invoke(
         app, [
             "file",
-            "forget"
+            "forget",
             "--help"
         ]
     )
@@ -290,7 +278,7 @@ def test_file_list_help():
     result = runner.invoke(
         app, [
             "file",
-            "list"
+            "list",
             "--help"
         ]
     )
@@ -302,7 +290,7 @@ def test_file_pin_help():
     result = runner.invoke(
         app, [
             "file",
-            "pin"
+            "pin",
             "--help"
         ]
     )
@@ -314,7 +302,7 @@ def test_file_upload_help():
     result = runner.invoke(
         app, [
             "file",
-            "upload"
+            "upload",
             "--help"
         ]
     )
@@ -339,7 +327,7 @@ def test_instance_create_help():
     result = runner.invoke(
         app, [
             "instance",
-            "create"
+            "create",
             "--help"
         ]
     )
@@ -351,7 +339,7 @@ def test_instance_delete_help():
     result = runner.invoke(
         app, [
             "instance",
-            "delete"
+            "delete",
             "--help"
         ]
     )
@@ -363,7 +351,7 @@ def test_instance_list_help():
     result = runner.invoke(
         app, [
             "instance",
-            "list"
+            "list",
             "--help"
         ]
     )
@@ -408,11 +396,11 @@ def test_message_find_help():
     assert result.exit_code == 0, result.stdout
 
 
-def test_message_find_help():
+def test_message_forget_help():
     result = runner.invoke(
         app, [
             "message",
-            "find",
+            "forget",
             "--help"
         ]
     )
@@ -420,11 +408,47 @@ def test_message_find_help():
     assert result.exit_code == 0, result.stdout
 
 
-def test_message_forget_help():
+def test_message_get_help():
     result = runner.invoke(
         app, [
             "message",
-            "forget",
+            "get",
+            "--help"
+        ]
+    )
+
+    assert result.exit_code == 0, result.stdout
+
+
+def test_message_post_help():
+    result = runner.invoke(
+        app, [
+            "message",
+            "post",
+            "--help"
+        ]
+    )
+
+    assert result.exit_code == 0, result.stdout
+
+
+def test_message_sign_help():
+    result = runner.invoke(
+        app, [
+            "message",
+            "sign",
+            "--help"
+        ]
+    )
+
+    assert result.exit_code == 0, result.stdout
+
+
+def test_message_watch_help():
+    result = runner.invoke(
+        app, [
+            "message",
+            "watch",
             "--help"
         ]
     )
@@ -445,6 +469,30 @@ def test_node_help():
     assert "Get node info on aleph.im network" in result.stdout
 
 
+def test_node_compute_help():
+    result = runner.invoke(
+        app, [
+            "node",
+            "compute",
+            "--help"
+        ]
+    )
+
+    assert result.exit_code == 0, result.stdout
+
+
+def test_node_core_help():
+    result = runner.invoke(
+        app, [
+            "node",
+            "core",
+            "--help"
+        ]
+    )
+
+    assert result.exit_code == 0, result.stdout
+
+
 def test_program_help():
     result = runner.invoke(
         app, [
@@ -456,3 +504,39 @@ def test_program_help():
     assert result.exit_code == 0, result.stdout
 
     assert "Upload and update programs on aleph.im VM" in result.stdout
+
+
+def test_program_unpersist_help():
+    result = runner.invoke(
+        app, [
+            "program",
+            "unpersist",
+            "--help"
+        ]
+    )
+
+    assert result.exit_code == 0, result.stdout
+
+
+def test_program_update_help():
+    result = runner.invoke(
+        app, [
+            "program",
+            "update",
+            "--help"
+        ]
+    )
+
+    assert result.exit_code == 0, result.stdout
+
+
+def test_program_upload_help():
+    result = runner.invoke(
+        app, [
+            "program",
+            "upload",
+            "--help"
+        ]
+    )
+
+    assert result.exit_code == 0, result.stdout
