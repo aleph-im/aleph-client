@@ -29,8 +29,8 @@ def get_test_message(account: ETHAccount):
 
 @pytest.mark.skip(reason="Not implemented.")
 def test_message_amend(account_file: Path):
-    private_key = None
-    private_key_file = str(account_file)
+    # private_key = None
+    private_key_file = get_account(account_file)
     debug = "--no-debug"
 
     result = runner.invoke(
@@ -46,6 +46,7 @@ def test_message_amend(account_file: Path):
     assert result.exit_code == 0
 
 
+@pytest.mark.skip(reason="Not implemented.")
 def test_message_find():
     pagination = 1
     page = 1
@@ -91,6 +92,29 @@ def test_message_find():
     assert ("bd79839bf96e595a06da5ac0b6ba51dea6f7e2591bb913deccded04d831d29f4" in result.stdout)
 
 
+@pytest.mark.skip(reason="Not implemented.")
+def test_message_forget(account_file: Path):
+    reason = None
+    channel = None
+    # private_key = None
+    private_key_file = get_account(account_file)
+    debug = "--no-debug"
+
+    result = runner.invoke(
+        app,
+        [
+            "message",
+            "forget",
+            "--reason", reason,
+            "--channel", channel,
+            "--private-key-file", private_key_file,
+            debug,
+        ],
+    )
+
+    assert result.exit_code == 0
+
+
 def test_message_get():
     # Use subprocess to avoid border effects between tests caused by the initialisation
     # of the aiohttp client session out of an async context in the SDK. This avoids
@@ -118,11 +142,11 @@ def test_message_post(account_file):
     ).absolute().as_posix()
 
     path = str(test_file_path),
-    type = "test"
+    message_type = "test"
     ref = None
     channel = None
-    private_key = None
-    private_key_file = str(account_file)
+    # private_key = None
+    private_key_file = get_account(account_file)
     debug = "--no-debug"
 
     result = runner.invoke(
@@ -130,8 +154,12 @@ def test_message_post(account_file):
         [
             "message",
             "post",
+            "--path", path,
+            "--type", message_type,
+            "--ref", ref,
+            "--channel", channel,
             "--private-key-file", private_key_file,
-            "--path", path
+            debug
         ],
     )
 
@@ -141,17 +169,19 @@ def test_message_post(account_file):
 
 
 def test_message_sign(account_file):
-    account = get_account(account_file)
-    message = get_test_message(account)
+    # private_key = None
+    private_key_file = get_account(account_file)
+    message = get_test_message(private_key_file)
+    debug = "--no-debug"
+
     result = runner.invoke(
         app,
         [
             "message",
             "sign",
-            "--private-key-file",
-            str(account_file),
-            "--message",
-            json.dumps(message),
+            "--message", json.dumps(message),
+            "--private-key-file", private_key_file,
+            debug
         ],
     )
 
@@ -161,15 +191,19 @@ def test_message_sign(account_file):
 
 
 def test_message_sign_stdin(account_file):
-    account = get_account(account_file)
-    message = get_test_message(account)
+    # private_key = None
+    private_key_file = get_account(account_file)
+    message = get_test_message(private_key_file)
+    debug = "--no-debug"
+
     result = runner.invoke(
         app,
         [
             "message",
             "sign",
-            "--private-key-file",
-            str(account_file),
+            "--message", message,
+            "--private-key-file", private_key_file,
+            debug
         ],
         input=json.dumps(message),
     )
@@ -177,3 +211,20 @@ def test_message_sign_stdin(account_file):
     assert result.exit_code == 0
 
     assert "signature" in result.stdout
+
+
+def test_message_watch(account_file: Path):
+    indent = None
+    debug = "--no-debug"
+
+    result = runner.invoke(
+        app,
+        [
+            "message",
+            "watch",
+            "--indent", indent,
+            debug
+        ],
+    )
+
+    assert result.exit_code == 0
