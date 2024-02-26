@@ -1,4 +1,5 @@
 import re
+import os
 import tempfile
 from pathlib import Path
 
@@ -52,7 +53,7 @@ def test_program_upload(account_file: Path):
 
     result = runner.invoke(
         app, [
-            "program", "update", path, entrypoint,
+            "program", "upload", path, entrypoint,
             "--channel", channel,
             "--memory", memory,
             "--vcpus", vcpus,
@@ -73,6 +74,31 @@ def test_program_upload(account_file: Path):
 
     assert result.exit_code == 0
     assert result.stdout
+
+
+def test_program_upload_01(account_file: Path):
+    #path = Path("./../../fixtures/example_program_upload.zip").absolute()
+    path = Path(os.path.join(
+        Path(__file__).parent.parent.parent, "fixtures", "example_program_upload.zip")
+    ).absolute().as_posix()
+
+    entrypoint = "__init__:app"
+    runtime = "f873715dc2feec3833074bd4b8745363a0e0093746b987b4c8191268883b2463"
+
+    result = runner.invoke(
+        app, [
+            "program", "upload", path, entrypoint,
+            "--runtime", runtime,
+        ]
+    )
+    print("##########################")
+
+    print(result.stdout)
+
+
+    assert result.exit_code == 0
+    assert result.stdout
+
 
 @pytest.mark.skip(reason="Not implemented.")
 def test_program_update(account_file: Path):
@@ -117,6 +143,7 @@ def test_program_update(account_file: Path):
 
 
 def test_program_upload(account_file: Path):
+    item_hash = "item_hash"
     path = tempfile.TemporaryFile()
     entrypoint = "entrypoint"
     channel = "channel"
