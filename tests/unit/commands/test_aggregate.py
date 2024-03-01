@@ -1,10 +1,6 @@
-import textwrap
-
 import re
-
+import textwrap
 from pathlib import Path
-
-import pytest
 from typer.testing import CliRunner
 
 from aleph_client.__main__ import app
@@ -70,8 +66,9 @@ def test_aggregate_post(account_file: Path):
     assert re.fullmatch(pattern, result.stdout)
 
 
+# TODO Stopped here!!!
 def test_aggregate_get(account_file: Path):
-    key = None
+    key = "key"
     address = None
     # private_key = None
     private_key_file = str(account_file)
@@ -85,6 +82,10 @@ def test_aggregate_get(account_file: Path):
             debug
         ]
     )
+
+    print("exit_code:")
+    print(result.exit_code)
+    print("stdout:")
 
     assert result.exit_code == 0, result.stdout
 
