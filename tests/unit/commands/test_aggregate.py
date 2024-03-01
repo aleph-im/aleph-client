@@ -1,3 +1,7 @@
+import textwrap
+
+import re
+
 from pathlib import Path
 
 import pytest
@@ -8,16 +12,15 @@ from aleph_client.__main__ import app
 runner = CliRunner()
 
 
-# TODO Stopped here!!!
 def test_aggregate_post(account_file: Path):
     key = "key"
     content = """{"c": 3, "d": "test"}"""
     address = None
-    # private_key = None
-    private_key_file = str(account_file)
     channel = "channel"
     inline = "--no-inline"
     sync = "--no-sync"
+    # private_key = None
+    private_key_file = str(account_file)
     debug = "--no-debug"
 
     result = runner.invoke(
@@ -33,6 +36,38 @@ def test_aggregate_post(account_file: Path):
     )
 
     assert result.exit_code == 0, result.stdout
+
+    pattern = textwrap.dedent(
+        '''\
+        \{
+            "chain": "ETH",
+            "sender": ".*",
+            "type": "AGGREGATE",
+            "channel": "channel",
+            "confirmations": null,
+            "confirmed": null,
+            "signature": ".*",
+            "size": null,
+            "time": [0-9]+\.[0-9]+,
+            "item_type": "storage",
+            "item_content": null,
+            "hash_type": null,
+            "item_hash": ".*",
+            "content": \{
+                "address": ".*",
+                "time": [0-9]+\.[0-9]+,
+                "key": "key",
+                "content": \{
+                    "c": 3,
+                    "d": "test"
+                \}
+            \},
+            "forgotten_by": null
+        \}
+        '''
+    )
+
+    assert re.fullmatch(pattern, result.stdout)
 
 
 def test_aggregate_get(account_file: Path):
