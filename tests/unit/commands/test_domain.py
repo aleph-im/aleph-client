@@ -16,8 +16,7 @@ def test_domain_add_ipfs(account_file: Path):
     private_key_file = str(account_file)
     target = "ipfs"  # {ipfs|program|instance}
     item_hash = "098f6bcd4621d373cade4e832627b4f6"
-    owner = "owner"
-    ask = "--ask"  # {--ask|--no-ask}
+    owner = None
 
     result = runner.invoke(
         app, [
@@ -26,7 +25,6 @@ def test_domain_add_ipfs(account_file: Path):
             "--target", target,
             "--item-hash", item_hash,
             "--owner", owner,
-            ask
         ]
     )
 
@@ -42,8 +40,7 @@ def test_domain_add_program(account_file: Path):
     private_key_file = str(account_file)
     target = "program"  # {ipfs|program|instance}
     item_hash = "098f6bcd4621d373cade4e832627b4f6"
-    owner = "owner"
-    ask = "--ask"  # {--ask|--no-ask}
+    owner = None
 
     result = runner.invoke(
         app, [
@@ -52,7 +49,6 @@ def test_domain_add_program(account_file: Path):
             "--target", target,
             "--item-hash", item_hash,
             "--owner", owner,
-            ask
         ]
     )
 
@@ -68,8 +64,7 @@ def test_domain_add_instance(account_file: Path):
     private_key_file = str(account_file)
     target = "instance"  # {ipfs|program|instance}
     item_hash = "098f6bcd4621d373cade4e832627b4f6"
-    owner = "owner"
-    ask = "--ask"  # {--ask|--no-ask}
+    owner = None
 
     result = runner.invoke(
         app, [
@@ -78,7 +73,6 @@ def test_domain_add_instance(account_file: Path):
             "--target", target,
             "--item-hash", item_hash,
             "--owner", owner,
-            ask
         ]
     )
 
@@ -128,7 +122,6 @@ def test_domain_detach(account_file: Path):
     assert re.match(pattern, result.stdout)
 
 
-@pytest.mark.skip(reason="Not implemented.")
 def test_domain_info(account_file: Path):
     fqdn = "aleph.im"  # domain
     # private_key = None
