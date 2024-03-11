@@ -1,3 +1,6 @@
+import asyncio
+import json
+import pytest
 import re
 import textwrap
 from pathlib import Path
@@ -8,7 +11,8 @@ from aleph_client.__main__ import app
 runner = CliRunner()
 
 
-def test_aggregate_post(account_file: Path):
+@pytest.fixture
+def fixture_aggregate_post(account_file: Path):
     key = "key"
     content = """{"c": 3, "d": "test"}"""
     address = None
@@ -30,6 +34,12 @@ def test_aggregate_post(account_file: Path):
             debug
         ]
     )
+
+    return result
+
+
+def test_aggregate_post(fixture_aggregate_post):
+    result = fixture_aggregate_post
 
     assert result.exit_code == 0, result.stdout
 
@@ -66,8 +76,10 @@ def test_aggregate_post(account_file: Path):
     assert re.fullmatch(pattern, result.stdout)
 
 
-# TODO Stopped here!!!
-def test_aggregate_get(account_file: Path):
+def test_aggregate_get(account_file: Path, fixture_aggregate_post):
+    # TODO This delay is being necessary for the post to be available. Verify!!!
+    asyncio.run(asyncio.sleep(1))
+
     key = "key"
     address = None
     # private_key = None
@@ -83,29 +95,38 @@ def test_aggregate_get(account_file: Path):
         ]
     )
 
-    print("exit_code:")
-    print(result.exit_code)
-    print("stdout:")
-
     assert result.exit_code == 0, result.stdout
 
+    expected_content = """{"c": 3, "d": "test"}"""
 
-def test_aggregate_forget(account_file: Path):
-    key = None
-    channel = None
+    assert json.dumps(json.loads(expected_content), separators=(',', ':')) == \
+           json.dumps(json.loads(result.stdout), separators=(',', ':'))
+
+
+def test_aggregate_forget(account_file: Path, fixture_aggregate_post):
+    # TODO This delay is being necessary for the post to be available. Verify!!!
+    asyncio.run(asyncio.sleep(1))
+
+    hash = json.loads(fixture_aggregate_post.stdout)["item_hash"]
+
+    key = hash
+    # channel = None
     # private_key = None
     private_key_file = str(account_file)
-    reason = None
-    debug = "--no-debug"
+    # reason = None
+    debug = "--debug"
 
     result = runner.invoke(
         app, [
             "aggregate", "forget", key,
-            "--channel", channel,
-            "--reason", reason,
+            # "--channel", channel,
+            # "--reason", reason,
             "--private-key-file", private_key_file,
             debug
         ]
     )
 
     assert result.exit_code == 0, result.stdout
+
+    pattern = r".*forgotten_by=.*, <MessageStatus.PENDING: 'pending'.*"
+    assert re.match(pattern, result.stdout)
