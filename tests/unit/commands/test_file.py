@@ -33,10 +33,8 @@ def test_file_upload(account_file: Path):
         ],
     )
 
-    print(result.stdout)
     assert result.exit_code == 0
-
-    assert result.stdout is not None
+    assert result.stdout
 
 
 def test_file_download():
