@@ -122,39 +122,3 @@ def test_program_unpersist(account_file: Path, item_hash_upload):
     assert result.stdout
 
     print(result.stdout)
-
-def test_program_unpersist_x(account_file: Path):
-    item_hash = "098f6bcd4621d373cade4e832627b4f6"
-
-    result = runner.invoke(
-        app, ["program", "unpersist", item_hash, "--private-key-file", str(account_file)]
-    )
-
-    assert result.exit_code == 0, result.stdout
-
-
-def test_program_update_x(account_file: Path):
-    item_hash = "098f6bcd4621d373cade4e832627b4f6"
-    path = tempfile.TemporaryFile()
-
-    result = runner.invoke(
-        app, ["program", "update", item_hash, path, "--private-key-file", str(account_file)]
-    )
-
-    assert result.exit_code == 0, result.stdout
-
-
-@pytest.mark.skip(reason="Not implemented.")
-def test_program_upload_x(account_file: Path):
-    item_hash = "item_hash"
-    path = tempfile.TemporaryFile()
-    entrypoint = "entrypoint"
-    channel = "channel"
-    memory = ""
-
-
-    result = runner.invoke(
-        app, ["program", "upload", item_hash, path, "--private-key-file", str(account_file)]
-    )
-
-    assert result.exit_code == 0, result.stdout
