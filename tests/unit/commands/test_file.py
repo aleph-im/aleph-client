@@ -1,4 +1,5 @@
 from pathlib import Path
+import os
 from tempfile import NamedTemporaryFile
 
 from typer.testing import CliRunner
@@ -9,35 +10,33 @@ runner = CliRunner()
 
 
 def test_file_upload(account_file: Path):
-    path = None
-    channel = None
-    private_key = None
+    path = Path(os.path.join(
+        Path(__file__).parent.parent.parent, "fixtures", "anything.txt")
+    ).absolute().as_posix()
+    # channel = None
+    # private_key = None
     private_key_file = str(account_file)
-    ref = None
-    debug = "--no-debug"
+    # ref = None
+    # debug = "--no-debug"
 
     # Test upload a file to aleph network by creating a file and upload it to an aleph node
-    with NamedTemporaryFile() as temp_file:
-        temp_file.write(b"Hello World \n")
+    result = runner.invoke(
+        app,
+        [
+            "file",
+            "upload",
+            path,
+            # "--channel", channel,
+            "--private-key-file", private_key_file,
+            # ref,
+            # debug
+        ],
+    )
 
-        path = temp_file.name
+    print(result.stdout)
+    assert result.exit_code == 0
 
-        result = runner.invoke(
-            app,
-            [
-                "file",
-                "upload",
-                path,
-                "--channel", channel,
-                "--private-key-file", private_key_file,
-                ref,
-                debug
-            ],
-        )
-
-        assert result.exit_code == 0
-
-        assert result.stdout is not None
+    assert result.stdout is not None
 
 
 def test_file_download():
