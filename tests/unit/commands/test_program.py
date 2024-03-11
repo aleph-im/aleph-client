@@ -17,22 +17,22 @@ def test_program_upload(account_file: Path):
     ).absolute().as_posix()
 
     entrypoint = "__init__:app"
-    channel = "channel"
-    memory = "memory"
-    vcpus = "vcpus"
-    timeout_seconds = "tomeout_seconds"
-    private_key = None
-    private_key_file = str(account_file)
-    print_messages = "--print-messages" # [--print-message|--no-print-message]
-    print_code_message = "--print-code-message" # [--print-code-message|--no-print-code-message]
-    print_program_message = "--print-program-message" # [--print-program-message|--no-print-program-message]
+    # channel = "channel"
+    # memory = "memory"
+    # vcpus = "vcpus"
+    # timeout_seconds = "timeout_seconds"
+    # private_key = None
+    # private_key_file = str(account_file)
+    # print_messages = "--print-messages" # [--print-message|--no-print-message]
+    # print_code_message = "--print-code-message" # [--print-code-message|--no-print-code-message]
+    # print_program_message = "--print-program-message" # [--print-program-message|--no-print-program-message]
     runtime = "f873715dc2feec3833074bd4b8745363a0e0093746b987b4c8191268883b2463"
-    beta = "--beta" # [--beta|--no-beta]
-    debug = "--debug" # [--debug|--no-debug]
-    persistent = "--persistent" # [--persistent|--no-persistent]
-    persistent_volume = "persistent_volume"
-    ephemeral_volume = "ephemeral_volume"
-    immutable_volume = "immutable_volume"
+    # beta = "--beta" # [--beta|--no-beta]
+    # debug = "--debug" # [--debug|--no-debug]
+    # persistent = "--persistent" # [--persistent|--no-persistent]
+    # persistent_volume = "persistent_volume"
+    # ephemeral_volume = "ephemeral_volume"
+    # immutable_volume = "immutable_volume"
 
 
     result = runner.invoke(
@@ -76,9 +76,9 @@ def item_hash_upload(account_file: Path):
     )
 
     pattern = r'https://aleph\.sh/vm/(\w+)'
-    matchings = re.findall(pattern, result.stdout)
-    if matchings:
-        item_hash = matchings[0]
+    match = re.findall(pattern, result.stdout)
+    if match:
+        item_hash = match[0]
         return item_hash
 
 
@@ -87,7 +87,7 @@ def test_program_update(account_file: Path, item_hash_upload):
     path = Path(os.path.join(
         Path(__file__).parent.parent.parent, "fixtures", "example_program_upload.zip")
     ).absolute().as_posix()
-    private_key = None
+    # private_key = None
     private_key_file = str(account_file)
     # print_message = "--print-message" # [--print-message|--no-print-message]
     # debug = "--debug" # [--debug|--no-debug]
@@ -96,13 +96,14 @@ def test_program_update(account_file: Path, item_hash_upload):
         app, [
             "program", "update", item_hash, path,
             "--private-key-file", private_key_file
-            #print_message,
-            #debug,
+            # print_message,
+            # debug,
         ]
     )
 
     assert result.exit_code == 0
     assert result.stdout
+
 
 def test_program_unpersist(account_file: Path, item_hash_upload):
     item_hash = item_hash_upload
@@ -120,3 +121,4 @@ def test_program_unpersist(account_file: Path, item_hash_upload):
 
     assert result.exit_code == 0
     assert result.stdout
+    

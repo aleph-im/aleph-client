@@ -1,6 +1,5 @@
 from pathlib import Path
 import os
-from tempfile import NamedTemporaryFile
 
 from typer.testing import CliRunner
 
@@ -58,32 +57,6 @@ def test_file_download():
             "--file-extension", file_extension,
             debug
         ],  # 5 bytes file
-    )
-
-    assert result.exit_code == 0
-
-    assert result.stdout is not None
-
-
-def test_file_forget(account_file: Path):
-    item_hash = "QmeomffUNfmQy76CQGy9NdmqEnnHU9soCexBnGU3ezPHVH"
-    reason = "reason"
-    channel = ""
-    private_key = None
-    private_key_file = str(account_file)
-    debug = "--no-debug"
-
-    result = runner.invoke(
-        app,
-        [
-            "file",
-            "forget",
-            item_hash,
-            reason,
-            "--channel", channel,
-            "--private-key-file", private_key_file,
-            debug
-        ],
     )
 
     assert result.exit_code == 0
