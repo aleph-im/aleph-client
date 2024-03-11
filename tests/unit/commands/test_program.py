@@ -120,5 +120,3 @@ def test_program_unpersist(account_file: Path, item_hash_upload):
 
     assert result.exit_code == 0
     assert result.stdout
-
-    print(result.stdout)
