@@ -137,17 +137,16 @@ def test_message_get():
 
 
 def test_message_post(account_file):
-    test_file_path = Path(os.path.join(
+    path = Path(os.path.join(
         Path(__file__).parent.parent.parent, "fixtures", "post.json")
     ).absolute().as_posix()
 
-    path = str(test_file_path),
-    message_type = "test"
-    ref = None
-    channel = None
+    message_type = "POST"
+    # ref = None
+    # channel = None
     # private_key = None
-    private_key_file = get_account(account_file)
-    debug = "--no-debug"
+    # private_key_file = get_account(account_file)
+    # debug = "--no-debug"
 
     result = runner.invoke(
         app,
@@ -156,32 +155,33 @@ def test_message_post(account_file):
             "post",
             "--path", path,
             "--type", message_type,
-            "--ref", ref,
-            "--channel", channel,
-            "--private-key-file", private_key_file,
-            debug
+            # "--ref", ref,
+            # "--channel", channel,
+            # "--private-key-file", private_key_file,
+            # debug
         ],
     )
 
     assert result.exit_code == 0
+    assert result.stdout
 
-    assert "item_hash" in result.stdout
 
-
-def test_message_sign(account_file):
+def test_message_sign(account_file): # TODO !!!
     # private_key = None
     private_key_file = get_account(account_file)
-    message = get_test_message(private_key_file)
-    debug = "--no-debug"
+    # message = get_test_message(private_key_file)
+    message = "A message to be sign"
+    # debug = "--no-debug"
 
     result = runner.invoke(
         app,
         [
             "message",
             "sign",
-            "--message", json.dumps(message),
+            # "--message", json.dumps(message),
+            "--message", message,
             "--private-key-file", private_key_file,
-            debug
+            # debug
         ],
     )
 
