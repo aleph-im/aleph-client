@@ -58,34 +58,7 @@ def test_program_upload(account_file: Path):
 
     pattern = r"Your program has been uploaded on aleph.im"
     assert re.match(pattern, result.stdout)
-    assert result.exit_code == 0
-    assert result.stdout
-    padrao = r'https://aleph\.sh/vm/(\w+)'
-    correspondencias = re.findall(padrao, result.stdout)
-    if correspondencias:
-        item_hash = correspondencias[0]
 
-
-
-def test_program_update(account_file: Path):
-    item_hash = "item_hash"
-    path = "path"
-    private_key = None
-    private_key_file = str(account_file)
-    print_message = "--print-message" # [--print-message|--no-print-message]
-    debug = "--debug" # [--debug|--no-debug]
-
-    result = runner.invoke(
-        app, [
-            "program", "update", item_hash, path,
-            "--private-key-file", private_key_file,
-            print_message,
-            debug,
-        ]
-    )
-
-    assert result.exit_code == 0
-    assert result.stdout
 
 @pytest.fixture
 def item_hash_upload(account_file: Path):
@@ -107,6 +80,29 @@ def item_hash_upload(account_file: Path):
     if matchings:
         item_hash = matchings[0]
         return item_hash
+
+
+def test_program_update(account_file: Path, item_hash_upload):
+    item_hash = item_hash_upload
+    path = Path(os.path.join(
+        Path(__file__).parent.parent.parent, "fixtures", "example_program_upload.zip")
+    ).absolute().as_posix()
+    private_key = None
+    private_key_file = str(account_file)
+    # print_message = "--print-message" # [--print-message|--no-print-message]
+    # debug = "--debug" # [--debug|--no-debug]
+
+    result = runner.invoke(
+        app, [
+            "program", "update", item_hash, path,
+            "--private-key-file", private_key_file
+            #print_message,
+            #debug,
+        ]
+    )
+
+    assert result.exit_code == 0
+    assert result.stdout
 
 def test_program_unpersist(account_file: Path, item_hash_upload):
     item_hash = item_hash_upload
