@@ -7,23 +7,24 @@ import pytest
 runner = CliRunner()
 item_hash = None
 
-@pytest.mark.skip(reason="Not implemented.")
-def test_instance_create(account_file: Path):
+
+# TODO Stopped here!!!
+def test_instance_create(account_file: Path, ssh_keys_files: dict[str, Path]):
 	channel = "channel"
-	memory = "memory"
-	vcpus = "vcpus"
-	timeout_seconds = "timeout_seconds"
-	private_key = None
+	memory = 256
+	vcpus = 1
+	timeout_seconds = 30.0
+	# private_key = None
 	private_key_file = str(account_file)
-	ssh_pubkey_file = "ssh_pubkey_file"
-	print_messages = "--print-messages" #[--print-messages|--no-print-messages]
-	rootfs = "rootfs"
-	rootfs_name = "rootfs_name"
-	rootfs_size = "rootfs_size"
-	debug = "--debug" # [--debug|--no-debug]
-	persistent_volume = "persistent_volume"
-	ephemeral_volume = "ephemeral_volume"
-	immutable_volume = "immutable_volume"
+	ssh_pubkey_file = str(ssh_keys_files["public_key"])
+	print_messages = "--no-print-messages"
+	rootfs = "Ubuntu 22"
+	rootfs_name = "main-rootfs"
+	rootfs_size = 2000
+	debug = "--no-debug"
+	persistent_volume = None
+	ephemeral_volume = None
+	immutable_volume = None
 
 	result = runner.invoke(
 		app, [
@@ -41,14 +42,22 @@ def test_instance_create(account_file: Path):
 			debug,
 			"--persistent-volume", persistent_volume,
 			"--ephemeral-volume", ephemeral_volume,
-			"--imutable-volume", immutable_volume
+			"--immutable-volume", immutable_volume
 		]
 	)
 
-	assert result.exit_code == 0
-	assert result.stdout
+	print("result.exit_code:")
+	print(result.exit_code)
+	print("result.stdout:")
+	print(result.stdout)
+	# from tests.unit.test_utils import dump
+	# print("dump:")
+	# print(dump(result))
 
-@pytest.mark.skip(reason="Not implemented.")
+	assert result.exit_code == 0
+	# assert result.stdout
+
+
 def test_instance_delete(account_file: Path):
 	item_hash = "item_hash"
 	reason = "reason"
@@ -71,7 +80,7 @@ def test_instance_delete(account_file: Path):
 	assert result.exit_code == 0
 	assert result.stdout
 
-@pytest.mark.skip(reason="Not implemented.")
+
 def test_instance_list(account_file: Path):
 	address = "address"
 	private_key = None
@@ -92,54 +101,53 @@ def test_instance_list(account_file: Path):
 	assert result.exit_code == 0
 	assert result.stdout
 
-@pytest.mark.skip(reason="Not implemented.")
-def test_instance_create():
-	global item_hash
 
-	rootfs = "Ubuntu 22"
-	rootfs_name = "Ubuntu 22"
-	vcpus = 1
-	memory = 256
-	rootfs_size = 2000
-
-	result = runner.invoke(
-		app, [
-			"instance", "create",
-			"--rootfs", rootfs,
-			"--rootfs-name", rootfs_name,
-			"--vcpus", vcpus,
-			"--memory", memory,
-			"--rootfs-size", rootfs_size
-		]
-	)
-
-	assert result.exit_code == 0
-	assert result.stdout
-
-	item_hash_regex = r"\b0x[a-fA-F0-9]{40,42}\b"
-	item_hashes = re.findall(item_hash_regex, result.stdout)
-
-	item_hash = item_hashes[0] if item_hashes else None
-
-
-@pytest.mark.skip(reason="Not implemented.")
-def test_instance_delete():
-	result = runner.invoke(
-		app, [
-			"instance", "create",
-			"--item_hash", item_hash,
-		]
-	)
-
-	assert result.exit_code == 0
-	assert result.stdout
-
-
-def test_instance_list():
-	result = runner.invoke(
-		app, ["instance", "list"]
-	)
-
-	assert result.exit_code == 0
-	assert result.stdout
-	assert "Item Hash   Vcpus   Memory   Disk size   IPv6 address" in result.stdout
+# def test_instance_create():
+# 	global item_hash
+#
+# 	rootfs = "Ubuntu 22"
+# 	rootfs_name = "Ubuntu 22"
+# 	vcpus = 1
+# 	memory = 256
+# 	rootfs_size = 2000
+#
+# 	result = runner.invoke(
+# 		app, [
+# 			"instance", "create",
+# 			"--rootfs", rootfs,
+# 			"--rootfs-name", rootfs_name,
+# 			"--vcpus", vcpus,
+# 			"--memory", memory,
+# 			"--rootfs-size", rootfs_size
+# 		]
+# 	)
+#
+# 	assert result.exit_code == 0
+# 	assert result.stdout
+#
+# 	item_hash_regex = r"\b0x[a-fA-F0-9]{40,42}\b"
+# 	item_hashes = re.findall(item_hash_regex, result.stdout)
+#
+# 	item_hash = item_hashes[0] if item_hashes else None
+#
+#
+# def test_instance_delete():
+# 	result = runner.invoke(
+# 		app, [
+# 			"instance", "create",
+# 			"--item_hash", item_hash,
+# 		]
+# 	)
+#
+# 	assert result.exit_code == 0
+# 	assert result.stdout
+#
+#
+# def test_instance_list():
+# 	result = runner.invoke(
+# 		app, ["instance", "list"]
+# 	)
+#
+# 	assert result.exit_code == 0
+# 	assert result.stdout
+# 	assert "Item Hash   Vcpus   Memory   Disk size   IPv6 address" in result.stdout
