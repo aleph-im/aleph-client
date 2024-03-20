@@ -45,13 +45,14 @@ async def forget(
         message_response = await client.get_messages(
             message_filter=MessageFilter(
                 addresses=[account.get_address()],
-                message_types=[MessageType.aggregate.value],
+                message_types=[MessageType.aggregate],
                 content_keys=[key],
             )
         )
-        hash_list = [message["item_hash"] for message in message_response.messages]
 
-        await client.forget(hashes=hash_list, reason=reason, channel=channel)
+        hash_list = [message.item_hash for message in message_response.messages]
+
+        typer.echo(await client.forget(hashes=hash_list, reason=reason, channel=channel))
 
 
 @app.command()
