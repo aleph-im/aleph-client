@@ -6,21 +6,34 @@ Aggregates
 
 Aggregates are a key-value store specific to an account.
 Each time a new aggregate message is received for a specific account, the
-nodes add a new layer on top and mutate the global storage for this account.
+nodes update the aggregate for this account.
+
+Like a dictionary update, if a key already exists, it is updated,
+otherwise it is created.
 
 Query aggregate of an account
 -----------------------------
 
-To query keys from an account aggregate, you need to call the fetch
-aggregate function.
+To query keys from an account aggregate, you need to call the
+fetch_aggregate function on the client.
 
-Synchronous version:
+Since version 0.8.0, only the asynchronous methods are available.
+To use them in the Python REPL, simply start it with:
+
+.. code-block:: bash
+
+    $ python3 -m asyncio
+
+Then you can use the asynchronous methods:
 
 .. code-block:: python3
 
-    >>> from aleph_client.synchronous import fetch_aggregate
-    >>> fetch_aggregate("0x06DE0C46884EbFF46558Cd1a9e7DA6B1c3E9D0a8",
-    ... "profile")
+    >>> from aleph.sdk.client import AlephHttpClient
+    >>> async with AlephHttpClient() as client:
+    ...     await client.fetch_aggregate(
+    ...         "0x06DE0C46884EbFF46558Cd1a9e7DA6B1c3E9D0a8",
+    ...         "profile",
+    ...     )
     {"bio": "tester", "name": "Moshe on Ethereum"}
 
 
@@ -29,28 +42,30 @@ Mutate aggregate
 
 To mutate an aggregate you need to call the create_aggregate function (it will
 create an AGGREGATE type message for you and submit it).
-You need a valid account to do so.
 
-asynchronous version (assumes you already have an account instanciated):
-
-.. code-block:: python3
-
-    >>> from aleph_client.synchronous import create_aggregate, fetch_aggregate
-    >>> create_aggregate(
-    ...    account, 'testkey', {'a': 1, 'b': 2}, channel='MY_CHANNEL')
-    >>> fetch_aggregate(account.get_address(), 'testkey')
-    {'a': 1, 'b': 2}
-    >>> create_aggregate(
-    ...    account, 'testkey', {'a': 2, 'c': 4}, channel='MY_CHANNEL')
-    >>> fetch_aggregate(account.get_address(), 'testkey')
-    {'a': 2, 'b': 2, 'c': 4}
-
-Asynchronous version is very similar:
+You need a valid account and instantiate an authenticated client:
 
 .. code-block:: python3
 
-    from aleph_client.asynchronous import create_aggregate
-    await create_aggregate(...)
+    >>> from aleph.sdk.chains.ethereum import get_fallback_account
+    >>> from aleph.sdk.client import AuthenticatedAlephHttpClient
+    >>> account = get_fallback_account()
+    >>> async with AuthenticatedAlephHttpClient(account) as client:
+    ...     message, status = await client.create_aggregate(
+    ...         "profile",
+    ...         {"bio": "tester", "name": "Moshe on Ethereum"},
+    ...     )
+    >>> message.content
+    {
+        'key': 'profile',
+        'content': {'bio': 'tester', 'name': 'Moshe on Ethereum'},
+        'address': '0x...',
+        'time': 1689081614.4252806,
+    }
+
+
+Delegate write access to an aggregate key
+-----------------------------------------
 
 If you want to set an aggregate on another address than the one of your
 account, this address should have something similar to this in its
@@ -58,22 +73,35 @@ account, this address should have something similar to this in its
 
 .. code-block:: python3
 
-    >>> fetch_aggregate('TARGET_ADDRESS', 'security')
+    >>> async with AuthenticatedAlephHttpClient(account) as client:
+    >>>     await client.fetch_aggregate('YOUR_ADDRESS', 'security')
     {'authorizations': [
         {
-            'address': 'YOUR_ADDRESS',
+            'address': 'TARGET_ADDRESS',
             'types': ['AGGREGATE]
             'aggregate_keys': ['testkey']
         }
     ]}
 
-To write to this address 'testkey' aggregate key:
+The owner of TARGET_ADDRESS can then set content of the "testkey" key of
+YOUR_ADDRESS's aggregate:
 
 .. code-block:: python3
 
-    >>> create_aggregate(
-    ...    account, 'testkey', {'a': 1, 'b': 2}, channel='MY_CHANNEL',
-    ...    address='TARGET_ADDRESS')
+    >>> async with AuthenticatedAlephHttpClient(account) as client:
+    ...     # Assuming 'account' is TARGET_ADDRESS
+    ...     message, status = await client.create_aggregate(
+    ...         "testkey",
+    ...         {"access": "alien"},
+    ...         address="YOUR_ADDRESS",
+    ...     )
+    >>> message.content
+    {
+        'key': 'testkey',
+        'content': {"access": "alien"},
+        'address': 'TARGET_ADDRESS',
+        'time': 1689081614.4252806,
+    }
 
 
 .. note::
