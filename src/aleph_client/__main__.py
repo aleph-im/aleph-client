@@ -4,7 +4,7 @@ Aleph Client command-line interface.
 
 from aleph_client.utils import AsyncTyper
 
-from .commands import (
+from aleph_client.commands import (
     about,
     account,
     aggregate,
