@@ -183,7 +183,6 @@ async def create(
                 sync=True,
                 rootfs=rootfs,
                 rootfs_size=rootfs_size,
-                rootfs_name="rootfs",
                 storage_engine=StorageEnum.storage,
                 channel=channel,
                 memory=memory,
