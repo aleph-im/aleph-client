@@ -1,7 +1,5 @@
 FROM python:3.9-bullseye
 MAINTAINER The aleph.im project
-SHELL ["/bin/bash", "-c"]
-ENV SHELL=/bin/bash
 
 RUN apt-get update && apt-get -y upgrade && apt-get install -y \
      libsecp256k1-dev \
@@ -39,6 +37,5 @@ ENV ALEPH_PRIVATE_KEY_FILE=/data/secret.key
 
 WORKDIR /home/user
 USER user
-RUN aleph --install-completion bash
 ENTRYPOINT ["aleph"]
 CMD ["--help"]
