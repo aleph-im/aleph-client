@@ -58,6 +58,73 @@ async def check_domain_records(fqdn, target, owner):
     return status
 
 
+async def attach_resource(
+    account: AccountFromPrivateKey,
+    fqdn: Hostname,
+    item_hash: Optional[str] = None,
+    spa: Optional[bool] = None,
+    interactive: Optional[bool] = None,
+):
+    interactive = is_environment_interactive() if interactive is None else interactive
+
+    domain_info = await get_aggregate_domain_info(account, fqdn)
+    console = Console()
+
+    while not item_hash:
+        item_hash = Prompt.ask("Enter Hash reference of the resource to attach")
+
+    while not spa:
+        spa = Prompt.ask("It is an SPA application?", choices=["y", "n"], default="n")
+
+    table = Table(title=f"Attach resource to: {fqdn}")
+    table.add_column("Current resource", justify="right", style="red", no_wrap=True)
+    table.add_column("New resource", justify="right", style="green", no_wrap=True)
+    table.add_column("Resource type", style="magenta")
+
+    """
+    Detect target type on the fly to be able to switch to another type
+    """
+    resource_type = await get_target_type(fqdn)
+
+    if domain_info is not None and domain_info.get("info"):
+        current_resource = domain_info["info"]["message_id"]
+    else:
+        current_resource = "null"
+
+    table.add_row(
+        f"{current_resource[:16]}...{current_resource[-16:]}",
+        f"{item_hash[:16]}...{item_hash[-16:]}",
+        resource_type,
+    )
+
+    console.print(table)
+
+    if (not interactive) or Confirm.ask("Continue"):
+        """Create aggregate message"""
+
+        async with AuthenticatedAlephHttpClient(
+            account=account, api_server=sdk_settings.API_HOST
+        ) as client:
+            aggregate_content = {
+                fqdn: {
+                    "message_id": item_hash,
+                    "type": resource_type,
+                    # console page compatibility
+                    "programType": resource_type,
+                    "spa": "1" if spa else "0",
+                }
+            }
+
+            aggregate_message, message_status = await client.create_aggregate(
+                key="domains", content=aggregate_content, channel="ALEPH-CLOUDSOLUTIONS"
+            )
+
+            console.log("[green bold]Resource attached!")
+            console.log(
+                f"Visualise on: https://explorer.aleph.im/address/ETH/{account.get_address()}/message/AGGREGATE/{aggregate_message.item_hash}"
+            )
+
+
 async def detach_resource(
     account: AccountFromPrivateKey, fqdn: Hostname, interactive: Optional[bool] = None
 ):
@@ -96,68 +163,6 @@ async def detach_resource(
             )
 
             console.log("[green bold]Resource detached!")
-            console.log(
-                f"Visualise on: https://explorer.aleph.im/address/ETH/{account.get_address()}/message/AGGREGATE/{aggregate_message.item_hash}"
-            )
-
-
-async def attach_resource(
-    account: AccountFromPrivateKey,
-    fqdn: Hostname,
-    item_hash: Optional[str] = None,
-    interactive: Optional[bool] = None,
-):
-    interactive = is_environment_interactive() if interactive is None else interactive
-
-    domain_info = await get_aggregate_domain_info(account, fqdn)
-    console = Console()
-
-    while not item_hash:
-        item_hash = Prompt.ask("Enter Hash reference of the resource to attach")
-
-    table = Table(title=f"Attach resource to: {fqdn}")
-    table.add_column("Current resource", justify="right", style="red", no_wrap=True)
-    table.add_column("New resource", justify="right", style="green", no_wrap=True)
-    table.add_column("Resource type", style="magenta")
-
-    """
-    Detect target type on the fly to be able to switch to another type
-    """
-    resource_type = await get_target_type(fqdn)
-
-    if domain_info is not None and domain_info.get("info"):
-        current_resource = domain_info["info"]["message_id"]
-    else:
-        current_resource = "null"
-
-    table.add_row(
-        f"{current_resource[:16]}...{current_resource[-16:]}",
-        f"{item_hash[:16]}...{item_hash[-16:]}",
-        resource_type,
-    )
-
-    console.print(table)
-
-    if (not interactive) or Confirm.ask("Continue"):
-        """Create aggregate message"""
-
-        async with AuthenticatedAlephHttpClient(
-            account=account, api_server=sdk_settings.API_HOST
-        ) as client:
-            aggregate_content = {
-                fqdn: {
-                    "message_id": item_hash,
-                    "type": resource_type,
-                    # console page compatibility
-                    "programType": resource_type,
-                }
-            }
-
-            aggregate_message, message_status = await client.create_aggregate(
-                key="domains", content=aggregate_content, channel="ALEPH-CLOUDSOLUTIONS"
-            )
-
-            console.log("[green bold]Resource attached!")
             console.log(
                 f"Visualise on: https://explorer.aleph.im/address/ETH/{account.get_address()}/message/AGGREGATE/{aggregate_message.item_hash}"
             )
@@ -268,13 +273,14 @@ async def attach(
     item_hash: Optional[str] = typer.Option(
         None, help=help_strings.CUSTOM_DOMAIN_ITEM_HASH
     ),
+    spa: bool = typer.Option(default=False, help=help_strings.IPFS_SPA),
     ask: bool = typer.Option(default=True, help=help_strings.ASK_FOR_CONFIRMATION),
 ):
     """Attach resource to a Custom Domain."""
     account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
 
     await attach_resource(
-        account, Hostname(fqdn), item_hash, interactive=False if (not ask) else None
+        account, Hostname(fqdn), item_hash, interactive=False if (not ask) else None, spa=True if spa else None
     )
     raise typer.Exit()
 
@@ -324,19 +330,22 @@ async def info(
     table.add_column("Resource type", justify="right", style="cyan", no_wrap=True)
     table.add_column("Attached resource", justify="right", style="cyan", no_wrap=True)
     table.add_column("Target resource", justify="right", style="cyan", no_wrap=True)
+    table.add_column("SPA", justify="right", style="cyan", no_wrap=True)
 
     resource_type = TargetType(domain_info["info"]["type"])
     final_resource = "Unknown"
 
+    is_spa = ""
     if resource_type == TargetType.IPFS:
         final_resource = ""
+        is_spa = "True" if "spa" in domain_info["info"] and domain_info["info"]["spa"] == "1" else "False"
     elif resource_type == TargetType.PROGRAM:
         final_resource = domain_info["info"]["message_id"]
     if resource_type == TargetType.INSTANCE:
         ips = await domain_validator.get_ipv6_addresses(Hostname(fqdn))
         final_resource = ",".join([str(ip) for ip in ips])
 
-    table.add_row(resource_type, domain_info["info"]["message_id"], final_resource)
+    table.add_row(resource_type, domain_info["info"]["message_id"], final_resource, is_spa)
 
     console.print(table)
     raise typer.Exit()
