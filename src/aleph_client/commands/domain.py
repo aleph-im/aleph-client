@@ -74,7 +74,8 @@ async def attach_resource(
         item_hash = Prompt.ask("Enter Hash reference of the resource to attach")
 
     while not spa:
-        spa = Prompt.ask("It is an SPA application?", choices=["y", "n"], default="n")
+        is_spa: str = Prompt.ask("It is an SPA application?", choices=["y", "n"], default="n")
+        spa = True if is_spa == "y" else False
 
     table = Table(title=f"Attach resource to: {fqdn}")
     table.add_column("Current resource", justify="right", style="red", no_wrap=True)
