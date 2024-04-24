@@ -33,7 +33,7 @@ from aleph_client.conf import settings
 from aleph_client.utils import AsyncTyper
 
 logger = logging.getLogger(__name__)
-app = AsyncTyper()
+app = AsyncTyper(no_args_is_help=True)
 
 
 def load_ssh_pubkey(ssh_pubkey_file: Path) -> str:

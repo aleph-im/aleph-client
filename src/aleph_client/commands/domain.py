@@ -25,7 +25,7 @@ from aleph_client.commands import help_strings
 from aleph_client.commands.utils import is_environment_interactive
 from aleph_client.utils import AsyncTyper
 
-app = AsyncTyper()
+app = AsyncTyper(no_args_is_help=True)
 
 
 async def get_aggregate_domain_info(account, fqdn):
