@@ -3,7 +3,7 @@ from pkg_resources import get_distribution
 
 from aleph_client.utils import AsyncTyper
 
-app = AsyncTyper()
+app = AsyncTyper(no_args_is_help=True)
 
 
 def get_version(value: bool):
