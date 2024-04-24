@@ -27,7 +27,7 @@ class Settings(BaseSettings):
 
     DEFAULT_CHANNEL: str = "TEST"
     DEFAULT_RUNTIME_ID: str = (
-        "bd79839bf96e595a06da5ac0b6ba51dea6f7e2591bb913deccded04d831d29f4"
+        "63f07193e6ee9d207b7d1fcf8286f9aee34e6f12f101d2ec77c1229f92964696"
     )
     DEBIAN_11_ROOTFS_ID: str = (
         "887957042bb0e360da3485ed33175882ce72a70d79f1ba599400ff4802b7cee7"
