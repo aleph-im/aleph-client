@@ -1,8 +1,11 @@
 import json
 import os
-import pytest
+import signal
+import subprocess
+import time
 from pathlib import Path
 
+import pytest
 from aleph.sdk.chains.ethereum import ETHAccount
 from typer.testing import CliRunner
 
@@ -35,12 +38,7 @@ def test_message_amend(account_file: Path):
 
     result = runner.invoke(
         app,
-        [
-            "message",
-            "amend",
-            "--private-key-file", private_key_file,
-            debug
-        ],
+        ["message", "amend", "--private-key-file", private_key_file, debug],
     )
 
     assert result.exit_code == 0
@@ -50,17 +48,9 @@ def test_message_amend(account_file: Path):
 def test_message_find():
     pagination = 1
     page = 1
-    message_types = None
-    content_types = None
-    content_keys = None
-    refs = None
-    addresses = None
-    tags = None
     hashes = "bd79839bf96e595a06da5ac0b6ba51dea6f7e2591bb913deccded04d831d29f4"
-    channels = None
     chains = "ETH"
     start_date = 1234
-    end_date = None
     ignore_invalid_messages = "--no-ignore-invalid-messages"
 
     result = runner.invoke(
@@ -68,20 +58,18 @@ def test_message_find():
         [
             "message",
             "find",
-            "--pagination", pagination,
-            "--page", page,
-            "--message-types", message_types,
-            "--content-types", content_types,
-            "--content-keys", content_keys,
-            "--refs", refs,
-            "--addresses", addresses,
-            "--tags", tags,
-            "--hashes", hashes,
-            "--channels", channels,
-            "--chains", chains,
-            "--start-date", start_date,
-            "--end-date", end_date,
-            "--ignore-invalid-messages", ignore_invalid_messages
+            "--pagination",
+            pagination,
+            "--page",
+            page,
+            "--hashes",
+            hashes,
+            "--chains",
+            chains,
+            "--start-date",
+            start_date,
+            "--ignore-invalid-messages",
+            ignore_invalid_messages,
         ],
     )
 
@@ -89,14 +77,14 @@ def test_message_find():
 
     assert "0x101d8D16372dBf5f1614adaE95Ee5CCE61998Fc9" in result.stdout
 
-    assert ("bd79839bf96e595a06da5ac0b6ba51dea6f7e2591bb913deccded04d831d29f4" in result.stdout)
+    assert (
+        "bd79839bf96e595a06da5ac0b6ba51dea6f7e2591bb913deccded04d831d29f4"
+        in result.stdout
+    )
 
 
 @pytest.mark.skip(reason="Not implemented.")
 def test_message_forget(account_file: Path):
-    reason = None
-    channel = None
-    # private_key = None
     private_key_file = get_account(account_file)
     debug = "--no-debug"
 
@@ -105,9 +93,8 @@ def test_message_forget(account_file: Path):
         [
             "message",
             "forget",
-            "--reason", reason,
-            "--channel", channel,
-            "--private-key-file", private_key_file,
+            "--private-key-file",
+            private_key_file,
             debug,
         ],
     )
@@ -137,28 +124,23 @@ def test_message_get():
 
 
 def test_message_post(account_file):
-    path = Path(os.path.join(
-        Path(__file__).parent.parent.parent, "fixtures", "post.json")
-    ).absolute().as_posix()
+    path = (
+        Path(os.path.join(Path(__file__).parent.parent.parent, "fixtures", "post.json"))
+        .absolute()
+        .as_posix()
+    )
 
     message_type = "POST"
-    # ref = None
-    # channel = None
-    # private_key = None
-    # private_key_file = get_account(account_file)
-    # debug = "--no-debug"
 
     result = runner.invoke(
         app,
         [
             "message",
             "post",
-            "--path", path,
-            "--type", message_type,
-            # "--ref", ref,
-            # "--channel", channel,
-            # "--private-key-file", private_key_file,
-            # debug
+            "--path",
+            path,
+            "--type",
+            message_type,
         ],
     )
 
@@ -166,22 +148,19 @@ def test_message_post(account_file):
     assert result.stdout
 
 
-def test_message_sign(account_file): # TODO !!!
-    # private_key = None
-    private_key_file = get_account(account_file)
-    # message = get_test_message(private_key_file)
-    message = "A message to be sign"
-    # debug = "--no-debug"
+def test_message_sign(account_file):
+    private_key_file = account_file
+    message = json.dumps(get_test_message(get_account(private_key_file)))
 
     result = runner.invoke(
         app,
         [
             "message",
             "sign",
-            # "--message", json.dumps(message),
-            "--message", message,
-            "--private-key-file", private_key_file,
-            # debug
+            "--message",
+            message,
+            "--private-key-file",
+            private_key_file,
         ],
     )
 
@@ -191,19 +170,16 @@ def test_message_sign(account_file): # TODO !!!
 
 
 def test_message_sign_stdin(account_file):
-    # private_key = None
-    private_key_file = get_account(account_file)
-    message = get_test_message(private_key_file)
-    debug = "--no-debug"
+    private_key_file = account_file
+    message = get_test_message(get_account(private_key_file))
 
     result = runner.invoke(
         app,
         [
             "message",
             "sign",
-            "--message", message,
-            "--private-key-file", private_key_file,
-            debug
+            "--private-key-file",
+            private_key_file,
         ],
         input=json.dumps(message),
     )
@@ -214,17 +190,14 @@ def test_message_sign_stdin(account_file):
 
 
 def test_message_watch(account_file: Path):
-    indent = None
-    debug = "--no-debug"
+    debug = "--debug"
+    message_ref = "bd79839bf96e595a06da5ac0b6ba51dea6f7e2591bb913deccded04d831d29f4"
 
-    result = runner.invoke(
-        app,
-        [
-            "message",
-            "watch",
-            "--indent", indent,
-            debug
-        ],
-    )
+    # runs indefinitely, we should just check if stdout prints something after some time and then kill the process
+    proc = subprocess.Popen(["aleph", "message", "watch", message_ref, debug])
+    time.sleep(1)
+    proc.send_signal(signal.SIGINT)
+    # Wait for the process to complete
+    proc.wait()
 
-    assert result.exit_code == 0
+    assert proc.returncode == 130  # SIGINT

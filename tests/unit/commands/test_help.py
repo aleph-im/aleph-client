@@ -6,11 +6,7 @@ runner = CliRunner()
 
 
 def test_root_help():
-    result = runner.invoke(
-        app, [
-            "--help"
-        ]
-    )
+    result = runner.invoke(app, ["--help"])
 
     assert result.exit_code == 0, result.stdout
 
@@ -18,12 +14,7 @@ def test_root_help():
 
 
 def test_about_help():
-    result = runner.invoke(
-        app, [
-            "about",
-            "--help"
-        ]
-    )
+    result = runner.invoke(app, ["about", "--help"])
 
     assert result.exit_code == 0, result.stdout
 
@@ -31,24 +22,13 @@ def test_about_help():
 
 
 def test_about_version_help():
-    result = runner.invoke(
-        app, [
-            "about",
-            "version",
-            "--help"
-        ]
-    )
+    result = runner.invoke(app, ["about", "version", "--help"])
 
     assert result.exit_code == 0, result.stdout
 
 
 def test_account_help():
-    result = runner.invoke(
-        app, [
-            "account",
-            "--help"
-        ]
-    )
+    result = runner.invoke(app, ["account", "--help"])
 
     assert result.exit_code == 0, result.stdout
 
@@ -56,84 +36,43 @@ def test_account_help():
 
 
 def test_account_address_help():
-    result = runner.invoke(
-        app, [
-            "account",
-            "address",
-            "--help"
-        ]
-    )
+    result = runner.invoke(app, ["account", "address", "--help"])
 
     assert result.exit_code == 0, result.stdout
 
 
 def test_account_balance_help():
-    result = runner.invoke(
-        app, [
-            "account",
-            "balance",
-            "--help"
-        ]
-    )
+    result = runner.invoke(app, ["account", "balance", "--help"])
 
     assert result.exit_code == 0, result.stdout
 
 
 def test_account_create_help():
-    result = runner.invoke(
-        app, [
-            "account",
-            "create",
-            "--help"
-        ]
-    )
+    result = runner.invoke(app, ["account", "create", "--help"])
 
     assert result.exit_code == 0, result.stdout
 
 
 def test_account_export_private_key_help():
-    result = runner.invoke(
-        app, [
-            "account",
-            "export-private-key",
-            "--help"
-        ]
-    )
+    result = runner.invoke(app, ["account", "export-private-key", "--help"])
 
     assert result.exit_code == 0, result.stdout
 
 
 def test_account_path_help():
-    result = runner.invoke(
-        app, [
-            "account",
-            "path",
-            "--help"
-        ]
-    )
+    result = runner.invoke(app, ["account", "path", "--help"])
 
     assert result.exit_code == 0, result.stdout
 
 
 def test_account_sign_bytes():
-    result = runner.invoke(
-        app, [
-            "account",
-            "sign-bytes",
-            "--help"
-        ]
-    )
+    result = runner.invoke(app, ["account", "sign-bytes", "--help"])
 
     assert result.exit_code == 0, result.stdout
 
 
 def test_aggregate_help():
-    result = runner.invoke(
-        app, [
-            "aggregate",
-            "--help"
-        ]
-    )
+    result = runner.invoke(app, ["aggregate", "--help"])
 
     assert result.exit_code == 0, result.stdout
 
@@ -141,48 +80,25 @@ def test_aggregate_help():
 
 
 def test_aggregate_forget_help():
-    result = runner.invoke(
-        app, [
-            "aggregate",
-            "forget",
-            "--help"
-        ]
-    )
+    result = runner.invoke(app, ["aggregate", "forget", "--help"])
 
     assert result.exit_code == 0, result.stdout
 
 
 def test_aggregate_get_help():
-    result = runner.invoke(
-        app, [
-            "aggregate",
-            "get",
-            "--help"
-        ]
-    )
+    result = runner.invoke(app, ["aggregate", "get", "--help"])
 
     assert result.exit_code == 0, result.stdout
 
 
 def test_aggregate_post_help():
-    result = runner.invoke(
-        app, [
-            "aggregate",
-            "post",
-            "--help"
-        ]
-    )
+    result = runner.invoke(app, ["aggregate", "post", "--help"])
 
     assert result.exit_code == 0, result.stdout
 
 
 def test_domain_help():
-    result = runner.invoke(
-        app, [
-            "domain",
-            "--help"
-        ]
-    )
+    result = runner.invoke(app, ["domain", "--help"])
 
     assert result.exit_code == 0, result.stdout
 
@@ -190,60 +106,31 @@ def test_domain_help():
 
 
 def test_domain_add_help():
-    result = runner.invoke(
-        app, [
-            "domain",
-            "add",
-            "--help"
-        ]
-    )
+    result = runner.invoke(app, ["domain", "add", "--help"])
 
     assert result.exit_code == 0, result.stdout
 
 
 def test_domain_attach_help():
-    result = runner.invoke(
-        app, [
-            "domain",
-            "attach",
-            "--help"
-        ]
-    )
+    result = runner.invoke(app, ["domain", "attach", "--help"])
 
     assert result.exit_code == 0, result.stdout
 
 
 def test_domain_detach_help():
-    result = runner.invoke(
-        app, [
-            "domain",
-            "detach",
-            "--help"
-        ]
-    )
+    result = runner.invoke(app, ["domain", "detach", "--help"])
 
     assert result.exit_code == 0, result.stdout
 
 
 def test_domain_info_help():
-    result = runner.invoke(
-        app, [
-            "domain",
-            "info",
-            "--help"
-        ]
-    )
+    result = runner.invoke(app, ["domain", "info", "--help"])
 
     assert result.exit_code == 0, result.stdout
 
 
 def test_file_help():
-    result = runner.invoke(
-        app, [
-            "file",
-            "--help"
-        ]
-    )
+    result = runner.invoke(app, ["file", "--help"])
 
     assert result.exit_code == 0, result.stdout
 
@@ -251,72 +138,37 @@ def test_file_help():
 
 
 def test_file_download_help():
-    result = runner.invoke(
-        app, [
-            "file",
-            "download",
-            "--help"
-        ]
-    )
+    result = runner.invoke(app, ["file", "download", "--help"])
 
     assert result.exit_code == 0, result.stdout
 
 
 def test_file_forget_help():
-    result = runner.invoke(
-        app, [
-            "file",
-            "forget",
-            "--help"
-        ]
-    )
+    result = runner.invoke(app, ["file", "forget", "--help"])
 
     assert result.exit_code == 0, result.stdout
 
 
 def test_file_list_help():
-    result = runner.invoke(
-        app, [
-            "file",
-            "list",
-            "--help"
-        ]
-    )
+    result = runner.invoke(app, ["file", "list", "--help"])
 
     assert result.exit_code == 0, result.stdout
 
 
 def test_file_pin_help():
-    result = runner.invoke(
-        app, [
-            "file",
-            "pin",
-            "--help"
-        ]
-    )
+    result = runner.invoke(app, ["file", "pin", "--help"])
 
     assert result.exit_code == 0, result.stdout
 
 
 def test_file_upload_help():
-    result = runner.invoke(
-        app, [
-            "file",
-            "upload",
-            "--help"
-        ]
-    )
+    result = runner.invoke(app, ["file", "upload", "--help"])
 
     assert result.exit_code == 0, result.stdout
 
 
 def test_instance_help():
-    result = runner.invoke(
-        app, [
-            "instance",
-            "--help"
-        ]
-    )
+    result = runner.invoke(app, ["instance", "--help"])
 
     assert result.exit_code == 0, result.stdout
 
@@ -324,48 +176,25 @@ def test_instance_help():
 
 
 def test_instance_create_help():
-    result = runner.invoke(
-        app, [
-            "instance",
-            "create",
-            "--help"
-        ]
-    )
+    result = runner.invoke(app, ["instance", "create", "--help"])
 
     assert result.exit_code == 0, result.stdout
 
 
 def test_instance_delete_help():
-    result = runner.invoke(
-        app, [
-            "instance",
-            "delete",
-            "--help"
-        ]
-    )
+    result = runner.invoke(app, ["instance", "delete", "--help"])
 
     assert result.exit_code == 0, result.stdout
 
 
 def test_instance_list_help():
-    result = runner.invoke(
-        app, [
-            "instance",
-            "list",
-            "--help"
-        ]
-    )
+    result = runner.invoke(app, ["instance", "list", "--help"])
 
     assert result.exit_code == 0, result.stdout
 
 
 def test_message_help():
-    result = runner.invoke(
-        app, [
-            "message",
-            "--help"
-        ]
-    )
+    result = runner.invoke(app, ["message", "--help"])
 
     assert result.exit_code == 0, result.stdout
 
@@ -373,96 +202,49 @@ def test_message_help():
 
 
 def test_message_amend_help():
-    result = runner.invoke(
-        app, [
-            "message",
-            "amend",
-            "--help"
-        ]
-    )
+    result = runner.invoke(app, ["message", "amend", "--help"])
 
     assert result.exit_code == 0, result.stdout
 
 
 def test_message_find_help():
-    result = runner.invoke(
-        app, [
-            "message",
-            "find",
-            "--help"
-        ]
-    )
+    result = runner.invoke(app, ["message", "find", "--help"])
 
     assert result.exit_code == 0, result.stdout
 
 
 def test_message_forget_help():
-    result = runner.invoke(
-        app, [
-            "message",
-            "forget",
-            "--help"
-        ]
-    )
+    result = runner.invoke(app, ["message", "forget", "--help"])
 
     assert result.exit_code == 0, result.stdout
 
 
 def test_message_get_help():
-    result = runner.invoke(
-        app, [
-            "message",
-            "get",
-            "--help"
-        ]
-    )
+    result = runner.invoke(app, ["message", "get", "--help"])
 
     assert result.exit_code == 0, result.stdout
 
 
 def test_message_post_help():
-    result = runner.invoke(
-        app, [
-            "message",
-            "post",
-            "--help"
-        ]
-    )
+    result = runner.invoke(app, ["message", "post", "--help"])
 
     assert result.exit_code == 0, result.stdout
 
 
 def test_message_sign_help():
-    result = runner.invoke(
-        app, [
-            "message",
-            "sign",
-            "--help"
-        ]
-    )
+    result = runner.invoke(app, ["message", "sign", "--help"])
 
     assert result.exit_code == 0, result.stdout
 
 
 def test_message_watch_help():
-    result = runner.invoke(
-        app, [
-            "message",
-            "watch",
-            "--help"
-        ]
-    )
+    result = runner.invoke(app, ["message", "watch", "--help"])
 
     assert result.exit_code == 0, result.stdout
 
 
 def test_node_help():
-    result = runner.invoke(
-        app, [
-            "node",
-            "--help"
-        ]
-    )
+    result = runner.invoke(app, ["node", "--help"])
 
     assert result.exit_code == 0, result.stdout
 
@@ -470,36 +252,19 @@ def test_node_help():
 
 
 def test_node_compute_help():
-    result = runner.invoke(
-        app, [
-            "node",
-            "compute",
-            "--help"
-        ]
-    )
+    result = runner.invoke(app, ["node", "compute", "--help"])
 
     assert result.exit_code == 0, result.stdout
 
 
 def test_node_core_help():
-    result = runner.invoke(
-        app, [
-            "node",
-            "core",
-            "--help"
-        ]
-    )
+    result = runner.invoke(app, ["node", "core", "--help"])
 
     assert result.exit_code == 0, result.stdout
 
 
 def test_program_help():
-    result = runner.invoke(
-        app, [
-            "program",
-            "--help"
-        ]
-    )
+    result = runner.invoke(app, ["program", "--help"])
 
     assert result.exit_code == 0, result.stdout
 
@@ -507,36 +272,18 @@ def test_program_help():
 
 
 def test_program_unpersist_help():
-    result = runner.invoke(
-        app, [
-            "program",
-            "unpersist",
-            "--help"
-        ]
-    )
+    result = runner.invoke(app, ["program", "unpersist", "--help"])
 
     assert result.exit_code == 0, result.stdout
 
 
 def test_program_update_help():
-    result = runner.invoke(
-        app, [
-            "program",
-            "update",
-            "--help"
-        ]
-    )
+    result = runner.invoke(app, ["program", "update", "--help"])
 
     assert result.exit_code == 0, result.stdout
 
 
 def test_program_upload_help():
-    result = runner.invoke(
-        app, [
-            "program",
-            "upload",
-            "--help"
-        ]
-    )
+    result = runner.invoke(app, ["program", "upload", "--help"])
 
     assert result.exit_code == 0, result.stdout

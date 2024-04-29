@@ -1,5 +1,6 @@
 import json
 import logging
+import os
 from base64 import b16decode, b32encode
 from pathlib import Path
 from typing import Dict, List, Optional
@@ -11,23 +12,17 @@ from aleph.sdk.account import _load_account
 from aleph.sdk.conf import settings as sdk_settings
 from aleph.sdk.query.filters import MessageFilter
 from aleph.sdk.types import AccountFromPrivateKey, StorageEnum
-from aleph_client.commands import help_strings
-from aleph_client.commands.utils import (
-    get_or_prompt_volumes,
-    input_multiline,
-    setup_logging,
-    yes_no_input,
-)
-from aleph_client.conf import settings
-from aleph_client.utils import AsyncTyper, create_archive
-from aleph_message.models import (
-    ItemHash,
-    MessagesResponse,
-    ProgramContent,
-    ProgramMessage,
-    StoreMessage,
-)
+from aleph_message.models import (ItemHash, MessagesResponse, ProgramContent,
+                                  ProgramMessage, StoreMessage)
 from aleph_message.status import MessageStatus
+
+from aleph_client.commands import help_strings
+from aleph_client.commands.utils import (get_or_prompt_volumes,
+                                         input_multiline, setup_logging,
+                                         yes_no_input)
+from aleph_client.conf import settings
+from aleph_client.exit_codes import exit_with_error_message
+from aleph_client.utils import AsyncTyper, create_archive
 
 logger = logging.getLogger(__name__)
 app = AsyncTyper(no_args_is_help=True)
@@ -87,11 +82,9 @@ async def upload(
     try:
         path_object, encoding = create_archive(path)
     except BadZipFile:
-        typer.echo("Invalid zip archive")
-        raise typer.Exit(3)
+        exit_with_error_message(os.EX_DATAERR, f"Invalid zip archive: {path}")
     except FileNotFoundError:
-        typer.echo("No such file or directory")
-        raise typer.Exit(4)
+        exit_with_error_message(os.EX_NOINPUT, f"No such file or directory: {path}")
 
     account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
 
@@ -113,8 +106,9 @@ async def upload(
         try:
             subscriptions = json.loads(content_raw)
         except json.decoder.JSONDecodeError:
-            typer.echo("Not valid JSON")
-            raise typer.Exit(code=2)
+            exit_with_error_message(
+                os.EX_DATAERR, "Invalid JSON for content. Please provide valid JSON."
+            )
     else:
         subscriptions = None
 
@@ -210,18 +204,16 @@ async def update(
         try:
             path, encoding = create_archive(path)
         except BadZipFile:
-            typer.echo("Invalid zip archive")
-            raise typer.Exit(3)
+            exit_with_error_message(os.EX_DATAERR, f"Invalid zip archive: {path}")
         except FileNotFoundError:
-            typer.echo("No such file or directory")
-            raise typer.Exit(4)
+            exit_with_error_message(os.EX_NOINPUT, f"No such file or directory: {path}")
 
         if encoding != program_message.content.code.encoding:
-            logger.error(
+            exit_with_error_message(
+                os.EX_DATAERR,
                 f"Code must be encoded with the same encoding as the previous version "
-                f"('{encoding}' vs '{program_message.content.code.encoding}'"
+                f"('{encoding}' vs '{program_message.content.code.encoding}'",
             )
-            raise typer.Exit(1)
 
         # Upload the source code
         with open(path, "rb") as fd:
@@ -231,7 +223,7 @@ async def update(
             logger.debug("Uploading file")
             message, status = client.create_store(
                 file_content=file_content,
-                storage_engine=code_message.content.item_type,
+                storage_engine=StorageEnum(code_message.content.item_type),
                 channel=code_message.channel,
                 guess_mime_type=True,
                 ref=code_message.item_hash,
@@ -258,9 +250,7 @@ async def unpersist(
         account=account, api_server=sdk_settings.API_HOST
     ) as client:
         existing: MessagesResponse = await client.get_messages(
-            message_filter=MessageFilter(
-                hashes=[item_hash]
-            )
+            message_filter=MessageFilter(hashes=[item_hash])
         )
         message: ProgramMessage = existing.messages[0]
         content: ProgramContent = message.content.copy()

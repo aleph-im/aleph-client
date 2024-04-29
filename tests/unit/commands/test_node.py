@@ -1,6 +1,4 @@
-import textwrap
-
-import re
+import json
 
 from typer.testing import CliRunner
 
@@ -10,67 +8,22 @@ runner = CliRunner()
 
 
 def test_node_compute():
-    json = "--no-json"
-    active = "--no-active"
-    address = None
-    debug = "--no-debug"
-
     result = runner.invoke(
-        app, [
-            "node",
-            "compute",
-            json,
-            active,
-            "--address", address,
-            debug
-        ]
+        app, ["node", "compute", "--json", "--no-active", "--no-debug"]
     )
 
     assert result.exit_code == 0
-
-    pattern = textwrap.dedent(
-        '''\
-        .*Compute Node Information.*
-        .*
-        .* Score ┃ Name                        ┃    Creation Time    ┃ Decentralization ┃  Status.*
-        .*
-        │ [0-9]+\.[0-9]+% │ .* │ [0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2} │ .*[0-9]+\.[0-9]+% │ .* │
-        [\s\S]*
-        '''
-    )
-
-    assert re.fullmatch(pattern, result.stdout)
+    output = json.loads(result.stdout)
+    assert isinstance(output, list)
+    assert len(output) > 0
+    assert isinstance(output[0], dict)
 
 
-# TODO Stopped here!!!
 def test_node_core():
-    json = "--no-json"
-    active = "--no-active"
-    address = None
-    debug = "--no-debug"
-
-    result = runner.invoke(
-        app, [
-            "node",
-            "core",
-            json,
-            active,
-            "--address", address,
-            debug
-        ]
-    )
+    result = runner.invoke(app, ["node", "core", "--json", "--no-active", "--no-debug"])
 
     assert result.exit_code == 0
-
-    pattern = textwrap.dedent(
-        '''\
-        .*Core Channel Node Information.*
-        .*
-        .* Score ┃ Name                           ┃ Staked    ┃ Linked ┃    Creation Time    ┃  Status
-        .*
-        │ [0-9]+\.[0-9]+% │ .* │ .* │ [0-9]+ │ [0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2} │ .*  │
-        [\s\S]*
-        '''
-    )
-
-    assert re.fullmatch(pattern, result.stdout)
+    output = json.loads(result.stdout)
+    assert isinstance(output, list)
+    assert len(output) > 0
+    assert isinstance(output[0], dict)

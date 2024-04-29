@@ -29,6 +29,8 @@ def colorful_message_json(message: GenericMessage):
 
 def input_multiline() -> str:
     """Prompt the user for a multiline input."""
+    if not is_environment_interactive():
+        raise ValueError("Non-interactive mode does not support multiline input.")
     echo("Enter/Paste your content. Ctrl-D or Ctrl-Z ( windows ) to save it.")
     contents = ""
     while True:
@@ -46,10 +48,14 @@ def setup_logging(debug: bool = False):
 
 
 def yes_no_input(text: str, default: bool) -> bool:
+    if not is_environment_interactive():
+        return default
     return Prompt.ask(text, choices=["y", "n"], default=default) == "y"
 
 
 def prompt_for_volumes():
+    if not is_environment_interactive():
+        return []
     while yes_no_input("Add volume ?", default=False):
         mount = Prompt.ask("Mount path: ")
         comment = Prompt.ask("Comment: ")
@@ -143,17 +149,21 @@ def validated_prompt(
     validator: Callable[[str], Any],
     default: Optional[str] = None,
 ) -> str:
+    if not is_environment_interactive():
+        if default is not None:
+            return default
+        raise ValueError("Non-interactive mode requires a default value.")
     while True:
         try:
             value = Prompt.ask(
                 prompt,
                 default=default,
             )
+            if value is None:
+                raise PromptError
         except PromptError:
             echo(f"Invalid input: {value}\nTry again.")
             continue
-        if value is None and default is not None:
-            return default
         if validator(str(value)):
             return str(value)
         echo(f"Invalid input: {value}\nTry again.")
@@ -165,24 +175,25 @@ def validated_int_prompt(
     min_value: Optional[int] = None,
     max_value: Optional[int] = None,
 ) -> int:
+    if not is_environment_interactive():
+        if default is not None:
+            return default
+        raise ValueError("Non-interactive mode requires a default value.")
     while True:
         try:
             value = IntPrompt.ask(
                 prompt + f" [min: {min_value or '-'}, max: {max_value or '-'}]",
                 default=default,
             )
+            if (
+                value is None
+                or min_value is not None
+                and value < min_value
+                or max_value is not None
+                and value > max_value
+            ):
+                raise PromptError
         except PromptError:
-            echo(f"Invalid input: {value}\nTry again.")
-            continue
-        if value is None:
-            if default is not None:
-                return default
-            else:
-                value = 0
-        if min_value is not None and value < min_value:
-            echo(f"Invalid input: {value}\nTry again.")
-            continue
-        if max_value is not None and value > max_value:
             echo(f"Invalid input: {value}\nTry again.")
             continue
         return value

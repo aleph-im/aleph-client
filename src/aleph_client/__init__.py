@@ -15,4 +15,6 @@ moved_types = ["AlephClient", "AuthenticatedAlephClient", "synchronous", "asynch
 
 def __getattr__(name):
     if name in moved_types:
-        raise ImportError(f"The 'aleph_client.{name}' type is deprecated and has been removed from aleph_client. Please use `aleph.sdk.{name}` instead.")
+        raise ImportError(
+            f"The 'aleph_client.{name}' type is deprecated and has been removed from aleph_client. Please use `aleph.sdk.{name}` instead."
+        )

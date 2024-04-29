@@ -1,12 +1,6 @@
-from aleph_message.models import (
-    AggregateMessage,
-    ForgetMessage,
-    MessageType,
-    PostMessage,
-    ProgramMessage,
-    StoreMessage,
-    InstanceMessage
-)
+from aleph_message.models import (AggregateMessage, ForgetMessage,
+                                  InstanceMessage, MessageType, PostMessage,
+                                  ProgramMessage, StoreMessage)
 
 from aleph_client.utils import get_message_type_value
 

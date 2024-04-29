@@ -19,13 +19,20 @@ def test_domain_add_ipfs(account_file: Path):
     owner = None
 
     result = runner.invoke(
-        app, [
-            "domain", "add",  fqdn,
-            "--private-key-file", private_key_file,
-            "--target", target,
-            "--item-hash", item_hash,
-            "--owner", owner,
-        ]
+        app,
+        [
+            "domain",
+            "add",
+            fqdn,
+            "--private-key-file",
+            private_key_file,
+            "--target",
+            target,
+            "--item-hash",
+            item_hash,
+            "--owner",
+            owner,
+        ],
     )
 
     assert result.exit_code == 0
@@ -43,13 +50,20 @@ def test_domain_add_program(account_file: Path):
     owner = None
 
     result = runner.invoke(
-        app, [
-            "domain", "add",  fqdn,
-            "--private-key-file", private_key_file,
-            "--target", target,
-            "--item-hash", item_hash,
-            "--owner", owner,
-        ]
+        app,
+        [
+            "domain",
+            "add",
+            fqdn,
+            "--private-key-file",
+            private_key_file,
+            "--target",
+            target,
+            "--item-hash",
+            item_hash,
+            "--owner",
+            owner,
+        ],
     )
 
     assert result.exit_code == 0
@@ -67,13 +81,20 @@ def test_domain_add_instance(account_file: Path):
     owner = None
 
     result = runner.invoke(
-        app, [
-            "domain", "add",  fqdn,
-            "--private-key-file", private_key_file,
-            "--target", target,
-            "--item-hash", item_hash,
-            "--owner", owner,
-        ]
+        app,
+        [
+            "domain",
+            "add",
+            fqdn,
+            "--private-key-file",
+            private_key_file,
+            "--target",
+            target,
+            "--item-hash",
+            item_hash,
+            "--owner",
+            owner,
+        ],
     )
 
     assert result.exit_code == 0
@@ -88,11 +109,16 @@ def test_domain_attach(account_file: Path):
     item_hash = "098f6bcd4621d373cade4e832627b4f6"
 
     result = runner.invoke(
-        app, [
-            "domain", "attach",  fqdn,
-            "--private-key-file", private_key_file,
-            "--item-hash", item_hash,
-        ]
+        app,
+        [
+            "domain",
+            "attach",
+            fqdn,
+            "--private-key-file",
+            private_key_file,
+            "--item-hash",
+            item_hash,
+        ],
     )
 
     assert result.exit_code == 0, result.stdout
@@ -109,10 +135,14 @@ def test_domain_detach(account_file: Path):
     private_key_file = str(account_file)
 
     result = runner.invoke(
-        app, [
-            "domain", "detach",  fqdn,
-            "--private-key-file", private_key_file,
-        ]
+        app,
+        [
+            "domain",
+            "detach",
+            fqdn,
+            "--private-key-file",
+            private_key_file,
+        ],
     )
 
     assert result.exit_code == 0, result.stdout
@@ -128,10 +158,14 @@ def test_domain_info(account_file: Path):
     private_key_file = str(account_file)
 
     result = runner.invoke(
-        app, [
-            "domain", "info",  fqdn,
-            "--private-key-file", private_key_file,
-        ]
+        app,
+        [
+            "domain",
+            "info",
+            fqdn,
+            "--private-key-file",
+            private_key_file,
+        ],
     )
 
     assert result.exit_code == 0, result.stdout

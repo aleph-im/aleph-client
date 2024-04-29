@@ -16,16 +16,15 @@ from aleph.sdk.query.filters import MessageFilter
 from aleph.sdk.query.responses import MessagesResponse
 from aleph.sdk.types import AccountFromPrivateKey, StorageEnum
 from aleph.sdk.utils import extended_json_encoder
+from aleph_message.models import (AlephMessage, ItemHash, MessageType,
+                                  ProgramMessage)
+
 from aleph_client.commands import help_strings
-from aleph_client.commands.utils import (
-    colorful_json,
-    colorful_message_json,
-    input_multiline,
-    setup_logging,
-    str_to_datetime,
-)
+from aleph_client.commands.utils import (colorful_json, colorful_message_json,
+                                         input_multiline, setup_logging,
+                                         str_to_datetime)
+from aleph_client.exit_codes import exit_with_error_message
 from aleph_client.utils import AsyncTyper
-from aleph_message.models import AlephMessage, ItemHash, MessageType, ProgramMessage
 
 app = AsyncTyper(no_args_is_help=True)
 
@@ -124,8 +123,7 @@ async def post(
 
     if path:
         if not path.is_file():
-            typer.echo(f"Error: File not found: '{path}'")
-            raise typer.Exit(code=1)
+            exit_with_error_message(os.EX_NOINPUT, f"File not found: '{path}'")
 
         file_size = os.path.getsize(path)
         storage_engine = (
@@ -145,8 +143,9 @@ async def post(
         try:
             content = json.loads(content_raw)
         except json.decoder.JSONDecodeError:
-            typer.echo("Not valid JSON")
-            raise typer.Exit(code=2)
+            exit_with_error_message(
+                os.EX_DATAERR, "Invalid JSON for content. Please provide valid JSON."
+            )
 
     async with AuthenticatedAlephHttpClient(
         account=account, api_server=sdk_settings.API_HOST

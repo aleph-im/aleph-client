@@ -2,6 +2,8 @@ import asyncio
 import inspect
 import logging
 import os
+import signal
+import sys
 from functools import partial, wraps
 from pathlib import Path
 from shutil import make_archive
@@ -67,13 +69,25 @@ def get_message_type_value(message_type: Type[GenericMessage]) -> MessageType:
 
 
 class AsyncTyper(typer.Typer):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        def sigint_handler(signum, frame):
+            sys.exit(130)
+
+        signal.signal(signal.SIGINT, sigint_handler)
+
     @staticmethod
     def maybe_run_async(decorator, f):
         if inspect.iscoroutinefunction(f):
 
             @wraps(f)
             def runner(*args, **kwargs):
-                return asyncio.run(f(*args, **kwargs))
+                try:
+                    return asyncio.run(f(*args, **kwargs))
+                except asyncio.CancelledError:
+                    print("Operation cancelled, exiting...")
+                    sys.exit(130)
 
             decorator(runner)
         else:

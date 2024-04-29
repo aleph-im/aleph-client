@@ -1,5 +1,6 @@
 import json as json_lib
 import logging
+import os
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
@@ -19,6 +20,7 @@ from rich.table import Table
 
 from aleph_client.commands import help_strings
 from aleph_client.commands.utils import setup_logging
+from aleph_client.exit_codes import exit_with_error_message
 from aleph_client.utils import AsyncTyper
 
 logger = logging.getLogger(__name__)
@@ -82,8 +84,7 @@ async def upload(
         account=account, api_server=sdk_settings.API_HOST
     ) as client:
         if not path.is_file():
-            typer.echo(f"Error: File not found: '{path}'")
-            raise typer.Exit(code=1)
+            exit_with_error_message(os.EX_NOINPUT, f"No such file or directory: {path}")
 
         with open(path, "rb") as fd:
             logger.debug("Reading file")

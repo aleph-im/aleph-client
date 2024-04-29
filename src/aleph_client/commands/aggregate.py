@@ -1,4 +1,5 @@
 import json
+import os
 from pathlib import Path
 from typing import Optional
 
@@ -13,6 +14,7 @@ from aleph_message.models import MessageType
 
 from aleph_client.commands import help_strings
 from aleph_client.commands.utils import setup_logging
+from aleph_client.exit_codes import exit_with_error_message
 from aleph_client.utils import AsyncTyper
 
 app = AsyncTyper(no_args_is_help=True)
@@ -52,7 +54,9 @@ async def forget(
 
         hash_list = [message.item_hash for message in message_response.messages]
 
-        typer.echo(await client.forget(hashes=hash_list, reason=reason, channel=channel))
+        typer.echo(
+            await client.forget(hashes=hash_list, reason=reason, channel=channel)
+        )
 
 
 @app.command()
@@ -82,8 +86,9 @@ async def post(
     try:
         content_dict = json.loads(content)
     except json.JSONDecodeError:
-        typer.echo("Invalid JSON for content. Please provide valid JSON.")
-        raise typer.Exit(1)
+        exit_with_error_message(
+            os.EX_DATAERR, "Invalid JSON for content. Please provide valid JSON."
+        )
 
     async with AuthenticatedAlephHttpClient(
         account=account, api_server=sdk_settings.API_HOST
@@ -96,7 +101,9 @@ async def post(
             inline=inline,
             address=address,
         )
-        log_message = json.dumps(message.dict(), indent=4, default=extended_json_encoder)
+        log_message = json.dumps(
+            message.dict(), indent=4, default=extended_json_encoder
+        )
         typer.echo(log_message)
 
 
