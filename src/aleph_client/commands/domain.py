@@ -16,14 +16,13 @@ from aleph.sdk.domain import (
 from aleph.sdk.exceptions import DomainConfigurationError
 from aleph.sdk.query.filters import MessageFilter
 from aleph.sdk.types import AccountFromPrivateKey
+from aleph_client.commands import help_strings
+from aleph_client.commands.utils import is_environment_interactive
+from aleph_client.utils import AsyncTyper
 from aleph_message.models import AggregateMessage, MessageType
 from rich.console import Console
 from rich.prompt import Confirm, Prompt
 from rich.table import Table
-
-from aleph_client.commands import help_strings
-from aleph_client.commands.utils import is_environment_interactive
-from aleph_client.utils import AsyncTyper
 
 app = AsyncTyper(no_args_is_help=True)
 
@@ -62,7 +61,7 @@ async def attach_resource(
     account: AccountFromPrivateKey,
     fqdn: Hostname,
     item_hash: Optional[str] = None,
-    spa: Optional[bool] = None,
+    default_404_page: Optional[str] = None,
     interactive: Optional[bool] = None,
 ):
     interactive = is_environment_interactive() if interactive is None else interactive
@@ -73,10 +72,6 @@ async def attach_resource(
     while not item_hash:
         item_hash = Prompt.ask("Enter Hash reference of the resource to attach")
 
-    while not spa:
-        is_spa: str = Prompt.ask("It is an SPA application?", choices=["y", "n"], default="n")
-        spa = True if is_spa == "y" else False
-
     table = Table(title=f"Attach resource to: {fqdn}")
     table.add_column("Current resource", justify="right", style="red", no_wrap=True)
     table.add_column("New resource", justify="right", style="green", no_wrap=True)
@@ -86,6 +81,9 @@ async def attach_resource(
     Detect target type on the fly to be able to switch to another type
     """
     resource_type = await get_target_type(fqdn)
+
+    if resource_type == TargetType.IPFS:
+        default_404_page: str = Prompt.ask("Custom 404 page? ex: /404.html", default=None)
 
     if domain_info is not None and domain_info.get("info"):
         current_resource = domain_info["info"]["message_id"]
@@ -111,10 +109,12 @@ async def attach_resource(
                     "message_id": item_hash,
                     "type": resource_type,
                     # console page compatibility
-                    "programType": resource_type,
-                    "spa": "1" if spa else "0",
+                    "programType": resource_type
                 }
             }
+
+            if default_404_page and default_404_page.startswith("/"):
+                aggregate_content[fqdn]["default_404_page"] = default_404_page
 
             aggregate_message, message_status = await client.create_aggregate(
                 key="domains", content=aggregate_content, channel="ALEPH-CLOUDSOLUTIONS"
@@ -274,14 +274,14 @@ async def attach(
     item_hash: Optional[str] = typer.Option(
         None, help=help_strings.CUSTOM_DOMAIN_ITEM_HASH
     ),
-    spa: bool = typer.Option(default=False, help=help_strings.IPFS_SPA),
+    default_404_page: str = typer.Option(default=None, help=help_strings.IPFS_DEFAULT_404_PAGE),
     ask: bool = typer.Option(default=True, help=help_strings.ASK_FOR_CONFIRMATION),
 ):
     """Attach resource to a Custom Domain."""
     account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
 
     await attach_resource(
-        account, Hostname(fqdn), item_hash, interactive=False if (not ask) else None, spa=True if spa else None
+        account, Hostname(fqdn), item_hash, interactive=False if (not ask) else None, default_404_page=default_404_page
     )
     raise typer.Exit()
 
@@ -330,23 +330,21 @@ async def info(
     table = Table(title=f"Domain info: {fqdn}")
     table.add_column("Resource type", justify="right", style="cyan", no_wrap=True)
     table.add_column("Attached resource", justify="right", style="cyan", no_wrap=True)
-    table.add_column("Target resource", justify="right", style="cyan", no_wrap=True)
-    table.add_column("SPA", justify="right", style="cyan", no_wrap=True)
 
     resource_type = TargetType(domain_info["info"]["type"])
-    final_resource = "Unknown"
+    table_values = (resource_type, domain_info["info"]["message_id"])
 
-    is_spa = ""
     if resource_type == TargetType.IPFS:
-        final_resource = ""
-        is_spa = "True" if "spa" in domain_info["info"] and domain_info["info"]["spa"] == "1" else "False"
+        table.add_column("Default 404 page", justify="right", style="cyan", no_wrap=True)
+        table_values += (domain_info["info"].get("default_404_page"),)
     elif resource_type == TargetType.PROGRAM:
-        final_resource = domain_info["info"]["message_id"]
+        table.add_column("Target resource", justify="right", style="cyan", no_wrap=True)
+        table_values += (domain_info["info"]["message_id"],)
     if resource_type == TargetType.INSTANCE:
+        table.add_column("Target resource", justify="right", style="cyan", no_wrap=True)
         ips = await domain_validator.get_ipv6_addresses(Hostname(fqdn))
-        final_resource = ",".join([str(ip) for ip in ips])
+        table_values += (",".join([str(ip) for ip in ips]),)
 
-    table.add_row(resource_type, domain_info["info"]["message_id"], final_resource, is_spa)
-
+    table.add_row(*table_values)
     console.print(table)
     raise typer.Exit()
