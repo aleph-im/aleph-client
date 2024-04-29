@@ -16,7 +16,7 @@ from aleph_client.commands.utils import setup_logging
 from aleph_client.utils import AsyncTyper
 
 logger = logging.getLogger(__name__)
-app = AsyncTyper()
+app = AsyncTyper(no_args_is_help=True)
 
 node_link = "https://api2.aleph.im/api/v0/aggregates/0xa1B3bb7d2332383D96b7796B908fB7f7F3c2Be10.json?keys=corechannel"
 

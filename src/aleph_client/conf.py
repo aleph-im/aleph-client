@@ -3,6 +3,7 @@ from pathlib import Path
 from shutil import which
 from typing import Optional
 
+from aleph_message.models.execution.environment import HypervisorType
 from pydantic import BaseSettings, Field
 
 
@@ -26,7 +27,7 @@ class Settings(BaseSettings):
 
     DEFAULT_CHANNEL: str = "TEST"
     DEFAULT_RUNTIME_ID: str = (
-        "bd79839bf96e595a06da5ac0b6ba51dea6f7e2591bb913deccded04d831d29f4"
+        "63f07193e6ee9d207b7d1fcf8286f9aee34e6f12f101d2ec77c1229f92964696"
     )
     DEBIAN_11_ROOTFS_ID: str = (
         "887957042bb0e360da3485ed33175882ce72a70d79f1ba599400ff4802b7cee7"
@@ -37,8 +38,9 @@ class Settings(BaseSettings):
     UBUNTU_22_ROOTFS_ID: str = (
         "77fef271aa6ff9825efa3186ca2e715d19e7108279b817201c69c34cedc74c27"
     )
-    DEFAULT_ROOTFS_SIZE: int = 2_000
-    DEFAULT_ROOTFS_NAME: str = "main-rootfs"
+    DEFAULT_ROOTFS_SIZE: int = 20_000
+    DEFAULT_INSTANCE_MEMORY: int = 2_048
+    DEFAULT_HYPERVISOR: HypervisorType = HypervisorType.firecracker
 
     DEFAULT_VM_MEMORY: int = 128
     DEFAULT_VM_VCPUS: int = 1

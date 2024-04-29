@@ -22,7 +22,7 @@ from aleph_client.commands.utils import setup_logging
 from aleph_client.utils import AsyncTyper
 
 logger = logging.getLogger(__name__)
-app = AsyncTyper()
+app = AsyncTyper(no_args_is_help=True)
 
 
 @app.command()

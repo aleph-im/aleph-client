@@ -1,6 +1,5 @@
 import asyncio
 import logging
-from base64 import b16decode, b32encode
 from pathlib import Path
 from typing import List, Optional, Tuple, Union
 
@@ -17,6 +16,7 @@ from aleph.sdk.exceptions import (
 from aleph.sdk.query.filters import MessageFilter
 from aleph.sdk.types import AccountFromPrivateKey, StorageEnum
 from aleph_message.models import InstanceMessage, ItemHash, MessageType, StoreMessage
+from aleph_message.models.execution.environment import HypervisorType
 from rich import box
 from rich.console import Console
 from rich.prompt import Prompt
@@ -33,7 +33,7 @@ from aleph_client.conf import settings
 from aleph_client.utils import AsyncTyper
 
 logger = logging.getLogger(__name__)
-app = AsyncTyper()
+app = AsyncTyper(no_args_is_help=True)
 
 
 def load_ssh_pubkey(ssh_pubkey_file: Path) -> str:
@@ -45,7 +45,7 @@ def load_ssh_pubkey(ssh_pubkey_file: Path) -> str:
 async def create(
     channel: Optional[str] = typer.Option(default=None, help=help_strings.CHANNEL),
     memory: int = typer.Option(
-        sdk_settings.DEFAULT_VM_MEMORY, help="Maximum memory allocation on vm in MiB"
+        settings.DEFAULT_INSTANCE_MEMORY, help="Maximum memory allocation on vm in MiB"
     ),
     vcpus: int = typer.Option(
         sdk_settings.DEFAULT_VM_VCPUS, help="Number of virtual cpus to allocate."
@@ -69,13 +69,13 @@ async def create(
         "Ubuntu 22",
         help="Hash of the rootfs to use for your instance. Defaults to Ubuntu 22. You can also create your own rootfs and pin it",
     ),
-    rootfs_name: str = typer.Option(
-        settings.DEFAULT_ROOTFS_NAME,
-        help="Name of the rootfs to use for your instance. If not set, content.metadata.name of the --rootfs store message will be used.",
-    ),
     rootfs_size: int = typer.Option(
         settings.DEFAULT_ROOTFS_SIZE,
         help="Size of the rootfs to use for your instance. If not set, content.size of the --rootfs store message will be used.",
+    ),
+    hypervisor: HypervisorType = typer.Option(
+        default=settings.DEFAULT_HYPERVISOR,
+        help="Hypervisor to use to launch your instance. Defaults to Firecracker.",
     ),
     debug: bool = False,
     persistent_volume: Optional[List[str]] = typer.Option(
@@ -122,6 +122,11 @@ async def create(
         settings.DEBIAN_11_ROOTFS_ID: "Debian 11",
     }
 
+    hv_map = {
+        HypervisorType.firecracker: "firecracker",
+        HypervisorType.qemu: "qemu",
+    }
+
     rootfs = Prompt.ask(
         f"Do you want to use a custom rootfs or one of the following prebuilt ones?",
         default=rootfs,
@@ -143,26 +148,25 @@ async def create(
         if not rootfs_message:
             typer.echo("Given rootfs volume does not exist on aleph.im")
             raise typer.Exit(code=1)
-        if rootfs_name is None and rootfs_message.content.metadata:
-            rootfs_name = rootfs_message.content.metadata.get("name", None)
         if rootfs_size is None and rootfs_message.content.size:
             rootfs_size = rootfs_message.content.size
-
-    rootfs_name = Prompt.ask(
-        f"Name of the rootfs to use for your instance",
-        default=os_map.get(rootfs, rootfs_name),
-    )
 
     vcpus = validated_int_prompt(
         f"Number of virtual cpus to allocate", vcpus, min_value=1, max_value=4
     )
 
     memory = validated_int_prompt(
-        f"Maximum memory allocation on vm in MiB", memory, min_value=256, max_value=8000
+        f"Maximum memory allocation on vm in MiB", memory, min_value=2000, max_value=8000
     )
 
     rootfs_size = validated_int_prompt(
-        f"Disk size in MiB", rootfs_size, min_value=2000, max_value=100000
+        f"Disk size in MiB", rootfs_size, min_value=20000, max_value=100000
+    )
+
+    hypervisor = Prompt.ask(
+        f"Which hypervisor you want to use?",
+        default=hypervisor,
+        choices=[*hv_map.values()],
     )
 
     volumes = get_or_prompt_volumes(
@@ -179,7 +183,6 @@ async def create(
                 sync=True,
                 rootfs=rootfs,
                 rootfs_size=rootfs_size,
-                rootfs_name=rootfs_name,
                 storage_engine=StorageEnum.storage,
                 channel=channel,
                 memory=memory,
@@ -187,6 +190,7 @@ async def create(
                 timeout_seconds=timeout_seconds,
                 volumes=volumes,
                 ssh_keys=[ssh_pubkey],
+                hypervisor=hypervisor,
             )
         except InsufficientFundsError as e:
             typer.echo(

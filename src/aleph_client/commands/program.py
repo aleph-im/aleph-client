@@ -30,7 +30,7 @@ from aleph_message.models import (
 from aleph_message.status import MessageStatus
 
 logger = logging.getLogger(__name__)
-app = AsyncTyper()
+app = AsyncTyper(no_args_is_help=True)
 
 
 @app.command()

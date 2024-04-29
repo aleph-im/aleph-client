@@ -27,7 +27,7 @@ from aleph_client.commands.utils import (
 from aleph_client.utils import AsyncTyper
 from aleph_message.models import AlephMessage, ItemHash, MessageType, ProgramMessage
 
-app = AsyncTyper()
+app = AsyncTyper(no_args_is_help=True)
 
 
 @app.command()
