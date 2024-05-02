@@ -221,7 +221,7 @@ async def update(
             # TODO: Read in lazy mode instead of copying everything in memory
             file_content = fd.read()
             logger.debug("Uploading file")
-            message, status = client.create_store(
+            message, status = await client.create_store(
                 file_content=file_content,
                 storage_engine=StorageEnum(code_message.content.item_type),
                 channel=code_message.channel,

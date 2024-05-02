@@ -112,7 +112,6 @@ def test_program_update(account_file: Path, item_hash_upload):
         .absolute()
         .as_posix()
     )
-    private_key_file = str(account_file)
 
     result = runner.invoke(
         app,
@@ -120,10 +119,9 @@ def test_program_update(account_file: Path, item_hash_upload):
             "program",
             "update",
             item_hash,
-            path,
+            str(path),
             "--private-key-file",
-            private_key_file,
-            "--debug",
+            account_file,
         ],
     )
 
