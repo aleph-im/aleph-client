@@ -51,10 +51,10 @@ def test_instance_create(account_file: Path, ssh_keys_files: Dict[str, Path]):
 
 
 def test_instance_delete(account_file: Path):
-    item_hash = "item_hash"
+    item_hash = "93eea5a38043f1eabd268704cccc1133394fda02cfdb8bc0a82a50e5e6eb41aa"  # some super old instance hash
     reason = "reason"
     private_key_file = str(account_file)
-    print_messages = "--print-messages"  # [--print-messages|--no-print-messages]
+    print_message = "--print-message"  # [--print-message|--no-print-message]
     debug = "--debug"  # [--debug|--no-debug]
 
     result = runner.invoke(
@@ -62,17 +62,12 @@ def test_instance_delete(account_file: Path):
         [
             "instance",
             "delete",
+            print_message,
             item_hash,
-            "--reason",
-            reason,
-            "--private-key-file",
-            private_key_file,
-            print_messages,
-            debug,
         ],
     )
 
-    assert result.exit_code == os.EX_NOINPUT
+    assert result.exit_code == os.EX_NOPERM
     assert result.stdout
 
 
