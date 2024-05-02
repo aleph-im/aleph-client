@@ -206,4 +206,4 @@ def test_message_watch(account_file: Path):
     # Wait for the process to complete
     proc.wait()
 
-    assert proc.returncode == 130  # SIGINT
+    assert proc.returncode in [130, -2]  # 130 is the return code for SIGINT on most systems, -2 is the return code for SIGINT on Windows
