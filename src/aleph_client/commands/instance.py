@@ -187,6 +187,7 @@ async def create(
                 sync=True,
                 rootfs=rootfs,
                 rootfs_size=rootfs_size,
+                rootfs_name=os_map.get(rootfs, "custom"),
                 storage_engine=StorageEnum.storage,
                 channel=channel,
                 memory=memory,

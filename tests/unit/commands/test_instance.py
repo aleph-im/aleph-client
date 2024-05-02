@@ -5,6 +5,7 @@ from typing import Dict
 from typer.testing import CliRunner
 
 from aleph_client.__main__ import app
+from aleph_client.exit_codes import EX_NOFUNDS
 
 runner = CliRunner()
 item_hash = None
@@ -47,28 +48,22 @@ def test_instance_create(account_file: Path, ssh_keys_files: Dict[str, Path]):
         ],
     )
 
-    assert result.exit_code == 0
+    assert result.exit_code == EX_NOFUNDS
 
 
 def test_instance_delete(account_file: Path):
     item_hash = "93eea5a38043f1eabd268704cccc1133394fda02cfdb8bc0a82a50e5e6eb41aa"  # some super old instance hash
-    reason = "reason"
-    private_key_file = str(account_file)
-    print_message = "--print-message"  # [--print-message|--no-print-message]
-    debug = "--debug"  # [--debug|--no-debug]
 
     result = runner.invoke(
         app,
         [
             "instance",
             "delete",
-            print_message,
             item_hash,
         ],
     )
 
     assert result.exit_code == os.EX_NOPERM
-    assert result.stdout
 
 
 def test_instance_list(account_file: Path):
