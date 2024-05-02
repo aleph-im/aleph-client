@@ -36,4 +36,4 @@ def exit_with_error_message(exit_code: int, message: Optional[str] = None) -> No
         typer.echo(f"{error_message}: {message}")
     else:
         typer.echo(error_message)
-    typer.Exit(exit_code)
+    raise typer.Exit(exit_code)
