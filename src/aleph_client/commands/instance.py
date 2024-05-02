@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import os
 from pathlib import Path
 from typing import List, Optional, Tuple, Union
 
@@ -8,14 +9,12 @@ from aiohttp import ClientResponseError, ClientSession
 from aleph.sdk import AlephHttpClient, AuthenticatedAlephHttpClient
 from aleph.sdk.account import _load_account
 from aleph.sdk.conf import settings as sdk_settings
-from aleph.sdk.exceptions import (
-    ForgottenMessageError,
-    InsufficientFundsError,
-    MessageNotFoundError,
-)
+from aleph.sdk.exceptions import (ForgottenMessageError,
+                                  InsufficientFundsError, MessageNotFoundError)
 from aleph.sdk.query.filters import MessageFilter
 from aleph.sdk.types import AccountFromPrivateKey, StorageEnum
-from aleph_message.models import InstanceMessage, ItemHash, MessageType, StoreMessage
+from aleph_message.models import (InstanceMessage, ItemHash, MessageType,
+                                  StoreMessage)
 from aleph_message.models.execution.environment import HypervisorType
 from rich import box
 from rich.console import Console
@@ -23,13 +22,12 @@ from rich.prompt import Prompt
 from rich.table import Table
 
 from aleph_client.commands import help_strings
-from aleph_client.commands.utils import (
-    get_or_prompt_volumes,
-    setup_logging,
-    validated_int_prompt,
-    validated_prompt,
-)
+from aleph_client.commands.utils import (get_or_prompt_volumes,
+                                         is_environment_interactive,
+                                         setup_logging, validated_int_prompt,
+                                         validated_prompt)
 from aleph_client.conf import settings
+from aleph_client.exit_codes import EX_NOFUNDS, exit_with_error_message
 from aleph_client.utils import AsyncTyper
 
 logger = logging.getLogger(__name__)
@@ -127,15 +125,16 @@ async def create(
         HypervisorType.qemu: "qemu",
     }
 
-    rootfs = Prompt.ask(
-        f"Do you want to use a custom rootfs or one of the following prebuilt ones?",
-        default=rootfs,
-        choices=[*os_map.values(), "custom"],
-    )
+    if is_environment_interactive():
+        rootfs = Prompt.ask(
+            "Do you want to use a custom rootfs or one of the following prebuilt ones?",
+            default=rootfs,
+            choices=[*os_map.values(), "custom"],
+        )
 
     if rootfs == "custom":
         rootfs = validated_prompt(
-            f"Enter the item hash of the rootfs to use for your instance",
+            "Enter the item hash of the rootfs to use for your instance",
             lambda x: len(x) == 64,
         )
     else:
@@ -146,28 +145,33 @@ async def create(
             item_hash=rootfs, message_type=StoreMessage
         )
         if not rootfs_message:
-            typer.echo("Given rootfs volume does not exist on aleph.im")
-            raise typer.Exit(code=1)
+            exit_with_error_message(
+                os.EX_NOINPUT, f"Given rootfs {rootfs} does not exist on aleph.im"
+            )
         if rootfs_size is None and rootfs_message.content.size:
             rootfs_size = rootfs_message.content.size
 
     vcpus = validated_int_prompt(
-        f"Number of virtual cpus to allocate", vcpus, min_value=1, max_value=4
+        "Number of virtual cpus to allocate", vcpus, min_value=1, max_value=4
     )
 
     memory = validated_int_prompt(
-        f"Maximum memory allocation on vm in MiB", memory, min_value=2000, max_value=8000
+        "Maximum memory allocation on vm in MiB",
+        memory,
+        min_value=2000,
+        max_value=8000,
     )
 
     rootfs_size = validated_int_prompt(
-        f"Disk size in MiB", rootfs_size, min_value=20000, max_value=100000
+        "Disk size in MiB", rootfs_size, min_value=20000, max_value=100000
     )
 
-    hypervisor = Prompt.ask(
-        f"Which hypervisor you want to use?",
-        default=hypervisor,
-        choices=[*hv_map.values()],
-    )
+    if is_environment_interactive():
+        hypervisor = Prompt.ask(
+            "Which hypervisor you want to use?",
+            default=hypervisor,
+            choices=[*hv_map.values()],
+        )
 
     volumes = get_or_prompt_volumes(
         persistent_volume=persistent_volume,
@@ -183,6 +187,7 @@ async def create(
                 sync=True,
                 rootfs=rootfs,
                 rootfs_size=rootfs_size,
+                rootfs_name=os_map.get(rootfs, "custom"),
                 storage_engine=StorageEnum.storage,
                 channel=channel,
                 memory=memory,
@@ -193,11 +198,11 @@ async def create(
                 hypervisor=hypervisor,
             )
         except InsufficientFundsError as e:
-            typer.echo(
+            exit_with_error_message(
+                EX_NOFUNDS,
                 f"Instance creation failed due to insufficient funds.\n"
-                f"{account.get_address()} on {account.CHAIN} has {e.available_funds} ALEPH but needs {e.required_funds} ALEPH."
+                f"{account.get_address()} on {account.CHAIN} has {e.available_funds} ALEPH but needs {e.required_funds} ALEPH.",
             )
-            raise typer.Exit(code=1)
         if print_messages:
             typer.echo(f"{message.json(indent=4)}")
 
@@ -238,14 +243,13 @@ async def delete(
                 item_hash=item_hash, message_type=InstanceMessage
             )
         except MessageNotFoundError:
-            typer.echo("Instance does not exist")
-            raise typer.Exit(code=1)
+            exit_with_error_message(os.EX_NOINPUT, "Instance not found")
         except ForgottenMessageError:
-            typer.echo("Instance already forgotten")
-            raise typer.Exit(code=1)
+            exit_with_error_message(os.EX_NOINPUT, "Instance already forgotten")
         if existing_message.sender != account.get_address():
-            typer.echo("You are not the owner of this instance")
-            raise typer.Exit(code=1)
+            exit_with_error_message(
+                os.EX_NOPERM, "You are not the owner of this instance"
+            )
 
         message, status = await client.forget(hashes=[item_hash], reason=reason)
         if print_message:
@@ -326,7 +330,7 @@ async def list(
         )
         if not resp:
             typer.echo("No instances found")
-            raise typer.Exit(code=1)
+            raise typer.Exit()
         if json:
             typer.echo(resp.json(indent=4))
         else:

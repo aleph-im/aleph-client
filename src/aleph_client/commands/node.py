@@ -1,9 +1,10 @@
 import datetime
 import json as json_lib
 import logging
+import os
 import re
 import unicodedata
-from typing import Dict, List, Optional
+from typing import Optional
 
 import aiohttp
 import typer
@@ -13,6 +14,7 @@ from rich.markup import escape
 from rich.table import Table
 
 from aleph_client.commands.utils import setup_logging
+from aleph_client.exit_codes import exit_with_error_message
 from aleph_client.utils import AsyncTyper
 
 logger = logging.getLogger(__name__)
@@ -35,8 +37,9 @@ async def _fetch_nodes() -> NodeInfo:
     async with aiohttp.ClientSession() as session:
         async with session.get(node_link) as resp:
             if resp.status != 200:
-                logger.error("Unable to fetch node information")
-                raise typer.Exit(1)
+                exit_with_error_message(
+                    os.EX_TEMPFAIL, "Unable to fetch node information"
+                )
 
             data = await resp.json()
             return NodeInfo(**data)

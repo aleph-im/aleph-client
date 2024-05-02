@@ -6,13 +6,8 @@ import typer
 from aleph.sdk.account import _load_account
 from aleph.sdk.client import AlephHttpClient, AuthenticatedAlephHttpClient
 from aleph.sdk.conf import settings as sdk_settings
-from aleph.sdk.domain import (
-    DomainValidator,
-    Hostname,
-    TargetType,
-    get_target_type,
-    hostname_from_url,
-)
+from aleph.sdk.domain import (DomainValidator, Hostname, TargetType,
+                              get_target_type, hostname_from_url)
 from aleph.sdk.exceptions import DomainConfigurationError
 from aleph.sdk.query.filters import MessageFilter
 from aleph.sdk.types import AccountFromPrivateKey
@@ -74,7 +69,9 @@ async def attach_resource(
         item_hash = Prompt.ask("Enter Hash reference of the resource to attach")
 
     while not spa:
-        is_spa: str = Prompt.ask("It is an SPA application?", choices=["y", "n"], default="n")
+        is_spa: str = Prompt.ask(
+            "It is an SPA application?", choices=["y", "n"], default="n"
+        )
         spa = True if is_spa == "y" else False
 
     table = Table(title=f"Attach resource to: {fqdn}")
@@ -281,7 +278,11 @@ async def attach(
     account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
 
     await attach_resource(
-        account, Hostname(fqdn), item_hash, interactive=False if (not ask) else None, spa=True if spa else None
+        account,
+        Hostname(fqdn),
+        item_hash,
+        interactive=False if (not ask) else None,
+        spa=True if spa else None,
     )
     raise typer.Exit()
 
@@ -339,14 +340,20 @@ async def info(
     is_spa = ""
     if resource_type == TargetType.IPFS:
         final_resource = ""
-        is_spa = "True" if "spa" in domain_info["info"] and domain_info["info"]["spa"] == "1" else "False"
+        is_spa = (
+            "True"
+            if "spa" in domain_info["info"] and domain_info["info"]["spa"] == "1"
+            else "False"
+        )
     elif resource_type == TargetType.PROGRAM:
         final_resource = domain_info["info"]["message_id"]
     if resource_type == TargetType.INSTANCE:
         ips = await domain_validator.get_ipv6_addresses(Hostname(fqdn))
         final_resource = ",".join([str(ip) for ip in ips])
 
-    table.add_row(resource_type, domain_info["info"]["message_id"], final_resource, is_spa)
+    table.add_row(
+        resource_type, domain_info["info"]["message_id"], final_resource, is_spa
+    )
 
     console.print(table)
     raise typer.Exit()

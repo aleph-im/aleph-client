@@ -2,6 +2,7 @@ import asyncio
 import base64
 import json
 import logging
+import os
 import sys
 from pathlib import Path
 from typing import Optional
@@ -14,10 +15,10 @@ from aleph.sdk.chains.ethereum import ETHAccount
 from aleph.sdk.conf import settings as sdk_settings
 from aleph.sdk.types import AccountFromPrivateKey
 from aleph.sdk.utils import extended_json_encoder
-from typer.colors import RED
 
 from aleph_client.commands import help_strings
 from aleph_client.commands.utils import setup_logging
+from aleph_client.exit_codes import exit_with_error_message
 from aleph_client.utils import AsyncTyper
 
 logger = logging.getLogger(__name__)
@@ -45,9 +46,9 @@ def create(
         )
 
     if private_key_file.exists() and not replace:
-        typer.secho(f"Error: key already exists: '{private_key_file}'", fg=RED)
-
-        raise typer.Exit(1)
+        exit_with_error_message(
+            os.EX_CANTCREAT, f"key already exists: '{private_key_file}'"
+        )
 
     private_key_bytes: bytes
     if private_key is not None:
@@ -58,12 +59,11 @@ def create(
         private_key_bytes = generate_key()
 
     if not private_key_bytes:
-        typer.secho("An unexpected error occurred!", fg=RED)
-        raise typer.Exit(2)
+        exit_with_error_message(os.EX_DATAERR, "Failed to load private key")
 
     private_key_file.parent.mkdir(parents=True, exist_ok=True)
     private_key_file.write_bytes(private_key_bytes)
-    typer.secho(f"Private key stored in {private_key_file}", fg=RED)
+    typer.echo(f"Private key stored in {private_key_file}")
 
 
 @app.command()
@@ -82,8 +82,7 @@ def address(
     if private_key is not None:
         private_key_file = None
     elif private_key_file and not private_key_file.exists():
-        typer.secho("No private key available", fg=RED)
-        raise typer.Exit(code=1)
+        exit_with_error_message(os.EX_NOINPUT, "No private key provided")
 
     account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
     typer.echo(account.get_address())
@@ -105,15 +104,16 @@ def export_private_key(
     if private_key is not None:
         private_key_file = None
     elif private_key_file and not private_key_file.exists():
-        typer.secho("No private key available", fg=RED)
-        raise typer.Exit(code=1)
+        exit_with_error_message(os.EX_NOINPUT, "No private key provided")
 
     account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
     if hasattr(account, "private_key"):
         private_key_hex: str = base64.b16encode(account.private_key).decode().lower()
         typer.echo(f"0x{private_key_hex}")
     else:
-        typer.secho(f"Private key cannot be read for {account}", fg=RED)
+        exit_with_error_message(
+            os.EX_DATAERR, f"Private key cannot be read for {account}"
+        )
 
 
 @app.command()
@@ -170,7 +170,9 @@ async def balance(
             response = await session.get(uri)
             if response.status == 200:
                 balance_data = await response.json()
-                formatted_balance_data = json.dumps(balance_data, indent=4, default=extended_json_encoder)
+                formatted_balance_data = json.dumps(
+                    balance_data, indent=4, default=extended_json_encoder
+                )
                 typer.echo(formatted_balance_data)
             else:
                 typer.echo(
