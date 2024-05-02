@@ -31,7 +31,7 @@ def get_test_message(account: ETHAccount):
     }
 
 
-def create_test_message(private_key_file: Union[Path, str] = None):
+def create_test_message(private_key_file: Union[Path, str]):
     path = (
         Path(os.path.join(Path(__file__).parent.parent.parent, "fixtures", "post.json"))
         .absolute()
@@ -51,7 +51,7 @@ def create_test_message(private_key_file: Union[Path, str] = None):
             "--channel",
             channel,
             "--private-key-file",
-            private_key_file,
+            str(private_key_file),
         ],
     )
     time.sleep(1)
@@ -71,7 +71,7 @@ def test_message_amend(account_file: Path):
 
     result = runner.invoke(
         app,
-        ["message", "amend", message["item_hash"], "--content", '{"content": {"hello": "my bro"}}', "--private-key-file", account_file],
+        ["message", "amend", message["item_hash"], "--content", '{"content": {"hello": "my bro"}}', "--private-key-file", str(account_file)],
     )
     assert result.exit_code == 0
     print(result.stdout)
@@ -88,7 +88,7 @@ def test_message_forget(account_file: Path):
             "forget",
             result["item_hash"],
             "--private-key-file",
-            account_file,
+            str(account_file),
         ],
     )
 
@@ -130,15 +130,15 @@ def test_message_find():
             "message",
             "find",
             "--pagination",
-            pagination,
+            str(pagination),
             "--page",
-            page,
+            str(page),
             "--hashes",
             hashes,
             "--chains",
             chains,
             "--start-date",
-            start_date,
+            str(start_date),
             "--ignore-invalid-messages",
             ignore_invalid_messages,
         ],
@@ -166,7 +166,7 @@ def test_message_sign(account_file):
             "--message",
             message,
             "--private-key-file",
-            private_key_file,
+            str(private_key_file),
         ],
     )
 
@@ -185,7 +185,7 @@ def test_message_sign_stdin(account_file):
             "message",
             "sign",
             "--private-key-file",
-            private_key_file,
+            str(private_key_file),
         ],
         input=json.dumps(message),
     )

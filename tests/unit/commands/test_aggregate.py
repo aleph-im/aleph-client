@@ -16,7 +16,6 @@ runner = CliRunner()
 def fixture_aggregate_post(account_file: Path):
     key = "key"
     content = """{"c": 3, "d": "test"}"""
-    address = None
     channel = "TEST"
     inline = "--no-inline"
     sync = "--no-sync"
@@ -30,12 +29,10 @@ def fixture_aggregate_post(account_file: Path):
             "post",
             key,
             content,
-            "--address",
-            address,
             "--channel",
             channel,
             "--private-key-file",
-            private_key_file,
+            str(private_key_file),
             inline,
             sync,
             debug,
@@ -87,7 +84,6 @@ def test_aggregate_post(fixture_aggregate_post):
 
 def test_aggregate_get(account_file: Path, fixture_aggregate_post):
     key = "key"
-    address = None
     private_key_file = str(account_file)
     debug = "--no-debug"
 
@@ -97,10 +93,8 @@ def test_aggregate_get(account_file: Path, fixture_aggregate_post):
             "aggregate",
             "get",
             key,
-            "--address",
-            address,
             "--private-key-file",
-            private_key_file,
+            str(private_key_file),
             debug,
         ],
     )
@@ -134,7 +128,7 @@ def test_aggregate_forget(account_file: Path, fixture_aggregate_post):
             "--reason",
             reason,
             "--private-key-file",
-            private_key_file,
+            str(private_key_file),
             debug,
         ],
     )

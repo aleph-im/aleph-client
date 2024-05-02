@@ -26,19 +26,13 @@ def test_account_address(account_file: Path):
 
 # TODO Verify if the output message ""Failed to retrieve balance..." is ok!!!
 def test_account_balance(account_file: Path):
-    address = None
-    # private_key = None
-    private_key_file = str(account_file)
-
     result = runner.invoke(
         app,
         [
             "account",
             "balance",
-            "--address",
-            address,
             "--private-key-file",
-            private_key_file,
+            str(account_file),
         ],
     )
 
@@ -58,7 +52,7 @@ def test_account_create(account_file: Path):
 
     result = runner.invoke(
         app,
-        ["account", "create", "--private-key-file", private_key_file, replace, debug],
+        ["account", "create", "--private-key-file", str(private_key_file), replace, debug],
     )
 
     assert result.exit_code == 0, result.stdout
@@ -102,7 +96,7 @@ def test_sign_bytes_raw(account_file: Path):
             "--message",
             message,
             "--private-key-file",
-            private_key_file,
+            str(private_key_file),
             debug,
         ],
     )
@@ -121,7 +115,7 @@ def test_sign_bytes_raw_stdin(account_file: Path):
 
     result = runner.invoke(
         app,
-        ["account", "sign-bytes", "--private-key-file", private_key_file, debug],
+        ["account", "sign-bytes", "--private-key-file", str(private_key_file), debug],
         input=message,
     )
 

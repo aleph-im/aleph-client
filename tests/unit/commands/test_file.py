@@ -27,7 +27,7 @@ def test_file_upload(account_file: Path):
             "upload",
             path,
             "--private-key-file",
-            private_key_file,
+            str(private_key_file),
         ],
     )
 
@@ -39,8 +39,6 @@ def test_file_download():
     hash = "QmeomffUNfmQy76CQGy9NdmqEnnHU9soCexBnGU3ezPHVH"
     use_ipfs = "--no-use-ipfs"
     output_path = "."
-    file_name = None
-    file_extension = None
     debug = "--no-debug"
 
     result = runner.invoke(
@@ -52,10 +50,6 @@ def test_file_download():
             use_ipfs,
             "--output-path",
             output_path,
-            "--file-name",
-            file_name,
-            "--file-extension",
-            file_extension,
             debug,
         ],  # 5 bytes file
     )
@@ -82,7 +76,7 @@ def test_file_forget(account_file: Path):
             "--channel",
             channel,
             "--private-key-file",
-            private_key_file,
+            str(private_key_file),
             debug,
         ],
     )
@@ -96,8 +90,6 @@ def test_file_list(account_file: Path):
     private_key_file = str(account_file)
     pagination = 100
     page = 1
-    sort_order = -1
-    json = "--no-json"
 
     result = runner.invoke(
         app,
@@ -105,15 +97,11 @@ def test_file_list(account_file: Path):
             "file",
             "list",
             "--private-key-file",
-            private_key_file,
+            str(private_key_file),
             "--pagination",
-            pagination,
+            str(pagination),
             "--page",
-            page,
-            "--sort-order",
-            sort_order,
-            "--json",
-            json,
+            str(page),
         ],
     )
 
@@ -136,7 +124,7 @@ def test_file_pin(account_file: Path):
             "--channel",
             channel,
             "--private-key-file",
-            private_key_file,
+            str(private_key_file),
         ],
     )
 

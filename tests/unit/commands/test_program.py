@@ -52,7 +52,7 @@ def test_program_upload(account_file: Path):
             # "--memory", memory,
             # "--vcpus", vcpus,
             # "--timeout-seconds", timeout_seconds,
-            # "--private-key-file", private_key_file,
+            # "--private-key-file", str(private_key_file),
             # print_messages,
             # print_code_message,
             # print_program_message,
@@ -121,7 +121,7 @@ def test_program_update(account_file: Path, item_hash_upload):
             item_hash,
             str(path),
             "--private-key-file",
-            account_file,
+            str(account_file),
         ],
     )
 
@@ -140,7 +140,7 @@ def test_program_unpersist(account_file: Path, item_hash_upload):
             "unpersist",
             item_hash,
             "--private-key-file",
-            private_key_file,
+            str(private_key_file),
             "--debug",
         ],
     )

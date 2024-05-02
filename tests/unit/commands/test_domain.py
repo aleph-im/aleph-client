@@ -12,11 +12,9 @@ runner = CliRunner()
 @pytest.mark.skip(reason="Not implemented.")
 def test_domain_add_ipfs(account_file: Path):
     fqdn = "aleph.im"
-    # private_key = None
     private_key_file = str(account_file)
     target = "ipfs"  # {ipfs|program|instance}
     item_hash = "098f6bcd4621d373cade4e832627b4f6"
-    owner = None
 
     result = runner.invoke(
         app,
@@ -25,13 +23,11 @@ def test_domain_add_ipfs(account_file: Path):
             "add",
             fqdn,
             "--private-key-file",
-            private_key_file,
+            str(private_key_file),
             "--target",
             target,
             "--item-hash",
             item_hash,
-            "--owner",
-            owner,
         ],
     )
 
@@ -43,11 +39,9 @@ def test_domain_add_ipfs(account_file: Path):
 @pytest.mark.skip(reason="Not implemented.")
 def test_domain_add_program(account_file: Path):
     fqdn = "aleph.im"  # domain
-    # private_key = None
     private_key_file = str(account_file)
     target = "program"  # {ipfs|program|instance}
     item_hash = "098f6bcd4621d373cade4e832627b4f6"
-    owner = None
 
     result = runner.invoke(
         app,
@@ -56,13 +50,11 @@ def test_domain_add_program(account_file: Path):
             "add",
             fqdn,
             "--private-key-file",
-            private_key_file,
+            str(private_key_file),
             "--target",
             target,
             "--item-hash",
             item_hash,
-            "--owner",
-            owner,
         ],
     )
 
@@ -78,7 +70,6 @@ def test_domain_add_instance(account_file: Path):
     private_key_file = str(account_file)
     target = "instance"  # {ipfs|program|instance}
     item_hash = "098f6bcd4621d373cade4e832627b4f6"
-    owner = None
 
     result = runner.invoke(
         app,
@@ -87,13 +78,11 @@ def test_domain_add_instance(account_file: Path):
             "add",
             fqdn,
             "--private-key-file",
-            private_key_file,
+            str(private_key_file),
             "--target",
             target,
             "--item-hash",
             item_hash,
-            "--owner",
-            owner,
         ],
     )
 
@@ -115,7 +104,7 @@ def test_domain_attach(account_file: Path):
             "attach",
             fqdn,
             "--private-key-file",
-            private_key_file,
+            str(private_key_file),
             "--item-hash",
             item_hash,
         ],
@@ -141,7 +130,7 @@ def test_domain_detach(account_file: Path):
             "detach",
             fqdn,
             "--private-key-file",
-            private_key_file,
+            str(private_key_file),
         ],
     )
 
@@ -164,7 +153,7 @@ def test_domain_info(account_file: Path):
             "info",
             fqdn,
             "--private-key-file",
-            private_key_file,
+            str(private_key_file),
         ],
     )
 
