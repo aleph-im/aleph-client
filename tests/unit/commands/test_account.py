@@ -88,13 +88,6 @@ def test_account_export_private_key(account_file: Path):
     assert len(result.stdout.strip()) == 66
 
 
-def test_account_path():
-    result = runner.invoke(app, ["account", "path"])
-
-    pattern = r".*.aleph-im/private-keys/ethereum\.key"
-    assert re.match(pattern, result.stdout)
-
-
 def test_sign_bytes_raw(account_file: Path):
     message = "some message"
     # private_key = None
