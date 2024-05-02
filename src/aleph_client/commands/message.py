@@ -16,13 +16,14 @@ from aleph.sdk.query.filters import MessageFilter
 from aleph.sdk.query.responses import MessagesResponse
 from aleph.sdk.types import AccountFromPrivateKey, StorageEnum
 from aleph.sdk.utils import extended_json_encoder
+from aleph.sdk.exceptions import MessageNotFoundError, ForgottenMessageError
 from aleph_message.models import (AlephMessage, ItemHash, MessageType,
                                   ProgramMessage)
 
 from aleph_client.commands import help_strings
 from aleph_client.commands.utils import (colorful_json, colorful_message_json,
                                          input_multiline, setup_logging,
-                                         str_to_datetime)
+                                         str_to_datetime, is_environment_interactive)
 from aleph_client.exit_codes import exit_with_error_message
 from aleph_client.utils import AsyncTyper
 
@@ -165,6 +166,9 @@ async def post(
 @app.command()
 async def amend(
     item_hash: str = typer.Argument(..., help="Hash reference of the message to amend"),
+    content: Optional[str] = typer.Option(
+        None, help="Dictionary update to perform. If omitted, the editor will be opened."
+    ),
     private_key: Optional[str] = typer.Option(
         sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY
     ),
@@ -179,24 +183,38 @@ async def amend(
 
     account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
 
-    async with AlephHttpClient(api_server=sdk_settings.API_HOST) as client:
-        existing_message: AlephMessage = await client.get_message(item_hash=item_hash)
+    try:
+        async with AlephHttpClient(api_server=sdk_settings.API_HOST) as client:
+            existing_message: AlephMessage = await client.get_message(item_hash=item_hash)
+    except MessageNotFoundError:
+        exit_with_error_message(os.EX_DATAERR, f"Message not found: {item_hash}")
+    except ForgottenMessageError:
+        exit_with_error_message(os.EX_DATAERR, f"Message is forgotten: {item_hash}")
 
-    editor: str = os.getenv("EDITOR", default="nano")
-    with tempfile.NamedTemporaryFile(suffix="json") as fd:
-        # Fill in message template
-        fd.write(existing_message.content.json(indent=4).encode())
-        fd.seek(0)
+    if content:
+        new_content_dict = existing_message.content.dict()
+        new_content_dict.update(json.loads(content))
+    else:
+        if not is_environment_interactive():
+            exit_with_error_message(
+                os.EX_USAGE,
+                "No content provided and non-interactive environment detected. Please provide content.",
+            )
+        editor: str = os.getenv("EDITOR", default="nano")
+        with tempfile.NamedTemporaryFile(suffix=".json") as fd:
+            # Fill in message template
+            fd.write(existing_message.content.json(indent=4).encode())
+            fd.seek(0)
 
-        # Launch editor
-        subprocess.run([editor, fd.name], check=True)
+            # Launch editor
+            subprocess.run([editor, fd.name], check=True)
 
-        # Read new message
-        fd.seek(0)
-        new_content_json = fd.read()
+            # Read new message
+            fd.seek(0)
+            new_content_json = fd.read()
+            new_content_dict = json.loads(new_content_json)
 
     content_type = type(existing_message).__annotations__["content"]
-    new_content_dict = json.loads(new_content_json)
     new_content = content_type(**new_content_dict)
 
     if isinstance(existing_message, ProgramMessage):
@@ -207,7 +225,6 @@ async def amend(
     new_content.time = time.time()
     new_content.type = "amend"
 
-    typer.echo(new_content)
     async with AuthenticatedAlephHttpClient(
         account=account, api_server=sdk_settings.API_HOST
     ) as client:

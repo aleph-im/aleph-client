@@ -4,6 +4,7 @@ import signal
 import subprocess
 import time
 from pathlib import Path
+from typing import Union
 
 import pytest
 from aleph.sdk.chains.ethereum import ETHAccount
@@ -30,62 +31,54 @@ def get_test_message(account: ETHAccount):
     }
 
 
-@pytest.mark.skip(reason="Not implemented.")
-def test_message_amend(account_file: Path):
-    # private_key = None
-    private_key_file = get_account(account_file)
-    debug = "--no-debug"
-
-    result = runner.invoke(
-        app,
-        ["message", "amend", "--private-key-file", private_key_file, debug],
+def create_test_message(private_key_file: Union[Path, str] = None):
+    path = (
+        Path(os.path.join(Path(__file__).parent.parent.parent, "fixtures", "post.json"))
+        .absolute()
+        .as_posix()
     )
-
-    assert result.exit_code == 0
-
-
-@pytest.mark.skip(reason="Not implemented.")
-def test_message_find():
-    pagination = 1
-    page = 1
-    hashes = "bd79839bf96e595a06da5ac0b6ba51dea6f7e2591bb913deccded04d831d29f4"
-    chains = "ETH"
-    start_date = 1234
-    ignore_invalid_messages = "--no-ignore-invalid-messages"
-
+    message_type = "POST"
+    channel = "TEST"
     result = runner.invoke(
         app,
         [
             "message",
-            "find",
-            "--pagination",
-            pagination,
-            "--page",
-            page,
-            "--hashes",
-            hashes,
-            "--chains",
-            chains,
-            "--start-date",
-            start_date,
-            "--ignore-invalid-messages",
-            ignore_invalid_messages,
+            "post",
+            "--path",
+            path,
+            "--type",
+            message_type,
+            "--channel",
+            channel,
+            "--private-key-file",
+            private_key_file,
         ],
     )
+    return result
+
+
+def test_message_post(account_file):
+    result = create_test_message(account_file)
 
     assert result.exit_code == 0
+    assert result.stdout
 
-    assert "0x101d8D16372dBf5f1614adaE95Ee5CCE61998Fc9" in result.stdout
 
-    assert (
-        "bd79839bf96e595a06da5ac0b6ba51dea6f7e2591bb913deccded04d831d29f4"
-        in result.stdout
+def test_message_amend(account_file: Path):
+    result = create_test_message(account_file)
+    message = json.loads(result.stdout)
+
+    result = runner.invoke(
+        app,
+        ["message", "amend", message["item_hash"], "--content", '{"content": {"hello": "my bro"}}', "--private-key-file", account_file],
     )
+    assert result.exit_code == 0
+    print(result.stdout)
+    assert json.loads(result.stdout)["content"]["content"]["hello"] == "my bro"
 
 
-@pytest.mark.skip(reason="Not implemented.")
 def test_message_forget(account_file: Path):
-    private_key_file = get_account(account_file)
+    private_key_file = account_file
     debug = "--no-debug"
 
     result = runner.invoke(
@@ -123,29 +116,42 @@ def test_message_get():
     assert "0x101d8D16372dBf5f1614adaE95Ee5CCE61998Fc9" in result.stdout
 
 
-def test_message_post(account_file):
-    path = (
-        Path(os.path.join(Path(__file__).parent.parent.parent, "fixtures", "post.json"))
-        .absolute()
-        .as_posix()
-    )
-
-    message_type = "POST"
+def test_message_find():
+    pagination = 1
+    page = 1
+    hashes = "bd79839bf96e595a06da5ac0b6ba51dea6f7e2591bb913deccded04d831d29f4"
+    chains = "ETH"
+    start_date = 1234
+    ignore_invalid_messages = "--no-ignore-invalid-messages"
 
     result = runner.invoke(
         app,
         [
             "message",
-            "post",
-            "--path",
-            path,
-            "--type",
-            message_type,
+            "find",
+            "--pagination",
+            pagination,
+            "--page",
+            page,
+            "--hashes",
+            hashes,
+            "--chains",
+            chains,
+            "--start-date",
+            start_date,
+            "--ignore-invalid-messages",
+            ignore_invalid_messages,
         ],
     )
 
     assert result.exit_code == 0
-    assert result.stdout
+
+    assert "0x101d8D16372dBf5f1614adaE95Ee5CCE61998Fc9" in result.stdout
+
+    assert (
+        "bd79839bf96e595a06da5ac0b6ba51dea6f7e2591bb913deccded04d831d29f4"
+        in result.stdout
+    )
 
 
 def test_message_sign(account_file):
