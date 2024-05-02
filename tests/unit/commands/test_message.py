@@ -54,6 +54,7 @@ def create_test_message(private_key_file: Union[Path, str] = None):
             private_key_file,
         ],
     )
+    time.sleep(1)
     return result
 
 
@@ -78,17 +79,16 @@ def test_message_amend(account_file: Path):
 
 
 def test_message_forget(account_file: Path):
-    private_key_file = account_file
-    debug = "--no-debug"
+    result = json.loads(create_test_message(account_file).stdout)
 
     result = runner.invoke(
         app,
         [
             "message",
             "forget",
+            result["item_hash"],
             "--private-key-file",
-            private_key_file,
-            debug,
+            account_file,
         ],
     )
 
