@@ -61,7 +61,7 @@ async def attach_resource(
     account: AccountFromPrivateKey,
     fqdn: Hostname,
     item_hash: Optional[str] = None,
-    default_404_page: Optional[str] = None,
+    catch_all_path: Optional[str] = None,
     interactive: Optional[bool] = None,
 ):
     interactive = is_environment_interactive() if interactive is None else interactive
@@ -82,8 +82,8 @@ async def attach_resource(
     """
     resource_type = await get_target_type(fqdn)
 
-    if resource_type == TargetType.IPFS:
-        default_404_page: str = Prompt.ask("Custom 404 page? ex: /404.html", default=None)
+    if resource_type == TargetType.IPFS and not catch_all_path:
+        catch_all_path = Prompt.ask("Catch all path? ex: /404.html or press [Enter] to ignore", default=None)
 
     if domain_info is not None and domain_info.get("info"):
         current_resource = domain_info["info"]["message_id"]
@@ -113,8 +113,10 @@ async def attach_resource(
                 }
             }
 
-            if default_404_page and default_404_page.startswith("/"):
-                aggregate_content[fqdn]["default_404_page"] = default_404_page
+            if catch_all_path and catch_all_path.startswith("/"):
+                aggregate_content[fqdn]["options"] = {
+                    "catch_all_path": catch_all_path
+                }
 
             aggregate_message, message_status = await client.create_aggregate(
                 key="domains", content=aggregate_content, channel="ALEPH-CLOUDSOLUTIONS"
@@ -274,14 +276,14 @@ async def attach(
     item_hash: Optional[str] = typer.Option(
         None, help=help_strings.CUSTOM_DOMAIN_ITEM_HASH
     ),
-    default_404_page: str = typer.Option(default=None, help=help_strings.IPFS_DEFAULT_404_PAGE),
+    catch_all_path: str = typer.Option(default=None, help=help_strings.IPFS_CATCH_ALL_PATH),
     ask: bool = typer.Option(default=True, help=help_strings.ASK_FOR_CONFIRMATION),
 ):
     """Attach resource to a Custom Domain."""
     account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
 
     await attach_resource(
-        account, Hostname(fqdn), item_hash, interactive=False if (not ask) else None, default_404_page=default_404_page
+        account, Hostname(fqdn), item_hash, interactive=False if (not ask) else None, catch_all_path=catch_all_path
     )
     raise typer.Exit()
 
@@ -332,18 +334,20 @@ async def info(
     table.add_column("Attached resource", justify="right", style="cyan", no_wrap=True)
 
     resource_type = TargetType(domain_info["info"]["type"])
-    table_values = (resource_type, domain_info["info"]["message_id"])
+    table_values = [resource_type, domain_info["info"]["message_id"]]
 
-    if resource_type == TargetType.IPFS:
-        table.add_column("Default 404 page", justify="right", style="cyan", no_wrap=True)
-        table_values += (domain_info["info"].get("default_404_page"),)
+    options = domain_info["info"].get("options")
+    if resource_type == TargetType.IPFS and options and "catch_all_path" in options:
+        table.add_column("Catch all path", justify="right", style="cyan", no_wrap=True)
+        print(domain_info)
+        table_values.append(domain_info["info"]["options"]["catch_all_path"])
     elif resource_type == TargetType.PROGRAM:
         table.add_column("Target resource", justify="right", style="cyan", no_wrap=True)
-        table_values += (domain_info["info"]["message_id"],)
+        table_values.append(domain_info["info"]["message_id"])
     if resource_type == TargetType.INSTANCE:
         table.add_column("Target resource", justify="right", style="cyan", no_wrap=True)
         ips = await domain_validator.get_ipv6_addresses(Hostname(fqdn))
-        table_values += (",".join([str(ip) for ip in ips]),)
+        table_values.append(",".join([str(ip) for ip in ips]))
 
     table.add_row(*table_values)
     console.print(table)
