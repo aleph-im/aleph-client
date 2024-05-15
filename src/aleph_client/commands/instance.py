@@ -28,6 +28,7 @@ from aleph_client.commands.utils import (
     setup_logging,
     validated_int_prompt,
     validated_prompt,
+    fetch_crn_info,
 )
 from aleph_client.conf import settings
 from aleph_client.utils import AsyncTyper
@@ -43,6 +44,10 @@ def load_ssh_pubkey(ssh_pubkey_file: Path) -> str:
 
 @app.command()
 async def create(
+    payg: str = typer.Option(
+        "No",
+        help="Is this a PAYG instance",
+    ),
     channel: Optional[str] = typer.Option(default=None, help=help_strings.CHANNEL),
     memory: int = typer.Option(
         settings.DEFAULT_INSTANCE_MEMORY, help="Maximum memory allocation on vm in MiB"
@@ -127,6 +132,22 @@ async def create(
         HypervisorType.qemu: "qemu",
     }
 
+    payg = Prompt.ask(
+        f"Do you want to create a Pay As You Go instance?",
+        default="no",
+        choices=["yes", "no"],
+    )
+
+    if payg == "yes":
+        await fetch_crn_info()
+        payg = validated_prompt(
+            f"Please select and enter the node hash of the wanted CRN",
+            lambda x: len(x) == 64,
+        )
+    else:
+        print("Basic instance")
+
+    return
     rootfs = Prompt.ask(
         f"Do you want to use a custom rootfs or one of the following prebuilt ones?",
         default=rootfs,

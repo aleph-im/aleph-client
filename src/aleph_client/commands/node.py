@@ -39,6 +39,7 @@ async def _fetch_nodes() -> NodeInfo:
                 raise typer.Exit(1)
 
             data = await resp.json()
+            # print(data)
             return NodeInfo(**data)
 
 
@@ -75,13 +76,15 @@ def _show_compute(node_info):
     table.add_column("Creation Time", style="#029AFF", justify="center")
     table.add_column("Decentralization", style="green", justify="right")
     table.add_column("Status", style="green", justify="right")
+    table.add_column("Item Hash", style="green", justify="center")
 
     for node in node_info.nodes:
         # Prevent escaping with name
         node_name = node["name"]
         node_name = _escape_and_normalize(node_name)
         node_name = _remove_ansi_escape(node_name)
-
+        node_hash = node["hash"]
+        node_reward = node["stream_reward"]
         #  Format Value
         creation_time = datetime.datetime.fromtimestamp(node["time"]).strftime(
             "%Y-%m-%d %H:%M:%S"
@@ -89,13 +92,13 @@ def _show_compute(node_info):
         score = _format_score(node["score"])
         decentralization = _format_score(node["decentralization"])
         status = _format_status(node["status"])
-
         table.add_row(
             score,
             node_name,
             creation_time,
             decentralization,
             status,
+            node_hash,
         )
 
     console = Console()

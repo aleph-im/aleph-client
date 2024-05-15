@@ -12,7 +12,9 @@ from pygments.lexers import JsonLexer
 from rich.prompt import IntPrompt, Prompt, PromptError
 from typer import echo
 
-
+import requests
+import html2text
+from bs4 import BeautifulSoup
 def colorful_json(obj: str):
     """Render a JSON string with colors."""
     return highlight(
@@ -200,3 +202,51 @@ def is_environment_interactive() -> bool:
             not os.environ.get("DEBIAN_NONINTERACTIVE") == "noninteractive",
         )
     )
+
+from rich.console import Console
+from rich.table import Table
+from rich.text import Text
+from rich.progress import Progress, BarColumn, TextColumn
+from aleph_client.commands.node import _fetch_nodes, _escape_and_normalize, _remove_ansi_escape, _format_score, _format_status, NodeInfo
+import requests
+import aiohttp
+import asyncio
+
+logger = logging.getLogger(__name__)
+
+async def fetch_crn_info():
+    node_info = await _fetch_nodes()
+    table = Table(title="Compute Node Information")
+    table.add_column("Score", style="green", no_wrap=True, justify="right")
+    table.add_column("Name", style="#029AFF", justify="left")
+    table.add_column("Decentralization", style="green", justify="right")
+    table.add_column("Status", style="green", justify="right")
+    table.add_column("Item Hash", style="green", justify="center")
+    table.add_column("address", style="green", justify="center")
+
+    with Progress() as progress:
+        task = progress.add_task("[green]Fetching node info... It might take 5 minutes", total=len(node_info.nodes), start=False)
+        async with aiohttp.ClientSession() as session:
+            tasks = [fetch_and_update_progress(table, session, node, progress, task) for node in node_info.nodes]
+            await asyncio.gather(*tasks)
+
+    console = Console()
+    console.print(table)
+
+async def fetch_and_update_progress(table, session, node, progress, task):
+    try:
+        async with session.get(node["address"] + "status/check/ipv6") as resp:
+            if resp.status == 200:
+                node_name = _escape_and_normalize(node["name"])
+                node_name = _remove_ansi_escape(node_name)
+                node_hash = node["hash"]
+                node_address = node["address"]
+                score = _format_score(node["score"])
+                decentralization = _format_score(node["decentralization"])
+                status = _format_status(node["status"])
+                table.add_row(score, node_name, decentralization, status, node_hash, node_address)
+    except Exception as e:
+        pass
+    finally:
+        progress.update(task, advance=1)
+
