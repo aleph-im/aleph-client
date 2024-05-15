@@ -17,14 +17,18 @@ from aleph.sdk.exceptions import (
 )
 from aleph.sdk.query.filters import MessageFilter
 from aleph.sdk.types import AccountFromPrivateKey, StorageEnum
-from aleph_message.models import InstanceMessage, ItemHash, MessageType, StoreMessage
+from aleph_message.models import InstanceMessage, StoreMessage
+from aleph_message.models.base import Chain, MessageType
+from aleph_message.models.execution.base import Payment, PaymentType
 from aleph_message.models.execution.environment import HypervisorType
+from aleph_message.models.item_hash import ItemHash
 from rich import box
 from rich.console import Console
 from rich.prompt import Prompt
 from rich.table import Table
 
 from aleph_client.commands import help_strings
+from aleph_client.commands.instance.display import fetch_crn_info
 from aleph_client.commands.utils import (
     get_or_prompt_volumes,
     setup_logging,
@@ -38,13 +42,12 @@ logger = logging.getLogger(__name__)
 app = AsyncTyper(no_args_is_help=True)
 
 
-def load_ssh_pubkey(ssh_pubkey_file: Path) -> str:
-    with open(ssh_pubkey_file, "r") as f:
-        return f.read().strip()
-
-
 @app.command()
 async def create(
+    hold: bool = typer.Option(
+        default=False,
+        help="Pay using the holder tier instead of pay-as-you-go",
+    ),
     channel: Optional[str] = typer.Option(default=None, help=help_strings.CHANNEL),
     memory: int = typer.Option(settings.DEFAULT_INSTANCE_MEMORY, help="Maximum memory allocation on vm in MiB"),
     vcpus: int = typer.Option(sdk_settings.DEFAULT_VM_VCPUS, help="Number of virtual cpus to allocate."),
@@ -102,7 +105,7 @@ async def create(
             )
         )
 
-    ssh_pubkey = load_ssh_pubkey(ssh_pubkey_file)
+    ssh_pubkey: str = ssh_pubkey_file.read_text().strip()
 
     account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
 
@@ -116,6 +119,17 @@ async def create(
         HypervisorType.firecracker: "firecracker",
         HypervisorType.qemu: "qemu",
     }
+
+    if hold:
+        # Holder tier
+        reward_address = None
+    else:
+        # Pay-as-you-go
+        valid_address = await fetch_crn_info()
+        reward_address = validated_prompt(
+            "Please select and enter the reward address of the wanted CRN",
+            lambda x: x in valid_address,
+        )
 
     rootfs = Prompt.ask(
         "Do you want to use a custom rootfs or one of the following prebuilt ones?",
@@ -141,22 +155,17 @@ async def create(
 
     vcpus = validated_int_prompt("Number of virtual cpus to allocate", vcpus, min_value=1, max_value=4)
 
-    memory = validated_int_prompt(
-        "Maximum memory allocation on vm in MiB",
-        memory,
-        min_value=2000,
-        max_value=8000,
-    )
+    memory = validated_int_prompt("Maximum memory allocation on vm in MiB", memory, min_value=2000, max_value=8000)
 
     rootfs_size = validated_int_prompt("Disk size in MiB", rootfs_size, min_value=20000, max_value=100000)
 
-    hypervisor = HypervisorType(
+    hypervisor = HypervisorType[
         Prompt.ask(
             "Which hypervisor you want to use?",
-            default=hv_map[hypervisor],
+            default=hypervisor.name,
             choices=[*hv_map.values()],
         )
-    )
+    ]
 
     volumes = get_or_prompt_volumes(
         persistent_volume=persistent_volume,
@@ -165,6 +174,13 @@ async def create(
     )
 
     async with AuthenticatedAlephHttpClient(account=account, api_server=sdk_settings.API_HOST) as client:
+        payment: Optional[Payment] = None
+        if reward_address:
+            payment = Payment(
+                chain=Chain.AVAX,
+                receiver=reward_address,
+                type=PaymentType["superfluid"],
+            )
         try:
             message, status = await client.create_instance(
                 sync=True,
@@ -178,6 +194,7 @@ async def create(
                 volumes=volumes,
                 ssh_keys=[ssh_pubkey],
                 hypervisor=hypervisor,
+                payment=payment,
             )
         except InsufficientFundsError as e:
             typer.echo(
