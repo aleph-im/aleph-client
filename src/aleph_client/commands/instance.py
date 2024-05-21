@@ -46,7 +46,7 @@ def load_ssh_pubkey(ssh_pubkey_file: Path) -> str:
 async def create(
     payg: str = typer.Option(
         "No",
-        help="Is this a PAYG instance",
+        help="Asking if you want a PAYG instance",
     ),
     channel: Optional[str] = typer.Option(default=None, help=help_strings.CHANNEL),
     memory: int = typer.Option(
@@ -144,10 +144,7 @@ async def create(
             f"Please select and enter the node hash of the wanted CRN",
             lambda x: len(x) == 64,
         )
-    else:
-        print("Basic instance")
 
-    return
     rootfs = Prompt.ask(
         f"Do you want to use a custom rootfs or one of the following prebuilt ones?",
         default=rootfs,

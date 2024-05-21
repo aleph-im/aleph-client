@@ -224,16 +224,17 @@ async def fetch_crn_info():
     table.add_column("Item Hash", style="green", justify="center")
     table.add_column("address", style="green", justify="center")
 
-    with Progress() as progress:
-        task = progress.add_task("[green]Fetching node info... It might take 5 minutes", total=len(node_info.nodes), start=False)
-        async with aiohttp.ClientSession() as session:
-            tasks = [fetch_and_update_progress(table, session, node, progress, task) for node in node_info.nodes]
-            await asyncio.gather(*tasks)
-
     console = Console()
-    console.print(table)
+    console.print(Text("Fetching compute node information...", style="bold blue"))
 
-async def fetch_and_update_progress(table, session, node, progress, task):
+    with Progress() as progress:
+        task = progress.add_task("[green]Fetching node info... It might take some time", total=len(node_info.nodes), start=True)
+
+        async with aiohttp.ClientSession() as session:
+            for node in node_info.nodes:
+                await fetch_and_update_table(session, node, table, console, progress, task)
+
+async def fetch_and_update_table(session, node, table, console, progress, task):
     try:
         async with session.get(node["address"] + "status/check/ipv6") as resp:
             if resp.status == 200:
@@ -245,8 +246,11 @@ async def fetch_and_update_progress(table, session, node, progress, task):
                 decentralization = _format_score(node["decentralization"])
                 status = _format_status(node["status"])
                 table.add_row(score, node_name, decentralization, status, node_hash, node_address)
+            progress.update(task, advance=1)
+            console.clear()
+            console.print(Text("Fetching compute node information...", style="bold blue"))
+            console.print(table)
     except Exception as e:
-        pass
-    finally:
         progress.update(task, advance=1)
+        pass
 
