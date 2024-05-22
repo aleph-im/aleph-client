@@ -3,6 +3,8 @@ import os
 import sys
 from datetime import datetime
 from typing import Any, Callable, Dict, List, Optional, TypeVar, Union
+import aiohttp
+import asyncio
 
 import typer
 from aleph.sdk.types import GenericMessage
@@ -10,11 +12,12 @@ from pygments import highlight
 from pygments.formatters.terminal256 import Terminal256Formatter
 from pygments.lexers import JsonLexer
 from rich.prompt import IntPrompt, Prompt, PromptError
+from rich.live import Live
+from rich.console import Console
+from rich.table import Table
+from rich.progress import Progress
 from typer import echo
 
-import requests
-import html2text
-from bs4 import BeautifulSoup
 def colorful_json(obj: str):
     """Render a JSON string with colors."""
     return highlight(
@@ -203,14 +206,19 @@ def is_environment_interactive() -> bool:
         )
     )
 
-from rich.console import Console
-from rich.table import Table
-from rich.text import Text
-from rich.progress import Progress, BarColumn, TextColumn
-from aleph_client.commands.node import _fetch_nodes, _escape_and_normalize, _remove_ansi_escape, _format_score, _format_status, NodeInfo
-import requests
-import aiohttp
-import asyncio
+
+from aleph_client.commands.node import _fetch_nodes, _escape_and_normalize, _remove_ansi_escape, _format_score, _format_status
+
+
+class ProgressTable:
+    def __init__(self, progress, table):
+        self.progress = progress
+        self.table = table
+
+    def __rich_console__(self, console, options):
+        yield self.progress
+        yield self.table
+
 
 logger = logging.getLogger(__name__)
 
@@ -225,16 +233,21 @@ async def fetch_crn_info():
     table.add_column("address", style="green", justify="center")
 
     console = Console()
-    console.print(Text("Fetching compute node information...", style="bold blue"))
+    progress = Progress()
+    task = progress.add_task("[green]Fetching node info... It might take some time", total=len(node_info.nodes))
 
-    with Progress() as progress:
-        task = progress.add_task("[green]Fetching node info... It might take some time", total=len(node_info.nodes), start=True)
+    progress_table = ProgressTable(progress, table)
+    item_hashes = []
 
-        async with aiohttp.ClientSession() as session:
-            for node in node_info.nodes:
-                await fetch_and_update_table(session, node, table, console, progress, task)
+    async with aiohttp.ClientSession() as session:
+        with Live(progress_table, console=console, refresh_per_second=2):
+            tasks = [fetch_and_update_table(session, node, table, progress, task, item_hashes) for node in node_info.nodes]
+            await asyncio.gather(*tasks)
 
-async def fetch_and_update_table(session, node, table, console, progress, task):
+    console.print(table)
+    return item_hashes
+
+async def fetch_and_update_table(session, node, table, progress, task, item_hashes):
     try:
         async with session.get(node["address"] + "status/check/ipv6") as resp:
             if resp.status == 200:
@@ -246,11 +259,8 @@ async def fetch_and_update_table(session, node, table, console, progress, task):
                 decentralization = _format_score(node["decentralization"])
                 status = _format_status(node["status"])
                 table.add_row(score, node_name, decentralization, status, node_hash, node_address)
-            progress.update(task, advance=1)
-            console.clear()
-            console.print(Text("Fetching compute node information...", style="bold blue"))
-            console.print(table)
+                item_hashes.append(node_hash)
     except Exception as e:
-        progress.update(task, advance=1)
         pass
-
+    finally:
+        progress.update(task, advance=1)

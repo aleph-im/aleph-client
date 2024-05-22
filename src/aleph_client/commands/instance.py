@@ -139,10 +139,10 @@ async def create(
     )
 
     if payg == "yes":
-        await fetch_crn_info()
+        valid_hash = await fetch_crn_info()
         payg = validated_prompt(
             f"Please select and enter the node hash of the wanted CRN",
-            lambda x: len(x) == 64,
+            lambda x: len(x) == 64 and x in valid_hash,
         )
 
     rootfs = Prompt.ask(
