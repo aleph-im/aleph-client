@@ -145,6 +145,8 @@ async def create(
             f"Please select and enter the reward address of the wanted CRN",
             lambda x: x in valid_address,
         )
+    else:
+        reward_address = None
 
     rootfs = Prompt.ask(
         f"Do you want to use a custom rootfs or one of the following prebuilt ones?",
@@ -197,8 +199,9 @@ async def create(
     async with AuthenticatedAlephHttpClient(
         account=account, api_server=sdk_settings.API_HOST
     ) as client:
+        payment = None
         if reward_address:
-            payement = Payment(chain="AVAX", receiver=reward_address, type=PaymentType["superfluid"])
+            payment = Payment(chain="AVAX", receiver=reward_address, type=PaymentType["superfluid"])
         try:
             message, status = await client.create_instance(
                 sync=True,
@@ -212,7 +215,7 @@ async def create(
                 volumes=volumes,
                 ssh_keys=[ssh_pubkey],
                 hypervisor=hypervisor,
-                payment=payement,
+                payment=payment,
             )
         except InsufficientFundsError as e:
             typer.echo(
