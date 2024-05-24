@@ -17,6 +17,7 @@ from aleph.sdk.query.filters import MessageFilter
 from aleph.sdk.types import AccountFromPrivateKey, StorageEnum
 from aleph_message.models import InstanceMessage, ItemHash, MessageType, StoreMessage
 from aleph_message.models.execution.environment import HypervisorType
+from aleph_message.models.execution.base import Payment, PaymentType
 from rich import box
 from rich.console import Console
 from rich.prompt import Prompt
@@ -139,10 +140,10 @@ async def create(
     )
 
     if payg == "yes":
-        valid_hash = await fetch_crn_info()
-        payg = validated_prompt(
-            f"Please select and enter the node hash of the wanted CRN",
-            lambda x: len(x) == 64 and x in valid_hash,
+        valid_address = await fetch_crn_info()
+        reward_address = validated_prompt(
+            f"Please select and enter the reward address of the wanted CRN",
+            lambda x: x in valid_address,
         )
 
     rootfs = Prompt.ask(
@@ -196,6 +197,8 @@ async def create(
     async with AuthenticatedAlephHttpClient(
         account=account, api_server=sdk_settings.API_HOST
     ) as client:
+        if reward_address:
+            payement = Payment(chain="AVAX", receiver=reward_address, type=PaymentType["superfluid"])
         try:
             message, status = await client.create_instance(
                 sync=True,
@@ -209,6 +212,7 @@ async def create(
                 volumes=volumes,
                 ssh_keys=[ssh_pubkey],
                 hypervisor=hypervisor,
+                payment=payement,
             )
         except InsufficientFundsError as e:
             typer.echo(

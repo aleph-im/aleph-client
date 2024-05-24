@@ -39,7 +39,6 @@ async def _fetch_nodes() -> NodeInfo:
                 raise typer.Exit(1)
 
             data = await resp.json()
-            # print(data)
             return NodeInfo(**data)
 
 

@@ -40,7 +40,7 @@ class Settings(BaseSettings):
     )
     DEFAULT_ROOTFS_SIZE: int = 20_000
     DEFAULT_INSTANCE_MEMORY: int = 2_048
-    DEFAULT_HYPERVISOR: HypervisorType = HypervisorType.firecracker
+    DEFAULT_HYPERVISOR: HypervisorType = HypervisorType.qemu
 
     DEFAULT_VM_MEMORY: int = 128
     DEFAULT_VM_VCPUS: int = 1
