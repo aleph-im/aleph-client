@@ -1,7 +1,6 @@
 import logging
 import os
 import sys
-import re
 from datetime import datetime
 from typing import Any, Callable, Dict, List, Optional, TypeVar, Union
 import aiohttp
@@ -18,6 +17,7 @@ from rich.console import Console
 from rich.table import Table
 from rich.progress import Progress
 from typer import echo
+from bs4 import BeautifulSoup
 
 def colorful_json(obj: str):
     """Render a JSON string with colors."""
@@ -208,7 +208,7 @@ def is_environment_interactive() -> bool:
     )
 
 
-from aleph_client.commands.node import NodeInfo, _fetch_nodes, _escape_and_normalize, _remove_ansi_escape, _format_score, _format_status
+from aleph_client.commands.node import NodeInfo, _fetch_nodes, _escape_and_normalize, _remove_ansi_escape, _format_score
 
 
 class ProgressTable:
@@ -221,9 +221,6 @@ class ProgressTable:
         yield self.table
 
 
-logger = logging.getLogger(__name__)
-
-
 async def fetch_crn_info():
     node_info = await _fetch_nodes()
     table = Table(title="Compute Node Information")
@@ -232,7 +229,7 @@ async def fetch_crn_info():
     table.add_column("CPU", style="green", justify="left")
     table.add_column("RAM", style="green", justify="left")
     table.add_column("HDD", style="green", justify="left")
-    table.add_column("Version", style="green", justify="left")
+    table.add_column("Version", style="green", justify="center")
     table.add_column("Reward Address", style="green", justify="center")
     table.add_column("Address", style="green", justify="center")
 
@@ -243,22 +240,28 @@ async def fetch_crn_info():
     progress_table = ProgressTable(progress, table)
     item_hashes = []
 
+    queue = asyncio.Queue()
+
     async with aiohttp.ClientSession() as session:
         with Live(progress_table, console=console, refresh_per_second=2):
-            tasks = [fetch_and_update_table(session, node, table, progress, task, item_hashes) for node in node_info.nodes]
-            await asyncio.gather(*tasks)
+            fetch_task = asyncio.create_task(fetch_data(session, node_info, queue, progress, task, item_hashes))
+            update_task = asyncio.create_task(update_table(queue, table))
+            await asyncio.gather(fetch_task, update_task)
 
-    console.print(table)
     return item_hashes
 
+async def fetch_data(session: aiohttp.ClientSession, node_info: NodeInfo, queue: asyncio.Queue, progress: ProgressTable, task: list, item_hashes: list):
+    tasks = [fetch_and_queue(session, node, queue, progress, task, item_hashes) for node in node_info.nodes]
+    await asyncio.gather(*tasks)
+    await queue.put(None)
 
-async def fetch_and_update_table(session: aiohttp.ClientSession, node: NodeInfo, table: Table, progress: ProgressTable, task: list, item_hashes: list):
+async def fetch_and_queue(session: aiohttp.ClientSession, node: NodeInfo, queue: asyncio.Queue, progress: Progress, task: list, item_hashes: list):
     try:
         system_info, version = await asyncio.gather(
             fetch_crn_system(session, node),
             get_crn_version(session, node)
         )
-        async with session.get(node["address"] + "status/check/ipv6") as resp:
+        async with session.get(node["address"] + "status/check/ipv6", timeout=10) as resp:
             if resp.status == 200:
                 node_stream = node["stream_reward"]
                 if node_stream and system_info:
@@ -269,31 +272,45 @@ async def fetch_and_update_table(session: aiohttp.ClientSession, node: NodeInfo,
                     cpu = f"{system_info['cpu']['count']} {system_info['properties']['cpu']['architecture']}"
                     hdd = f"{system_info['disk']['available_kB'] / 1024 / 1024:.2f} GB"
                     ram = f"{system_info['mem']['available_kB'] / 1024 / 1024:.2f} GB"
-                    table.add_row(score, node_name, cpu, ram, hdd, version, node_stream, node_address)
+                    await queue.put((score, node_name, cpu, ram, hdd, version, node_stream, node_address))
                     item_hashes.append(node_stream)
     except Exception as e:
+        
         pass
     finally:
         progress.update(task, advance=1)
 
+async def update_table(queue: asyncio.Queue, table: Table):
+    while True:
+        data = await queue.get()
+        if data is None:
+            break
+        table.add_row(*data)
 
 async def fetch_crn_system(session: aiohttp.ClientSession, node: NodeInfo):
     try:
-        async with session.get(node["address"] + "about/usage/system") as resp:
+        async with session.get(node["address"] + "about/usage/system", timeout=10) as resp:
             if resp.status == 200:
                 data = await resp.json()
     except Exception as e:
         data = None
     return data
 
-async def get_crn_version(session: aiohttp.ClientSession, node: NodeInfo):
+async def get_crn_version(session: aiohttp.ClientSession, node: NodeInfo, retries=3):
+    version = None
+    timeout = aiohttp.ClientTimeout(connect=20, total=40)
+    
     try:
-        async with session.get(node['address']) as resp:
+        async with session.get(node['address'], timeout=timeout) as resp:
             if resp.status == 200:
-                data = await resp.text()
-                match = re.search(r"const NODE_VERSION = '([^']+)';", data)
-                if match:
-                    version = match.group(1)
-    except Exception as e:
-        version = None
+                    html_content = await resp.text()
+                    soup = BeautifulSoup(html_content, 'html.parser')
+                    p_tags = soup.find_all('p')
+                    for p in p_tags:
+                        if 'Running version' in p.text:
+                            version = p.find('i').text
+                            return version
+    except (aiohttp.ClientError, asyncio.TimeoutError) as e:
+        version = "Can't fetch the version"
+        pass
     return version
