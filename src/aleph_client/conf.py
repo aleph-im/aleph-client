@@ -55,6 +55,8 @@ class Settings(BaseSettings):
         env_prefix = "ALEPH_"
         case_sensitive = False
         env_file = ".env"
+    
+    HTTP_REQUEST_TIMEOUT = 10.0
 
 
 # Settings singleton

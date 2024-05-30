@@ -1,11 +1,14 @@
 import logging
 import os
+from random import random
 import sys
+import re
 from datetime import datetime
 from typing import Any, Callable, Dict, List, Optional, TypeVar, Union
 import aiohttp
 import asyncio
 
+import async_timeout
 import typer
 from aleph.sdk.types import GenericMessage
 from pygments import highlight
@@ -15,9 +18,9 @@ from rich.prompt import IntPrompt, Prompt, PromptError
 from rich.live import Live
 from rich.console import Console
 from rich.table import Table
-from rich.progress import Progress
+from rich.progress import Progress, TaskID
 from typer import echo
-from bs4 import BeautifulSoup
+from aleph_client.conf import settings
 
 def colorful_json(obj: str):
     """Render a JSON string with colors."""
@@ -238,9 +241,9 @@ async def fetch_crn_info():
     task = progress.add_task("[green]Fetching node info... It might take some time", total=len(node_info.nodes))
 
     progress_table = ProgressTable(progress, table)
-    item_hashes = []
+    item_hashes: list = []
 
-    queue = asyncio.Queue()
+    queue: asyncio.Queue = asyncio.Queue()
 
     async with aiohttp.ClientSession() as session:
         with Live(progress_table, console=console, refresh_per_second=2):
@@ -250,32 +253,33 @@ async def fetch_crn_info():
 
     return item_hashes
 
-async def fetch_data(session: aiohttp.ClientSession, node_info: NodeInfo, queue: asyncio.Queue, progress: ProgressTable, task: list, item_hashes: list):
+async def fetch_data(session: aiohttp.ClientSession, node_info: NodeInfo, queue: asyncio.Queue, progress: Progress, task: TaskID, item_hashes: list):
     tasks = [fetch_and_queue(session, node, queue, progress, task, item_hashes) for node in node_info.nodes]
     await asyncio.gather(*tasks)
     await queue.put(None)
 
-async def fetch_and_queue(session: aiohttp.ClientSession, node: NodeInfo, queue: asyncio.Queue, progress: Progress, task: list, item_hashes: list):
+async def fetch_and_queue(session: aiohttp.ClientSession, node: NodeInfo, queue: asyncio.Queue, progress: Progress, task: TaskID, item_hashes: list):
     try:
         system_info, version = await asyncio.gather(
             fetch_crn_system(session, node),
             get_crn_version(session, node)
         )
-        async with session.get(node["address"] + "status/check/ipv6", timeout=10) as resp:
-            if resp.status == 200:
-                node_stream = node["stream_reward"]
-                if node_stream and system_info:
-                    node_name = _escape_and_normalize(node["name"])
-                    node_name = _remove_ansi_escape(node_name)
-                    node_address = node["address"]
-                    score = _format_score(node["score"])
-                    cpu = f"{system_info['cpu']['count']} {system_info['properties']['cpu']['architecture']}"
-                    hdd = f"{system_info['disk']['available_kB'] / 1024 / 1024:.2f} GB"
-                    ram = f"{system_info['mem']['available_kB'] / 1024 / 1024:.2f} GB"
-                    await queue.put((score, node_name, cpu, ram, hdd, version, node_stream, node_address))
-                    item_hashes.append(node_stream)
+        async with async_timeout.timeout(settings.HTTP_REQUEST_TIMEOUT + settings.HTTP_REQUEST_TIMEOUT * 0.3 * random()):
+            url: str = node["address"].rstrip('/') + '/status/check/ipv6'
+            async with session.get(url) as resp:
+                if resp.status == 200:
+                    node_stream = node["stream_reward"]
+                    if node_stream and system_info:
+                        node_name = _escape_and_normalize(node["name"])
+                        node_name = _remove_ansi_escape(node_name)
+                        node_address = node["address"]
+                        score = _format_score(node["score"])
+                        cpu = f"{system_info['cpu']['count']} {system_info['properties']['cpu']['architecture']}"
+                        hdd = f"{system_info['disk']['available_kB'] / 1024 / 1024:.2f} GB"
+                        ram = f"{system_info['mem']['available_kB'] / 1024 / 1024:.2f} GB"
+                        await queue.put((score, node_name, cpu, ram, hdd, version, node_stream, node_address))
+                        item_hashes.append(node_stream)
     except Exception as e:
-        
         pass
     finally:
         progress.update(task, advance=1)
@@ -287,30 +291,28 @@ async def update_table(queue: asyncio.Queue, table: Table):
             break
         table.add_row(*data)
 
-async def fetch_crn_system(session: aiohttp.ClientSession, node: NodeInfo):
+async def fetch_crn_system(session: aiohttp.ClientSession, node: NodeInfo) -> str:
     try:
-        async with session.get(node["address"] + "about/usage/system", timeout=10) as resp:
-            if resp.status == 200:
-                data = await resp.json()
+        async with async_timeout.timeout(settings.HTTP_REQUEST_TIMEOUT + settings.HTTP_REQUEST_TIMEOUT * 0.3 * random()):
+            url: str = node["address"].rstrip('/') + '/about/usage/system'
+            async with session.get(url) as resp:
+                if resp.status == 200:
+                    data = await resp.json()
     except Exception as e:
         data = None
     return data
 
-async def get_crn_version(session: aiohttp.ClientSession, node: NodeInfo, retries=3):
+async def get_crn_version(session: aiohttp.ClientSession, node: NodeInfo) -> str:
     version = None
-    timeout = aiohttp.ClientTimeout(connect=20, total=40)
-    
     try:
-        async with session.get(node['address'], timeout=timeout) as resp:
-            if resp.status == 200:
-                    html_content = await resp.text()
-                    soup = BeautifulSoup(html_content, 'html.parser')
-                    p_tags = soup.find_all('p')
-                    for p in p_tags:
-                        if 'Running version' in p.text:
-                            version = p.find('i').text
-                            return version
+        async with async_timeout.timeout(3 * settings.HTTP_REQUEST_TIMEOUT + 3 * settings.HTTP_REQUEST_TIMEOUT * 0.3 * random()):
+            async with session.get(node["address"]) as resp:
+                if resp.status == 200:
+                    if "Server" in resp.headers:
+                        for server in resp.headers.getall("Server"):
+                            version_match = re.findall(r"^aleph-vm/(.*)$", server)
+                            if version_match and version_match[0]:
+                                return version_match[0]
     except (aiohttp.ClientError, asyncio.TimeoutError) as e:
-        version = "Can't fetch the version"
-        pass
-    return version
+        return "Can't fetch the version"
+    return version or "Can't fetch the version"
