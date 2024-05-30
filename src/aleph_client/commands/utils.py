@@ -267,18 +267,18 @@ async def fetch_and_queue(session: aiohttp.ClientSession, node: NodeInfo, queue:
         async with async_timeout.timeout(settings.HTTP_REQUEST_TIMEOUT + settings.HTTP_REQUEST_TIMEOUT * 0.3 * random()):
             url: str = node["address"].rstrip('/') + '/status/check/ipv6'
             async with session.get(url) as resp:
-                if resp.status == 200:
-                    node_stream = node["stream_reward"]
-                    if node_stream and system_info:
-                        node_name = _escape_and_normalize(node["name"])
-                        node_name = _remove_ansi_escape(node_name)
-                        node_address = node["address"]
-                        score = _format_score(node["score"])
-                        cpu = f"{system_info['cpu']['count']} {system_info['properties']['cpu']['architecture']}"
-                        hdd = f"{system_info['disk']['available_kB'] / 1024 / 1024:.2f} GB"
-                        ram = f"{system_info['mem']['available_kB'] / 1024 / 1024:.2f} GB"
-                        await queue.put((score, node_name, cpu, ram, hdd, version, node_stream, node_address))
-                        item_hashes.append(node_stream)
+                resp.raise_for_status()
+                node_stream = node["stream_reward"]
+                if node_stream and system_info:
+                    node_name = _escape_and_normalize(node["name"])
+                    node_name = _remove_ansi_escape(node_name)
+                    node_address = node["address"]
+                    score = _format_score(node["score"])
+                    cpu = f"{system_info['cpu']['count']} {system_info['properties']['cpu']['architecture']}"
+                    hdd = f"{system_info['disk']['available_kB'] / 1024 / 1024:.2f} GB"
+                    ram = f"{system_info['mem']['available_kB'] / 1024 / 1024:.2f} GB"
+                    await queue.put((score, node_name, cpu, ram, hdd, version, node_stream, node_address))
+                    item_hashes.append(node_stream)
     except Exception as e:
         pass
     finally:
@@ -296,8 +296,8 @@ async def fetch_crn_system(session: aiohttp.ClientSession, node: NodeInfo) -> st
         async with async_timeout.timeout(settings.HTTP_REQUEST_TIMEOUT + settings.HTTP_REQUEST_TIMEOUT * 0.3 * random()):
             url: str = node["address"].rstrip('/') + '/about/usage/system'
             async with session.get(url) as resp:
-                if resp.status == 200:
-                    data = await resp.json()
+                resp.raise_for_status()
+                data = await resp.json()
     except Exception as e:
         data = None
     return data
@@ -307,12 +307,12 @@ async def get_crn_version(session: aiohttp.ClientSession, node: NodeInfo) -> str
     try:
         async with async_timeout.timeout(3 * settings.HTTP_REQUEST_TIMEOUT + 3 * settings.HTTP_REQUEST_TIMEOUT * 0.3 * random()):
             async with session.get(node["address"]) as resp:
-                if resp.status == 200:
-                    if "Server" in resp.headers:
-                        for server in resp.headers.getall("Server"):
-                            version_match = re.findall(r"^aleph-vm/(.*)$", server)
-                            if version_match and version_match[0]:
-                                return version_match[0]
+                resp.raise_for_status()
+                if "Server" in resp.headers:
+                    for server in resp.headers.getall("Server"):
+                        version_match = re.findall(r"^aleph-vm/(.*)$", server)
+                        if version_match and version_match[0]:
+                            return version_match[0]
     except (aiohttp.ClientError, asyncio.TimeoutError) as e:
         return "Can't fetch the version"
     return version or "Can't fetch the version"
