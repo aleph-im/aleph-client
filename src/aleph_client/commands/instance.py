@@ -199,7 +199,7 @@ async def create(
     async with AuthenticatedAlephHttpClient(
         account=account, api_server=sdk_settings.API_HOST
     ) as client:
-        payment = None
+        payment: Payment = None
         if reward_address:
             payment = Payment(chain="AVAX", receiver=reward_address, type=PaymentType["superfluid"])
         try:
