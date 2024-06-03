@@ -216,9 +216,13 @@ def is_environment_interactive() -> bool:
 
 logger = logging.getLogger(__name__)
 
+
 from aleph_client.commands.node import NodeInfo, _fetch_nodes, _escape_and_normalize, _remove_ansi_escape, _format_score
 
+# Local variable to tell the end of queue process
+END_OF_QUEUE = "end"
 
+# Class to regroup both progress bar and the table for cleaner code
 class ProgressTable:
     def __init__(self, progress, table):
         self.progress = progress
@@ -229,7 +233,6 @@ class ProgressTable:
         yield self.table
 
 # This is a copy from aleph-vm
-
 class LoadAverage(BaseModel):
     load1: float
     load5: float
@@ -320,7 +323,7 @@ async def fetch_crn_info():
 async def fetch_data(session: aiohttp.ClientSession, node_info: NodeInfo, queue: asyncio.Queue[MachineUsage], progress: Progress, task: TaskID, item_hashes: list):
     tasks = [fetch_and_queue(session, node, queue, progress, task, item_hashes) for node in node_info.nodes]
     await asyncio.gather(*tasks)
-    await queue.put(None)
+    await queue.put(END_OF_QUEUE)
 
 async def fetch_and_queue(session: aiohttp.ClientSession, node: NodeInfo, queue: asyncio.Queue, progress: Progress, task: TaskID, item_hashes: list):
     url: str = node["address"].rstrip('/') + '/status/check/ipv6'
@@ -360,7 +363,7 @@ async def fetch_and_queue(session: aiohttp.ClientSession, node: NodeInfo, queue:
 async def update_table(queue: asyncio.Queue, table: Table):
     while True:
         data = await queue.get()
-        if data is None:
+        if data is END_OF_QUEUE:
             break
         table.add_row(*data)
 
