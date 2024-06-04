@@ -4,7 +4,7 @@ from random import random
 import sys
 import re
 from datetime import datetime
-from typing import Any, Callable, Dict, List, Optional, TypeVar, Union
+from typing import Any, Callable, Dict, List, Optional, Text, TypeVar, Union, Tuple
 import aiohttp
 import asyncio
 
@@ -220,7 +220,6 @@ logger = logging.getLogger(__name__)
 from aleph_client.commands.node import NodeInfo, _fetch_nodes, _escape_and_normalize, _remove_ansi_escape, _format_score
 
 # Local variable to tell the end of queue process
-END_OF_QUEUE = "end"
 
 # Class to regroup both progress bar and the table for cleaner code
 class ProgressTable:
@@ -239,7 +238,7 @@ class LoadAverage(BaseModel):
     load15: float
 
     @classmethod
-    def from_psutil(cls, psutil_loadavg: tuple[float, float, float]):
+    def from_psutil(cls, psutil_loadavg: Tuple[float, float, float]):
         return cls(
             load1=psutil_loadavg[0],
             load5=psutil_loadavg[1],
@@ -290,7 +289,17 @@ class MachineUsage(BaseModel):
     active: bool = True
 
 
-async def fetch_crn_info():
+class MachineInfo(BaseModel):
+    system_info: MachineUsage
+    score: str
+    name: str
+    version: str
+    reward_address: str
+    address: str
+
+END_OF_QUEUE = "end"
+
+async def fetch_crn_info() -> list:
     node_info = await _fetch_nodes()
     table = Table(title="Compute Node Information")
     table.add_column("Score", style="green", no_wrap=True, justify="center")
@@ -309,7 +318,7 @@ async def fetch_crn_info():
     progress_table = ProgressTable(progress, table)
     item_hashes: list = []
 
-    queue: asyncio.Queue = asyncio.Queue()
+    queue: asyncio.Queue[MachineInfo]= asyncio.Queue()
 
     async with aiohttp.ClientSession() as session:
         with Live(progress_table, console=console, refresh_per_second=2):
@@ -320,12 +329,33 @@ async def fetch_crn_info():
     return item_hashes
 
 
-async def fetch_data(session: aiohttp.ClientSession, node_info: NodeInfo, queue: asyncio.Queue[MachineUsage], progress: Progress, task: TaskID, item_hashes: list):
+async def fetch_data(session: aiohttp.ClientSession, node_info: NodeInfo, queue: asyncio.Queue[MachineInfo], progress: Progress, task: TaskID, item_hashes: list):
     tasks = [fetch_and_queue(session, node, queue, progress, task, item_hashes) for node in node_info.nodes]
     await asyncio.gather(*tasks)
     await queue.put(END_OF_QUEUE)
 
-async def fetch_and_queue(session: aiohttp.ClientSession, node: NodeInfo, queue: asyncio.Queue, progress: Progress, task: TaskID, item_hashes: list):
+
+async def enqueue_machine_usage_info(node : NodeInfo, system_info: MachineUsage, queue: asyncio.Queue[MachineInfo], version: str, item_hashes: list):
+    node_stream: str = node["stream_reward"]
+    if node_stream and system_info:
+        node_name = _escape_and_normalize(node["name"])
+        node_name = _remove_ansi_escape(node_name)
+        node_address: str = node["address"]
+        score = _format_score(node["score"])
+        
+        machine_info = MachineInfo(
+            system_info=system_info,
+            score=str(score),
+            name=node_name,
+            version=version,
+            reward_address=node_stream,
+            address=node_address
+        )
+
+        await queue.put(machine_info)
+        item_hashes.append(node_stream)
+
+async def fetch_and_queue(session: aiohttp.ClientSession, node: NodeInfo, queue: asyncio.Queue[MachineInfo], progress: Progress, task: TaskID, item_hashes: list):
     url: str = node["address"].rstrip('/') + '/status/check/ipv6'
    
     try:
@@ -333,24 +363,10 @@ async def fetch_and_queue(session: aiohttp.ClientSession, node: NodeInfo, queue:
             fetch_crn_system(session, node),
             get_crn_version(session, node)
         )
-        # print(system_info.architecture)
         async with async_timeout.timeout(settings.HTTP_REQUEST_TIMEOUT + settings.HTTP_REQUEST_TIMEOUT * 0.3 * random()):
             async with session.get(url) as resp:
                 resp.raise_for_status()
-                node_stream = node["stream_reward"]
-                if node_stream and system_info:
-                    node_name = _escape_and_normalize(node["name"])
-                    node_name = _remove_ansi_escape(node_name)
-                    node_address = node["address"]
-                    score = _format_score(node["score"])
-                    # cpu = f"{system_info['cpu']['count']} {system_info['properties']['cpu']['architecture']}"
-                    # hdd = f"{system_info['disk']['available_kB'] / 1024 / 1024:.2f} GB"
-                    # ram = f"{system_info['mem']['available_kB'] / 1024 / 1024:.2f} GB"
-                    cpu = "TESTING"
-                    hdd = "TESTING"
-                    ram = "TESTING"
-                    await queue.put((score, node_name, cpu, ram, hdd, version, node_stream, node_address))
-                    item_hashes.append(node_stream)
+                await enqueue_machine_usage_info(node, system_info, queue, version, item_hashes)
     except TimeoutError:
         logger.debug(f'Timeout while fetching: {url}')
     except aiohttp.client_exceptions.ClientConnectionError:
@@ -360,14 +376,26 @@ async def fetch_and_queue(session: aiohttp.ClientSession, node: NodeInfo, queue:
     finally:
         progress.update(task, advance=1)
 
-async def update_table(queue: asyncio.Queue, table: Table):
+
+def convert_system_info_to_str(data: MachineInfo) -> Tuple[str, str, str]:
+    cpu = f"{data.system_info.cpu.count} {data.system_info.properties.cpu.architecture}"
+    hdd = f"{data.system_info.disk.available_kB / 1024 / 1024:.2f} GB"
+    ram = f"{data.system_info.mem.available_kB / 1024 / 1024:.2f} GB"
+
+    return cpu, hdd, ram
+
+
+async def update_table(queue: asyncio.Queue[MachineInfo], table: Table):
     while True:
-        data = await queue.get()
+        data: MachineInfo = await queue.get()
         if data is END_OF_QUEUE:
             break
-        table.add_row(*data)
 
-async def fetch_crn_system(session: aiohttp.ClientSession, node: NodeInfo) -> CpuProperties:
+        cpu, hdd, ram = convert_system_info_to_str(data)
+        table.add_row(data.score, data.name, cpu, ram, hdd, data.version, data.reward_address, data.address)
+
+
+async def fetch_crn_system(session: aiohttp.ClientSession, node: NodeInfo) -> MachineUsage:
     data = None
 
     try:
@@ -377,7 +405,6 @@ async def fetch_crn_system(session: aiohttp.ClientSession, node: NodeInfo) -> Cp
                 resp.raise_for_status()
                 data_raw = await resp.json()
                 data = MachineUsage.parse_obj(data_raw)
-                # print("data:", data)
     except TimeoutError:
         logger.debug(f'Timeout while fetching: {url}')
     except aiohttp.client_exceptions.ClientConnectionError:
@@ -385,6 +412,7 @@ async def fetch_crn_system(session: aiohttp.ClientSession, node: NodeInfo) -> Cp
     except Exception as e:
         logger.debug(f'This error occured: {e}')
     return data
+
 
 async def get_crn_version(session: aiohttp.ClientSession, node: NodeInfo) -> str:
     url = node["address"]
