@@ -17,7 +17,7 @@ from aleph.sdk.query.filters import MessageFilter
 from aleph.sdk.types import AccountFromPrivateKey, StorageEnum
 from aleph_message.models import InstanceMessage, ItemHash, MessageType, StoreMessage
 from aleph_message.models.execution.environment import HypervisorType
-from aleph_message.models.execution.base import Payment, PaymentType
+from aleph_message.models.execution.base import Payment, PaymentType, Chain
 from rich import box
 from rich.console import Console
 from rich.prompt import Prompt
@@ -199,9 +199,9 @@ async def create(
     async with AuthenticatedAlephHttpClient(
         account=account, api_server=sdk_settings.API_HOST
     ) as client:
-        payment: Payment = None
+        payment: Optional[Payment] = None
         if reward_address:
-            payment = Payment(chain="AVAX", receiver=reward_address, type=PaymentType["superfluid"])
+            payment = Payment(chain=Chain.AVAX, receiver=reward_address, type=PaymentType["superfluid"])
         try:
             message, status = await client.create_instance(
                 sync=True,
