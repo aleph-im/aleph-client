@@ -298,10 +298,18 @@ class MachineInfo(BaseModel):
     address: str
 
 
+# Sentinel value to indicate end of queue processing
 END_OF_QUEUE = None
 
 
 async def fetch_crn_info() -> list:
+    """
+    Fetches compute node information asynchronously.
+    Display and update a Live tab where CRN info will be displayed
+
+    Returns:
+        list: List of item hashes.
+    """
     node_info: NodeInfo = await _fetch_nodes()
     table = Table(title="Compute Node Information")
     table.add_column("Score", style="green", no_wrap=True, justify="center")
@@ -332,12 +340,35 @@ async def fetch_crn_info() -> list:
 
 
 async def fetch_data(session: aiohttp.ClientSession, node_info: NodeInfo, queue: asyncio.Queue[Optional[MachineInfo]], progress: Progress, task: TaskID, item_hashes: list):
+    """
+    Fetches data for each node in node_info and queues MachineInfo objects to the queue.
+
+    Args:
+        session (aiohttp.ClientSession): Aiohttp client session.
+        node_info (NodeInfo): Node information.
+        queue (asyncio.Queue[Optional[MachineInfo]]): Asyncio queue to store MachineInfo objects.
+        progress (Progress): Rich Progress object.
+        task (TaskID): Rich TaskID object.
+        item_hashes (list): List to store item hashes.
+    """
+    
     tasks = [fetch_and_queue(session, node, queue, progress, task, item_hashes) for node in node_info.nodes]
     await asyncio.gather(*tasks)
     await queue.put(END_OF_QUEUE)
 
 
 async def enqueue_machine_usage_info(node : dict, system_info: Optional[MachineUsage], queue: asyncio.Queue[Optional[MachineInfo]], version: str, item_hashes: list):
+    """
+    Creates MachineInfo object which will store CRN information and puts it into the queue.
+
+    Args:
+        node (dict): Node information dictionary.
+        system_info (Optional[MachineUsage]): Machine usage information.
+        queue (asyncio.Queue[Optional[MachineInfo]]): Asyncio queue to store MachineInfo objects.
+        version (str): Version of the node.
+        item_hashes (list): List to store item hashes.
+    """
+    
     node_reward: str = node["stream_reward"]
 
     if node_reward and system_info:
@@ -358,7 +389,20 @@ async def enqueue_machine_usage_info(node : dict, system_info: Optional[MachineU
         await queue.put(machine_info)
         item_hashes.append(node_reward)
 
+
 async def fetch_and_queue(session: aiohttp.ClientSession, node: dict, queue: asyncio.Queue[Optional[MachineInfo]], progress: Progress, task: TaskID, item_hashes: list):
+    """
+    Fetches data from the node and send it to 'enqueue_machine_usage_info()' which will queues MachineInfo object.
+
+    Args:
+        session (aiohttp.ClientSession): Aiohttp client session.
+        node (dict): Node information dictionary.
+        queue (asyncio.Queue[Optional[MachineInfo]]): Asyncio queue to store MachineInfo objects.
+        progress (Progress): Rich Progress object.
+        task (TaskID): Rich TaskID object.
+        item_hashes (list): List to store item hashes.
+    """
+    
     url: str = node["address"].rstrip('/') + '/status/check/ipv6'
 
     try:
@@ -381,6 +425,16 @@ async def fetch_and_queue(session: aiohttp.ClientSession, node: dict, queue: asy
 
 
 def convert_system_info_to_str(data: MachineInfo) -> Tuple[str, str, str]:
+    """
+    Converts MachineInfo object that contains CPU, RAM and HDD information to a tupple of strings.
+
+    Args:
+        data (MachineInfo): MachineInfo object.
+
+    Returns:
+        Tuple[str, str, str]: CPU, RAM, and HDD information.
+    """
+
     cpu = f"{data.system_info.cpu.count} {data.system_info.properties.cpu.architecture}"
     hdd = f"{data.system_info.disk.available_kB / 1024 / 1024:.2f} GB"
     ram = f"{data.system_info.mem.available_kB / 1024 / 1024:.2f} GB"
@@ -389,6 +443,14 @@ def convert_system_info_to_str(data: MachineInfo) -> Tuple[str, str, str]:
 
 
 async def update_table(queue: asyncio.Queue[Optional[MachineInfo]], table: Table):
+    """
+    Updates table with MachineInfo objects from the queue.
+
+    Args:
+        queue (asyncio.Queue[Optional[MachineInfo]]): Asyncio queue to store MachineInfo objects.
+        table (Table): Rich Table object.
+    """
+    
     while True:
         data: Optional[MachineInfo] = await queue.get()
         if data is END_OF_QUEUE:
@@ -399,6 +461,17 @@ async def update_table(queue: asyncio.Queue[Optional[MachineInfo]], table: Table
 
 
 async def fetch_crn_system(session: aiohttp.ClientSession, node: dict) -> Optional[MachineUsage]:
+    """
+    Fetches compute node system information asynchronously.
+
+    Args:
+        session (aiohttp.ClientSession): Aiohttp client session.
+        node (dict): Node information dictionary.
+
+    Returns:
+        Optional[MachineUsage]: Machine usage information.
+    """
+    
     data = None
 
     try:
@@ -418,6 +491,17 @@ async def fetch_crn_system(session: aiohttp.ClientSession, node: dict) -> Option
 
 
 async def get_crn_version(session: aiohttp.ClientSession, node: dict) -> str:
+    """
+    Fetches compute node version asynchronously.
+
+    Args:
+        session (aiohttp.ClientSession): Aiohttp client session.
+        node (dict): Node information dictionary.
+
+    Returns:
+        str: Node version.
+    """
+    
     url = node["address"]
     version = "Can't fetch the version"
 
