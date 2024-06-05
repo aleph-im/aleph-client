@@ -351,7 +351,6 @@ async def fetch_data(session: aiohttp.ClientSession, node_info: NodeInfo, queue:
         task (TaskID): Rich TaskID object.
         item_hashes (list): List to store item hashes.
     """
-    
     tasks = [fetch_and_queue(session, node, queue, progress, task, item_hashes) for node in node_info.nodes]
     await asyncio.gather(*tasks)
     await queue.put(END_OF_QUEUE)
@@ -368,7 +367,6 @@ async def enqueue_machine_usage_info(node : dict, system_info: Optional[MachineU
         version (str): Version of the node.
         item_hashes (list): List to store item hashes.
     """
-    
     node_reward: str = node["stream_reward"]
 
     if node_reward and system_info:
@@ -402,7 +400,6 @@ async def fetch_and_queue(session: aiohttp.ClientSession, node: dict, queue: asy
         task (TaskID): Rich TaskID object.
         item_hashes (list): List to store item hashes.
     """
-    
     url: str = node["address"].rstrip('/') + '/status/check/ipv6'
 
     try:
@@ -426,7 +423,7 @@ async def fetch_and_queue(session: aiohttp.ClientSession, node: dict, queue: asy
 
 def convert_system_info_to_str(data: MachineInfo) -> Tuple[str, str, str]:
     """
-    Converts MachineInfo object that contains CPU, RAM and HDD information to a tupple of strings.
+    Converts MachineInfo object that contains CPU, RAM and HDD information to a tuple of strings.
 
     Args:
         data (MachineInfo): MachineInfo object.
@@ -434,10 +431,9 @@ def convert_system_info_to_str(data: MachineInfo) -> Tuple[str, str, str]:
     Returns:
         Tuple[str, str, str]: CPU, RAM, and HDD information.
     """
-
-    cpu = f"{data.system_info.cpu.count} {data.system_info.properties.cpu.architecture}"
-    hdd = f"{data.system_info.disk.available_kB / 1024 / 1024:.2f} GB"
-    ram = f"{data.system_info.mem.available_kB / 1024 / 1024:.2f} GB"
+    cpu: str = f"{data.system_info.cpu.count} {data.system_info.properties.cpu.architecture}"
+    hdd: str = f"{data.system_info.disk.available_kB / 1024 / 1024:.2f} GB"
+    ram: str = f"{data.system_info.mem.available_kB / 1024 / 1024:.2f} GB"
 
     return cpu, hdd, ram
 
@@ -450,7 +446,6 @@ async def update_table(queue: asyncio.Queue[Optional[MachineInfo]], table: Table
         queue (asyncio.Queue[Optional[MachineInfo]]): Asyncio queue to store MachineInfo objects.
         table (Table): Rich Table object.
     """
-    
     while True:
         data: Optional[MachineInfo] = await queue.get()
         if data is END_OF_QUEUE:
@@ -471,15 +466,14 @@ async def fetch_crn_system(session: aiohttp.ClientSession, node: dict) -> Option
     Returns:
         Optional[MachineUsage]: Machine usage information.
     """
-    
-    data = None
+    data: Optional[MachineUsage] = None
 
     try:
         async with async_timeout.timeout(settings.HTTP_REQUEST_TIMEOUT + settings.HTTP_REQUEST_TIMEOUT * 0.3 * random()):
             url: str = node["address"].rstrip('/') + '/about/usage/system'
             async with session.get(url) as resp:
                 resp.raise_for_status()
-                data_raw = await resp.json()
+                data_raw: dict = await resp.json()
                 data = MachineUsage.parse_obj(data_raw)
     except TimeoutError:
         logger.debug(f'Timeout while fetching: {url}')
@@ -501,9 +495,8 @@ async def get_crn_version(session: aiohttp.ClientSession, node: dict) -> str:
     Returns:
         str: Node version.
     """
-    
-    url = node["address"]
-    version = "Can't fetch the version"
+    url: str = node["address"]
+    version: str = "Can't fetch the version"
 
     try:
         async with async_timeout.timeout(3 * settings.HTTP_REQUEST_TIMEOUT + 3 * settings.HTTP_REQUEST_TIMEOUT * 0.3 * random()):
@@ -511,7 +504,7 @@ async def get_crn_version(session: aiohttp.ClientSession, node: dict) -> str:
                 resp.raise_for_status()
                 if "Server" in resp.headers:
                     for server in resp.headers.getall("Server"):
-                        version_match = re.findall(r"^aleph-vm/(.*)$", server)
+                        version_match: List[str] = re.findall(r"^aleph-vm/(.*)$", server)
                         if version_match and version_match[0]:
                             version = version_match[0]
     except (asyncio.TimeoutError):
