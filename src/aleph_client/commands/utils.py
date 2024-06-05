@@ -297,10 +297,12 @@ class MachineInfo(BaseModel):
     reward_address: str
     address: str
 
-END_OF_QUEUE = "end"
+
+END_OF_QUEUE = None
+
 
 async def fetch_crn_info() -> list:
-    node_info = await _fetch_nodes()
+    node_info: NodeInfo = await _fetch_nodes()
     table = Table(title="Compute Node Information")
     table.add_column("Score", style="green", no_wrap=True, justify="center")
     table.add_column("Name", style="#029AFF", justify="left")
@@ -318,7 +320,7 @@ async def fetch_crn_info() -> list:
     progress_table = ProgressTable(progress, table)
     item_hashes: list = []
 
-    queue: asyncio.Queue[MachineInfo]= asyncio.Queue()
+    queue: asyncio.Queue[Optional[MachineInfo]]= asyncio.Queue()
 
     async with aiohttp.ClientSession() as session:
         with Live(progress_table, console=console, refresh_per_second=2):
@@ -329,15 +331,16 @@ async def fetch_crn_info() -> list:
     return item_hashes
 
 
-async def fetch_data(session: aiohttp.ClientSession, node_info: NodeInfo, queue: asyncio.Queue[MachineInfo], progress: Progress, task: TaskID, item_hashes: list):
+async def fetch_data(session: aiohttp.ClientSession, node_info: NodeInfo, queue: asyncio.Queue[Optional[MachineInfo]], progress: Progress, task: TaskID, item_hashes: list):
     tasks = [fetch_and_queue(session, node, queue, progress, task, item_hashes) for node in node_info.nodes]
     await asyncio.gather(*tasks)
     await queue.put(END_OF_QUEUE)
 
 
-async def enqueue_machine_usage_info(node : NodeInfo, system_info: MachineUsage, queue: asyncio.Queue[MachineInfo], version: str, item_hashes: list):
-    node_stream: str = node["stream_reward"]
-    if node_stream and system_info:
+async def enqueue_machine_usage_info(node : dict, system_info: Optional[MachineUsage], queue: asyncio.Queue[Optional[MachineInfo]], version: str, item_hashes: list):
+    node_reward: str = node["stream_reward"]
+
+    if node_reward and system_info:
         node_name = _escape_and_normalize(node["name"])
         node_name = _remove_ansi_escape(node_name)
         node_address: str = node["address"]
@@ -348,16 +351,16 @@ async def enqueue_machine_usage_info(node : NodeInfo, system_info: MachineUsage,
             score=str(score),
             name=node_name,
             version=version,
-            reward_address=node_stream,
+            reward_address=node_reward,
             address=node_address
         )
 
         await queue.put(machine_info)
-        item_hashes.append(node_stream)
+        item_hashes.append(node_reward)
 
-async def fetch_and_queue(session: aiohttp.ClientSession, node: NodeInfo, queue: asyncio.Queue[MachineInfo], progress: Progress, task: TaskID, item_hashes: list):
+async def fetch_and_queue(session: aiohttp.ClientSession, node: dict, queue: asyncio.Queue[Optional[MachineInfo]], progress: Progress, task: TaskID, item_hashes: list):
     url: str = node["address"].rstrip('/') + '/status/check/ipv6'
-   
+
     try:
         system_info, version = await asyncio.gather(
             fetch_crn_system(session, node),
@@ -385,9 +388,9 @@ def convert_system_info_to_str(data: MachineInfo) -> Tuple[str, str, str]:
     return cpu, hdd, ram
 
 
-async def update_table(queue: asyncio.Queue[MachineInfo], table: Table):
+async def update_table(queue: asyncio.Queue[Optional[MachineInfo]], table: Table):
     while True:
-        data: MachineInfo = await queue.get()
+        data: Optional[MachineInfo] = await queue.get()
         if data is END_OF_QUEUE:
             break
 
@@ -395,7 +398,7 @@ async def update_table(queue: asyncio.Queue[MachineInfo], table: Table):
         table.add_row(data.score, data.name, cpu, ram, hdd, data.version, data.reward_address, data.address)
 
 
-async def fetch_crn_system(session: aiohttp.ClientSession, node: NodeInfo) -> MachineUsage:
+async def fetch_crn_system(session: aiohttp.ClientSession, node: dict) -> Optional[MachineUsage]:
     data = None
 
     try:
@@ -414,7 +417,7 @@ async def fetch_crn_system(session: aiohttp.ClientSession, node: NodeInfo) -> Ma
     return data
 
 
-async def get_crn_version(session: aiohttp.ClientSession, node: NodeInfo) -> str:
+async def get_crn_version(session: aiohttp.ClientSession, node: dict) -> str:
     url = node["address"]
     version = "Can't fetch the version"
 
