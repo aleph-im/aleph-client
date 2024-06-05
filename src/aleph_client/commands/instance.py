@@ -134,7 +134,7 @@ async def create(
     }
 
     payg = Prompt.ask(
-        f"Do you want to create a Pay As You Go instance?",
+        "Do you want to create a Pay As You Go instance?",
         default="no",
         choices=["yes", "no"],
     )
@@ -142,21 +142,21 @@ async def create(
     if payg == "yes":
         valid_address = await fetch_crn_info()
         reward_address = validated_prompt(
-            f"Please select and enter the reward address of the wanted CRN",
+            "Please select and enter the reward address of the wanted CRN",
             lambda x: x in valid_address,
         )
     else:
         reward_address = None
 
     rootfs = Prompt.ask(
-        f"Do you want to use a custom rootfs or one of the following prebuilt ones?",
+        "Do you want to use a custom rootfs or one of the following prebuilt ones?",
         default=rootfs,
         choices=[*os_map.values(), "custom"],
     )
 
     if rootfs == "custom":
         rootfs = validated_prompt(
-            f"Enter the item hash of the rootfs to use for your instance",
+            "Enter the item hash of the rootfs to use for your instance",
             lambda x: len(x) == 64,
         )
     else:
@@ -173,19 +173,19 @@ async def create(
             rootfs_size = rootfs_message.content.size
 
     vcpus = validated_int_prompt(
-        f"Number of virtual cpus to allocate", vcpus, min_value=1, max_value=4
+        "Number of virtual cpus to allocate", vcpus, min_value=1, max_value=4
     )
 
     memory = validated_int_prompt(
-        f"Maximum memory allocation on vm in MiB", memory, min_value=2000, max_value=8000
+        "Maximum memory allocation on vm in MiB", memory, min_value=2000, max_value=8000
     )
 
     rootfs_size = validated_int_prompt(
-        f"Disk size in MiB", rootfs_size, min_value=20000, max_value=100000
+        "Disk size in MiB", rootfs_size, min_value=20000, max_value=100000
     )
 
     hypervisor = Prompt.ask(
-        f"Which hypervisor you want to use?",
+        "Which hypervisor you want to use?",
         default=hypervisor,
         choices=[*hv_map.values()],
     )
@@ -316,7 +316,7 @@ async def _show_instances(messages: List[InstanceMessage]):
         )
     console = Console()
     console.print(table)
-    console.print(f"To connect to an instance, use:\n\n" f"  ssh root@<ipv6 address>\n")
+    console.print("To connect to an instance, use:\n\n" "  ssh root@<ipv6 address>\n")
 
 
 @app.command()
