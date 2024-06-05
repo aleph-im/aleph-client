@@ -484,7 +484,7 @@ async def fetch_crn_system(session: aiohttp.ClientSession, node: dict) -> Option
     return data
 
 
-async def get_crn_version(session: aiohttp.ClientSession, node: dict) -> str:
+async def get_crn_version(session: aiohttp.ClientSession, node: dict) -> Optional[str]:
     """
     Fetches compute node version asynchronously.
 
@@ -496,7 +496,7 @@ async def get_crn_version(session: aiohttp.ClientSession, node: dict) -> str:
         str: Node version.
     """
     url: str = node["address"]
-    version: str = "Can't fetch the version"
+    version = None
 
     try:
         async with async_timeout.timeout(3 * settings.HTTP_REQUEST_TIMEOUT + 3 * settings.HTTP_REQUEST_TIMEOUT * 0.3 * random()):
