@@ -293,7 +293,7 @@ class MachineInfo(BaseModel):
     system_info: MachineUsage
     score: str
     name: str
-    version: str
+    version: Optional[str]
     reward_address: str
     address: str
 
@@ -356,7 +356,7 @@ async def fetch_data(session: aiohttp.ClientSession, node_info: NodeInfo, queue:
     await queue.put(END_OF_QUEUE)
 
 
-async def enqueue_machine_usage_info(node : dict, system_info: Optional[MachineUsage], queue: asyncio.Queue[Optional[MachineInfo]], version: str, item_hashes: list):
+async def enqueue_machine_usage_info(node : dict, system_info: Optional[MachineUsage], queue: asyncio.Queue[Optional[MachineInfo]], version: Optional[str], item_hashes: list):
     """
     Creates MachineInfo object which will store CRN information and puts it into the queue.
 

@@ -15,9 +15,11 @@ from aleph.sdk.exceptions import (
 )
 from aleph.sdk.query.filters import MessageFilter
 from aleph.sdk.types import AccountFromPrivateKey, StorageEnum
-from aleph_message.models import InstanceMessage, ItemHash, MessageType, StoreMessage
+from aleph_message.models import InstanceMessage, StoreMessage
+from aleph_message.models.item_hash import ItemHash
 from aleph_message.models.execution.environment import HypervisorType
-from aleph_message.models.execution.base import Payment, PaymentType, Chain
+from aleph_message.models.execution.base import Payment, PaymentType
+from aleph_message.models.base import Chain, MessageType
 from rich import box
 from rich.console import Console
 from rich.prompt import Prompt

@@ -19,7 +19,8 @@ from aleph.sdk.types import AccountFromPrivateKey
 from aleph_client.commands import help_strings
 from aleph_client.commands.utils import is_environment_interactive
 from aleph_client.utils import AsyncTyper
-from aleph_message.models import AggregateMessage, MessageType
+from aleph_message.models import AggregateMessage
+from aleph_message.models.base import MessageType
 from rich.console import Console
 from rich.prompt import Confirm, Prompt
 from rich.table import Table

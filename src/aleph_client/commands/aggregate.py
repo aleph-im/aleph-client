@@ -9,7 +9,7 @@ from aleph.sdk.conf import settings as sdk_settings
 from aleph.sdk.query.filters import MessageFilter
 from aleph.sdk.types import AccountFromPrivateKey
 from aleph.sdk.utils import extended_json_encoder
-from aleph_message.models import MessageType
+from aleph_message.models.base import MessageType
 
 from aleph_client.commands import help_strings
 from aleph_client.commands.utils import setup_logging

@@ -25,7 +25,9 @@ from aleph_client.commands.utils import (
     str_to_datetime,
 )
 from aleph_client.utils import AsyncTyper
-from aleph_message.models import AlephMessage, ItemHash, MessageType, ProgramMessage
+from aleph_message.models.item_hash import ItemHash
+from aleph_message.models.base import MessageType
+from aleph_message.models import AlephMessage, ProgramMessage
 
 app = AsyncTyper(no_args_is_help=True)
 

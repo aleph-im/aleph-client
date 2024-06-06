@@ -20,10 +20,10 @@ from aleph_client.commands.utils import (
 )
 from aleph_client.conf import settings
 from aleph_client.utils import AsyncTyper, create_archive
+from aleph_message.models.item_hash import ItemHash
+from aleph_message.models.execution.program import ProgramContent
 from aleph_message.models import (
-    ItemHash,
     MessagesResponse,
-    ProgramContent,
     ProgramMessage,
     StoreMessage,
 )
