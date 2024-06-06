@@ -450,7 +450,6 @@ async def update_table(queue: asyncio.Queue[Optional[MachineInfo]], table: Table
         data: Optional[MachineInfo] = await queue.get()
         if data is END_OF_QUEUE:
             break
-
         cpu, hdd, ram = convert_system_info_to_str(data)
         table.add_row(data.score, data.name, cpu, ram, hdd, data.version, data.reward_address, data.address)
 

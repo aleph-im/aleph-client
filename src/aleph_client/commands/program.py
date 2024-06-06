@@ -2,7 +2,7 @@ import json
 import logging
 from base64 import b16decode, b32encode
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, cast
 from zipfile import BadZipFile
 
 import typer
@@ -257,12 +257,15 @@ async def unpersist(
     async with AuthenticatedAlephHttpClient(
         account=account, api_server=sdk_settings.API_HOST
     ) as client:
-        existing: MessagesResponse = await client.get_messages(
-            message_filter=MessageFilter(
-                hashes=[item_hash]
-            )
+        message: ProgramMessage = client.get_message(
+            item_hash=item_hash, message_type=ProgramMessage
         )
-        message: ProgramMessage = existing.messages[0]
+        # existing: MessagesResponse = await client.get_messages(
+        #     message_filter=MessageFilter(
+        #         hashes=[item_hash]
+        #     )
+        # )
+        # message: ProgramMessage = existing.messages[0]
         content: ProgramContent = message.content.copy()
 
         content.on.persistent = False
