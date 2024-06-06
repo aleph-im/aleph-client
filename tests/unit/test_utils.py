@@ -1,11 +1,11 @@
 from aleph_message.models import (
     AggregateMessage,
     ForgetMessage,
-    MessageType,
     PostMessage,
     ProgramMessage,
     StoreMessage,
 )
+from aleph_message.models.base import MessageType
 
 from aleph_client.utils import get_message_type_value
 
