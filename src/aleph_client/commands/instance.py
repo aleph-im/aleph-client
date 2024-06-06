@@ -186,11 +186,11 @@ async def create(
         "Disk size in MiB", rootfs_size, min_value=20000, max_value=100000
     )
 
-    hypervisor = Prompt.ask(
+    hypervisor = HypervisorType[Prompt.ask(
         "Which hypervisor you want to use?",
         default=hypervisor,
         choices=[*hv_map.values()],
-    )
+    )]
 
     volumes = get_or_prompt_volumes(
         persistent_volume=persistent_volume,
