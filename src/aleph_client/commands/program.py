@@ -2,15 +2,19 @@ import json
 import logging
 from base64 import b16decode, b32encode
 from pathlib import Path
-from typing import Dict, List, Optional, cast
+from typing import Dict, List, Optional
 from zipfile import BadZipFile
 
 import typer
 from aleph.sdk import AuthenticatedAlephHttpClient
 from aleph.sdk.account import _load_account
 from aleph.sdk.conf import settings as sdk_settings
-from aleph.sdk.query.filters import MessageFilter
 from aleph.sdk.types import AccountFromPrivateKey, StorageEnum
+from aleph_message.models import ProgramMessage, StoreMessage
+from aleph_message.models.execution.program import ProgramContent
+from aleph_message.models.item_hash import ItemHash
+from aleph_message.status import MessageStatus
+
 from aleph_client.commands import help_strings
 from aleph_client.commands.utils import (
     get_or_prompt_volumes,
@@ -20,14 +24,6 @@ from aleph_client.commands.utils import (
 )
 from aleph_client.conf import settings
 from aleph_client.utils import AsyncTyper, create_archive
-from aleph_message.models.item_hash import ItemHash
-from aleph_message.models.execution.program import ProgramContent
-from aleph_message.models import (
-    MessagesResponse,
-    ProgramMessage,
-    StoreMessage,
-)
-from aleph_message.status import MessageStatus
 
 logger = logging.getLogger(__name__)
 app = AsyncTyper(no_args_is_help=True)

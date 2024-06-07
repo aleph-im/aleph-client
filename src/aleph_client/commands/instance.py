@@ -16,10 +16,10 @@ from aleph.sdk.exceptions import (
 from aleph.sdk.query.filters import MessageFilter
 from aleph.sdk.types import AccountFromPrivateKey, StorageEnum
 from aleph_message.models import InstanceMessage, StoreMessage
-from aleph_message.models.item_hash import ItemHash
-from aleph_message.models.execution.environment import HypervisorType
-from aleph_message.models.execution.base import Payment, PaymentType
 from aleph_message.models.base import Chain, MessageType
+from aleph_message.models.execution.base import Payment, PaymentType
+from aleph_message.models.execution.environment import HypervisorType
+from aleph_message.models.item_hash import ItemHash
 from rich import box
 from rich.console import Console
 from rich.prompt import Prompt
@@ -27,11 +27,11 @@ from rich.table import Table
 
 from aleph_client.commands import help_strings
 from aleph_client.commands.utils import (
+    fetch_crn_info,
     get_or_prompt_volumes,
     setup_logging,
     validated_int_prompt,
     validated_prompt,
-    fetch_crn_info,
 )
 from aleph_client.conf import settings
 from aleph_client.utils import AsyncTyper
@@ -186,11 +186,13 @@ async def create(
         "Disk size in MiB", rootfs_size, min_value=20000, max_value=100000
     )
 
-    hypervisor = HypervisorType[Prompt.ask(
-        "Which hypervisor you want to use?",
-        default=hypervisor,
-        choices=[*hv_map.values()],
-    )]
+    hypervisor = HypervisorType[
+        Prompt.ask(
+            "Which hypervisor you want to use?",
+            default=hypervisor,
+            choices=[*hv_map.values()],
+        )
+    ]
 
     volumes = get_or_prompt_volumes(
         persistent_volume=persistent_volume,
@@ -203,7 +205,11 @@ async def create(
     ) as client:
         payment: Optional[Payment] = None
         if reward_address:
-            payment = Payment(chain=Chain.AVAX, receiver=reward_address, type=PaymentType["superfluid"])
+            payment = Payment(
+                chain=Chain.AVAX,
+                receiver=reward_address,
+                type=PaymentType["superfluid"],
+            )
         try:
             message, status = await client.create_instance(
                 sync=True,
