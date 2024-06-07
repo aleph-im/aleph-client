@@ -2,7 +2,7 @@ import json
 import logging
 from base64 import b16decode, b32encode
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import List, Mapping, Optional, cast
 from zipfile import BadZipFile
 
 import typer
@@ -10,10 +10,11 @@ from aleph.sdk import AuthenticatedAlephHttpClient
 from aleph.sdk.account import _load_account
 from aleph.sdk.conf import settings as sdk_settings
 from aleph.sdk.query.filters import MessageFilter
+from aleph.sdk.query.responses import MessagesResponse
 from aleph.sdk.types import AccountFromPrivateKey, StorageEnum
 from aleph_message.models import (
     ItemHash,
-    MessagesResponse,
+    MessageType,
     ProgramContent,
     ProgramMessage,
     StoreMessage,
@@ -108,7 +109,7 @@ async def upload(
         immutable_volume=immutable_volume,
     )
 
-    subscriptions: Optional[List[Dict]]
+    subscriptions: Optional[List[Mapping]] = None
     if beta and yes_no_input("Subscribe to messages ?", default=False):
         content_raw = input_multiline()
         try:
@@ -230,9 +231,10 @@ async def update(
             # TODO: Read in lazy mode instead of copying everything in memory
             file_content = fd.read()
             logger.debug("Uploading file")
-            message, status = client.create_store(
+            message: StoreMessage
+            message, status = await client.create_store(
                 file_content=file_content,
-                storage_engine=code_message.content.item_type,
+                storage_engine=StorageEnum(code_message.content.item_type),
                 channel=code_message.channel,
                 guess_mime_type=True,
                 ref=code_message.item_hash,
@@ -259,9 +261,11 @@ async def unpersist(
         account=account, api_server=sdk_settings.API_HOST
     ) as client:
         existing: MessagesResponse = await client.get_messages(
-            message_filter=MessageFilter(hashes=[item_hash])
+            message_filter=MessageFilter(
+                hashes=[item_hash], message_types=[MessageType.program]
+            ),
         )
-        message: ProgramMessage = existing.messages[0]
+        message: ProgramMessage = cast(ProgramMessage, existing.messages[0])
         content: ProgramContent = message.content.copy()
 
         content.on.persistent = False

@@ -1,6 +1,6 @@
 from pathlib import Path
 from time import sleep
-from typing import Optional, cast
+from typing import Dict, Optional, cast
 
 import typer
 from aleph.sdk.account import _load_account
@@ -84,8 +84,11 @@ async def attach_resource(
     resource_type = await get_target_type(fqdn)
 
     if resource_type == TargetType.IPFS and not catch_all_path:
-        catch_all_path = Prompt.ask(
-            "Catch all path? ex: /404.html or press [Enter] to ignore", default=None
+        catch_all_path = (
+            Prompt.ask(
+                "Catch all path? ex: /404.html or press [Enter] to ignore", default=None
+            )
+            or None
         )
 
     if domain_info is not None and domain_info.get("info"):
@@ -107,17 +110,20 @@ async def attach_resource(
         async with AuthenticatedAlephHttpClient(
             account=account, api_server=sdk_settings.API_HOST
         ) as client:
+
+            options: Optional[Dict] = None
+            if catch_all_path and catch_all_path.startswith("/"):
+                options = {"catch_all_path": catch_all_path}
+
             aggregate_content = {
-                fqdn: {
+                str(fqdn): {
                     "message_id": item_hash,
                     "type": resource_type,
                     # console page compatibility
                     "programType": resource_type,
+                    "options": options,
                 }
             }
-
-            if catch_all_path and catch_all_path.startswith("/"):
-                aggregate_content[fqdn]["options"] = {"catch_all_path": catch_all_path}
 
             aggregate_message, message_status = await client.create_aggregate(
                 key="domains", content=aggregate_content, channel="ALEPH-CLOUDSOLUTIONS"
@@ -160,7 +166,7 @@ async def detach_resource(
         async with AuthenticatedAlephHttpClient(
             account=account, api_server=sdk_settings.API_HOST
         ) as client:
-            aggregate_content = {fqdn: None}
+            aggregate_content = {str(fqdn): None}
 
             aggregate_message, message_status = await client.create_aggregate(
                 key="domains", content=aggregate_content, channel="ALEPH-CLOUDSOLUTIONS"
@@ -200,11 +206,14 @@ async def add(
     domain_validator = DomainValidator()
     fqdn = hostname_from_url(fqdn)
 
-    if target is None:
-        target = Prompt.ask(
-            "Select a target resource type",
-            choices=[TargetType.IPFS, TargetType.PROGRAM, TargetType.INSTANCE],
+    while target is None:
+        target = TargetType(
+            Prompt.ask(
+                "Select a target resource type",
+                choices=[TargetType.IPFS, TargetType.PROGRAM, TargetType.INSTANCE],
+            )
         )
+    selected_target: TargetType = target
 
     table = Table(title=f"Required DNS entries for: {fqdn}")
 
@@ -214,7 +223,7 @@ async def add(
     table.add_column("DNS VALUE", justify="right", style="green")
 
     owner = owner or account.get_address()
-    dns_rules = domain_validator.get_required_dns_rules(fqdn, target, owner)
+    dns_rules = domain_validator.get_required_dns_rules(fqdn, selected_target, owner)
     for rule_id, rule in enumerate(dns_rules):
         table.add_row(
             str(rule_id), rule.dns["type"], rule.dns["name"], rule.dns["value"]
