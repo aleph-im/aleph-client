@@ -1,10 +1,12 @@
 import asyncio
+from datetime import datetime, timezone
+from typing import Set
 from unittest import mock
 
 import pytest
 from aiohttp import InvalidURL
 from aleph_message.models.execution.environment import CpuProperties
-from multidict import CIMultiDict
+from multidict import CIMultiDict, CIMultiDictProxy
 
 from aleph_client.commands.instance.display import (
     ProgressTable,
@@ -13,6 +15,7 @@ from aleph_client.commands.instance.display import (
 )
 from aleph_client.commands.instance.network import (
     FORBIDDEN_HOSTS,
+    MachineInfoQueue,
     fetch_crn_info,
     get_version,
     sanitize_url,
@@ -48,7 +51,7 @@ def dummy_machine_info() -> MachineInfo:
                 available_kB=500_000,
             ),
             period=UsagePeriod(
-                start_timestamp=0,
+                start_timestamp=datetime.now(tz=timezone.utc),
                 duration_seconds=60,
             ),
             properties=MachineProperties(
@@ -66,28 +69,34 @@ def dummy_machine_info() -> MachineInfo:
     )
 
 
+def dict_to_ci_multi_dict_proxy(d: dict) -> CIMultiDictProxy:
+    """Return a read-only proxy to a case-insensitive multi-dict created from a dict."""
+    return CIMultiDictProxy(CIMultiDict(d))
+
+
 def test_get_version() -> None:
 
     # No server field in headers
-    headers = {}
+    headers = dict_to_ci_multi_dict_proxy({})
     assert get_version(headers) is None
 
     # Server header but no aleph-vm
-    headers = CIMultiDict({"Server": "nginx"})
+    headers = dict_to_ci_multi_dict_proxy({"Server": "nginx"})
     assert get_version(headers) is None
 
     # Server header with aleph-vm
-    headers = CIMultiDict({"Server": "aleph-vm/0.1.0"})
+    headers = dict_to_ci_multi_dict_proxy({"Server": "aleph-vm/0.1.0"})
     assert get_version(headers) == "0.1.0"
 
     # Server header multiple aleph-vm values
-    headers = CIMultiDict({"Server": "aleph-vm/0.1.0", "server": "aleph-vm/0.2.0"})
+    headers = dict_to_ci_multi_dict_proxy(
+        {"Server": "aleph-vm/0.1.0", "server": "aleph-vm/0.2.0"}
+    )
     assert get_version(headers) == "0.1.0"
 
 
 def test_create_table_with_progress_bar():
-    """Test the creation of a table with progress bar.
-    """
+    """Test the creation of a table with progress bar."""
     sized_object = [1, 2, 3]
     table, increment_function = create_table_with_progress_bar(sized_object)
     assert isinstance(table, ProgressTable)
@@ -100,16 +109,17 @@ def test_create_table_with_progress_bar():
         increment_function()
 
     # The progress bar should be finished now
-    assert table.progress.tasks[0].finished_time > 0
+    finished_time = table.progress.tasks[0].finished_time
+    assert finished_time is not None and finished_time > 0
 
 
 @pytest.mark.asyncio
 async def test_update_table():
-    queue = asyncio.Queue()
+    queue: MachineInfoQueue = asyncio.Queue()
     table = mock.Mock()
     table.add_row = mock.Mock()
     increment_progress_bar = mock.Mock()
-    valid_reward_addresses = set()
+    valid_reward_addresses: Set[str] = set()
 
     async def populate_queue():
         assert table.add_row.call_count == 0
