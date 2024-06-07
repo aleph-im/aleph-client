@@ -37,3 +37,9 @@ jobs:
       - name: MyPy in the Docker image
         run: |
           docker run --entrypoint /opt/venv/bin/mypy aleph-client:${GITHUB_REF##*/} --config-file /opt/aleph-client/mypy.ini /opt/aleph-client/src/ /opt/aleph-client/tests/
+
+      - name: Black and isort
+        run: |
+          docker run --entrypoint /opt/venv/bin/black aleph-client:${GITHUB_REF##*/} /opt/aleph-client/
+          docker run --entrypoint /opt/venv/bin/isort aleph-client:${GITHUB_REF##*/} --profile=black  /opt/aleph-client/
+          docker run --entrypoint /opt/venv/bin/ruff aleph-client:${GITHUB_REF##*/} check /opt/aleph-client/

@@ -3,7 +3,7 @@ import json as json_lib
 import logging
 import re
 import unicodedata
-from typing import Dict, List, Optional
+from typing import Optional
 
 import aiohttp
 import typer
