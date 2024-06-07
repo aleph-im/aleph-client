@@ -2,8 +2,6 @@
 Aleph Client command-line interface.
 """
 
-from aleph_client.utils import AsyncTyper
-
 from aleph_client.commands import (
     about,
     account,
@@ -15,6 +13,7 @@ from aleph_client.commands import (
     node,
     program,
 )
+from aleph_client.utils import AsyncTyper
 
 app = AsyncTyper(no_args_is_help=True)
 

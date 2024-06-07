@@ -16,13 +16,14 @@ from aleph.sdk.domain import (
 from aleph.sdk.exceptions import DomainConfigurationError
 from aleph.sdk.query.filters import MessageFilter
 from aleph.sdk.types import AccountFromPrivateKey
-from aleph_client.commands import help_strings
-from aleph_client.commands.utils import is_environment_interactive
-from aleph_client.utils import AsyncTyper
 from aleph_message.models import AggregateMessage, MessageType
 from rich.console import Console
 from rich.prompt import Confirm, Prompt
 from rich.table import Table
+
+from aleph_client.commands import help_strings
+from aleph_client.commands.utils import is_environment_interactive
+from aleph_client.utils import AsyncTyper
 
 app = AsyncTyper(no_args_is_help=True)
 
@@ -83,7 +84,9 @@ async def attach_resource(
     resource_type = await get_target_type(fqdn)
 
     if resource_type == TargetType.IPFS and not catch_all_path:
-        catch_all_path = Prompt.ask("Catch all path? ex: /404.html or press [Enter] to ignore", default=None)
+        catch_all_path = Prompt.ask(
+            "Catch all path? ex: /404.html or press [Enter] to ignore", default=None
+        )
 
     if domain_info is not None and domain_info.get("info"):
         current_resource = domain_info["info"]["message_id"]
@@ -109,14 +112,12 @@ async def attach_resource(
                     "message_id": item_hash,
                     "type": resource_type,
                     # console page compatibility
-                    "programType": resource_type
+                    "programType": resource_type,
                 }
             }
 
             if catch_all_path and catch_all_path.startswith("/"):
-                aggregate_content[fqdn]["options"] = {
-                    "catch_all_path": catch_all_path
-                }
+                aggregate_content[fqdn]["options"] = {"catch_all_path": catch_all_path}
 
             aggregate_message, message_status = await client.create_aggregate(
                 key="domains", content=aggregate_content, channel="ALEPH-CLOUDSOLUTIONS"
@@ -276,14 +277,20 @@ async def attach(
     item_hash: Optional[str] = typer.Option(
         None, help=help_strings.CUSTOM_DOMAIN_ITEM_HASH
     ),
-    catch_all_path: str = typer.Option(default=None, help=help_strings.IPFS_CATCH_ALL_PATH),
+    catch_all_path: str = typer.Option(
+        default=None, help=help_strings.IPFS_CATCH_ALL_PATH
+    ),
     ask: bool = typer.Option(default=True, help=help_strings.ASK_FOR_CONFIRMATION),
 ):
     """Attach resource to a Custom Domain."""
     account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
 
     await attach_resource(
-        account, Hostname(fqdn), item_hash, interactive=False if (not ask) else None, catch_all_path=catch_all_path
+        account,
+        Hostname(fqdn),
+        item_hash,
+        interactive=False if (not ask) else None,
+        catch_all_path=catch_all_path,
     )
     raise typer.Exit()
 

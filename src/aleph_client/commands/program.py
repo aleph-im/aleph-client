@@ -11,6 +11,15 @@ from aleph.sdk.account import _load_account
 from aleph.sdk.conf import settings as sdk_settings
 from aleph.sdk.query.filters import MessageFilter
 from aleph.sdk.types import AccountFromPrivateKey, StorageEnum
+from aleph_message.models import (
+    ItemHash,
+    MessagesResponse,
+    ProgramContent,
+    ProgramMessage,
+    StoreMessage,
+)
+from aleph_message.status import MessageStatus
+
 from aleph_client.commands import help_strings
 from aleph_client.commands.utils import (
     get_or_prompt_volumes,
@@ -20,14 +29,6 @@ from aleph_client.commands.utils import (
 )
 from aleph_client.conf import settings
 from aleph_client.utils import AsyncTyper, create_archive
-from aleph_message.models import (
-    ItemHash,
-    MessagesResponse,
-    ProgramContent,
-    ProgramMessage,
-    StoreMessage,
-)
-from aleph_message.status import MessageStatus
 
 logger = logging.getLogger(__name__)
 app = AsyncTyper(no_args_is_help=True)
@@ -258,9 +259,7 @@ async def unpersist(
         account=account, api_server=sdk_settings.API_HOST
     ) as client:
         existing: MessagesResponse = await client.get_messages(
-            message_filter=MessageFilter(
-                hashes=[item_hash]
-            )
+            message_filter=MessageFilter(hashes=[item_hash])
         )
         message: ProgramMessage = existing.messages[0]
         content: ProgramContent = message.content.copy()

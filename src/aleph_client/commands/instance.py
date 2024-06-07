@@ -6,7 +6,6 @@ from typing import List, Optional, Tuple, Union
 import typer
 from aiohttp import ClientResponseError, ClientSession
 from aleph.sdk import AlephHttpClient, AuthenticatedAlephHttpClient
-from aleph.sdk.client.vmclient import VmClient
 from aleph.sdk.account import _load_account
 from aleph.sdk.conf import settings as sdk_settings
 from aleph.sdk.exceptions import (
@@ -29,12 +28,9 @@ from aleph_client.commands.utils import (
     setup_logging,
     validated_int_prompt,
     validated_prompt,
-    colorful_json,
 )
 from aleph_client.conf import settings
 from aleph_client.utils import AsyncTyper
-
-from eth_account import Account
 
 logger = logging.getLogger(__name__)
 app = AsyncTyper(no_args_is_help=True)
@@ -132,14 +128,14 @@ async def create(
     }
 
     rootfs = Prompt.ask(
-        f"Do you want to use a custom rootfs or one of the following prebuilt ones?",
+        "Do you want to use a custom rootfs or one of the following prebuilt ones?",
         default=rootfs,
         choices=[*os_map.values(), "custom"],
     )
 
     if rootfs == "custom":
         rootfs = validated_prompt(
-            f"Enter the item hash of the rootfs to use for your instance",
+            "Enter the item hash of the rootfs to use for your instance",
             lambda x: len(x) == 64,
         )
     else:
@@ -156,22 +152,22 @@ async def create(
             rootfs_size = rootfs_message.content.size
 
     vcpus = validated_int_prompt(
-        f"Number of virtual cpus to allocate", vcpus, min_value=1, max_value=4
+        "Number of virtual cpus to allocate", vcpus, min_value=1, max_value=4
     )
 
     memory = validated_int_prompt(
-        f"Maximum memory allocation on vm in MiB",
+        "Maximum memory allocation on vm in MiB",
         memory,
         min_value=2000,
         max_value=8000,
     )
 
     rootfs_size = validated_int_prompt(
-        f"Disk size in MiB", rootfs_size, min_value=20000, max_value=100000
+        "Disk size in MiB", rootfs_size, min_value=20000, max_value=100000
     )
 
     hypervisor = Prompt.ask(
-        f"Which hypervisor you want to use?",
+        "Which hypervisor you want to use?",
         default=hypervisor,
         choices=[*hv_map.values()],
     )
@@ -298,7 +294,7 @@ async def _show_instances(messages: List[InstanceMessage]):
         )
     console = Console()
     console.print(table)
-    console.print(f"To connect to an instance, use:\n\n" f"  ssh root@<ipv6 address>\n")
+    console.print("To connect to an instance, use:\n\n" "  ssh root@<ipv6 address>\n")
 
 
 @app.command()
@@ -338,164 +334,3 @@ async def list(
             typer.echo(resp.json(indent=4))
         else:
             await _show_instances(resp.messages)
-
-
-@app.command()
-async def notify(
-    vm_id: str,
-    domain: str,
-    private_key: Optional[str] = typer.Option(
-        sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY
-    ),
-    private_key_file: Optional[Path] = typer.Option(
-        sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE
-    ),
-    debug: bool = False,
-):
-    """notify crn the instance, can be use to start VM"""
-
-    setup_logging(debug)
-
-    if private_key_file:
-        private_key = private_key_file.read_bytes()
-    elif private_key:
-        private_key = bytes.fromhex(private_key)
-
-    if isinstance(private_key, bytes):
-        account = Account.from_key(private_key)
-        async with VmClient(account, domain) as manager:
-            status, result = await manager.start_instance(vm_id=vm_id)
-            if status != 200:
-                typer.echo(f"Status : {status}")
-            typer.echo(colorful_json(result))
-    else:
-        typer.echo("Invalid private key format")
-
-
-@app.command()
-async def stop(
-    vm_id: str,
-    domain: str,
-    private_key: Optional[str] = typer.Option(
-        sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY
-    ),
-    private_key_file: Optional[Path] = typer.Option(
-        sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE
-    ),
-    debug: bool = False,
-):
-    """Stop an instance"""
-
-    setup_logging(debug)
-
-    if private_key_file:
-        private_key = private_key_file.read_bytes()
-    elif private_key:
-        private_key = bytes.fromhex(private_key)
-
-    if isinstance(private_key, bytes):
-        account = Account.from_key(private_key)
-        async with VmClient(account, domain) as manager:
-            status, result = await manager.stop_instance(vm_id=vm_id)
-            if status != 200:
-                typer.echo(f"Status : {status}")
-            typer.echo(result)
-    else:
-        typer.echo("Invalid private key format")
-
-
-@app.command()
-async def reboot(
-    vm_id: str,
-    domain: str,
-    private_key: Optional[str] = typer.Option(
-        sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY
-    ),
-    private_key_file: Optional[Path] = typer.Option(
-        sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE
-    ),
-    debug: bool = False,
-):
-    """reboot an instance"""
-
-    setup_logging(debug)
-
-    if private_key_file:
-        private_key = private_key_file.read_bytes()
-    elif private_key:
-        private_key = bytes.fromhex(private_key)
-
-    if isinstance(private_key, bytes):
-        account = Account.from_key(private_key)
-        async with VmClient(account, domain) as manager:
-            status, result = await manager.reboot_instance(vm_id=vm_id)
-            if status != 200:
-                typer.echo(f"Status : {status}")
-            typer.echo(result)
-
-    else:
-        typer.echo("Invalid private key format")
-
-
-@app.command()
-async def erase(
-    vm_id: str,
-    domain: str,
-    private_key: Optional[str] = typer.Option(
-        sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY
-    ),
-    private_key_file: Optional[Path] = typer.Option(
-        sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE
-    ),
-    debug: bool = False,
-):
-    """erase an instance"""
-
-    setup_logging(debug)
-
-    if private_key_file:
-        private_key = private_key_file.read_bytes()
-    elif private_key:
-        private_key = bytes.fromhex(private_key)
-
-    if isinstance(private_key, bytes):
-        account = Account.from_key(private_key)
-        async with VmClient(account, domain) as manager:
-            status, result = await manager.erase_instance(vm_id=vm_id)
-            if status != 200:
-                typer.echo(f"Status : {status}")
-            typer.echo(result)
-    else:
-        typer.echo("Invalid private key format")
-
-
-@app.command()
-async def expire(
-    vm_id: str,
-    domain: str,
-    private_key: Optional[str] = typer.Option(
-        sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY
-    ),
-    private_key_file: Optional[Path] = typer.Option(
-        sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE
-    ),
-    debug: bool = False,
-):
-    """expire an instance"""
-
-    setup_logging(debug)
-
-    if private_key_file:
-        private_key = private_key_file.read_bytes()
-    elif private_key:
-        private_key = bytes.fromhex(private_key)
-
-    if isinstance(private_key, bytes):
-        account = Account.from_key(private_key)
-        async with VmClient(account, domain) as manager:
-            status, result = await manager.expire_instance(vm_id=vm_id)
-            if status != 200:
-                typer.echo(f"Status : {status}")
-            typer.echo(result)
-    else:
-        typer.echo("Invalid private key format")
