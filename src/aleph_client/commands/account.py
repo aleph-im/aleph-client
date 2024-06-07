@@ -170,7 +170,9 @@ async def balance(
             response = await session.get(uri)
             if response.status == 200:
                 balance_data = await response.json()
-                formatted_balance_data = json.dumps(balance_data, indent=4, default=extended_json_encoder)
+                formatted_balance_data = json.dumps(
+                    balance_data, indent=4, default=extended_json_encoder
+                )
                 typer.echo(formatted_balance_data)
             else:
                 typer.echo(
