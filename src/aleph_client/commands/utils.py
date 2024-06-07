@@ -5,15 +5,13 @@ import re
 import sys
 from datetime import datetime
 from random import random
-from typing import Any, Callable, Dict, List, Optional, Text, Tuple, TypeVar, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple, TypeVar, Union
 
 import aiohttp
 import aiohttp.client_exceptions
 import async_timeout
 import typer
 from aleph.sdk.types import GenericMessage
-from aleph_message.models.execution.environment import CpuProperties
-from pydantic import BaseModel
 from pygments import highlight
 from pygments.formatters.terminal256 import Terminal256Formatter
 from pygments.lexers import JsonLexer
@@ -24,7 +22,17 @@ from rich.prompt import IntPrompt, Prompt, PromptError
 from rich.table import Table
 from typer import echo
 
+from aleph_client.commands.node import (
+    NodeInfo,
+    _escape_and_normalize,
+    _fetch_nodes,
+    _format_score,
+    _remove_ansi_escape,
+)
 from aleph_client.conf import settings
+from aleph_client.models import MachineInfo, MachineUsage
+
+logger = logging.getLogger(__name__)
 
 
 def colorful_json(obj: str):
@@ -214,20 +222,6 @@ def is_environment_interactive() -> bool:
             not os.environ.get("DEBIAN_NONINTERACTIVE") == "noninteractive",
         )
     )
-
-
-logger = logging.getLogger(__name__)
-
-
-from aleph_client.commands.node import (
-    NodeInfo,
-    _escape_and_normalize,
-    _fetch_nodes,
-    _format_score,
-    _remove_ansi_escape,
-)
-
-# Local variable to tell the end of queue process
 
 
 # Class to regroup both progress bar and the table for cleaner code
