@@ -67,6 +67,7 @@ async def fetch_crn_info(node_url: str) -> Tuple[Optional[MachineUsage], Optiona
     url: str = node_url.rstrip("/") + "/about/usage/system"
     timeout = aiohttp.ClientTimeout(total=settings.HTTP_REQUEST_TIMEOUT)
     try:
+        # A new session is created for each request since they each target a different host.
         async with aiohttp.ClientSession(timeout=timeout) as session:
             async with session.get(url) as resp:
                 resp.raise_for_status()

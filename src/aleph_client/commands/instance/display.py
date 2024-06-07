@@ -17,6 +17,7 @@ from aleph_client.models import MachineInfo
 
 class ProgressTable:
     """Display a progress bar and a table side by side."""
+
     progress: Progress
     table: Table
 
@@ -127,11 +128,9 @@ def convert_system_info_to_str(data: MachineInfo) -> Tuple[str, str, str]:
     Returns:
         CPU, RAM, and HDD information as strings.
     """
-    kibibytes_per_gibibyte = 1024 * 1024
-
     cpu: str = f"{data.machine_usage.cpu.count}"
-    hdd: str = f"{data.machine_usage.disk.available_kB / kibibytes_per_gibibyte:.2f} GiB"
-    ram: str = f"{data.machine_usage.mem.available_kB / kibibytes_per_gibibyte:.2f} GiB"
+    hdd: str = f"{data.machine_usage.disk.available_kB / 1_000_000:.2f} GB"
+    ram: str = f"{data.machine_usage.mem.available_kB / 1_000_000:.2f} GB"
 
     return cpu, hdd, ram
 
