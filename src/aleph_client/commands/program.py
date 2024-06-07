@@ -200,11 +200,11 @@ async def update(
     async with AuthenticatedAlephHttpClient(
         account=account, api_server=sdk_settings.API_HOST
     ) as client:
-        program_message: ProgramMessage = client.get_message(
+        program_message: ProgramMessage = await client.get_message(
             item_hash=item_hash, message_type=ProgramMessage
         )
         code_ref = program_message.content.code.ref
-        code_message: StoreMessage = client.get_message(
+        code_message: StoreMessage = await client.get_message(
             item_hash=code_ref, message_type=StoreMessage
         )
 
