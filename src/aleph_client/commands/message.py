@@ -36,7 +36,7 @@ async def get(
     item_hash: str,
 ):
     async with AlephHttpClient(api_server=sdk_settings.API_HOST) as client:
-        message = await client.get_message(item_hash=ItemHash(item_hash))
+        message: AlephMessage = await client.get_message(item_hash=ItemHash(item_hash))
     typer.echo(colorful_message_json(message))
 
 
@@ -242,7 +242,7 @@ async def forget(
 
     setup_logging(debug)
 
-    hash_list: List[str] = hashes.split(",")
+    hash_list: List[ItemHash] = [ItemHash(h) for h in hashes.split(",")]
 
     account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
     async with AuthenticatedAlephHttpClient(
