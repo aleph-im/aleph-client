@@ -10,7 +10,7 @@ from aleph.sdk import AlephHttpClient, AuthenticatedAlephHttpClient
 from aleph.sdk.account import _load_account
 from aleph.sdk.conf import settings as sdk_settings
 from aleph.sdk.types import AccountFromPrivateKey, StorageEnum
-from aleph_message.models import StoreMessage
+from aleph_message.models import ItemHash, StoreMessage
 from aleph_message.status import MessageStatus
 from pydantic import BaseModel, Field
 from rich import box
@@ -143,7 +143,7 @@ async def download(
 
 @app.command()
 async def forget(
-    item_hash: str = typer.Argument(..., help="Hash to forget"),
+    item_hash: ItemHash = typer.Argument(..., help="Hash to forget"),
     reason: str = typer.Argument(..., help="reason to forget"),
     channel: Optional[str] = typer.Option(None, help="channel"),
     private_key: Optional[str] = typer.Option(

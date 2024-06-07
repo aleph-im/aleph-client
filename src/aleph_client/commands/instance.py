@@ -1,7 +1,7 @@
 import asyncio
 import logging
 from pathlib import Path
-from typing import List, Optional, Tuple, Union
+from typing import List, Optional, Tuple, Union, cast
 
 import typer
 from aiohttp import ClientResponseError, ClientSession
@@ -166,10 +166,12 @@ async def create(
         "Disk size in MiB", rootfs_size, min_value=20000, max_value=100000
     )
 
-    hypervisor = Prompt.ask(
-        "Which hypervisor you want to use?",
-        default=hypervisor,
-        choices=[*hv_map.values()],
+    hypervisor = HypervisorType(
+        Prompt.ask(
+            "Which hypervisor you want to use?",
+            default=hv_map[hypervisor],
+            choices=[*hv_map.values()],
+        )
     )
 
     volumes = get_or_prompt_volumes(
@@ -218,7 +220,7 @@ async def create(
 
 @app.command()
 async def delete(
-    item_hash: str,
+    item_hash: ItemHash,
     reason: str = typer.Option(
         "User deletion", help="Reason for deleting the instance"
     ),
@@ -333,4 +335,6 @@ async def list(
         if json:
             typer.echo(resp.json(indent=4))
         else:
-            await _show_instances(resp.messages)
+            # Since we filtered on message type, we can safely cast as InstanceMessage.
+            messages = cast(List[InstanceMessage], resp.messages)
+            await _show_instances(messages)
