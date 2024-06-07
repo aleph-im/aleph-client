@@ -53,7 +53,7 @@ def _remove_ansi_escape(string: str) -> str:
     return ansi_escape.sub("", string)
 
 
-def _format_score(score):
+def _format_score(score: float):
     if score < 0.5:
         return text.Text(f"{score:.2%}", style="red", justify="right")
     elif score < 0.75:

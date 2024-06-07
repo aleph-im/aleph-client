@@ -26,8 +26,8 @@ from rich.prompt import Prompt
 from rich.table import Table
 
 from aleph_client.commands import help_strings
+from aleph_client.commands.instance.display import fetch_crn_info
 from aleph_client.commands.utils import (
-    fetch_crn_info,
     get_or_prompt_volumes,
     setup_logging,
     validated_int_prompt,
@@ -40,16 +40,11 @@ logger = logging.getLogger(__name__)
 app = AsyncTyper(no_args_is_help=True)
 
 
-def load_ssh_pubkey(ssh_pubkey_file: Path) -> str:
-    with open(ssh_pubkey_file, "r") as f:
-        return f.read().strip()
-
-
 @app.command()
 async def create(
-    payg: str = typer.Option(
-        "No",
-        help="Asking if you want a PAYG instance",
+    hold: bool = typer.Option(
+        default=False,
+        help="Pay using the holder tier instead of pay-as-you-go",
     ),
     channel: Optional[str] = typer.Option(default=None, help=help_strings.CHANNEL),
     memory: int = typer.Option(
@@ -120,7 +115,7 @@ async def create(
             )
         )
 
-    ssh_pubkey = load_ssh_pubkey(ssh_pubkey_file)
+    ssh_pubkey: str = ssh_pubkey_file.read_text().strip()
 
     account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
 
@@ -135,20 +130,16 @@ async def create(
         HypervisorType.qemu: "qemu",
     }
 
-    payg = Prompt.ask(
-        "Do you want to create a Pay As You Go instance?",
-        default="no",
-        choices=["yes", "no"],
-    )
-
-    if payg == "yes":
+    if hold:
+        # Holder tier
+        reward_address = None
+    else:
+        # Pay-as-you-go
         valid_address = await fetch_crn_info()
         reward_address = validated_prompt(
             "Please select and enter the reward address of the wanted CRN",
             lambda x: x in valid_address,
         )
-    else:
-        reward_address = None
 
     rootfs = Prompt.ask(
         "Do you want to use a custom rootfs or one of the following prebuilt ones?",
@@ -189,7 +180,7 @@ async def create(
     hypervisor = HypervisorType[
         Prompt.ask(
             "Which hypervisor you want to use?",
-            default=hypervisor,
+            default=hypervisor.name,
             choices=[*hv_map.values()],
         )
     ]
