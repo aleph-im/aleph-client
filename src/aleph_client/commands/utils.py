@@ -24,7 +24,7 @@ from typer import echo
 from aleph_client.conf import settings
 from aleph_message.models.execution.environment import CpuProperties
 from pydantic import BaseModel
-import psutil
+
 
 def colorful_json(obj: str):
     """Render a JSON string with colors."""
@@ -214,12 +214,20 @@ def is_environment_interactive() -> bool:
         )
     )
 
+
 logger = logging.getLogger(__name__)
 
 
-from aleph_client.commands.node import NodeInfo, _fetch_nodes, _escape_and_normalize, _remove_ansi_escape, _format_score
+from aleph_client.commands.node import (
+    NodeInfo,
+    _fetch_nodes,
+    _escape_and_normalize,
+    _remove_ansi_escape,
+    _format_score,
+)
 
 # Local variable to tell the end of queue process
+
 
 # Class to regroup both progress bar and the table for cleaner code
 class ProgressTable:
@@ -231,29 +239,18 @@ class ProgressTable:
         yield self.progress
         yield self.table
 
+
 # This is a copy from aleph-vm
 class LoadAverage(BaseModel):
     load1: float
     load5: float
     load15: float
 
-    @classmethod
-    def from_psutil(cls, psutil_loadavg: Tuple[float, float, float]):
-        return cls(
-            load1=psutil_loadavg[0],
-            load5=psutil_loadavg[1],
-            load15=psutil_loadavg[2],
-        )
-    
+
 class CoreFrequencies(BaseModel):
     min: float
     max: float
 
-    @classmethod
-    def from_psutil(cls, psutil_freq: psutil._common.scpufreq):
-        min_ = psutil_freq.min or psutil_freq.current
-        max_ = psutil_freq.max or psutil_freq.current
-        return cls(min=min_, max=max_)
 
 class CpuUsage(BaseModel):
     count: int
@@ -323,23 +320,35 @@ async def fetch_crn_info() -> list:
 
     console = Console()
     progress = Progress()
-    task = progress.add_task("[green]Fetching node info... It might take some time", total=len(node_info.nodes))
+    task = progress.add_task(
+        "[green]Fetching node info... It might take some time",
+        total=len(node_info.nodes),
+    )
 
     progress_table = ProgressTable(progress, table)
     item_hashes: list = []
 
-    queue: asyncio.Queue[Optional[MachineInfo]]= asyncio.Queue()
+    queue: asyncio.Queue[Optional[MachineInfo]] = asyncio.Queue()
 
     async with aiohttp.ClientSession() as session:
         with Live(progress_table, console=console, refresh_per_second=2):
-            fetch_task = asyncio.create_task(fetch_data(session, node_info, queue, progress, task, item_hashes))
+            fetch_task = asyncio.create_task(
+                fetch_data(session, node_info, queue, progress, task, item_hashes)
+            )
             update_task = asyncio.create_task(update_table(queue, table))
             await asyncio.gather(fetch_task, update_task)
 
     return item_hashes
 
 
-async def fetch_data(session: aiohttp.ClientSession, node_info: NodeInfo, queue: asyncio.Queue[Optional[MachineInfo]], progress: Progress, task: TaskID, item_hashes: list):
+async def fetch_data(
+    session: aiohttp.ClientSession,
+    node_info: NodeInfo,
+    queue: asyncio.Queue[Optional[MachineInfo]],
+    progress: Progress,
+    task: TaskID,
+    item_hashes: list,
+):
     """
     Fetches data for each node in node_info and queues MachineInfo objects to the queue.
 
@@ -351,12 +360,21 @@ async def fetch_data(session: aiohttp.ClientSession, node_info: NodeInfo, queue:
         task (TaskID): Rich TaskID object.
         item_hashes (list): List to store item hashes.
     """
-    tasks = [fetch_and_queue(session, node, queue, progress, task, item_hashes) for node in node_info.nodes]
+    tasks = [
+        fetch_and_queue(session, node, queue, progress, task, item_hashes)
+        for node in node_info.nodes
+    ]
     await asyncio.gather(*tasks)
     await queue.put(END_OF_QUEUE)
 
 
-async def enqueue_machine_usage_info(node : dict, system_info: Optional[MachineUsage], queue: asyncio.Queue[Optional[MachineInfo]], version: Optional[str], item_hashes: list):
+async def enqueue_machine_usage_info(
+    node: dict,
+    system_info: Optional[MachineUsage],
+    queue: asyncio.Queue[Optional[MachineInfo]],
+    version: Optional[str],
+    item_hashes: list,
+):
     """
     Creates MachineInfo object which will store CRN information and puts it into the queue.
 
@@ -374,21 +392,28 @@ async def enqueue_machine_usage_info(node : dict, system_info: Optional[MachineU
         node_name = _remove_ansi_escape(node_name)
         node_address: str = node["address"]
         score = _format_score(node["score"])
-        
+
         machine_info = MachineInfo(
             system_info=system_info,
             score=str(score),
             name=node_name,
             version=version,
             reward_address=node_reward,
-            address=node_address
+            address=node_address,
         )
 
         await queue.put(machine_info)
         item_hashes.append(node_reward)
 
 
-async def fetch_and_queue(session: aiohttp.ClientSession, node: dict, queue: asyncio.Queue[Optional[MachineInfo]], progress: Progress, task: TaskID, item_hashes: list):
+async def fetch_and_queue(
+    session: aiohttp.ClientSession,
+    node: dict,
+    queue: asyncio.Queue[Optional[MachineInfo]],
+    progress: Progress,
+    task: TaskID,
+    item_hashes: list,
+):
     """
     Fetches data from the node and send it to 'enqueue_machine_usage_info()' which will queues MachineInfo object.
 
@@ -400,23 +425,27 @@ async def fetch_and_queue(session: aiohttp.ClientSession, node: dict, queue: asy
         task (TaskID): Rich TaskID object.
         item_hashes (list): List to store item hashes.
     """
-    url: str = node["address"].rstrip('/') + '/status/check/ipv6'
+    url: str = node["address"].rstrip("/") + "/status/check/ipv6"
 
     try:
         system_info, version = await asyncio.gather(
-            fetch_crn_system(session, node),
-            get_crn_version(session, node)
+            fetch_crn_system(session, node), get_crn_version(session, node)
         )
-        async with async_timeout.timeout(settings.HTTP_REQUEST_TIMEOUT + settings.HTTP_REQUEST_TIMEOUT * 0.3 * random()):
+        async with async_timeout.timeout(
+            settings.HTTP_REQUEST_TIMEOUT
+            + settings.HTTP_REQUEST_TIMEOUT * 0.3 * random()
+        ):
             async with session.get(url) as resp:
                 resp.raise_for_status()
-                await enqueue_machine_usage_info(node, system_info, queue, version, item_hashes)
+                await enqueue_machine_usage_info(
+                    node, system_info, queue, version, item_hashes
+                )
     except TimeoutError:
-        logger.debug(f'Timeout while fetching: {url}')
+        logger.debug(f"Timeout while fetching: {url}")
     except aiohttp.client_exceptions.ClientConnectionError:
-        logger.debug(f'Error on connection: {url}')
+        logger.debug(f"Error on connection: {url}")
     except Exception as e:
-        logger.debug(f'This error occured: {e}')
+        logger.debug(f"This error occured: {e}")
     finally:
         progress.update(task, advance=1)
 
@@ -431,7 +460,9 @@ def convert_system_info_to_str(data: MachineInfo) -> Tuple[str, str, str]:
     Returns:
         Tuple[str, str, str]: CPU, RAM, and HDD information.
     """
-    cpu: str = f"{data.system_info.cpu.count} {data.system_info.properties.cpu.architecture}"
+    cpu: str = (
+        f"{data.system_info.cpu.count} {data.system_info.properties.cpu.architecture}"
+    )
     hdd: str = f"{data.system_info.disk.available_kB / 1024 / 1024:.2f} GB"
     ram: str = f"{data.system_info.mem.available_kB / 1024 / 1024:.2f} GB"
 
@@ -451,10 +482,21 @@ async def update_table(queue: asyncio.Queue[Optional[MachineInfo]], table: Table
         if data is END_OF_QUEUE:
             break
         cpu, hdd, ram = convert_system_info_to_str(data)
-        table.add_row(data.score, data.name, cpu, ram, hdd, data.version, data.reward_address, data.address)
+        table.add_row(
+            data.score,
+            data.name,
+            cpu,
+            ram,
+            hdd,
+            data.version,
+            data.reward_address,
+            data.address,
+        )
 
 
-async def fetch_crn_system(session: aiohttp.ClientSession, node: dict) -> Optional[MachineUsage]:
+async def fetch_crn_system(
+    session: aiohttp.ClientSession, node: dict
+) -> Optional[MachineUsage]:
     """
     Fetches compute node system information asynchronously.
 
@@ -468,18 +510,21 @@ async def fetch_crn_system(session: aiohttp.ClientSession, node: dict) -> Option
     data: Optional[MachineUsage] = None
 
     try:
-        async with async_timeout.timeout(settings.HTTP_REQUEST_TIMEOUT + settings.HTTP_REQUEST_TIMEOUT * 0.3 * random()):
-            url: str = node["address"].rstrip('/') + '/about/usage/system'
+        async with async_timeout.timeout(
+            settings.HTTP_REQUEST_TIMEOUT
+            + settings.HTTP_REQUEST_TIMEOUT * 0.3 * random()
+        ):
+            url: str = node["address"].rstrip("/") + "/about/usage/system"
             async with session.get(url) as resp:
                 resp.raise_for_status()
                 data_raw: dict = await resp.json()
                 data = MachineUsage.parse_obj(data_raw)
     except TimeoutError:
-        logger.debug(f'Timeout while fetching: {url}')
+        logger.debug(f"Timeout while fetching: {url}")
     except aiohttp.client_exceptions.ClientConnectionError:
-        logger.debug(f'Error on connection: {url}')
+        logger.debug(f"Error on connection: {url}")
     except Exception as e:
-        logger.debug(f'This error occured: {e}')
+        logger.debug(f"This error occured: {e}")
     return data
 
 
@@ -498,18 +543,23 @@ async def get_crn_version(session: aiohttp.ClientSession, node: dict) -> Optiona
     version = None
 
     try:
-        async with async_timeout.timeout(3 * settings.HTTP_REQUEST_TIMEOUT + 3 * settings.HTTP_REQUEST_TIMEOUT * 0.3 * random()):
+        async with async_timeout.timeout(
+            3 * settings.HTTP_REQUEST_TIMEOUT
+            + 3 * settings.HTTP_REQUEST_TIMEOUT * 0.3 * random()
+        ):
             async with session.get(url) as resp:
                 resp.raise_for_status()
                 if "Server" in resp.headers:
                     for server in resp.headers.getall("Server"):
-                        version_match: List[str] = re.findall(r"^aleph-vm/(.*)$", server)
+                        version_match: List[str] = re.findall(
+                            r"^aleph-vm/(.*)$", server
+                        )
                         if version_match and version_match[0]:
                             version = version_match[0]
-    except (asyncio.TimeoutError):
-        logger.debug(f'Timeout while fetching: {url}')
+    except asyncio.TimeoutError:
+        logger.debug(f"Timeout while fetching: {url}")
     except aiohttp.client_exceptions.ClientConnectionError:
-        logger.debug(f'Error on connection: {url}')
+        logger.debug(f"Error on connection: {url}")
     except Exception as e:
-        logger.debug(f'This error occured: {e}')
+        logger.debug(f"This error occured: {e}")
     return version
