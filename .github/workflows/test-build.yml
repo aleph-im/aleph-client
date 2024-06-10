@@ -9,10 +9,10 @@ on:
       - master
 
 jobs:
-  build: 
-    strategy: 
+  build:
+    strategy:
       matrix:
-        os: [macos-11, macos-12, ubuntu-20.04, ubuntu-22.04]
+        os: [macos-11, macos-12, macos-13, macos-14, ubuntu-20.04, ubuntu-22.04, ubuntu-24.04]
     runs-on: ${{matrix.os}}
 
     steps:
@@ -35,22 +35,20 @@ jobs:
         with:
           python-version: 3.11
 
-      
       - name: Install required system packages only for Ubuntu Linux
         if: startsWith(matrix.os, 'ubuntu-')
         run: |
           sudo apt-get update
           sudo apt-get -y upgrade
           sudo apt-get install -y libsecp256k1-dev
-        
+
       - name: Install required Python packages
         run: |
-          python3 -m pip install --upgrade build
-          python3 -m pip install --user --upgrade twine
+          python3 -m pip install --upgrade hatch hatch-vcs
 
       - name: Build source and wheel packages
         run: |
-          python3 -m build
+          hatch build
 
       - name: Install the Python wheel
         run: |
