@@ -27,27 +27,21 @@ def get_test_message(account: ETHAccount):
 
 def test_account_create(account_file: Path):
     old_key = account_file.read_bytes()
-    result = runner.invoke(
-        app, ["account", "create", "--replace", "--private-key-file", str(account_file)]
-    )
+    result = runner.invoke(app, ["account", "create", "--replace", "--private-key-file", str(account_file)])
     assert result.exit_code == 0, result.stdout
     new_key = account_file.read_bytes()
     assert new_key != old_key
 
 
 def test_account_address(account_file: Path):
-    result = runner.invoke(
-        app, ["account", "address", "--private-key-file", str(account_file)]
-    )
+    result = runner.invoke(app, ["account", "address", "--private-key-file", str(account_file)])
     assert result.exit_code == 0
     assert result.stdout.startswith("0x")
     assert len(result.stdout.strip()) == 42
 
 
 def test_account_export_private_key(account_file: Path):
-    result = runner.invoke(
-        app, ["account", "export-private-key", "--private-key-file", str(account_file)]
-    )
+    result = runner.invoke(app, ["account", "export-private-key", "--private-key-file", str(account_file)])
     assert result.exit_code == 0
     assert result.stdout.startswith("0x")
     assert len(result.stdout.strip()) == 66
@@ -89,10 +83,7 @@ def test_message_find():
     )
     assert result.exit_code == 0
     assert "0x101d8D16372dBf5f1614adaE95Ee5CCE61998Fc9" in result.stdout
-    assert (
-        "bd79839bf96e595a06da5ac0b6ba51dea6f7e2591bb913deccded04d831d29f4"
-        in result.stdout
-    )
+    assert "bd79839bf96e595a06da5ac0b6ba51dea6f7e2591bb913deccded04d831d29f4" in result.stdout
 
 
 def test_post_message(account_file):
