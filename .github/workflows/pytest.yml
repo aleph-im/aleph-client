@@ -23,7 +23,19 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-      - run: sudo apt-get install -y python3-pip libsecp256k1-dev
+
+      - name: Install required system packages for macOS
+        run: sudo apt-get install -y python3-pip libsecp256k1-dev
+        if: startsWith(matrix.os, 'ubuntu-')
+
+      - name: Install required system packages for macOS
+        if: startsWith(matrix.os, 'macos-')
+        run: |
+          brew update
+          brew tap cuber/homebrew-libsecp256k1
+          brew install libsecp256k1
+          brew install automake
+
       - run: python3 -m venv /tmp/venv
       - run: /tmp/venv/bin/python -m pip install --upgrade pip hatch coverage
 
