@@ -23,16 +23,10 @@ app = AsyncTyper(no_args_is_help=True)
 @app.command()
 async def forget(
     key: str = typer.Argument(..., help="Aggregate item hash to be removed."),
-    reason: Optional[str] = typer.Option(
-        None, help="A description of why the messages are being forgotten"
-    ),
+    reason: Optional[str] = typer.Option(None, help="A description of why the messages are being forgotten"),
     channel: Optional[str] = typer.Option(default=None, help=help_strings.CHANNEL),
-    private_key: Optional[str] = typer.Option(
-        sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY
-    ),
-    private_key_file: Optional[Path] = typer.Option(
-        sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE
-    ),
+    private_key: Optional[str] = typer.Option(sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
+    private_key_file: Optional[Path] = typer.Option(sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
     debug: bool = False,
 ):
     """Forget all the messages composing an aggregate."""
@@ -41,9 +35,7 @@ async def forget(
 
     account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
 
-    async with AuthenticatedAlephHttpClient(
-        account=account, api_server=sdk_settings.API_HOST
-    ) as client:
+    async with AuthenticatedAlephHttpClient(account=account, api_server=sdk_settings.API_HOST) as client:
         message_response = await client.get_messages(
             message_filter=MessageFilter(
                 addresses=[account.get_address()],
@@ -59,19 +51,13 @@ async def forget(
 @app.command()
 async def post(
     key: str = typer.Argument(..., help="Aggregate key to be created."),
-    content: str = typer.Argument(
-        ..., help="Aggregate content (ex : {'c': 3, 'd': 4})"
-    ),
+    content: str = typer.Argument(..., help="Aggregate content (ex : {'c': 3, 'd': 4})"),
     address: Optional[str] = typer.Option(default=None, help="address"),
     channel: Optional[str] = typer.Option(default=None, help=help_strings.CHANNEL),
     inline: bool = typer.Option(False, help="inline"),
     sync: bool = typer.Option(False, help="Sync response"),
-    private_key: Optional[str] = typer.Option(
-        sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY
-    ),
-    private_key_file: Optional[Path] = typer.Option(
-        sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE
-    ),
+    private_key: Optional[str] = typer.Option(sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
+    private_key_file: Optional[Path] = typer.Option(sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
     debug: bool = False,
 ):
     """Create or Update aggregate"""
@@ -86,9 +72,7 @@ async def post(
         typer.echo("Invalid JSON for content. Please provide valid JSON.")
         raise typer.Exit(1)
 
-    async with AuthenticatedAlephHttpClient(
-        account=account, api_server=sdk_settings.API_HOST
-    ) as client:
+    async with AuthenticatedAlephHttpClient(account=account, api_server=sdk_settings.API_HOST) as client:
         message, _ = await client.create_aggregate(
             key=key,
             content=content_dict,
@@ -97,9 +81,7 @@ async def post(
             inline=inline,
             address=address,
         )
-        log_message = json.dumps(
-            message.dict(), indent=4, default=extended_json_encoder
-        )
+        log_message = json.dumps(message.dict(), indent=4, default=extended_json_encoder)
         typer.echo(log_message)
 
 
@@ -107,12 +89,8 @@ async def post(
 async def get(
     key: str = typer.Argument(..., help="Aggregate key to be fetched."),
     address: Optional[str] = typer.Option(default=None, help="Address"),
-    private_key: Optional[str] = typer.Option(
-        sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY
-    ),
-    private_key_file: Optional[Path] = typer.Option(
-        sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE
-    ),
+    private_key: Optional[str] = typer.Option(sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
+    private_key_file: Optional[Path] = typer.Option(sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
     debug: bool = False,
 ):
     """Fetch an aggregate by key and content."""
@@ -124,9 +102,7 @@ async def get(
     # if no address we load current account as a private key
     address = account.get_address() if address is None else address
 
-    async with AuthenticatedAlephHttpClient(
-        account=account, api_server=sdk_settings.API_HOST
-    ) as client:
+    async with AuthenticatedAlephHttpClient(account=account, api_server=sdk_settings.API_HOST) as client:
         aggregates = await client.fetch_aggregate(address=address, key=key)
 
         if aggregates:

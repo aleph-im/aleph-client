@@ -29,9 +29,7 @@ app = AsyncTyper(no_args_is_help=True)
 @app.command()
 def create(
     private_key: Optional[str] = typer.Option(None, help=help_strings.PRIVATE_KEY),
-    private_key_file: Optional[Path] = typer.Option(
-        None, help=help_strings.PRIVATE_KEY_FILE
-    ),
+    private_key_file: Optional[Path] = typer.Option(None, help=help_strings.PRIVATE_KEY_FILE),
     replace: bool = False,
     debug: bool = False,
 ):
@@ -40,11 +38,7 @@ def create(
     setup_logging(debug)
 
     if private_key_file is None:
-        private_key_file = Path(
-            typer.prompt(
-                "Enter file in which to save the key", sdk_settings.PRIVATE_KEY_FILE
-            )
-        )
+        private_key_file = Path(typer.prompt("Enter file in which to save the key", sdk_settings.PRIVATE_KEY_FILE))
 
     if private_key_file.exists() and not replace:
         typer.secho(f"Error: key already exists: '{private_key_file}'", fg=RED)
@@ -70,12 +64,8 @@ def create(
 
 @app.command()
 def address(
-    private_key: Optional[str] = typer.Option(
-        sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY
-    ),
-    private_key_file: Optional[Path] = typer.Option(
-        sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE
-    ),
+    private_key: Optional[str] = typer.Option(sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
+    private_key_file: Optional[Path] = typer.Option(sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
 ):
     """
     Display your public address.
@@ -93,12 +83,8 @@ def address(
 
 @app.command()
 def export_private_key(
-    private_key: Optional[str] = typer.Option(
-        sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY
-    ),
-    private_key_file: Optional[Path] = typer.Option(
-        sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE
-    ),
+    private_key: Optional[str] = typer.Option(sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
+    private_key_file: Optional[Path] = typer.Option(sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
 ):
     """
     Display your private key.
@@ -127,12 +113,8 @@ def path():
 @app.command("sign-bytes")
 def sign_bytes(
     message: Optional[str] = typer.Option(None, help="Message to sign"),
-    private_key: Optional[str] = typer.Option(
-        sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY
-    ),
-    private_key_file: Optional[Path] = typer.Option(
-        sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE
-    ),
+    private_key: Optional[str] = typer.Option(sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
+    private_key_file: Optional[Path] = typer.Option(sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
     debug: bool = False,
 ):
     """Sign a message using your private key."""
@@ -153,12 +135,8 @@ def sign_bytes(
 @app.command()
 async def balance(
     address: Optional[str] = typer.Option(None, help="Address"),
-    private_key: Optional[str] = typer.Option(
-        sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY
-    ),
-    private_key_file: Optional[Path] = typer.Option(
-        sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE
-    ),
+    private_key: Optional[str] = typer.Option(sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
+    private_key_file: Optional[Path] = typer.Option(sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
 ):
     account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
 
@@ -172,15 +150,9 @@ async def balance(
             response = await session.get(uri)
             if response.status == 200:
                 balance_data = await response.json()
-                formatted_balance_data = json.dumps(
-                    balance_data, indent=4, default=extended_json_encoder
-                )
+                formatted_balance_data = json.dumps(balance_data, indent=4, default=extended_json_encoder)
                 typer.echo(formatted_balance_data)
             else:
-                typer.echo(
-                    f"Failed to retrieve balance for address {address}. Status code: {response.status}"
-                )
+                typer.echo(f"Failed to retrieve balance for address {address}. Status code: {response.status}")
     else:
-        typer.echo(
-            "Error: Please provide either a private key, private key file, or an address."
-        )
+        typer.echo("Error: Please provide either a private key, private key file, or an address.")
