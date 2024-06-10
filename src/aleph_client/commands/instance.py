@@ -222,10 +222,8 @@ async def create(
 
 @app.command()
 async def delete(
-    item_hash: ItemHash,
-    reason: str = typer.Option(
-        "User deletion", help="Reason for deleting the instance"
-    ),
+    item_hash: str,
+    reason: str = typer.Option("User deletion", help="Reason for deleting the instance"),
     private_key: Optional[str] = sdk_settings.PRIVATE_KEY_STRING,
     private_key_file: Optional[Path] = sdk_settings.PRIVATE_KEY_FILE,
     print_message: bool = typer.Option(False),
@@ -242,7 +240,7 @@ async def delete(
     ) as client:
         try:
             existing_message: InstanceMessage = await client.get_message(
-                item_hash=item_hash, message_type=InstanceMessage
+                item_hash=ItemHash(item_hash), message_type=InstanceMessage
             )
         except MessageNotFoundError:
             typer.echo("Instance does not exist")
