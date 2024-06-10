@@ -85,9 +85,7 @@ def _show_compute(node_info):
         node_name = _remove_ansi_escape(node_name)
 
         #  Format Value
-        creation_time = datetime.datetime.fromtimestamp(node["time"]).strftime(
-            "%Y-%m-%d %H:%M:%S"
-        )
+        creation_time = datetime.datetime.fromtimestamp(node["time"]).strftime("%Y-%m-%d %H:%M:%S")
         score = _format_score(node["score"])
         decentralization = _format_score(node["decentralization"])
         status = _format_status(node["status"])
@@ -132,9 +130,7 @@ def _show_core(node_info):
         node_name = _remove_ansi_escape(node_name)
 
         # Format Value
-        creation_time = datetime.datetime.fromtimestamp(node["time"]).strftime(
-            "%Y-%m-%d %H:%M:%S"
-        )
+        creation_time = datetime.datetime.fromtimestamp(node["time"]).strftime("%Y-%m-%d %H:%M:%S")
         score = _format_score(node["score"])
         status = _format_status(node["status"])
 
@@ -153,13 +149,9 @@ def _show_core(node_info):
 
 @app.command()
 async def compute(
-    json: bool = typer.Option(
-        default=False, help="Print as json instead of rich table"
-    ),
+    json: bool = typer.Option(default=False, help="Print as json instead of rich table"),
     active: bool = typer.Option(default=False, help="Only show active nodes"),
-    address: Optional[str] = typer.Option(
-        default=None, help="Owner address to filter by"
-    ),
+    address: Optional[str] = typer.Option(default=None, help="Owner address to filter by"),
     debug: bool = False,
 ):
     """Get all compute node on aleph network"""
@@ -167,9 +159,7 @@ async def compute(
     setup_logging(debug)
 
     compute_info: NodeInfo = await _fetch_nodes()
-    compute_info.nodes = _filter_node(
-        core_info=compute_info.nodes, active=active, address=address
-    )
+    compute_info.nodes = _filter_node(core_info=compute_info.nodes, active=active, address=address)
 
     if not json:
         _show_compute(compute_info)
@@ -179,22 +169,16 @@ async def compute(
 
 @app.command()
 async def core(
-    json: bool = typer.Option(
-        default=False, help="Print as json instead of rich table"
-    ),
+    json: bool = typer.Option(default=False, help="Print as json instead of rich table"),
     active: bool = typer.Option(default=False, help="Only show active nodes"),
-    address: Optional[str] = typer.Option(
-        default=None, help="Owner address to filter by"
-    ),
+    address: Optional[str] = typer.Option(default=None, help="Owner address to filter by"),
     debug: bool = False,
 ):
     """Get all core node on aleph"""
     setup_logging(debug)
 
     core_info: NodeInfo = await _fetch_nodes()
-    core_info.core_node = _filter_node(
-        core_info=core_info.core_node, active=active, address=address
-    )
+    core_info.core_node = _filter_node(core_info=core_info.core_node, active=active, address=address)
 
     if not json:
         _show_core(node_info=core_info.core_node)
