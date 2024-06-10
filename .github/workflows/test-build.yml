@@ -44,12 +44,14 @@ jobs:
 
       - name: Install required Python packages
         run: |
-          python3 -m pip install --upgrade hatch hatch-vcs
+          python3 -m venv /tmp/venv
+          /tmp/venv/bin/python3 -m pip install --upgrade hatch hatch-vcs
 
       - name: Build source and wheel packages
         run: |
-          hatch build
+          /tmp/venv/bin/hatch build
 
       - name: Install the Python wheel
         run: |
-          python3 -m pip install dist/aleph_client-*.whl
+          python3 -m venv /tmp/install-venv
+          /tmp/install-venv/bin/python3 -m pip install dist/aleph_client-*.whl
