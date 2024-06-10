@@ -25,7 +25,7 @@ classifiers = [
 
 dependencies = [
   "aleph-sdk-python~=0.9.1",
-  "aleph-message>=0.4.5",
+  "aleph-message @ git+https://github.com/aleph-im/aleph-message.git@hoh-expose-models#egg=aleph-message",
   "coincurve==18.0.0",
   "aiohttp==3.9.5",
   "eciespy==0.4.1",
