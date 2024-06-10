@@ -49,9 +49,7 @@ def create_archive(path: Path) -> Tuple[Path, Encoding]:
             archive_path = Path(f"{path}.zip")
             return archive_path, Encoding.zip
     elif os.path.isfile(path):
-        if path.suffix == ".squashfs" or (
-            magic and magic.from_file(path).startswith("Squashfs filesystem")
-        ):
+        if path.suffix == ".squashfs" or (magic and magic.from_file(path).startswith("Squashfs filesystem")):
             return path, Encoding.squashfs
         else:
             try_open_zip(Path(path))

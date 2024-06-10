@@ -86,12 +86,7 @@ async def attach_resource(
     resource_type = await get_target_type(fqdn)
 
     if resource_type == TargetType.IPFS and not catch_all_path:
-        catch_all_path = (
-            Prompt.ask(
-                "Catch all path? ex: /404.html or press [Enter] to ignore", default=None
-            )
-            or None
-        )
+        catch_all_path = Prompt.ask("Catch all path? ex: /404.html or press [Enter] to ignore", default=None) or None
 
     if domain_info is not None and domain_info.get("info"):
         current_resource = domain_info["info"]["message_id"]
@@ -109,9 +104,7 @@ async def attach_resource(
     if (not interactive) or Confirm.ask("Continue"):
         """Create aggregate message"""
 
-        async with AuthenticatedAlephHttpClient(
-            account=account, api_server=sdk_settings.API_HOST
-        ) as client:
+        async with AuthenticatedAlephHttpClient(account=account, api_server=sdk_settings.API_HOST) as client:
 
             options: Optional[Dict] = None
             if catch_all_path and catch_all_path.startswith("/"):
@@ -137,9 +130,7 @@ async def attach_resource(
             )
 
 
-async def detach_resource(
-    account: AccountFromPrivateKey, fqdn: Hostname, interactive: Optional[bool] = None
-):
+async def detach_resource(account: AccountFromPrivateKey, fqdn: Hostname, interactive: Optional[bool] = None):
     domain_info = await get_aggregate_domain_info(account, fqdn)
     interactive = is_environment_interactive() if interactive is None else interactive
 
@@ -156,18 +147,14 @@ async def detach_resource(
         current_resource = "null"
 
     resource_type = await get_target_type(fqdn)
-    table.add_row(
-        f"{current_resource[:16]}...{current_resource[-16:]}", "", resource_type
-    )
+    table.add_row(f"{current_resource[:16]}...{current_resource[-16:]}", "", resource_type)
 
     console.print(table)
 
     if (not interactive) or Confirm.ask("Continue"):
         """Update aggregate message"""
 
-        async with AuthenticatedAlephHttpClient(
-            account=account, api_server=sdk_settings.API_HOST
-        ) as client:
+        async with AuthenticatedAlephHttpClient(account=account, api_server=sdk_settings.API_HOST) as client:
             aggregate_content = {str(fqdn): None}
 
             aggregate_message, message_status = await client.create_aggregate(
@@ -182,22 +169,12 @@ async def detach_resource(
 
 @app.command()
 async def add(
-    private_key: Optional[str] = typer.Option(
-        sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY
-    ),
-    private_key_file: Optional[Path] = typer.Option(
-        sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE
-    ),
+    private_key: Optional[str] = typer.Option(sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
+    private_key_file: Optional[Path] = typer.Option(sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
     fqdn: str = typer.Argument(..., help=help_strings.CUSTOM_DOMAIN_NAME),
-    target: Optional[TargetType] = typer.Option(
-        None, help=help_strings.CUSTOM_DOMAIN_TARGET_TYPES
-    ),
-    item_hash: Optional[str] = typer.Option(
-        None, help=help_strings.CUSTOM_DOMAIN_ITEM_HASH
-    ),
-    owner: Optional[str] = typer.Option(
-        None, help=help_strings.CUSTOM_DOMAIN_OWNER_ADDRESS
-    ),
+    target: Optional[TargetType] = typer.Option(None, help=help_strings.CUSTOM_DOMAIN_TARGET_TYPES),
+    item_hash: Optional[str] = typer.Option(None, help=help_strings.CUSTOM_DOMAIN_ITEM_HASH),
+    owner: Optional[str] = typer.Option(None, help=help_strings.CUSTOM_DOMAIN_OWNER_ADDRESS),
     ask: bool = typer.Option(default=True, help=help_strings.ASK_FOR_CONFIRMATION),
 ):
     """Add and link a Custom Domain."""
@@ -227,9 +204,7 @@ async def add(
     owner = owner or account.get_address()
     dns_rules = domain_validator.get_required_dns_rules(fqdn, selected_target, owner)
     for rule_id, rule in enumerate(dns_rules):
-        table.add_row(
-            str(rule_id), rule.dns["type"], rule.dns["name"], rule.dns["value"]
-        )
+        table.add_row(str(rule_id), rule.dns["type"], rule.dns["name"], rule.dns["value"])
 
     console.print(table)
 
@@ -278,19 +253,11 @@ async def add(
 
 @app.command()
 async def attach(
-    private_key: Optional[str] = typer.Option(
-        sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY
-    ),
-    private_key_file: Optional[Path] = typer.Option(
-        sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE
-    ),
+    private_key: Optional[str] = typer.Option(sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
+    private_key_file: Optional[Path] = typer.Option(sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
     fqdn: str = typer.Argument(..., help=help_strings.CUSTOM_DOMAIN_NAME),
-    item_hash: Optional[str] = typer.Option(
-        None, help=help_strings.CUSTOM_DOMAIN_ITEM_HASH
-    ),
-    catch_all_path: str = typer.Option(
-        default=None, help=help_strings.IPFS_CATCH_ALL_PATH
-    ),
+    item_hash: Optional[str] = typer.Option(None, help=help_strings.CUSTOM_DOMAIN_ITEM_HASH),
+    catch_all_path: str = typer.Option(default=None, help=help_strings.IPFS_CATCH_ALL_PATH),
     ask: bool = typer.Option(default=True, help=help_strings.ASK_FOR_CONFIRMATION),
 ):
     """Attach resource to a Custom Domain."""
@@ -308,32 +275,22 @@ async def attach(
 
 @app.command()
 async def detach(
-    private_key: Optional[str] = typer.Option(
-        sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY
-    ),
-    private_key_file: Optional[Path] = typer.Option(
-        sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE
-    ),
+    private_key: Optional[str] = typer.Option(sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
+    private_key_file: Optional[Path] = typer.Option(sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
     fqdn: str = typer.Argument(..., help=help_strings.CUSTOM_DOMAIN_NAME),
     ask: bool = typer.Option(default=True, help=help_strings.ASK_FOR_CONFIRMATION),
 ):
     """Unlink Custom Domain."""
     account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
 
-    await detach_resource(
-        account, Hostname(fqdn), interactive=False if (not ask) else None
-    )
+    await detach_resource(account, Hostname(fqdn), interactive=False if (not ask) else None)
     raise typer.Exit()
 
 
 @app.command()
 async def info(
-    private_key: Optional[str] = typer.Option(
-        sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY
-    ),
-    private_key_file: Optional[Path] = typer.Option(
-        sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE
-    ),
+    private_key: Optional[str] = typer.Option(sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
+    private_key_file: Optional[Path] = typer.Option(sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
     fqdn: str = typer.Argument(..., help=help_strings.CUSTOM_DOMAIN_NAME),
 ):
     """Show Custom Domain Details."""

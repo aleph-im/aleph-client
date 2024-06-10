@@ -98,11 +98,7 @@ def volume_to_dict(volume: List[str]) -> Optional[Dict[str, Union[str, int]]]:
 def get_or_prompt_volumes(ephemeral_volume, immutable_volume, persistent_volume):
     volumes = []
     # Check if the volumes are empty
-    if (
-        persistent_volume is None
-        or ephemeral_volume is None
-        or immutable_volume is None
-    ):
+    if persistent_volume is None or ephemeral_volume is None or immutable_volume is None:
         for volume in prompt_for_volumes():
             volumes.append(volume)
             typer.echo("\n")
