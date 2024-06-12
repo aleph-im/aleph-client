@@ -6,6 +6,7 @@ from typing import List, Optional, Tuple, Union
 import typer
 from aiohttp import ClientResponseError, ClientSession
 from aleph.sdk import AlephHttpClient, AuthenticatedAlephHttpClient
+from aleph.sdk.client.vmclient import VmClient
 from aleph.sdk.account import _load_account
 from aleph.sdk.conf import settings as sdk_settings
 from aleph.sdk.exceptions import (
@@ -28,9 +29,12 @@ from aleph_client.commands.utils import (
     setup_logging,
     validated_int_prompt,
     validated_prompt,
+    colorful_json,
 )
 from aleph_client.conf import settings
 from aleph_client.utils import AsyncTyper
+
+from eth_account import Account
 
 logger = logging.getLogger(__name__)
 app = AsyncTyper(no_args_is_help=True)
@@ -156,7 +160,10 @@ async def create(
     )
 
     memory = validated_int_prompt(
-        f"Maximum memory allocation on vm in MiB", memory, min_value=2000, max_value=8000
+        f"Maximum memory allocation on vm in MiB",
+        memory,
+        min_value=2000,
+        max_value=8000,
     )
 
     rootfs_size = validated_int_prompt(
@@ -331,3 +338,164 @@ async def list(
             typer.echo(resp.json(indent=4))
         else:
             await _show_instances(resp.messages)
+
+
+@app.command()
+async def notify(
+    vm_id: str,
+    domain: str,
+    private_key: Optional[str] = typer.Option(
+        sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY
+    ),
+    private_key_file: Optional[Path] = typer.Option(
+        sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE
+    ),
+    debug: bool = False,
+):
+    """notify crn the instance, can be use to start VM"""
+
+    setup_logging(debug)
+
+    if private_key_file:
+        private_key = private_key_file.read_bytes()
+    elif private_key:
+        private_key = bytes.fromhex(private_key)
+
+    if isinstance(private_key, bytes):
+        account = Account.from_key(private_key)
+        async with VmClient(account, domain) as manager:
+            status, result = await manager.start_instance(vm_id=vm_id)
+            if status != 200:
+                typer.echo(f"Status : {status}")
+            typer.echo(colorful_json(result))
+    else:
+        typer.echo("Invalid private key format")
+
+
+@app.command()
+async def stop(
+    vm_id: str,
+    domain: str,
+    private_key: Optional[str] = typer.Option(
+        sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY
+    ),
+    private_key_file: Optional[Path] = typer.Option(
+        sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE
+    ),
+    debug: bool = False,
+):
+    """Stop an instance"""
+
+    setup_logging(debug)
+
+    if private_key_file:
+        private_key = private_key_file.read_bytes()
+    elif private_key:
+        private_key = bytes.fromhex(private_key)
+
+    if isinstance(private_key, bytes):
+        account = Account.from_key(private_key)
+        async with VmClient(account, domain) as manager:
+            status, result = await manager.stop_instance(vm_id=vm_id)
+            if status != 200:
+                typer.echo(f"Status : {status}")
+            typer.echo(result)
+    else:
+        typer.echo("Invalid private key format")
+
+
+@app.command()
+async def reboot(
+    vm_id: str,
+    domain: str,
+    private_key: Optional[str] = typer.Option(
+        sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY
+    ),
+    private_key_file: Optional[Path] = typer.Option(
+        sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE
+    ),
+    debug: bool = False,
+):
+    """reboot an instance"""
+
+    setup_logging(debug)
+
+    if private_key_file:
+        private_key = private_key_file.read_bytes()
+    elif private_key:
+        private_key = bytes.fromhex(private_key)
+
+    if isinstance(private_key, bytes):
+        account = Account.from_key(private_key)
+        async with VmClient(account, domain) as manager:
+            status, result = await manager.reboot_instance(vm_id=vm_id)
+            if status != 200:
+                typer.echo(f"Status : {status}")
+            typer.echo(result)
+
+    else:
+        typer.echo("Invalid private key format")
+
+
+@app.command()
+async def erase(
+    vm_id: str,
+    domain: str,
+    private_key: Optional[str] = typer.Option(
+        sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY
+    ),
+    private_key_file: Optional[Path] = typer.Option(
+        sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE
+    ),
+    debug: bool = False,
+):
+    """erase an instance"""
+
+    setup_logging(debug)
+
+    if private_key_file:
+        private_key = private_key_file.read_bytes()
+    elif private_key:
+        private_key = bytes.fromhex(private_key)
+
+    if isinstance(private_key, bytes):
+        account = Account.from_key(private_key)
+        async with VmClient(account, domain) as manager:
+            status, result = await manager.erase_instance(vm_id=vm_id)
+            if status != 200:
+                typer.echo(f"Status : {status}")
+            typer.echo(result)
+    else:
+        typer.echo("Invalid private key format")
+
+
+@app.command()
+async def expire(
+    vm_id: str,
+    domain: str,
+    private_key: Optional[str] = typer.Option(
+        sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY
+    ),
+    private_key_file: Optional[Path] = typer.Option(
+        sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE
+    ),
+    debug: bool = False,
+):
+    """expire an instance"""
+
+    setup_logging(debug)
+
+    if private_key_file:
+        private_key = private_key_file.read_bytes()
+    elif private_key:
+        private_key = bytes.fromhex(private_key)
+
+    if isinstance(private_key, bytes):
+        account = Account.from_key(private_key)
+        async with VmClient(account, domain) as manager:
+            status, result = await manager.expire_instance(vm_id=vm_id)
+            if status != 200:
+                typer.echo(f"Status : {status}")
+            typer.echo(result)
+    else:
+        typer.echo("Invalid private key format")
