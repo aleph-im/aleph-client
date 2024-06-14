@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+from importlib.metadata import version as importlib_version
+
 import typer
-from pkg_resources import get_distribution
 
 from aleph_client.utils import AsyncTyper
 
@@ -13,7 +14,7 @@ def get_version(value: bool):
     dist_name = "aleph-client"
     if value:
         try:
-            __version__ = get_distribution(dist_name).version
+            __version__ = importlib_version(dist_name)
         finally:
             typer.echo(f"Aleph CLI Version: {__version__}")
             raise typer.Exit(1)
