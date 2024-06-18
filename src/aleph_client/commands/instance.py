@@ -6,8 +6,8 @@ from typing import List, Optional, Tuple, Union
 import typer
 from aiohttp import ClientResponseError, ClientSession
 from aleph.sdk import AlephHttpClient, AuthenticatedAlephHttpClient
-from aleph.sdk.client.vmclient import VmClient
 from aleph.sdk.account import _load_account
+from aleph.sdk.client.vmclient import VmClient
 from aleph.sdk.conf import settings as sdk_settings
 from aleph.sdk.exceptions import (
     ForgottenMessageError,
@@ -18,6 +18,7 @@ from aleph.sdk.query.filters import MessageFilter
 from aleph.sdk.types import AccountFromPrivateKey, StorageEnum
 from aleph_message.models import InstanceMessage, ItemHash, MessageType, StoreMessage
 from aleph_message.models.execution.environment import HypervisorType
+from eth_account import Account
 from rich import box
 from rich.console import Console
 from rich.prompt import Prompt
@@ -25,16 +26,14 @@ from rich.table import Table
 
 from aleph_client.commands import help_strings
 from aleph_client.commands.utils import (
+    colorful_json,
     get_or_prompt_volumes,
     setup_logging,
     validated_int_prompt,
     validated_prompt,
-    colorful_json,
 )
 from aleph_client.conf import settings
 from aleph_client.utils import AsyncTyper
-
-from eth_account import Account
 
 logger = logging.getLogger(__name__)
 app = AsyncTyper(no_args_is_help=True)
@@ -236,7 +235,6 @@ async def delete(
     setup_logging(debug)
 
     account = _load_account(private_key, private_key_file)
-
     async with AuthenticatedAlephHttpClient(
         account=account, api_server=sdk_settings.API_HOST
     ) as client:
@@ -356,20 +354,36 @@ async def notify(
 
     setup_logging(debug)
 
-    if private_key_file:
-        private_key = private_key_file.read_bytes()
-    elif private_key:
-        private_key = bytes.fromhex(private_key)
+    account = _load_account(private_key, private_key_file)
 
-    if isinstance(private_key, bytes):
-        account = Account.from_key(private_key)
-        async with VmClient(account, domain) as manager:
-            status, result = await manager.start_instance(vm_id=vm_id)
-            if status != 200:
-                typer.echo(f"Status : {status}")
-            typer.echo(colorful_json(result))
-    else:
-        typer.echo("Invalid private key format")
+    async with VmClient(account, domain) as manager:
+        status, result = await manager.start_instance(vm_id=vm_id)
+        if status != 200:
+            typer.echo(f"Status : {status}")
+        typer.echo(colorful_json(result))
+
+
+@app.command()
+async def logs(
+    vm_id: str,
+    domain: str,
+    private_key: Optional[str] = typer.Option(
+        sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY
+    ),
+    private_key_file: Optional[Path] = typer.Option(
+        sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE
+    ),
+    debug: bool = False,
+):
+    """notify crn the instance, can be use to start VM"""
+
+    setup_logging(debug)
+
+    account = _load_account(private_key, private_key_file)
+
+    async with VmClient(account, domain) as manager:
+        async for log in manager.manager.get_logs(vm_id=vm_id):
+            typer.echo(f"{log}")
 
 
 @app.command()
@@ -388,20 +402,13 @@ async def stop(
 
     setup_logging(debug)
 
-    if private_key_file:
-        private_key = private_key_file.read_bytes()
-    elif private_key:
-        private_key = bytes.fromhex(private_key)
+    account = _load_account(private_key, private_key_file)
 
-    if isinstance(private_key, bytes):
-        account = Account.from_key(private_key)
-        async with VmClient(account, domain) as manager:
-            status, result = await manager.stop_instance(vm_id=vm_id)
-            if status != 200:
-                typer.echo(f"Status : {status}")
-            typer.echo(result)
-    else:
-        typer.echo("Invalid private key format")
+    async with VmClient(account, domain) as manager:
+        status, result = await manager.stop_instance(vm_id=vm_id)
+        if status != 200:
+            typer.echo(f"Status : {status}")
+        typer.echo(result)
 
 
 @app.command()
@@ -420,21 +427,13 @@ async def reboot(
 
     setup_logging(debug)
 
-    if private_key_file:
-        private_key = private_key_file.read_bytes()
-    elif private_key:
-        private_key = bytes.fromhex(private_key)
+    account = _load_account(private_key, private_key_file)
 
-    if isinstance(private_key, bytes):
-        account = Account.from_key(private_key)
-        async with VmClient(account, domain) as manager:
-            status, result = await manager.reboot_instance(vm_id=vm_id)
-            if status != 200:
-                typer.echo(f"Status : {status}")
-            typer.echo(result)
-
-    else:
-        typer.echo("Invalid private key format")
+    async with VmClient(account, domain) as manager:
+        status, result = await manager.reboot_instance(vm_id=vm_id)
+        if status != 200:
+            typer.echo(f"Status : {status}")
+        typer.echo(result)
 
 
 @app.command()
@@ -453,13 +452,9 @@ async def erase(
 
     setup_logging(debug)
 
-    if private_key_file:
-        private_key = private_key_file.read_bytes()
-    elif private_key:
-        private_key = bytes.fromhex(private_key)
+    account = _load_account(private_key, private_key_file)
 
     if isinstance(private_key, bytes):
-        account = Account.from_key(private_key)
         async with VmClient(account, domain) as manager:
             status, result = await manager.erase_instance(vm_id=vm_id)
             if status != 200:
@@ -484,14 +479,9 @@ async def expire(
     """expire an instance"""
 
     setup_logging(debug)
-
-    if private_key_file:
-        private_key = private_key_file.read_bytes()
-    elif private_key:
-        private_key = bytes.fromhex(private_key)
+    account = _load_account(private_key, private_key_file)
 
     if isinstance(private_key, bytes):
-        account = Account.from_key(private_key)
         async with VmClient(account, domain) as manager:
             status, result = await manager.expire_instance(vm_id=vm_id)
             if status != 200:
