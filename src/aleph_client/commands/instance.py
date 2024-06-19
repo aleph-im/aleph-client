@@ -262,7 +262,7 @@ async def fetch_json(session: ClientSession, url: str) -> dict:
         return await resp.json()
 
 
-async def _get_ipv6_address(message: InstanceMessage) -> Tuple[str, str]:
+async def _get_ipv6_address(message: InstanceMessage, node_list) -> Tuple[str, str]:
     async with ClientSession() as session:
         try:
             if not message.content.payment:
@@ -274,16 +274,10 @@ async def _get_ipv6_address(message: InstanceMessage) -> Tuple[str, str]:
                 return status["vm_hash"], status["vm_ipv6"]
 
             # Fetch server URL if there is a payment
-            test_json = await fetch_json(
-                session,
-                "https://api2.aleph.im/api/v0/aggregates/0xa1B3bb7d2332383D96b7796B908fB7f7F3c2Be10.json?keys=corechannel",
-            )
             resource_nodes = (
-                test_json.get("data", {})
-                .get("corechannel", {})
+                node_list
                 .get("resource_nodes", [])
             )
-
             for node in resource_nodes:
                 if node["stream_reward"] == message.content.payment.receiver:
                     # Fetch from the CRN API if payment
@@ -301,7 +295,7 @@ async def _get_ipv6_address(message: InstanceMessage) -> Tuple[str, str]:
             return message.item_hash, "Not available (yet)"
 
 
-async def _show_instances(messages: List[InstanceMessage]):
+async def _show_instances(messages: List[InstanceMessage], node_list):
     table = Table(box=box.SIMPLE_HEAVY)
     table.add_column("Item Hash", style="cyan")
     table.add_column("Vcpus", style="magenta")
@@ -310,7 +304,7 @@ async def _show_instances(messages: List[InstanceMessage]):
     table.add_column("IPv6 address", style="yellow")
 
     scheduler_responses = dict(
-        await asyncio.gather(*[_get_ipv6_address(message) for message in messages])
+        await asyncio.gather(*[_get_ipv6_address(message, node_list) for message in messages])
     )
 
     for message in messages:
@@ -362,4 +356,5 @@ async def list(
         if json:
             typer.echo(resp.json(indent=4))
         else:
-            await _show_instances(resp.messages)
+            node_list = await client.fetch_aggregate(address="0xa1B3bb7d2332383D96b7796B908fB7f7F3c2Be10", key="corechannel")
+            await _show_instances(resp.messages, node_list)
