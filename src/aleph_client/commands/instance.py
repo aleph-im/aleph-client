@@ -256,15 +256,47 @@ async def delete(
         )
 
 
+async def fetch_json(session: ClientSession, url: str) -> dict:
+    async with session.get(url) as resp:
+        resp.raise_for_status()
+        return await resp.json()
+
+
 async def _get_ipv6_address(message: InstanceMessage) -> Tuple[str, str]:
     async with ClientSession() as session:
         try:
-            resp = await session.get(
-                f"https://scheduler.api.aleph.cloud/api/v0/allocation/{message.item_hash}"
+            if not message.content.payment:
+                # Fetch from the scheduler API directly if no payment
+                status = await fetch_json(
+                    session,
+                    f"https://scheduler.api.aleph.cloud/api/v0/allocation/{message.item_hash}",
+                )
+                return status["vm_hash"], status["vm_ipv6"]
+
+            # Fetch server URL if there is a payment
+            test_json = await fetch_json(
+                session,
+                "https://api2.aleph.im/api/v0/aggregates/0xa1B3bb7d2332383D96b7796B908fB7f7F3c2Be10.json?keys=corechannel",
             )
-            resp.raise_for_status()
-            status = await resp.json()
-            return status["vm_hash"], status["vm_ipv6"]
+            resource_nodes = (
+                test_json.get("data", {})
+                .get("corechannel", {})
+                .get("resource_nodes", [])
+            )
+
+            for node in resource_nodes:
+                if node["stream_reward"] == message.content.payment.receiver:
+                    # Fetch from the CRN API if payment
+                    executions = await fetch_json(
+                        session, f"{node['address']}about/executions/list"
+                    )
+                    if message.item_hash in executions:
+                        ipv6_address = executions[message.item_hash]["networking"][
+                            "ipv6"
+                        ]
+                        return message.item_hash, ipv6_address
+
+            return message.item_hash, "Not available (yet)"
         except ClientResponseError:
             return message.item_hash, "Not available (yet)"
 
