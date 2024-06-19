@@ -9,12 +9,10 @@ from aleph.sdk import AlephHttpClient, AuthenticatedAlephHttpClient
 from aleph.sdk.account import _load_account
 from aleph.sdk.client.vmclient import VmClient
 from aleph.sdk.conf import settings as sdk_settings
-from aleph.sdk.exceptions import (ForgottenMessageError,
-                                  InsufficientFundsError, MessageNotFoundError)
+from aleph.sdk.exceptions import ForgottenMessageError, InsufficientFundsError, MessageNotFoundError
 from aleph.sdk.query.filters import MessageFilter
 from aleph.sdk.types import AccountFromPrivateKey, StorageEnum
-from aleph_message.models import (InstanceMessage, ItemHash, MessageType,
-                                  StoreMessage)
+from aleph_message.models import InstanceMessage, ItemHash, MessageType, StoreMessage
 from aleph_message.models.execution.environment import HypervisorType
 from rich import box
 from rich.console import Console
@@ -22,9 +20,13 @@ from rich.prompt import Prompt
 from rich.table import Table
 
 from aleph_client.commands import help_strings
-from aleph_client.commands.utils import (colorful_json, get_or_prompt_volumes,
-                                         setup_logging, validated_int_prompt,
-                                         validated_prompt)
+from aleph_client.commands.utils import (
+    colorful_json,
+    get_or_prompt_volumes,
+    setup_logging,
+    validated_int_prompt,
+    validated_prompt,
+)
 from aleph_client.conf import settings
 from aleph_client.utils import AsyncTyper
 
