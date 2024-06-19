@@ -9,29 +9,22 @@ from aleph.sdk import AlephHttpClient, AuthenticatedAlephHttpClient
 from aleph.sdk.account import _load_account
 from aleph.sdk.client.vmclient import VmClient
 from aleph.sdk.conf import settings as sdk_settings
-from aleph.sdk.exceptions import (
-    ForgottenMessageError,
-    InsufficientFundsError,
-    MessageNotFoundError,
-)
+from aleph.sdk.exceptions import (ForgottenMessageError,
+                                  InsufficientFundsError, MessageNotFoundError)
 from aleph.sdk.query.filters import MessageFilter
 from aleph.sdk.types import AccountFromPrivateKey, StorageEnum
-from aleph_message.models import InstanceMessage, ItemHash, MessageType, StoreMessage
+from aleph_message.models import (InstanceMessage, ItemHash, MessageType,
+                                  StoreMessage)
 from aleph_message.models.execution.environment import HypervisorType
-from eth_account import Account
 from rich import box
 from rich.console import Console
 from rich.prompt import Prompt
 from rich.table import Table
 
 from aleph_client.commands import help_strings
-from aleph_client.commands.utils import (
-    colorful_json,
-    get_or_prompt_volumes,
-    setup_logging,
-    validated_int_prompt,
-    validated_prompt,
-)
+from aleph_client.commands.utils import (colorful_json, get_or_prompt_volumes,
+                                         setup_logging, validated_int_prompt,
+                                         validated_prompt)
 from aleph_client.conf import settings
 from aleph_client.utils import AsyncTyper
 
@@ -47,22 +40,14 @@ def load_ssh_pubkey(ssh_pubkey_file: Path) -> str:
 @app.command()
 async def create(
     channel: Optional[str] = typer.Option(default=None, help=help_strings.CHANNEL),
-    memory: int = typer.Option(
-        settings.DEFAULT_INSTANCE_MEMORY, help="Maximum memory allocation on vm in MiB"
-    ),
-    vcpus: int = typer.Option(
-        sdk_settings.DEFAULT_VM_VCPUS, help="Number of virtual cpus to allocate."
-    ),
+    memory: int = typer.Option(settings.DEFAULT_INSTANCE_MEMORY, help="Maximum memory allocation on vm in MiB"),
+    vcpus: int = typer.Option(sdk_settings.DEFAULT_VM_VCPUS, help="Number of virtual cpus to allocate."),
     timeout_seconds: float = typer.Option(
         sdk_settings.DEFAULT_VM_TIMEOUT,
         help="If vm is not called after [timeout_seconds] it will shutdown",
     ),
-    private_key: Optional[str] = typer.Option(
-        sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY
-    ),
-    private_key_file: Optional[Path] = typer.Option(
-        sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE
-    ),
+    private_key: Optional[str] = typer.Option(sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
+    private_key_file: Optional[Path] = typer.Option(sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
     ssh_pubkey_file: Path = typer.Option(
         Path("~/.ssh/id_rsa.pub").expanduser(),
         help="Path to a public ssh key to be added to the instance.",
@@ -81,12 +66,8 @@ async def create(
         help="Hypervisor to use to launch your instance. Defaults to Firecracker.",
     ),
     debug: bool = False,
-    persistent_volume: Optional[List[str]] = typer.Option(
-        None, help=help_strings.PERSISTENT_VOLUME
-    ),
-    ephemeral_volume: Optional[List[str]] = typer.Option(
-        None, help=help_strings.EPHEMERAL_VOLUME
-    ),
+    persistent_volume: Optional[List[str]] = typer.Option(None, help=help_strings.PERSISTENT_VOLUME),
+    ephemeral_volume: Optional[List[str]] = typer.Option(None, help=help_strings.EPHEMERAL_VOLUME),
     immutable_volume: Optional[List[str]] = typer.Option(
         None,
         help=help_strings.IMMUATABLE_VOLUME,
@@ -145,18 +126,14 @@ async def create(
         rootfs = next(k for k, v in os_map.items() if v == rootfs)
 
     async with AlephHttpClient(api_server=sdk_settings.API_HOST) as client:
-        rootfs_message: StoreMessage = await client.get_message(
-            item_hash=rootfs, message_type=StoreMessage
-        )
+        rootfs_message: StoreMessage = await client.get_message(item_hash=rootfs, message_type=StoreMessage)
         if not rootfs_message:
             typer.echo("Given rootfs volume does not exist on aleph.im")
             raise typer.Exit(code=1)
         if rootfs_size is None and rootfs_message.content.size:
             rootfs_size = rootfs_message.content.size
 
-    vcpus = validated_int_prompt(
-        f"Number of virtual cpus to allocate", vcpus, min_value=1, max_value=4
-    )
+    vcpus = validated_int_prompt(f"Number of virtual cpus to allocate", vcpus, min_value=1, max_value=4)
 
     memory = validated_int_prompt(
         f"Maximum memory allocation on vm in MiB",
@@ -165,9 +142,7 @@ async def create(
         max_value=8000,
     )
 
-    rootfs_size = validated_int_prompt(
-        f"Disk size in MiB", rootfs_size, min_value=20000, max_value=100000
-    )
+    rootfs_size = validated_int_prompt(f"Disk size in MiB", rootfs_size, min_value=20000, max_value=100000)
 
     hypervisor = Prompt.ask(
         f"Which hypervisor you want to use?",
@@ -181,9 +156,7 @@ async def create(
         immutable_volume=immutable_volume,
     )
 
-    async with AuthenticatedAlephHttpClient(
-        account=account, api_server=sdk_settings.API_HOST
-    ) as client:
+    async with AuthenticatedAlephHttpClient(account=account, api_server=sdk_settings.API_HOST) as client:
         try:
             message, status = await client.create_instance(
                 sync=True,
@@ -222,9 +195,7 @@ async def create(
 @app.command()
 async def delete(
     item_hash: str,
-    reason: str = typer.Option(
-        "User deletion", help="Reason for deleting the instance"
-    ),
+    reason: str = typer.Option("User deletion", help="Reason for deleting the instance"),
     private_key: Optional[str] = sdk_settings.PRIVATE_KEY_STRING,
     private_key_file: Optional[Path] = sdk_settings.PRIVATE_KEY_FILE,
     print_message: bool = typer.Option(False),
@@ -235,9 +206,7 @@ async def delete(
     setup_logging(debug)
 
     account = _load_account(private_key, private_key_file)
-    async with AuthenticatedAlephHttpClient(
-        account=account, api_server=sdk_settings.API_HOST
-    ) as client:
+    async with AuthenticatedAlephHttpClient(account=account, api_server=sdk_settings.API_HOST) as client:
         try:
             existing_message: InstanceMessage = await client.get_message(
                 item_hash=item_hash, message_type=InstanceMessage
@@ -256,17 +225,13 @@ async def delete(
         if print_message:
             typer.echo(f"{message.json(indent=4)}")
 
-        typer.echo(
-            f"Instance {item_hash} has been deleted. It will be removed by the scheduler in a few minutes."
-        )
+        typer.echo(f"Instance {item_hash} has been deleted. It will be removed by the scheduler in a few minutes.")
 
 
 async def _get_ipv6_address(message: InstanceMessage) -> Tuple[str, str]:
     async with ClientSession() as session:
         try:
-            resp = await session.get(
-                f"https://scheduler.api.aleph.cloud/api/v0/allocation/{message.item_hash}"
-            )
+            resp = await session.get(f"https://scheduler.api.aleph.cloud/api/v0/allocation/{message.item_hash}")
             resp.raise_for_status()
             status = await resp.json()
             return status["vm_hash"], status["vm_ipv6"]
@@ -282,9 +247,7 @@ async def _show_instances(messages: List[InstanceMessage]):
     table.add_column("Disk size", style="magenta")
     table.add_column("IPv6 address", style="yellow")
 
-    scheduler_responses = dict(
-        await asyncio.gather(*[_get_ipv6_address(message) for message in messages])
-    )
+    scheduler_responses = dict(await asyncio.gather(*[_get_ipv6_address(message) for message in messages]))
 
     for message in messages:
         table.add_row(
@@ -302,15 +265,9 @@ async def _show_instances(messages: List[InstanceMessage]):
 @app.command()
 async def list(
     address: Optional[str] = typer.Option(None, help="Owner address of the instance"),
-    private_key: Optional[str] = typer.Option(
-        sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY
-    ),
-    private_key_file: Optional[Path] = typer.Option(
-        sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE
-    ),
-    json: bool = typer.Option(
-        default=False, help="Print as json instead of rich table"
-    ),
+    private_key: Optional[str] = typer.Option(sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
+    private_key_file: Optional[Path] = typer.Option(sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
+    json: bool = typer.Option(default=False, help="Print as json instead of rich table"),
     debug: bool = False,
 ):
     """List all instances associated with your private key"""
@@ -342,12 +299,8 @@ async def list(
 async def notify(
     vm_id: str,
     domain: str,
-    private_key: Optional[str] = typer.Option(
-        sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY
-    ),
-    private_key_file: Optional[Path] = typer.Option(
-        sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE
-    ),
+    private_key: Optional[str] = typer.Option(sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
+    private_key_file: Optional[Path] = typer.Option(sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
     debug: bool = False,
 ):
     """notify crn the instance, can be use to start VM"""
@@ -367,22 +320,18 @@ async def notify(
 async def logs(
     vm_id: str,
     domain: str,
-    private_key: Optional[str] = typer.Option(
-        sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY
-    ),
-    private_key_file: Optional[Path] = typer.Option(
-        sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE
-    ),
+    private_key: Optional[str] = typer.Option(sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
+    private_key_file: Optional[Path] = typer.Option(sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
     debug: bool = False,
 ):
-    """notify crn the instance, can be use to start VM"""
+    """logs of the instance"""
 
     setup_logging(debug)
 
     account = _load_account(private_key, private_key_file)
 
     async with VmClient(account, domain) as manager:
-        async for log in manager.manager.get_logs(vm_id=vm_id):
+        async for log in manager.get_logs(vm_id=vm_id):
             typer.echo(f"{log}")
 
 
@@ -390,12 +339,8 @@ async def logs(
 async def stop(
     vm_id: str,
     domain: str,
-    private_key: Optional[str] = typer.Option(
-        sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY
-    ),
-    private_key_file: Optional[Path] = typer.Option(
-        sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE
-    ),
+    private_key: Optional[str] = typer.Option(sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
+    private_key_file: Optional[Path] = typer.Option(sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
     debug: bool = False,
 ):
     """Stop an instance"""
@@ -415,12 +360,8 @@ async def stop(
 async def reboot(
     vm_id: str,
     domain: str,
-    private_key: Optional[str] = typer.Option(
-        sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY
-    ),
-    private_key_file: Optional[Path] = typer.Option(
-        sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE
-    ),
+    private_key: Optional[str] = typer.Option(sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
+    private_key_file: Optional[Path] = typer.Option(sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
     debug: bool = False,
 ):
     """reboot an instance"""
@@ -440,12 +381,8 @@ async def reboot(
 async def erase(
     vm_id: str,
     domain: str,
-    private_key: Optional[str] = typer.Option(
-        sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY
-    ),
-    private_key_file: Optional[Path] = typer.Option(
-        sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE
-    ),
+    private_key: Optional[str] = typer.Option(sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
+    private_key_file: Optional[Path] = typer.Option(sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
     debug: bool = False,
 ):
     """erase an instance"""
@@ -468,12 +405,8 @@ async def erase(
 async def expire(
     vm_id: str,
     domain: str,
-    private_key: Optional[str] = typer.Option(
-        sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY
-    ),
-    private_key_file: Optional[Path] = typer.Option(
-        sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE
-    ),
+    private_key: Optional[str] = typer.Option(sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
+    private_key_file: Optional[Path] = typer.Option(sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
     debug: bool = False,
 ):
     """expire an instance"""
