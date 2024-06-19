@@ -254,7 +254,7 @@ async def delete(
             typer.echo("You are not the owner of this instance")
             raise typer.Exit(code=1)
 
-        message, status = await client.forget(hashes=[item_hash], reason=reason)
+        message, status = await client.forget(hashes=[ItemHash(item_hash)], reason=reason)
         if print_message:
             typer.echo(f"{message.json(indent=4)}")
 
