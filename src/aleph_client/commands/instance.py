@@ -144,11 +144,15 @@ async def create(
 
     rootfs_size = validated_int_prompt(f"Disk size in MiB", rootfs_size, min_value=20000, max_value=100000)
 
-    hypervisor = Prompt.ask(
+    reverse_hv_map = {v: k for k, v in hv_map.items()}
+
+    hypervisor_str: str = Prompt.ask(
         f"Which hypervisor you want to use?",
-        default=hypervisor,
+        default=hv_map[hypervisor],
         choices=[*hv_map.values()],
     )
+
+    hypervisor = reverse_hv_map[hypervisor_str]
 
     volumes = get_or_prompt_volumes(
         persistent_volume=persistent_volume,
@@ -221,7 +225,7 @@ async def delete(
             typer.echo("You are not the owner of this instance")
             raise typer.Exit(code=1)
 
-        message, status = await client.forget(hashes=[item_hash], reason=reason)
+        message, status = await client.forget(hashes=[ItemHash(item_hash)], reason=reason)
         if print_message:
             typer.echo(f"{message.json(indent=4)}")
 
@@ -289,10 +293,13 @@ async def list(
         if not resp:
             typer.echo("No instances found")
             raise typer.Exit(code=1)
+
+        instance_messages = [msg for msg in resp.messages if isinstance(msg, InstanceMessage)]
+
         if json:
             typer.echo(resp.json(indent=4))
         else:
-            await _show_instances(resp.messages)
+            await _show_instances(instance_messages)
 
 
 @app.command()
