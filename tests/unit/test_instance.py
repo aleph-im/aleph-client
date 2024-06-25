@@ -1,4 +1,7 @@
+from __future__ import annotations
+
 import asyncio
+import typing
 from datetime import datetime, timezone
 from typing import Set
 from unittest import mock
@@ -15,7 +18,6 @@ from aleph_client.commands.instance.display import (
 )
 from aleph_client.commands.instance.network import (
     FORBIDDEN_HOSTS,
-    MachineInfoQueue,
     fetch_crn_info,
     get_version,
     sanitize_url,
@@ -31,6 +33,9 @@ from aleph_client.models import (
     MemoryUsage,
     UsagePeriod,
 )
+
+if typing.TYPE_CHECKING:
+    from aleph_client.commands.instance.network import MachineInfoQueue
 
 
 def dummy_machine_info() -> MachineInfo:

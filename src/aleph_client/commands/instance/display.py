@@ -1,4 +1,7 @@
+from __future__ import annotations
+
 import asyncio
+import typing
 from functools import partial
 from typing import Callable, Literal, Set, Sized, Tuple, Union, cast
 
@@ -7,12 +10,12 @@ from rich.live import Live
 from rich.progress import Progress
 from rich.table import Table
 
-from aleph_client.commands.instance.network import (
-    MachineInfoQueue,
-    fetch_and_queue_crn_info,
-)
+from aleph_client.commands.instance.network import fetch_and_queue_crn_info
 from aleph_client.commands.node import NodeInfo, _fetch_nodes, _format_score
 from aleph_client.models import MachineInfo
+
+if typing.TYPE_CHECKING:
+    from aleph_client.commands.instance.network import MachineInfoQueue
 
 
 class ProgressTable:

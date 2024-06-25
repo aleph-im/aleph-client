@@ -1,6 +1,9 @@
+from __future__ import annotations
+
 import asyncio
 import logging
 import re
+import typing
 from json import JSONDecodeError
 from typing import List, Literal, Optional, Tuple, Union
 from urllib.parse import ParseResult, urlparse
@@ -31,10 +34,12 @@ FORBIDDEN_HOSTS = [
     "youtube.com",
 ]
 
-# A queue is used to pass the machine info from the coroutines that fetch it to the
-# coroutine in charge of updating the table and progress bar.
-# Invalid URLs are represented as None, and the end of the queue is marked with "END_OF_QUEUE".
-MachineInfoQueue = asyncio.Queue[Union[MachineInfo, None, Literal["END_OF_QUEUE"]]]
+# This type annotation is hidden behind typing.TYPE_CHECKING for compatibility with Python 3.8
+if typing.TYPE_CHECKING:
+    # A queue is used to pass the machine info from the coroutines that fetch it to the
+    # coroutine in charge of updating the table and progress bar.
+    # Invalid URLs are represented as None, and the end of the queue is marked with "END_OF_QUEUE".
+    MachineInfoQueue = asyncio.Queue[Union[MachineInfo, None, Literal["END_OF_QUEUE"]]]
 
 
 def get_version(headers: CIMultiDictProxy[str]) -> Optional[str]:
