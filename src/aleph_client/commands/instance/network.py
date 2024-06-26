@@ -79,14 +79,14 @@ async def fetch_crn_info(node_url: str) -> Tuple[Optional[MachineUsage], Optiona
                 data_raw: dict = await resp.json()
                 version = get_version(resp.headers)
                 return MachineUsage.parse_obj(data_raw), version
-    except TimeoutError:
-        logger.debug(f"Timeout while fetching: {url}")
+    except TimeoutError as e:
+        logger.debug(f"Timeout while fetching: {url}: {e}")
     except aiohttp.ClientConnectionError as e:
-        logger.debug(f"Error on connection: {url}, {e}")
-    except aiohttp.ClientResponseError:
-        logger.debug(f"Error on response: {url}")
-    except JSONDecodeError:
-        logger.debug(f"Error decoding JSON: {url}")
+        logger.debug(f"Error on connection: {url}: {e}")
+    except aiohttp.ClientResponseError as e:
+        logger.debug(f"Error on response: {url}: {e}")
+    except JSONDecodeError as e:
+        logger.debug(f"Error decoding JSON: {url}: {e}")
     except ValidationError as e:
         logger.debug(f"Validation error when fetching: {url}: {e}")
     except InvalidURL as e:
@@ -113,7 +113,12 @@ def sanitize_url(url: str) -> str:
         raise InvalidURL(f"Invalid URL scheme: {parsed_url.scheme}")
 
     if parsed_url.hostname in FORBIDDEN_HOSTS:
+        logger.debug(
+            f"Invalid URL {url} hostname {parsed_url.hostname} is in the forbidden host list "
+            f"({', '.join(FORBIDDEN_HOSTS)})"
+        )
         raise InvalidURL("Invalid URL host")
+
     return url
 
 
