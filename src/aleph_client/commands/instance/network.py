@@ -31,6 +31,7 @@ FORBIDDEN_HOSTS = [
     "microsoft.com",
     "openai.com",
     "twitter.com",
+    "x.com",
     "youtube.com",
 ]
 
