@@ -63,7 +63,9 @@ class MachineInfo(BaseModel):
     url: str
 
     @classmethod
-    def from_unsanitized_input(cls, machine_usage, score, name, version, reward_address, url):
+    def from_unsanitized_input(
+        cls, machine_usage: MachineUsage, score: float, name: str, version: Optional[str], reward_address: str, url: str
+    ) -> "MachineInfo":
         """Create a MachineInfo instance from unsanitized input.
 
         User input from the account page or the API may contain malicious or unexpected data.
