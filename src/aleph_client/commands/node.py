@@ -85,7 +85,7 @@ def _show_compute(node_info):
         node_name = _escape_and_normalize(node_name)
         node_name = _remove_ansi_escape(node_name)
         node_hash = node["hash"]
-        node_reward = node["stream_reward"]
+
         #  Format Value
         creation_time = datetime.datetime.fromtimestamp(node["time"]).strftime(
             "%Y-%m-%d %H:%M:%S"
