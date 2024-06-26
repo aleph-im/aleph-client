@@ -32,7 +32,7 @@ class Settings(BaseSettings):
     UBUNTU_22_ROOTFS_ID: str = "77fef271aa6ff9825efa3186ca2e715d19e7108279b817201c69c34cedc74c27"
     DEFAULT_ROOTFS_SIZE: int = 20_000
     DEFAULT_INSTANCE_MEMORY: int = 2_048
-    DEFAULT_HYPERVISOR: HypervisorType = HypervisorType.firecracker
+    DEFAULT_HYPERVISOR: HypervisorType = HypervisorType.qemu
 
     DEFAULT_VM_MEMORY: int = 128
     DEFAULT_VM_VCPUS: int = 1
@@ -47,6 +47,8 @@ class Settings(BaseSettings):
         env_prefix = "ALEPH_"
         case_sensitive = False
         env_file = ".env"
+
+    HTTP_REQUEST_TIMEOUT = 5.0
 
 
 # Settings singleton

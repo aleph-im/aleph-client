@@ -4,23 +4,17 @@ import json
 import logging
 from base64 import b16decode, b32encode
 from pathlib import Path
-from typing import List, Mapping, Optional, cast
+from typing import List, Mapping, Optional
 from zipfile import BadZipFile
 
 import typer
 from aleph.sdk import AuthenticatedAlephHttpClient
 from aleph.sdk.account import _load_account
 from aleph.sdk.conf import settings as sdk_settings
-from aleph.sdk.query.filters import MessageFilter
-from aleph.sdk.query.responses import MessagesResponse
 from aleph.sdk.types import AccountFromPrivateKey, StorageEnum
-from aleph_message.models import (
-    ItemHash,
-    MessageType,
-    ProgramContent,
-    ProgramMessage,
-    StoreMessage,
-)
+from aleph_message.models import ProgramMessage, StoreMessage
+from aleph_message.models.execution.program import ProgramContent
+from aleph_message.models.item_hash import ItemHash
 from aleph_message.status import MessageStatus
 
 from aleph_client.commands import help_strings
@@ -232,10 +226,7 @@ async def unpersist(
     account = _load_account(private_key, private_key_file)
 
     async with AuthenticatedAlephHttpClient(account=account, api_server=sdk_settings.API_HOST) as client:
-        existing: MessagesResponse = await client.get_messages(
-            message_filter=MessageFilter(hashes=[item_hash], message_types=[MessageType.program]),
-        )
-        message: ProgramMessage = cast(ProgramMessage, existing.messages[0])
+        message: ProgramMessage = await client.get_message(item_hash=item_hash, message_type=ProgramMessage)
         content: ProgramContent = message.content.copy()
 
         content.on.persistent = False

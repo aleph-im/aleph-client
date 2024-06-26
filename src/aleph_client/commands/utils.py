@@ -14,6 +14,8 @@ from pygments.lexers import JsonLexer
 from rich.prompt import IntPrompt, Prompt, PromptError
 from typer import echo
 
+logger = logging.getLogger(__name__)
+
 
 def colorful_json(obj: str):
     """Render a JSON string with colors."""
