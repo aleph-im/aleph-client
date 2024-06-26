@@ -18,7 +18,9 @@ from aleph.sdk.query.filters import MessageFilter
 from aleph.sdk.query.responses import MessagesResponse
 from aleph.sdk.types import AccountFromPrivateKey, StorageEnum
 from aleph.sdk.utils import extended_json_encoder
-from aleph_message.models import AlephMessage, ItemHash, MessageType, ProgramMessage
+from aleph_message.models import AlephMessage, ProgramMessage
+from aleph_message.models.base import MessageType
+from aleph_message.models.item_hash import ItemHash
 
 from aleph_client.commands import help_strings
 from aleph_client.commands.utils import (

@@ -18,7 +18,8 @@ from aleph.sdk.domain import (
 from aleph.sdk.exceptions import DomainConfigurationError
 from aleph.sdk.query.filters import MessageFilter
 from aleph.sdk.types import AccountFromPrivateKey
-from aleph_message.models import AggregateMessage, MessageType
+from aleph_message.models import AggregateMessage
+from aleph_message.models.base import MessageType
 from rich.console import Console
 from rich.prompt import Confirm, Prompt
 from rich.table import Table
@@ -86,7 +87,7 @@ async def attach_resource(
     resource_type = await get_target_type(fqdn)
 
     if resource_type == TargetType.IPFS and not catch_all_path:
-        catch_all_path = Prompt.ask("Catch all path? ex: /404.html or press [Enter] to ignore", default=None) or None
+        catch_all_path = Prompt.ask("Catch all path? ex: /404.html or press [Enter] to ignore", default=None)
 
     if domain_info is not None and domain_info.get("info"):
         current_resource = domain_info["info"]["message_id"]
@@ -119,6 +120,9 @@ async def attach_resource(
                     "options": options,
                 }
             }
+
+            if catch_all_path and catch_all_path.startswith("/"):
+                aggregate_content[fqdn]["options"] = {"catch_all_path": catch_all_path}
 
             aggregate_message, message_status = await client.create_aggregate(
                 key="domains", content=aggregate_content, channel="ALEPH-CLOUDSOLUTIONS"
