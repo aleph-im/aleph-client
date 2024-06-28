@@ -30,7 +30,7 @@ class NodeInfo:
         self.core_node.sort(key=lambda x: x.get("score", 0), reverse=True)
 
 
-async def _fetch_nodes() -> NodeInfo:
+async def fetch_nodes() -> NodeInfo:
     """Fetch node aggregates and format it as NodeInfo"""
     async with aiohttp.ClientSession() as session:
         async with session.get(node_link) as resp:
@@ -164,7 +164,7 @@ async def compute(
 
     setup_logging(debug)
 
-    compute_info: NodeInfo = await _fetch_nodes()
+    compute_info: NodeInfo = await fetch_nodes()
     compute_info.nodes = _filter_node(
         core_info=compute_info.nodes, active=active, address=address
     )
@@ -189,7 +189,7 @@ async def core(
     """Get all core node on aleph"""
     setup_logging(debug)
 
-    core_info: NodeInfo = await _fetch_nodes()
+    core_info: NodeInfo = await fetch_nodes()
     core_info.core_node = _filter_node(
         core_info=core_info.core_node, active=active, address=address
     )

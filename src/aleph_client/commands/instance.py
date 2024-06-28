@@ -1,7 +1,7 @@
 import asyncio
 import logging
 from pathlib import Path
-from typing import List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import typer
 from aiohttp import ClientResponseError, ClientSession
@@ -23,7 +23,9 @@ from rich.prompt import Prompt
 from rich.table import Table
 
 from aleph_client.commands import help_strings
+from aleph_client.commands.node import NodeInfo, fetch_nodes
 from aleph_client.commands.utils import (
+    colorful_message_json,
     get_or_prompt_volumes,
     setup_logging,
     validated_int_prompt,
@@ -156,7 +158,10 @@ async def create(
     )
 
     memory = validated_int_prompt(
-        f"Maximum memory allocation on vm in MiB", memory, min_value=2000, max_value=8000
+        f"Maximum memory allocation on vm in MiB",
+        memory,
+        min_value=2000,
+        max_value=8000,
     )
 
     rootfs_size = validated_int_prompt(
@@ -262,7 +267,9 @@ async def fetch_json(session: ClientSession, url: str) -> dict:
         return await resp.json()
 
 
-async def _get_ipv6_address(message: InstanceMessage, node_list) -> Tuple[str, str]:
+async def _get_ipv6_address(
+    message: InstanceMessage, node_list: NodeInfo
+) -> Tuple[str, str]:
     async with ClientSession() as session:
         try:
             if not message.content.payment:
@@ -272,14 +279,9 @@ async def _get_ipv6_address(message: InstanceMessage, node_list) -> Tuple[str, s
                     f"https://scheduler.api.aleph.cloud/api/v0/allocation/{message.item_hash}",
                 )
                 return status["vm_hash"], status["vm_ipv6"]
-
-            # Fetch server URL if there is a payment
-            resource_nodes = (
-                node_list
-                .get("resource_nodes", [])
-            )
-            for node in resource_nodes:
+            for node in node_list.nodes:
                 if node["stream_reward"] == message.content.payment.receiver:
+
                     # Fetch from the CRN API if payment
                     executions = await fetch_json(
                         session, f"{node['address']}about/executions/list"
@@ -295,7 +297,7 @@ async def _get_ipv6_address(message: InstanceMessage, node_list) -> Tuple[str, s
             return message.item_hash, "Not available (yet)"
 
 
-async def _show_instances(messages: List[InstanceMessage], node_list):
+async def _show_instances(messages: List[InstanceMessage], node_list: NodeInfo):
     table = Table(box=box.SIMPLE_HEAVY)
     table.add_column("Item Hash", style="cyan")
     table.add_column("Vcpus", style="magenta")
@@ -304,7 +306,9 @@ async def _show_instances(messages: List[InstanceMessage], node_list):
     table.add_column("IPv6 address", style="yellow")
 
     scheduler_responses = dict(
-        await asyncio.gather(*[_get_ipv6_address(message, node_list) for message in messages])
+        await asyncio.gather(
+            *[_get_ipv6_address(message, node_list) for message in messages]
+        )
     )
 
     for message in messages:
@@ -356,5 +360,5 @@ async def list(
         if json:
             typer.echo(resp.json(indent=4))
         else:
-            node_list = await client.fetch_aggregate(address="0xa1B3bb7d2332383D96b7796B908fB7f7F3c2Be10", key="corechannel")
-            await _show_instances(resp.messages, node_list)
+            resource_nodes: NodeInfo = await fetch_nodes()
+            await _show_instances(resp.messages, resource_nodes)
