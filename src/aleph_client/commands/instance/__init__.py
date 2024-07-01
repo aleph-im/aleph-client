@@ -16,7 +16,7 @@ from aleph.sdk.exceptions import (
     MessageNotFoundError,
 )
 from aleph.sdk.query.filters import MessageFilter
-from aleph.sdk.types import AccountFromPrivateKey, StorageEnum
+from aleph.sdk.types import Account, AccountFromPrivateKey, StorageEnum
 from aleph_message.models import InstanceMessage, StoreMessage
 from aleph_message.models.base import Chain, MessageType
 from aleph_message.models.execution.base import Payment, PaymentType
@@ -336,3 +336,126 @@ async def list(
             messages = cast(List[InstanceMessage], resp.messages)
             resource_nodes: NodeInfo = await _fetch_nodes()
             await _show_instances(messages, resource_nodes)
+
+
+@app.command()
+async def expire(
+    vm_id: str,
+    domain: str,
+    private_key: Optional[str] = typer.Option(sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
+    private_key_file: Optional[Path] = typer.Option(sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
+    debug: bool = False,
+):
+    """expire an instance"""
+
+    setup_logging(debug)
+    account = _load_account(private_key, private_key_file)
+
+    async with VmClient(account, domain) as manager:
+        status, result = await manager.expire_instance(vm_id=vm_id)
+        if status != 200:
+            typer.echo(f"Status : {status}")
+        typer.echo(result)
+
+
+@app.command()
+async def erase(
+    vm_id: str,
+    domain: str,
+    private_key: Optional[str] = typer.Option(sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
+    private_key_file: Optional[Path] = typer.Option(sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
+    debug: bool = False,
+):
+    """erase an instance"""
+
+    setup_logging(debug)
+
+    account = _load_account(private_key, private_key_file)
+
+    async with VmClient(account, domain) as manager:
+        status, result = await manager.erase_instance(vm_id=vm_id)
+        if status != 200:
+            typer.echo(f"Status : {status}")
+        typer.echo(result)
+
+
+@app.command()
+async def reboot(
+    vm_id: str,
+    domain: str,
+    private_key: Optional[str] = typer.Option(sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
+    private_key_file: Optional[Path] = typer.Option(sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
+    debug: bool = False,
+):
+    """reboot an instance"""
+
+    setup_logging(debug)
+
+    account = _load_account(private_key, private_key_file)
+
+    async with VmClient(account, domain) as manager:
+        status, result = await manager.reboot_instance(vm_id=vm_id)
+        if status != 200:
+            typer.echo(f"Status : {status}")
+        typer.echo(result)
+
+
+@app.command()
+async def notify(
+    vm_id: str,
+    domain: str,
+    private_key: Optional[str] = typer.Option(sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
+    private_key_file: Optional[Path] = typer.Option(sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
+    debug: bool = False,
+):
+    """notify crn the instance, can be use to start VM"""
+
+    setup_logging(debug)
+
+    account = _load_account(private_key, private_key_file)
+
+    async with VmClient(account, domain) as manager:
+        status, result = await manager.start_instance(vm_id=vm_id)
+        if status != 200:
+            typer.echo(f"Status : {status}")
+        typer.echo(result)
+
+
+@app.command()
+async def logs(
+    vm_id: str,
+    domain: str,
+    private_key: Optional[str] = typer.Option(sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
+    private_key_file: Optional[Path] = typer.Option(sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
+    debug: bool = False,
+):
+    """logs of the instance"""
+
+    setup_logging(debug)
+
+    account = _load_account(private_key, private_key_file)
+
+    async with VmClient(account, domain) as manager:
+        async for log in manager.get_logs(vm_id=vm_id):
+            typer.echo(f"{log}")
+
+
+@app.command()
+async def stop(
+    vm_id: str,
+    domain: str,
+    private_key: Optional[str] = typer.Option(sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
+    private_key_file: Optional[Path] = typer.Option(sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
+    debug: bool = False,
+):
+    """Stop an instance"""
+
+    setup_logging(debug)
+
+    account = _load_account(private_key, private_key_file)
+
+    async with VmClient(account, domain) as manager:
+        status, result = await manager.stop_instance(vm_id=vm_id)
+        if status != 200:
+            typer.echo(f"Status : {status}")
+        typer.echo(result)
