@@ -9,6 +9,7 @@ import typer
 from aiohttp import ClientResponseError, ClientSession
 from aleph.sdk import AlephHttpClient, AuthenticatedAlephHttpClient
 from aleph.sdk.account import _load_account
+from aleph.sdk.client.vmclient import VmClient
 from aleph.sdk.conf import settings as sdk_settings
 from aleph.sdk.exceptions import (
     ForgottenMessageError,
