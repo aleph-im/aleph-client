@@ -29,6 +29,7 @@ from rich.table import Table
 
 from aleph_client.commands import help_strings
 from aleph_client.commands.instance.display import fetch_crn_info
+from aleph_client.commands.node import NodeInfo, _fetch_nodes
 from aleph_client.commands.utils import (
     get_or_prompt_volumes,
     setup_logging,
@@ -36,7 +37,7 @@ from aleph_client.commands.utils import (
     validated_prompt,
 )
 from aleph_client.conf import settings
-from aleph_client.utils import AsyncTyper
+from aleph_client.utils import AsyncTyper, fetch_json
 
 logger = logging.getLogger(__name__)
 app = AsyncTyper(no_args_is_help=True)
@@ -254,18 +255,31 @@ async def delete(
         typer.echo(f"Instance {item_hash} has been deleted. It will be removed by the scheduler in a few minutes.")
 
 
-async def _get_ipv6_address(message: InstanceMessage) -> Tuple[str, str]:
+async def _get_ipv6_address(message: InstanceMessage, node_list: NodeInfo) -> Tuple[str, str]:
     async with ClientSession() as session:
         try:
-            resp = await session.get(f"https://scheduler.api.aleph.cloud/api/v0/allocation/{message.item_hash}")
-            resp.raise_for_status()
-            status = await resp.json()
-            return status["vm_hash"], status["vm_ipv6"]
-        except ClientResponseError:
+            if not message.content.payment:
+                # Fetch from the scheduler API directly if no payment
+                status = await fetch_json(
+                    session,
+                    f"https://scheduler.api.aleph.cloud/api/v0/allocation/{message.item_hash}",
+                )
+                return status["vm_hash"], status["vm_ipv6"]
+            for node in node_list.nodes:
+                if node["stream_reward"] == message.content.payment.receiver:
+
+                    # Fetch from the CRN API if payment
+                    executions = await fetch_json(session, f"{node['address']}about/executions/list")
+                    if message.item_hash in executions:
+                        ipv6_address = executions[message.item_hash]["networking"]["ipv6"]
+                        return message.item_hash, ipv6_address
+
             return message.item_hash, "Not available (yet)"
+        except ClientResponseError as e:
+            return message.item_hash, f"Not available (yet), server not responding : {e}"
 
 
-async def _show_instances(messages: List[InstanceMessage]):
+async def _show_instances(messages: List[InstanceMessage], node_list: NodeInfo):
     table = Table(box=box.SIMPLE_HEAVY)
     table.add_column("Item Hash", style="cyan")
     table.add_column("Vcpus", style="magenta")
@@ -273,7 +287,7 @@ async def _show_instances(messages: List[InstanceMessage]):
     table.add_column("Disk size", style="magenta")
     table.add_column("IPv6 address", style="yellow")
 
-    scheduler_responses = dict(await asyncio.gather(*[_get_ipv6_address(message) for message in messages]))
+    scheduler_responses = dict(await asyncio.gather(*[_get_ipv6_address(message, node_list) for message in messages]))
 
     for message in messages:
         table.add_row(
@@ -320,4 +334,5 @@ async def list(
         else:
             # Since we filtered on message type, we can safely cast as InstanceMessage.
             messages = cast(List[InstanceMessage], resp.messages)
-            await _show_instances(messages)
+            resource_nodes: NodeInfo = await _fetch_nodes()
+            await _show_instances(messages, resource_nodes)

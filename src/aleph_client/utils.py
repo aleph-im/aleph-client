@@ -9,6 +9,7 @@ from typing import Tuple, Type
 from zipfile import BadZipFile, ZipFile
 
 import typer
+from aiohttp import ClientResponseError, ClientSession
 from aleph.sdk.types import GenericMessage
 from aleph_message.models.base import MessageType
 from aleph_message.models.execution.base import Encoding
@@ -16,7 +17,6 @@ from aleph_message.models.execution.base import Encoding
 from aleph_client.conf import settings
 
 logger = logging.getLogger(__name__)
-
 
 try:
     import magic
@@ -85,3 +85,9 @@ class AsyncTyper(typer.Typer):
     def command(self, *args, **kwargs):
         decorator = super().command(*args, **kwargs)
         return partial(self.maybe_run_async, decorator)
+
+
+async def fetch_json(session: ClientSession, url: str) -> dict:
+    async with session.get(url) as resp:
+        resp.raise_for_status()
+        return await resp.json()
