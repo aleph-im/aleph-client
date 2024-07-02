@@ -263,7 +263,7 @@ async def delete(
         )
 
 
-async def fetch_json(session: ClientSession, url: str) -> dict:
+async def _fetch_json(session: ClientSession, url: str) -> dict:
     async with session.get(url) as resp:
         resp.raise_for_status()
         return await resp.json()
@@ -276,7 +276,7 @@ async def _get_ipv6_address(
         try:
             if not message.content.payment:
                 # Fetch from the scheduler API directly if no payment
-                status = await fetch_json(
+                status = await _fetch_json(
                     session,
                     f"https://scheduler.api.aleph.cloud/api/v0/allocation/{message.item_hash}",
                 )
@@ -285,7 +285,7 @@ async def _get_ipv6_address(
                 if node["stream_reward"] == message.content.payment.receiver:
 
                     # Fetch from the CRN API if payment
-                    executions = await fetch_json(
+                    executions = await _fetch_json(
                         session, f"{node['address']}about/executions/list"
                     )
                     if message.item_hash in executions:
@@ -296,7 +296,7 @@ async def _get_ipv6_address(
 
             return message.item_hash, "Not available (yet)"
         except ClientResponseError:
-            return message.item_hash, "Not available (yet)"
+            return message.item_hash, "Not available (yet), server not responding"
 
 
 async def _show_instances(messages: List[InstanceMessage], node_list: NodeInfo):
