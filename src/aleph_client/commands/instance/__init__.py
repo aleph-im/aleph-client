@@ -276,7 +276,7 @@ async def _get_ipv6_address(message: InstanceMessage, node_list: NodeInfo) -> Tu
 
             return message.item_hash, "Not available (yet)"
         except ClientResponseError as e:
-            return message.item_hash, f"Not available (yet), server not responding {e}"
+            return message.item_hash, f"Not available (yet), server not responding : {e}"
 
 
 async def _show_instances(messages: List[InstanceMessage], node_list: NodeInfo):
