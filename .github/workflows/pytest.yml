@@ -55,3 +55,4 @@ jobs:
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           slug: aleph-im/aleph-client
+          directory: /home/runner/work/aleph-client/aleph-client
