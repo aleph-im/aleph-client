@@ -37,7 +37,7 @@ from aleph_client.commands.utils import (
     validated_prompt,
 )
 from aleph_client.conf import settings
-from aleph_client.utils import AsyncTyper
+from aleph_client.utils import AsyncTyper, fetch_json
 
 logger = logging.getLogger(__name__)
 app = AsyncTyper(no_args_is_help=True)
@@ -255,12 +255,6 @@ async def delete(
         typer.echo(f"Instance {item_hash} has been deleted. It will be removed by the scheduler in a few minutes.")
 
 
-async def fetch_json(session: ClientSession, url: str) -> dict:
-    async with session.get(url) as resp:
-        resp.raise_for_status()
-        return await resp.json()
-
-
 async def _get_ipv6_address(message: InstanceMessage, node_list: NodeInfo) -> Tuple[str, str]:
     async with ClientSession() as session:
         try:
@@ -282,7 +276,7 @@ async def _get_ipv6_address(message: InstanceMessage, node_list: NodeInfo) -> Tu
 
             return message.item_hash, "Not available (yet)"
         except ClientResponseError:
-            return message.item_hash, "Not available (yet)"
+            return message.item_hash, "Not available (yet), server not responding"
 
 
 async def _show_instances(messages: List[InstanceMessage], node_list: NodeInfo):
