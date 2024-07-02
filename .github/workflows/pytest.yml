@@ -24,8 +24,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install required system packages for macOS
-        run: sudo apt-get install -y python3-pip libsecp256k1-dev
+      - name: Install required system packages for Ubuntu
+        run: sudo apt-get install -y python3-pip libsecp256k1-dev python3-coverage
         if: startsWith(matrix.os, 'ubuntu-')
 
       - name: Install required system packages for macOS
