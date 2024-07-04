@@ -110,18 +110,6 @@ async def create(
 
     account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
 
-    os_firecracker_map = {
-        settings.UBUNTU_22_ROOTFS_ID: "Ubuntu 22",
-        settings.DEBIAN_12_ROOTFS_ID: "Debian 12",
-        settings.DEBIAN_11_ROOTFS_ID: "Debian 11",
-    }
-
-    os_qemu_map = {
-        settings.UBUNTU_22_QEMU_ROOTFS_ID: "Ubuntu 22",
-        settings.DEBIAN_12_QEMU_ROOTFS_ID: "Debian 12",
-        settings.DEBIAN_11_QEMU_ROOTFS_ID: "Debian 11",
-    }
-
     hv_map = {
         HypervisorType.firecracker: "firecracker",
         HypervisorType.qemu: "qemu",
@@ -146,11 +134,23 @@ async def create(
         )
     ]
 
+    os_firecracker_map = {
+        "Ubuntu 22": settings.UBUNTU_22_ROOTFS_ID,
+        "Debian 12": settings.DEBIAN_12_ROOTFS_ID,
+        "Debian 11": settings.DEBIAN_11_ROOTFS_ID,
+    }
+
+    os_qemu_map = {
+        "Ubuntu 22": settings.UBUNTU_22_QEMU_ROOTFS_ID,
+        "Debian 12": settings.DEBIAN_12_QEMU_ROOTFS_ID,
+        "Debian 11": settings.DEBIAN_11_QEMU_ROOTFS_ID,
+    }
+
     choices = os_qemu_map if hypervisor == HypervisorType.qemu else os_firecracker_map
     rootfs = Prompt.ask(
         "Do you want to use a custom rootfs or one of the following prebuilt ones?",
         default=rootfs,
-        choices=[*choices.values(), "custom"],
+        choices=[*choices.keys(), "custom"],
     )
 
     if rootfs == "custom":
@@ -159,7 +159,7 @@ async def create(
             lambda x: len(x) == 64,
         )
     else:
-        rootfs = next(k for k, v in choices.items() if v == rootfs)
+        rootfs = choices[rootfs]
 
     async with AlephHttpClient(api_server=sdk_settings.API_HOST) as client:
         rootfs_message: StoreMessage = await client.get_message(item_hash=rootfs, message_type=StoreMessage)
