@@ -110,11 +110,6 @@ async def create(
 
     account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
 
-    hv_map = {
-        HypervisorType.firecracker: "firecracker",
-        HypervisorType.qemu: "qemu",
-    }
-
     if hold:
         # Holder tier
         reward_address = None
@@ -126,31 +121,32 @@ async def create(
             lambda x: x in valid_address,
         )
 
-    hypervisor = HypervisorType[
+    available_hypervisors = {
+        HypervisorType.firecracker: {
+            "Ubuntu 22": settings.UBUNTU_22_ROOTFS_ID,
+            "Debian 12": settings.DEBIAN_12_ROOTFS_ID,
+            "Debian 11": settings.DEBIAN_11_ROOTFS_ID,
+        },
+        HypervisorType.qemu: {
+            "Ubuntu 22": settings.UBUNTU_22_QEMU_ROOTFS_ID,
+            "Debian 12": settings.DEBIAN_12_QEMU_ROOTFS_ID,
+            "Debian 11": settings.DEBIAN_11_QEMU_ROOTFS_ID,
+        },
+    }
+
+    hypervisor_choice = HypervisorType[
         Prompt.ask(
             "Which hypervisor you want to use?",
             default=hypervisor.name,
-            choices=[*hv_map.values()],
+            choices=[x.name for x in available_hypervisors],
         )
     ]
 
-    os_firecracker_map = {
-        "Ubuntu 22": settings.UBUNTU_22_ROOTFS_ID,
-        "Debian 12": settings.DEBIAN_12_ROOTFS_ID,
-        "Debian 11": settings.DEBIAN_11_ROOTFS_ID,
-    }
-
-    os_qemu_map = {
-        "Ubuntu 22": settings.UBUNTU_22_QEMU_ROOTFS_ID,
-        "Debian 12": settings.DEBIAN_12_QEMU_ROOTFS_ID,
-        "Debian 11": settings.DEBIAN_11_QEMU_ROOTFS_ID,
-    }
-
-    choices = os_qemu_map if hypervisor == HypervisorType.qemu else os_firecracker_map
+    os_choices = available_hypervisors[hypervisor_choice]
     rootfs = Prompt.ask(
         "Do you want to use a custom rootfs or one of the following prebuilt ones?",
         default=rootfs,
-        choices=[*choices.keys(), "custom"],
+        choices=[*os_choices, "custom"],
     )
 
     if rootfs == "custom":
@@ -159,7 +155,7 @@ async def create(
             lambda x: len(x) == 64,
         )
     else:
-        rootfs = choices[rootfs]
+        rootfs = os_choices[rootfs]
 
     async with AlephHttpClient(api_server=sdk_settings.API_HOST) as client:
         rootfs_message: StoreMessage = await client.get_message(item_hash=rootfs, message_type=StoreMessage)
