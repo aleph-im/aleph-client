@@ -402,14 +402,14 @@ async def reboot(
 
 
 @app.command()
-async def notify(
+async def allocate(
     vm_id: str,
     domain: str,
     private_key: Optional[str] = typer.Option(sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
     private_key_file: Optional[Path] = typer.Option(sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
     debug: bool = False,
 ):
-    """notify crn the instance, can be use to start VM"""
+    """Tell the CRN to start an instance with Pay as you go""
 
     setup_logging(debug)
 
