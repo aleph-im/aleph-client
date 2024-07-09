@@ -28,6 +28,7 @@ from rich.prompt import Prompt
 from rich.table import Table
 
 from aleph_client.commands import help_strings
+from aleph_client.commands.instance.display import CRNTable
 
 # from aleph_client.commands.instance.display import fetch_crn_info
 from aleph_client.commands.node import NodeInfo, _fetch_nodes
@@ -39,8 +40,6 @@ from aleph_client.commands.utils import (
 )
 from aleph_client.conf import settings
 from aleph_client.utils import AsyncTyper, fetch_json
-
-from aleph_client.commands.instance.display import CRNTable
 
 logger = logging.getLogger(__name__)
 app = AsyncTyper(no_args_is_help=True)
