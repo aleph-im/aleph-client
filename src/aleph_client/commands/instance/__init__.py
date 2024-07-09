@@ -9,7 +9,7 @@ import typer
 from aiohttp import ClientResponseError, ClientSession
 from aleph.sdk import AlephHttpClient, AuthenticatedAlephHttpClient
 from aleph.sdk.account import _load_account
-from aleph.sdk.client.vmclient import VmClient
+from aleph.sdk.client.vm_client import VmClient
 from aleph.sdk.conf import settings as sdk_settings
 from aleph.sdk.exceptions import (
     ForgottenMessageError,
@@ -409,7 +409,7 @@ async def allocate(
     private_key_file: Optional[Path] = typer.Option(sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
     debug: bool = False,
 ):
-    """Tell the CRN to start an instance with Pay as you go""
+    """Tell the CRN to start an instance with Pay as you go"""
 
     setup_logging(debug)
 
@@ -431,7 +431,6 @@ async def logs(
     debug: bool = False,
 ):
     """logs of the instance"""
-
     setup_logging(debug)
 
     account = _load_account(private_key, private_key_file)
