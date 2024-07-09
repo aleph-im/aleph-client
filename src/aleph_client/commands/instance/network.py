@@ -153,6 +153,7 @@ async def fetch_crn_info_in_queue(node: dict, queue: MachineInfoQueue) -> None:
     await queue.put(
         MachineInfo.from_unsanitized_input(
             machine_usage=machine_usage,
+            hash=node["hash"],
             score=node["score"],
             name=node["name"],
             version=version,

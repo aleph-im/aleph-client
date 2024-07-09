@@ -28,7 +28,8 @@ from rich.prompt import Prompt
 from rich.table import Table
 
 from aleph_client.commands import help_strings
-from aleph_client.commands.instance.display import fetch_crn_info
+
+# from aleph_client.commands.instance.display import fetch_crn_info
 from aleph_client.commands.node import NodeInfo, _fetch_nodes
 from aleph_client.commands.utils import (
     get_or_prompt_volumes,
@@ -38,6 +39,8 @@ from aleph_client.commands.utils import (
 )
 from aleph_client.conf import settings
 from aleph_client.utils import AsyncTyper, fetch_json
+
+from aleph_client.commands.instance.display import CRNTable
 
 logger = logging.getLogger(__name__)
 app = AsyncTyper(no_args_is_help=True)
@@ -86,6 +89,13 @@ async def create(
     """Register a new instance on aleph.im"""
 
     setup_logging(debug)
+    crn_table = CRNTable()
+    crn = await crn_table.run_async()
+    print("Selected crn", crn)
+    # reward_address = crn.reward_address
+    # crn_hash = crn.hash
+
+    return
 
     def validate_ssh_pubkey_file(file: Union[str, Path]) -> Path:
         if isinstance(file, str):

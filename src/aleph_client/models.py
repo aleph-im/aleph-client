@@ -55,6 +55,7 @@ class MachineUsage(BaseModel):
 
 
 class MachineInfo(BaseModel):
+    hash: str
     machine_usage: MachineUsage
     score: float
     name: str
@@ -64,7 +65,14 @@ class MachineInfo(BaseModel):
 
     @classmethod
     def from_unsanitized_input(
-        cls, machine_usage: MachineUsage, score: float, name: str, version: Optional[str], reward_address: str, url: str
+        cls,
+        machine_usage: MachineUsage,
+        score: float,
+        name: str,
+        version: Optional[str],
+        reward_address: str,
+        url: str,
+        hash: str,
     ) -> "MachineInfo":
         """Create a MachineInfo instance from unsanitized input.
 
@@ -92,4 +100,5 @@ class MachineInfo(BaseModel):
             version=version,
             reward_address=reward_address,
             url=url,
+            hash=hash,
         )
