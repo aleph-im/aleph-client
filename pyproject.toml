@@ -94,7 +94,7 @@ dependencies = [
 ]
 [tool.hatch.envs.testing.scripts]
 test = "pytest {args:} ./src/aleph_client/ ./tests/"
-test-cov = "pytest --cov {args:} ./src/aleph_client/ ./tests/"
+test-cov = "pytest --cov {args:} ./src/aleph_client/ ./tests/ --cov-report=xml --cov-report=term ./tests/"
 cov-report = [
   "coverage report",
 ]

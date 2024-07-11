@@ -47,12 +47,11 @@ jobs:
         if: matrix.os == 'ubuntu-24.04'
         run: |
           /tmp/venv/bin/hatch run testing:cov
-          pwd
-          ls -la
 
       - uses: codecov/codecov-action@v4.0.1
         if: matrix.os == 'ubuntu-24.04'
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           slug: aleph-im/aleph-client
+          file: ./coverage.xml
           directory: /home/runner/work/aleph-client/aleph-client
