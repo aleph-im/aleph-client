@@ -161,6 +161,9 @@ async def create(
         ephemeral_volume=ephemeral_volume,
         immutable_volume=immutable_volume,
     )
+
+    # For PAYG, the user select directly the node on which to run on
+    #  Use have to make the payment stream separately for no
     reward_address = None
     if not hold:
         crn = None

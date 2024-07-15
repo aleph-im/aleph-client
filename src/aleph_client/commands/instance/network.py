@@ -95,14 +95,14 @@ async def fetch_crn_info(node_url: str) -> Tuple[Optional[MachineUsage], Optiona
     return None, None
 
 
-async def fetch_crn_config(node_url: str) -> dict:
+async def fetch_crn_config(node_url: str) -> Optional[dict]:
     """
     Fetches compute node usage information and version.
 
     Args:
         node_url: URL of the compute node.
     Returns:
-        Machine usage information and version.
+        Node public configuration
     """
     # Remove trailing slashes to avoid having // in the URL.
     url: str = node_url.rstrip("/") + "/status/config"
@@ -126,7 +126,7 @@ async def fetch_crn_config(node_url: str) -> dict:
         logger.debug(f"Validation error when fetching: {url}: {e}")
     except InvalidURL as e:
         logger.debug(f"Invalid URL: {url}: {e}")
-    return None, None
+    return None
 
 
 def sanitize_url(url: str) -> str:

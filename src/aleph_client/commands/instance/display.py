@@ -11,7 +11,7 @@ from textual.css.query import NoMatches
 from textual.reactive import reactive
 from textual.widgets import DataTable, Footer, Header, Label, ProgressBar
 
-from aleph_client.commands.instance.network import fetch_crn_info, sanitize_url
+from aleph_client.commands.instance.network import fetch_crn_info, sanitize_url, fetch_crn_config
 from aleph_client.commands.node import NodeInfo, _fetch_nodes, _format_score
 from aleph_client.models import MachineUsage
 
@@ -50,7 +50,6 @@ class CRNTable(App[CRNInfo]):
     crns = {}
     tasks = set()
     text = reactive("Loading CRNs list ")
-    # valid_reward_addresses: Set[str] = set()
 
     def compose(self):
         """Create child widgets for the app."""
@@ -109,7 +108,13 @@ class CRNTable(App[CRNInfo]):
         self.text = "Fetching CRN information... "
         self.tasks = set()
         for node in list(self.crns.values()):
+            # Machine usage
             task = asyncio.create_task(self.fetch_node_info(node))
+            self.tasks.add(task)
+            task.add_done_callback(self.tasks.discard)
+            task.add_done_callback(self.make_progress)
+            # Resource
+            task = asyncio.create_task(self.fetch_node_config(node))
             self.tasks.add(task)
             task.add_done_callback(self.tasks.discard)
             task.add_done_callback(self.make_progress)
@@ -129,20 +134,33 @@ class CRNTable(App[CRNInfo]):
 
         if not machine_usage:
             return
-        # crn_config = await fetch_crn_config(node_url)
-
         node.machine_usage = MachineUsage.parse_obj(machine_usage)
         node.version = version
-        # node.confidential_computing = crn_config["computing"]["ENABLE_CONFIDENTIAL_COMPUTING"]
 
         cpu, hdd, ram = convert_system_info_to_str(node)
 
         self.table.update_cell(row_key=node.hash, column_key="cpu", value=cpu)
-        confidential_computing = "Y" if node.confidential_computing else "N"
-        self.table.update_cell(row_key=node.hash, column_key="confidential_computing", value=confidential_computing)
         self.table.update_cell(row_key=node.hash, column_key="hdd", value=hdd)
         self.table.update_cell(row_key=node.hash, column_key="ram", value=ram)
         self.table.update_cell(row_key=node.hash, column_key="version", value=node.version)
+
+    async def fetch_node_config(self, node: CRNInfo):
+        try:
+            node_url = sanitize_url(node.url)
+        except InvalidURL:
+            return
+
+        # Skip nodes without a reward address
+        if not node.reward_address:
+            return
+
+        crn_config = await fetch_crn_config(node_url)
+        if crn_config:
+            # The computing is only available on aleph-vm > 0.4.1
+            node.confidential_computing = crn_config.get("computing", {}).get("ENABLE_CONFIDENTIAL_COMPUTING")
+        confidential_computing = "Y" if node.confidential_computing else "N"
+
+        self.table.update_cell(row_key=node.hash, column_key="confidential_computing", value=confidential_computing)
 
     def on_data_table_row_selected(self, message: DataTable.RowSelected) -> None:
         """Return the selected row"""
