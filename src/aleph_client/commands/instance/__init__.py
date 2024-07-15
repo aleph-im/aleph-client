@@ -29,8 +29,6 @@ from rich.table import Table
 
 from aleph_client.commands import help_strings
 from aleph_client.commands.instance.display import CRNTable
-
-# from aleph_client.commands.instance.display import fetch_crn_info
 from aleph_client.commands.node import NodeInfo, _fetch_nodes
 from aleph_client.commands.utils import (
     get_or_prompt_volumes,
@@ -88,13 +86,6 @@ async def create(
     """Register a new instance on aleph.im"""
 
     setup_logging(debug)
-    crn_table = CRNTable()
-    crn = await crn_table.run_async()
-    print("Selected crn", crn)
-    # reward_address = crn.reward_address
-    # crn_hash = crn.hash
-
-    return
 
     def validate_ssh_pubkey_file(file: Union[str, Path]) -> Path:
         if isinstance(file, str):
@@ -129,17 +120,6 @@ async def create(
         HypervisorType.firecracker: "firecracker",
         HypervisorType.qemu: "qemu",
     }
-
-    if hold:
-        # Holder tier
-        reward_address = None
-    else:
-        # Pay-as-you-go
-        valid_address = await fetch_crn_info()
-        reward_address = validated_prompt(
-            "Please select and enter the reward address of the wanted CRN",
-            lambda x: x in valid_address,
-        )
 
     rootfs = Prompt.ask(
         "Do you want to use a custom rootfs or one of the following prebuilt ones?",
@@ -182,6 +162,22 @@ async def create(
         ephemeral_volume=ephemeral_volume,
         immutable_volume=immutable_volume,
     )
+    reward_address = None
+    if not hold:
+        crn = None
+        while not crn:
+            crn_table = CRNTable()
+            crn = await crn_table.run_async()
+            print("Run instance on CRN:")
+            print("\t Name", crn.name)
+            print("\t Reward address", crn.reward_address)
+            print("\t URL", crn.url)
+            print("\t Available disk space", crn.machine_usage.disk)
+            print("\t Available ram", crn.machine_usage.mem)
+            confirmation = input("Confirm? [n] ")
+            if not confirmation and not confirmation.lower() in ["y", "yes"]:
+                crn = None
+            reward_address = crn.reward_address
 
     async with AuthenticatedAlephHttpClient(account=account, api_server=sdk_settings.API_HOST) as client:
         payment: Optional[Payment] = None
