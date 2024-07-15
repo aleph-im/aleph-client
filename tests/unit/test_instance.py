@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import typing
 from datetime import datetime, timezone
 
 import pytest
@@ -25,9 +24,6 @@ from aleph_client.models import (
     MemoryUsage,
     UsagePeriod,
 )
-
-if typing.TYPE_CHECKING:
-    pass
 
 
 def dummy_machine_info() -> MachineInfo:
