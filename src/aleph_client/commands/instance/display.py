@@ -9,7 +9,7 @@ from textual.app import App
 from textual.containers import Horizontal
 from textual.css.query import NoMatches
 from textual.reactive import reactive
-from textual.widgets import DataTable, Footer, Header, Label, ProgressBar
+from textual.widgets import DataTable, Footer, Label, ProgressBar
 
 from aleph_client.commands.instance.network import fetch_crn_info, sanitize_url, fetch_crn_config
 from aleph_client.commands.node import NodeInfo, _fetch_nodes, _format_score
@@ -63,15 +63,16 @@ class CRNTable(App[CRNInfo]):
         table.add_column("HDD", key="hdd")
         table.add_column("Version", key="version")
         table.add_column("URL")
-        yield Header()
+        yield Label("Choose a Compute Resource Node (CRN) to run your instance")
         with Horizontal():
-            yield Label(self.text)
+            self.loader_label = Label(self.text)
+            yield self.loader_label
             yield ProgressBar(show_eta=False)
         yield self.table
         yield Footer()
 
     async def on_mount(self):
-        self.title = "Choose a Compute Resource Node (CRN) to run your instance"
+
         task = asyncio.create_task(self.fetch_node_list())
         self.tasks.add(task)
         task.add_done_callback(self.tasks.discard)
@@ -105,7 +106,7 @@ class CRNTable(App[CRNInfo]):
         progress.total = len(self.crns)
 
         # Retrieve more info by contacting each separate CRN in the background
-        self.text = "Fetching CRN information... "
+        self.loader_label.update("Fetching information from each node ")
         self.tasks = set()
         for node in list(self.crns.values()):
             # Machine usage
@@ -173,3 +174,5 @@ class CRNTable(App[CRNInfo]):
             self.query_one(ProgressBar).advance(1)
         except NoMatches:
             pass
+        if len(self.tasks) == 0:
+            self.loader_label.update("Fetched ")
