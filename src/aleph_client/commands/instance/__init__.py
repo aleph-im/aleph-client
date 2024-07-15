@@ -24,7 +24,7 @@ from aleph_message.models.execution.environment import HypervisorType
 from aleph_message.models.item_hash import ItemHash
 from rich import box
 from rich.console import Console
-from rich.prompt import Prompt
+from rich.prompt import Confirm, Prompt
 from rich.table import Table
 
 from aleph_client.commands import help_strings
@@ -84,7 +84,6 @@ async def create(
     ),
 ):
     """Register a new instance on aleph.im"""
-
     setup_logging(debug)
 
     def validate_ssh_pubkey_file(file: Union[str, Path]) -> Path:
@@ -174,11 +173,10 @@ async def create(
             print("\t URL", crn.url)
             print("\t Available disk space", crn.machine_usage.disk)
             print("\t Available ram", crn.machine_usage.mem)
-            confirmation = input("Confirm? [n] ")
-            if not confirmation and not confirmation.lower() in ["y", "yes"]:
+            if not Confirm.ask("Deploy on this node ?"):
                 crn = None
+                continue
             reward_address = crn.reward_address
-
     async with AuthenticatedAlephHttpClient(account=account, api_server=sdk_settings.API_HOST) as client:
         payment: Optional[Payment] = None
         if reward_address:
