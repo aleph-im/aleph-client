@@ -170,6 +170,9 @@ async def create(
         while not crn:
             crn_table = CRNTable()
             crn = await crn_table.run_async()
+            if not crn:
+                # User has ctrl-c
+                return
             print("Run instance on CRN:")
             print("\t Name", crn.name)
             print("\t Reward address", crn.reward_address)
