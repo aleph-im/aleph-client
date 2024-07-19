@@ -11,7 +11,11 @@ from textual.css.query import NoMatches
 from textual.reactive import reactive
 from textual.widgets import DataTable, Footer, Label, ProgressBar
 
-from aleph_client.commands.instance.network import fetch_crn_info, sanitize_url, fetch_crn_config
+from aleph_client.commands.instance.network import (
+    fetch_crn_config,
+    fetch_crn_info,
+    sanitize_url,
+)
 from aleph_client.commands.node import NodeInfo, _fetch_nodes, _format_score
 from aleph_client.models import MachineUsage
 
