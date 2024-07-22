@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import asyncio
-from typing import Optional, Tuple
+import logging
+from typing import Dict, Optional, Set, Tuple
 
 from aiohttp import InvalidURL
 from pydantic import BaseModel
@@ -10,6 +11,7 @@ from textual.containers import Horizontal
 from textual.css.query import NoMatches
 from textual.reactive import reactive
 from textual.widgets import DataTable, Footer, Label, ProgressBar
+from textual.widgets._data_table import RowKey
 
 from aleph_client.commands.instance.network import (
     fetch_crn_config,
@@ -30,9 +32,9 @@ def convert_system_info_to_str(data: CRNInfo) -> Tuple[str, str, str]:
     Returns:
         CPU, RAM, and HDD information as strings.
     """
-    cpu: str = f"{data.machine_usage.cpu.count}"
-    hdd: str = f"{data.machine_usage.disk.available_kB / 1_000_000:.0f} GB"
-    ram: str = f"{data.machine_usage.mem.available_kB / 1_000_000:.0f} GB"
+    cpu: str = f"{data.machine_usage.cpu.count}" if data.machine_usage else "N/A"
+    hdd: str = f"{data.machine_usage.disk.available_kB / 1_000_000:.0f} GB" if data.machine_usage else "N/A"
+    ram: str = f"{data.machine_usage.mem.available_kB / 1_000_000:.0f} GB" if data.machine_usage else "N/A"
 
     return cpu, hdd, ram
 
@@ -48,25 +50,30 @@ class CRNInfo(BaseModel):
     confidential_computing: Optional[bool]
 
 
-class CRNTable(App[CRNInfo]):
-    """Display Table and allow selection."""
+class DisplayMachineUsage(BaseModel):
+    cpu: str = "N/A"
+    mem: str = "N/A"
+    disk: str = "N/A"
 
-    crns = {}
-    tasks = set()
+
+class CRNTable(App[CRNInfo]):
+    crns: Dict[RowKey, CRNInfo] = {}
+    tasks: Set[asyncio.Task] = set()
     text = reactive("Loading CRNs list ")
+    table: DataTable
 
     def compose(self):
         """Create child widgets for the app."""
-        table = self.table = DataTable(cursor_type="row", name="Select CRN")
-        table.add_column("Score", key="score")
-        table.add_column("Name", key="name")
-        table.add_column("Reward Address")
-        table.add_column("Confidential Computing", key="confidential_computing")
-        table.add_column("Cores", key="cpu")
-        table.add_column("RAM", key="ram")
-        table.add_column("HDD", key="hdd")
-        table.add_column("Version", key="version")
-        table.add_column("URL")
+        self.table = DataTable(cursor_type="row", name="Select CRN")
+        self.table.add_column("Score", key="score")
+        self.table.add_column("Name", key="name")
+        self.table.add_column("Reward Address")
+        self.table.add_column("Confidential", key="confidential_computing")
+        self.table.add_column("Cores", key="cpu")
+        self.table.add_column("RAM", key="ram")
+        self.table.add_column("HDD", key="hdd")
+        self.table.add_column("Version", key="version")
+        self.table.add_column("URL")
         yield Label("Choose a Compute Resource Node (CRN) to run your instance")
         with Horizontal():
             self.loader_label = Label(self.text)
@@ -91,24 +98,33 @@ class CRNTable(App[CRNInfo]):
                 name=node["name"],
                 reward_address=node["reward"],
                 url=node["address"],
+                machine_usage=None,
+                version=None,
+                confidential_computing=None,
             )
+            usage: DisplayMachineUsage = DisplayMachineUsage()
+
+            if isinstance(info.machine_usage, MachineUsage):
+                usage.disk = str(info.machine_usage.disk.available_kB)
+                usage.mem = str(info.machine_usage.mem.available_kB)
+                usage.cpu = str(info.machine_usage.cpu.count)
+
             self.table.add_row(
                 _format_score(info.score),
                 info.name,
                 info.reward_address,
-                "",  # info.confidential_computing,
+                info.confidential_computing,
                 info.version,
-                "",  # cpu,
-                "",  # ram,
-                "",  # hdd,
+                usage.cpu,
+                usage.mem,
+                usage.disk,
                 info.url,
                 key=info.hash,
             )
-            self.crns[info.hash] = info
+            self.crns[RowKey(info.hash)] = info
 
         progress = self.query_one(ProgressBar)
         progress.total = len(self.crns)
-
         # Retrieve more info by contacting each separate CRN in the background
         self.loader_label.update("Fetching information from each node ")
         self.tasks = set()
@@ -119,6 +135,7 @@ class CRNTable(App[CRNInfo]):
             task.add_done_callback(self.tasks.discard)
             task.add_done_callback(self.make_progress)
             # Resource
+
             task = asyncio.create_task(self.fetch_node_config(node))
             self.tasks.add(task)
             task.add_done_callback(self.tasks.discard)
@@ -169,7 +186,7 @@ class CRNTable(App[CRNInfo]):
 
     def on_data_table_row_selected(self, message: DataTable.RowSelected) -> None:
         """Return the selected row"""
-        selected_crn = self.crns.get(message.row_key)
+        selected_crn: Optional[CRNInfo] = self.crns.get(message.row_key)
         self.exit(selected_crn)
 
     def make_progress(self, task) -> None:

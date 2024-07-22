@@ -37,6 +37,7 @@ from aleph_client.commands.utils import (
     validated_prompt,
 )
 from aleph_client.conf import settings
+from aleph_client.models import MachineUsage
 from aleph_client.utils import AsyncTyper, fetch_json
 
 logger = logging.getLogger(__name__)
@@ -180,8 +181,9 @@ async def create(
             print("\t Name", crn.name)
             print("\t Reward address", crn.reward_address)
             print("\t URL", crn.url)
-            print("\t Available disk space", crn.machine_usage.disk)
-            print("\t Available ram", crn.machine_usage.mem)
+            if isinstance(crn.machine_usage, MachineUsage):
+                print("\t Available disk space", crn.machine_usage.disk)
+                print("\t Available ram", crn.machine_usage.mem)
             if not Confirm.ask("Deploy on this node ?"):
                 crn = None
                 continue
