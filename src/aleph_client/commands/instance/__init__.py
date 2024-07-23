@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 from pathlib import Path
 from typing import List, Optional, Tuple, Union, cast
@@ -437,7 +438,9 @@ async def logs(
 
     async with VmClient(account, domain) as manager:
         async for log in manager.get_logs(vm_id=vm_id):
-            typer.echo(f"{log}")
+            log_data = json.loads(log)
+            if "message" in log_data:
+                typer.echo(log_data["message"])
 
 
 @app.command()
