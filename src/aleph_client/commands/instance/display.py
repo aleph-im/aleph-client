@@ -21,6 +21,8 @@ from aleph_client.commands.instance.network import (
 from aleph_client.commands.node import NodeInfo, _fetch_nodes, _format_score
 from aleph_client.models import MachineUsage
 
+logger = logging.getLogger(__name__)
+
 
 def convert_system_info_to_str(data: CRNInfo) -> Tuple[str, str, str]:
     """
@@ -145,16 +147,19 @@ class CRNTable(App[CRNInfo]):
         try:
             node_url = sanitize_url(node.url)
         except InvalidURL:
+            logger.debug(f"Skipping node {node.hash}, invalid url")
             return
 
         # Skip nodes without a reward address
         if not node.reward_address:
+            logger.debug(f"Skipping node {node.hash}, no reward address")
             return
 
         # Fetch the machine usage and version from its HTTP API
         machine_usage, version = await fetch_crn_info(node_url)
 
         if not machine_usage:
+            logger.debug(f"Skipping node {node.hash}, no machine usage")
             return
         node.machine_usage = MachineUsage.parse_obj(machine_usage)
         node.version = version
@@ -170,10 +175,12 @@ class CRNTable(App[CRNInfo]):
         try:
             node_url = sanitize_url(node.url)
         except InvalidURL:
+            logger.debug(f"Skipping node {node.hash}, invalid url")
             return
 
         # Skip nodes without a reward address
         if not node.reward_address:
+            logger.debug(f"Skipping node {node.hash}, no reward address")
             return
 
         crn_config = await fetch_crn_config(node_url)
