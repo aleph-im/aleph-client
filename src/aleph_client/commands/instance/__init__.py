@@ -18,20 +18,21 @@ from aleph.sdk.exceptions import (
     MessageNotFoundError,
 )
 from aleph.sdk.query.filters import MessageFilter
-from aleph.sdk.types import Account, AccountFromPrivateKey, StorageEnum
+from aleph.sdk.types import AccountFromPrivateKey, StorageEnum
 from aleph_message.models import InstanceMessage, StoreMessage
 from aleph_message.models.base import Chain, MessageType
 from aleph_message.models.execution.base import Payment, PaymentType
-from aleph_message.models.execution.environment import HypervisorType
+from aleph_message.models.execution.environment import HypervisorType, NodeRequirements, TrustedExecutionEnvironment
 from aleph_message.models.item_hash import ItemHash
 from click import echo
 from rich import box
 from rich.console import Console
-from rich.prompt import Confirm, Prompt
+from rich.prompt import Prompt, Confirm
 from rich.table import Table
 
 from aleph_client.commands import help_strings
 from aleph_client.commands.instance.display import CRNTable
+from aleph_client.commands.instance.display import fetch_crn_info, CRNTable
 from aleph_client.commands.node import NodeInfo, _fetch_nodes
 from aleph_client.commands.utils import (
     get_or_prompt_volumes,
@@ -54,6 +55,10 @@ async def create(
         help="Pay using the holder tier instead of pay-as-you-go",
     ),
     channel: Optional[str] = typer.Option(default=None, help=help_strings.CHANNEL),
+    confidential: Optional[bool] = typer.Option(default=None, help=help_strings.CONFIDENTIAL_OPTION),
+    confidential_firmware: Optional[str] = typer.Option(
+        default=settings.DEFAULT_CONFIDENTIAL_FIRMWARE, help=help_strings.CONFIDENTIAL_FIRMWARE
+    ),
     memory: int = typer.Option(settings.DEFAULT_INSTANCE_MEMORY, help="Maximum memory allocation on vm in MiB"),
     vcpus: int = typer.Option(sdk_settings.DEFAULT_VM_VCPUS, help="Number of virtual cpus to allocate."),
     timeout_seconds: float = typer.Option(
@@ -89,6 +94,11 @@ async def create(
 ):
     """Register a new instance on aleph.im"""
     setup_logging(debug)
+    # print(settings.API_HOST)
+    # from aleph.sdk.conf import settings as sdk_settings
+    #
+    # print(sdk_settings.API_HOST)
+    # return
 
     def validate_ssh_pubkey_file(file: Union[str, Path]) -> Path:
         if isinstance(file, str):
@@ -112,6 +122,14 @@ async def create(
     ssh_pubkey: str = ssh_pubkey_file.read_text().strip()
 
     account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
+
+    if confidential:
+        if hypervisor and hypervisor != HypervisorType.qemu:
+            echo(f"Only QEMU is supported as an hypervisor for confidential")
+            raise typer.Exit(code=1)
+        elif not hypervisor:
+            echo(f"Using QEMU as hypervisor for confidential")
+            hypervisor = HypervisorType.qemu
 
     available_hypervisors = {
         HypervisorType.firecracker: {
@@ -137,11 +155,16 @@ async def create(
         hypervisor = HypervisorType(hypervisor_choice)
 
     os_choices = available_hypervisors[hypervisor]
-    rootfs = Prompt.ask(
-        "Do you want to use a custom rootfs or one of the following prebuilt ones?",
-        default=rootfs,
-        choices=[*os_choices, "custom"],
-    )
+
+    if confidential:
+        # Confidential only support custom rootfs
+        rootfs = "custom"
+    else:
+        rootfs = Prompt.ask(
+            "Do you want to use a custom rootfs or one of the following prebuilt ones?",
+            default=rootfs,
+            choices=[*os_choices, "custom"],
+        )
 
     if rootfs == "custom":
         rootfs = validated_prompt(
@@ -151,6 +174,7 @@ async def create(
     else:
         rootfs = os_choices[rootfs]
 
+    # Validate rootfs message exist
     async with AlephHttpClient(api_server=sdk_settings.API_HOST) as client:
         rootfs_message: StoreMessage = await client.get_message(item_hash=rootfs, message_type=StoreMessage)
         if not rootfs_message:
@@ -158,6 +182,16 @@ async def create(
             raise typer.Exit(code=1)
         if rootfs_size is None and rootfs_message.content.size:
             rootfs_size = rootfs_message.content.size
+
+    # Validate confidential firmware message exist
+    if confidential:
+        async with AlephHttpClient(api_server=sdk_settings.API_HOST) as client:
+            rootfs_message: StoreMessage = await client.get_message(
+                item_hash=confidential_firmware, message_type=StoreMessage
+            )
+            if not rootfs_message:
+                typer.echo("Confidential Firmware hash does not exist on aleph.im")
+                raise typer.Exit(code=1)
 
     vcpus = validated_int_prompt("Number of virtual cpus to allocate", vcpus, min_value=1, max_value=4)
 
@@ -171,10 +205,12 @@ async def create(
         immutable_volume=immutable_volume,
     )
 
-    # For PAYG, the user select directly the node on which to run on
-    #  Use have to make the payment stream separately for no
+    # For PAYG or confidential, the user select directly the node on which to run on
+    # For PAYG User have to make the payment stream separately
+    # For now, we allow hold for confidential, but the user still has to choose on which CRN to run.
     reward_address = None
-    if not hold:
+    crn = None
+    if not hold or confidential:
         crn = None
         while not crn:
             crn_table = CRNTable()
@@ -216,6 +252,8 @@ async def create(
                 ssh_keys=[ssh_pubkey],
                 hypervisor=hypervisor,
                 payment=payment,
+                requirements=NodeRequirements(node_hash=crn.hash) if crn else None,
+                trusted_execution=TrustedExecutionEnvironment(firmware=confidential_firmware),
             )
         except InsufficientFundsError as e:
             typer.echo(

@@ -18,3 +18,5 @@ Requires at least a "ref" (message hash) and "mount" path. "use_latest" is True 
 Example: --immutable-volume ref=25a393222692c2f73489dc6710ae87605a96742ceef7b91de4d7ec34bb688d94,mount=/lib/python3.8/site-packages"""
 ASK_FOR_CONFIRMATION = "Prompt user for confirmation"
 IPFS_CATCH_ALL_PATH = "Choose a relative path to catch all unmatched route or a 404 error"
+CONFIDENTIAL_OPTION = "Launch a confidential instance (requires creating an encrypted volume)"
+CONFIDENTIAL_FIRMWARE = "Hash to UEFI Firmware to launch confidential instance"
