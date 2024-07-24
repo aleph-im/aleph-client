@@ -3,15 +3,16 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import shutil
 from pathlib import Path
 from typing import List, Optional, Tuple, Union, cast
 
-import rich
 import typer
 from aiohttp import ClientResponseError, ClientSession
 from aleph.sdk import AlephHttpClient, AuthenticatedAlephHttpClient
 from aleph.sdk.account import _load_account
 from aleph.sdk.client.vm_client import VmClient
+from aleph.sdk.client.vm_confidential_client import VmConfidentialClient
 from aleph.sdk.conf import settings as sdk_settings
 from aleph.sdk.exceptions import (
     ForgottenMessageError,
@@ -20,21 +21,24 @@ from aleph.sdk.exceptions import (
 )
 from aleph.sdk.query.filters import MessageFilter
 from aleph.sdk.types import AccountFromPrivateKey, StorageEnum
+from aleph.sdk.utils import calculate_firmware_hash
 from aleph_message.models import InstanceMessage, StoreMessage
 from aleph_message.models.base import Chain, MessageType
 from aleph_message.models.execution.base import Payment, PaymentType
-from aleph_message.models.execution.environment import HypervisorType, NodeRequirements, TrustedExecutionEnvironment
+from aleph_message.models.execution.environment import (
+    HypervisorType,
+    NodeRequirements,
+    TrustedExecutionEnvironment,
+)
 from aleph_message.models.item_hash import ItemHash
 from click import echo
-from click.exceptions import Exit
 from rich import box
 from rich.console import Console
-from rich.prompt import Prompt, Confirm
+from rich.prompt import Confirm, Prompt
 from rich.table import Table
 
 from aleph_client.commands import help_strings
-from aleph_client.commands.instance.display import CRNTable
-from aleph_client.commands.instance.display import fetch_crn_info, CRNTable
+from aleph_client.commands.instance.display import CRNTable, fetch_crn_info
 from aleph_client.commands.node import NodeInfo, _fetch_nodes
 from aleph_client.commands.utils import (
     get_or_prompt_volumes,
@@ -96,11 +100,6 @@ async def create(
 ):
     """Register a new instance on aleph.im"""
     setup_logging(debug)
-    # print(settings.API_HOST)
-    # from aleph.sdk.conf import settings as sdk_settings
-    #
-    # print(sdk_settings.API_HOST)
-    # return
 
     def validate_ssh_pubkey_file(file: Union[str, Path]) -> Path:
         if isinstance(file, str):
@@ -533,3 +532,123 @@ async def stop(
         if status != 200:
             typer.echo(f"Status : {status}")
         typer.echo(result)
+
+
+@app.command()
+async def confidential_init_session(
+    vm_id: str,
+    domain: str,
+    policy: int = typer.Option(default=0x1),
+    private_key: Optional[str] = typer.Option(sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
+    private_key_file: Optional[Path] = typer.Option(sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
+    debug: bool = False,
+):
+    "Initialize a confidential communication session wit the VM"
+
+    session_dir = Path(settings.CONFIG_HOME) / "confidential_sessions" / vm_id
+    session_dir.mkdir(exist_ok=True, parents=True)
+
+    setup_logging(debug)
+    account = _load_account(private_key, private_key_file)
+
+    sevctl_path = shutil.which("sevctl")
+    if sevctl_path is None:
+        echo("sevctl is not available. Please install sevctl, ensure it is in the PATH and try again.")
+        return
+
+    if (session_dir / "vm_godh.b64").exists():
+        if not Confirm.ask(
+            "Session already initiated for this instance, are you sure you want to override the previous one? You won't be able to communicate with already running vm"
+        ):
+            return
+
+    client = VmConfidentialClient(account, Path(sevctl_path), domain)
+
+    code, platform_file = await client.get_certificates()
+    if code != 200:
+        echo("Could not get the certificate from the CRN.")
+        return
+
+    platform_cert_path = Path(platform_file).rename(session_dir / "platform_certificate.pem")
+    certificate_prefix = str(session_dir) + "/vm"
+
+    # Create local session files
+    await client.create_session(certificate_prefix, certificate_path=platform_cert_path, policy=policy)
+    logger.info(f"Certificate created in {platform_cert_path}")
+
+    godh_path = session_dir / "vm_godh.b64"
+    session_path = session_dir / "vm_session.b64"
+    assert godh_path.exists()
+
+    vm_hash = ItemHash(vm_id)
+
+    await client.initialize(vm_hash, session_path, godh_path)
+    echo("Confidential Session with VM and CRN initiated")
+    await client.close()
+
+
+@app.command()
+async def confidential_start(
+    vm_id: str,
+    domain: str,
+    policy: int = typer.Option(default=0x1),
+    firmware_hash: str = typer.Option(
+        settings.DEFAULT_CONFIDENTIAL_FIRMWARE_HASH, help=help_strings.CONFIDENTIAL_FIRMWARE_HASH
+    ),
+    firmware_file: str = typer.Option(default=None, help=help_strings.PRIVATE_KEY),
+    private_key: Optional[str] = typer.Option(sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
+    private_key_file: Optional[Path] = typer.Option(sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
+    debug: bool = False,
+):
+    "Validate the authenticity of the VM and start it"
+
+    session_dir = Path(settings.CONFIG_HOME) / "confidential_sessions" / vm_id
+    session_dir.mkdir(exist_ok=True, parents=True)
+
+    setup_logging(debug)
+    account = _load_account(private_key, private_key_file)
+
+    sevctl_path = shutil.which("sevctl")
+    if sevctl_path is None:
+        echo("sevctl is not available. Please install sevctl, ensure it is in the PATH and try again.")
+        return
+
+    client = VmConfidentialClient(account, Path(sevctl_path), domain)
+
+    bytes.fromhex(firmware_hash)
+
+    vm_hash = ItemHash(vm_id)
+
+    if not session_dir.exists():
+        echo("Please run confidential-init-session first ")
+        return 1
+
+    sev_data = await client.measurement(vm_hash)
+    echo("Retrieved measurement")
+
+    tek_path = session_dir / "vm_tek.bin"
+    tik_path = session_dir / "vm_tik.bin"
+
+    if firmware_file:
+        firmware_path = Path(firmware_file)
+        if not firmware_path.exists():
+            raise Exception("Firmware path does not exist")
+        firmware_hash = calculate_firmware_hash(firmware_path)
+        logger.info(f"Calculated Firmware hash: {firmware_hash}")
+    logger.info(sev_data)
+    valid = await client.validate_measure(sev_data, tik_path, firmware_hash=firmware_hash)
+    if not valid:
+        echo("Could not validate authenticity of the VM")
+        return 2
+    echo("Measurement are authentic")
+
+    secret_key = Prompt.ask(
+        "Please enter secret to start the VM",
+    )
+
+    encoded_packet_header, encoded_secret = await client.build_secret(tek_path, tik_path, sev_data, secret_key)
+    await client.inject_secret(vm_hash, encoded_packet_header, encoded_secret)
+    echo("Starting the instance...")
+    echo("Logs can be fetched using the `aleph instance logs` command")
+    echo("Run the following command to get the IPv6 address of your instance:  aleph instance list")
+    await client.close()
