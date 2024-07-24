@@ -95,6 +95,40 @@ async def fetch_crn_info(node_url: str) -> Tuple[Optional[MachineUsage], Optiona
     return None, None
 
 
+async def fetch_crn_config(node_url: str) -> Optional[dict]:
+    """
+    Fetches compute node usage information and version.
+
+    Args:
+        node_url: URL of the compute node.
+    Returns:
+        Node public configuration
+    """
+    # Remove trailing slashes to avoid having // in the URL.
+    url: str = node_url.rstrip("/") + "/status/config"
+    timeout = aiohttp.ClientTimeout(total=settings.HTTP_REQUEST_TIMEOUT)
+    try:
+        # A new session is created for each request since they each target a different host.
+        async with aiohttp.ClientSession(timeout=timeout) as session:
+            async with session.get(url) as resp:
+                resp.raise_for_status()
+                data_raw: dict = await resp.json()
+                return data_raw
+    except TimeoutError as e:
+        logger.debug(f"Timeout while fetching: {url}: {e}")
+    except aiohttp.ClientConnectionError as e:
+        logger.debug(f"Error on connection: {url}: {e}")
+    except aiohttp.ClientResponseError as e:
+        logger.debug(f"Error on response: {url}: {e}")
+    except JSONDecodeError as e:
+        logger.debug(f"Error decoding JSON: {url}: {e}")
+    except ValidationError as e:
+        logger.debug(f"Validation error when fetching: {url}: {e}")
+    except InvalidURL as e:
+        logger.debug(f"Invalid URL: {url}: {e}")
+    return None
+
+
 def sanitize_url(url: str) -> str:
     """Ensure that the URL is valid and not obviously irrelevant.
 
@@ -153,6 +187,7 @@ async def fetch_crn_info_in_queue(node: dict, queue: MachineInfoQueue) -> None:
     await queue.put(
         MachineInfo.from_unsanitized_input(
             machine_usage=machine_usage,
+            hash=node["hash"],
             score=node["score"],
             name=node["name"],
             version=version,

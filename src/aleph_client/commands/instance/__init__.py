@@ -26,11 +26,11 @@ from aleph_message.models.execution.environment import HypervisorType
 from aleph_message.models.item_hash import ItemHash
 from rich import box
 from rich.console import Console
-from rich.prompt import Prompt
+from rich.prompt import Confirm, Prompt
 from rich.table import Table
 
 from aleph_client.commands import help_strings
-from aleph_client.commands.instance.display import fetch_crn_info
+from aleph_client.commands.instance.display import CRNTable
 from aleph_client.commands.node import NodeInfo, _fetch_nodes
 from aleph_client.commands.utils import (
     get_or_prompt_volumes,
@@ -39,6 +39,7 @@ from aleph_client.commands.utils import (
     validated_prompt,
 )
 from aleph_client.conf import settings
+from aleph_client.models import MachineUsage
 from aleph_client.utils import AsyncTyper, fetch_json
 
 logger = logging.getLogger(__name__)
@@ -86,7 +87,6 @@ async def create(
     ),
 ):
     """Register a new instance on aleph.im"""
-
     setup_logging(debug)
 
     def validate_ssh_pubkey_file(file: Union[str, Path]) -> Path:
@@ -111,17 +111,6 @@ async def create(
     ssh_pubkey: str = ssh_pubkey_file.read_text().strip()
 
     account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
-
-    if hold:
-        # Holder tier
-        reward_address = None
-    else:
-        # Pay-as-you-go
-        valid_address = await fetch_crn_info()
-        reward_address = validated_prompt(
-            "Please select and enter the reward address of the wanted CRN",
-            lambda x: x in valid_address,
-        )
 
     available_hypervisors = {
         HypervisorType.firecracker: {
@@ -178,6 +167,29 @@ async def create(
         ephemeral_volume=ephemeral_volume,
         immutable_volume=immutable_volume,
     )
+
+    # For PAYG, the user select directly the node on which to run on
+    #  Use have to make the payment stream separately for no
+    reward_address = None
+    if not hold:
+        crn = None
+        while not crn:
+            crn_table = CRNTable()
+            crn = await crn_table.run_async()
+            if not crn:
+                # User has ctrl-c
+                return
+            print("Run instance on CRN:")
+            print("\t Name", crn.name)
+            print("\t Reward address", crn.reward_address)
+            print("\t URL", crn.url)
+            if isinstance(crn.machine_usage, MachineUsage):
+                print("\t Available disk space", crn.machine_usage.disk)
+                print("\t Available ram", crn.machine_usage.mem)
+            if not Confirm.ask("Deploy on this node ?"):
+                crn = None
+                continue
+            reward_address = crn.reward_address
 
     async with AuthenticatedAlephHttpClient(account=account, api_server=sdk_settings.API_HOST) as client:
         payment: Optional[Payment] = None

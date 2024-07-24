@@ -1,21 +1,12 @@
 from __future__ import annotations
 
-import asyncio
-import typing
 from datetime import datetime, timezone
-from typing import Set
-from unittest import mock
 
 import pytest
 from aiohttp import InvalidURL
 from aleph_message.models.execution.environment import CpuProperties
 from multidict import CIMultiDict, CIMultiDictProxy
 
-from aleph_client.commands.instance.display import (
-    ProgressTable,
-    create_table_with_progress_bar,
-    update_table,
-)
 from aleph_client.commands.instance.network import (
     FORBIDDEN_HOSTS,
     fetch_crn_info,
@@ -34,13 +25,11 @@ from aleph_client.models import (
     UsagePeriod,
 )
 
-if typing.TYPE_CHECKING:
-    from aleph_client.commands.instance.network import MachineInfoQueue
-
 
 def dummy_machine_info() -> MachineInfo:
     """Create a dummy MachineInfo object for testing purposes."""
     return MachineInfo(
+        hash="blalba",
         machine_usage=MachineUsage(
             cpu=CpuUsage(
                 count=8,
@@ -96,49 +85,6 @@ def test_get_version() -> None:
     # Server header multiple aleph-vm values
     headers = dict_to_ci_multi_dict_proxy({"Server": "aleph-vm/0.1.0", "server": "aleph-vm/0.2.0"})
     assert get_version(headers) == "0.1.0"
-
-
-def test_create_table_with_progress_bar():
-    """Test the creation of a table with progress bar."""
-    sized_object = [1, 2, 3]
-    table, increment_function = create_table_with_progress_bar(sized_object)
-    assert isinstance(table, ProgressTable)
-
-    # Test that calling the increment function ends up with the progress bar
-    # being finished after `len(sized_objects)` calls.
-    for i in range(3):
-        # The progress bar should not be finished yet
-        assert table.progress.tasks[0].finished_time is None
-        increment_function()
-
-    # The progress bar should be finished now
-    finished_time = table.progress.tasks[0].finished_time
-    assert finished_time is not None and finished_time > 0
-
-
-@pytest.mark.asyncio
-async def test_update_table():
-    queue: MachineInfoQueue = asyncio.Queue()
-    table = mock.Mock()
-    table.add_row = mock.Mock()
-    increment_progress_bar = mock.Mock()
-    valid_reward_addresses: Set[str] = set()
-
-    async def populate_queue():
-        assert table.add_row.call_count == 0
-        # Put the data in the queue
-        await queue.put(dummy_machine_info())
-        # End the test by putting an end of queue marker
-        await queue.put("END_OF_QUEUE")
-
-    # Populate the queue and update the table concurrently.
-    await asyncio.gather(
-        populate_queue(),
-        update_table(queue, table, increment_progress_bar, valid_reward_addresses),
-    )
-
-    assert table.add_row.call_count == 1
-    assert valid_reward_addresses == {dummy_machine_info().reward_address}
 
 
 @pytest.mark.asyncio
