@@ -6,6 +6,7 @@ import logging
 from pathlib import Path
 from typing import List, Optional, Tuple, Union, cast
 
+import rich
 import typer
 from aiohttp import ClientResponseError, ClientSession
 from aleph.sdk import AlephHttpClient, AuthenticatedAlephHttpClient
@@ -25,6 +26,7 @@ from aleph_message.models.execution.base import Payment, PaymentType
 from aleph_message.models.execution.environment import HypervisorType, NodeRequirements, TrustedExecutionEnvironment
 from aleph_message.models.item_hash import ItemHash
 from click import echo
+from click.exceptions import Exit
 from rich import box
 from rich.console import Console
 from rich.prompt import Prompt, Confirm
@@ -267,6 +269,19 @@ async def create(
         item_hash: ItemHash = message.item_hash
 
         console = Console()
+        if crn and (confidential or not hold):
+            if not crn.url:
+                return
+            async with AuthenticatedAlephHttpClient(account=account, api_server=sdk_settings.API_HOST) as client:
+                account = _load_account(private_key, private_key_file)
+
+                async with VmClient(account, crn.url) as crn_client:
+                    status, result = await crn_client.start_instance(vm_id=item_hash)
+                    logger.debug(status, result)
+                    if status != 200:
+                        print(status, result)
+                        return "Could not start instance on CRN"
+
         console.print(
             f"\nYour instance {item_hash} has been deployed on aleph.im\n"
             f"Your SSH key has been added to the instance. You can connect in a few minutes to it using:\n\n"
