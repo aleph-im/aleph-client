@@ -212,7 +212,6 @@ async def create(
     reward_address = None
     crn = None
     if not hold or confidential:
-        crn = None
         while not crn:
             crn_table = CRNTable()
             crn = await crn_table.run_async()
@@ -638,7 +637,7 @@ async def confidential_start(
     logger.info(sev_data)
     valid = await client.validate_measure(sev_data, tik_path, firmware_hash=firmware_hash)
     if not valid:
-        echo("Could not validate authenticity of the VM")
+        echo("Could not validate authenticity of the VM. Please check that you are validating against the proper hash")
         return 2
     echo("Measurement are authentic")
 
