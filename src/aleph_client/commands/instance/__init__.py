@@ -29,6 +29,7 @@ from aleph_message.models.execution.environment import (
     HypervisorType,
     NodeRequirements,
     TrustedExecutionEnvironment,
+    HostRequirements,
 )
 from aleph_message.models.item_hash import ItemHash
 from click import echo
@@ -38,7 +39,7 @@ from rich.prompt import Confirm, Prompt
 from rich.table import Table
 
 from aleph_client.commands import help_strings
-from aleph_client.commands.instance.display import CRNTable, fetch_crn_info
+from aleph_client.commands.instance.display import CRNTable
 from aleph_client.commands.node import NodeInfo, _fetch_nodes
 from aleph_client.commands.utils import (
     get_or_prompt_volumes,
@@ -62,7 +63,7 @@ async def create(
     ),
     channel: Optional[str] = typer.Option(default=None, help=help_strings.CHANNEL),
     confidential: Optional[bool] = typer.Option(default=None, help=help_strings.CONFIDENTIAL_OPTION),
-    confidential_firmware: Optional[str] = typer.Option(
+    confidential_firmware: ItemHash = typer.Option(
         default=settings.DEFAULT_CONFIDENTIAL_FIRMWARE, help=help_strings.CONFIDENTIAL_FIRMWARE
     ),
     memory: int = typer.Option(settings.DEFAULT_INSTANCE_MEMORY, help="Maximum memory allocation on vm in MiB"),
@@ -187,10 +188,10 @@ async def create(
     # Validate confidential firmware message exist
     if confidential:
         async with AlephHttpClient(api_server=sdk_settings.API_HOST) as client:
-            rootfs_message: StoreMessage = await client.get_message(
+            firmware_message: StoreMessage = await client.get_message(
                 item_hash=confidential_firmware, message_type=StoreMessage
             )
-            if not rootfs_message:
+            if not firmware_message:
                 typer.echo("Confidential Firmware hash does not exist on aleph.im")
                 raise typer.Exit(code=1)
 
@@ -252,7 +253,7 @@ async def create(
                 ssh_keys=[ssh_pubkey],
                 hypervisor=hypervisor,
                 payment=payment,
-                requirements=NodeRequirements(node_hash=crn.hash) if crn else None,
+                requirements=HostRequirements(node=NodeRequirements(node_hash=crn.hash)) if crn else None,
                 trusted_execution=TrustedExecutionEnvironment(firmware=confidential_firmware),
             )
         except InsufficientFundsError as e:
@@ -543,6 +544,7 @@ async def confidential_init_session(
     debug: bool = False,
 ):
     "Initialize a confidential communication session wit the VM"
+    assert settings.CONFIG_HOME
 
     session_dir = Path(settings.CONFIG_HOME) / "confidential_sessions" / vm_id
     session_dir.mkdir(exist_ok=True, parents=True)
@@ -572,7 +574,9 @@ async def confidential_init_session(
     certificate_prefix = str(session_dir) + "/vm"
 
     # Create local session files
-    await client.create_session(certificate_prefix, certificate_path=platform_cert_path, policy=policy)
+    await client.create_session(certificate_prefix, certificate_path=platform_cert_path, policy=policy)  # type:ignore
+    # TOFIX in sdk Create session should take a string and not an item hash
+
     logger.info(f"Certificate created in {platform_cert_path}")
 
     godh_path = session_dir / "vm_godh.b64"
@@ -600,7 +604,7 @@ async def confidential_start(
     debug: bool = False,
 ):
     "Validate the authenticity of the VM and start it"
-
+    assert settings.CONFIG_HOME
     session_dir = Path(settings.CONFIG_HOME) / "confidential_sessions" / vm_id
     session_dir.mkdir(exist_ok=True, parents=True)
 

@@ -5,6 +5,7 @@ import logging
 from typing import Dict, Optional, Set, Tuple
 
 from aiohttp import InvalidURL
+from aleph_message.models import ItemHash
 from pydantic import BaseModel
 from textual.app import App
 from textual.containers import Horizontal
@@ -44,7 +45,7 @@ def convert_system_info_to_str(data: CRNInfo) -> Tuple[str, str, str]:
 class CRNInfo(BaseModel):
     machine_usage: Optional[MachineUsage]
     score: float
-    hash: str
+    hash: ItemHash
     name: str
     version: Optional[str]
     reward_address: str
