@@ -26,10 +26,10 @@ from aleph_message.models import InstanceMessage, StoreMessage
 from aleph_message.models.base import Chain, MessageType
 from aleph_message.models.execution.base import Payment, PaymentType
 from aleph_message.models.execution.environment import (
+    HostRequirements,
     HypervisorType,
     NodeRequirements,
     TrustedExecutionEnvironment,
-    HostRequirements,
 )
 from aleph_message.models.item_hash import ItemHash
 from click import echo
@@ -63,7 +63,7 @@ async def create(
     ),
     channel: Optional[str] = typer.Option(default=None, help=help_strings.CHANNEL),
     confidential: Optional[bool] = typer.Option(default=None, help=help_strings.CONFIDENTIAL_OPTION),
-    confidential_firmware: ItemHash = typer.Option(
+    confidential_firmware: str = typer.Option(
         default=settings.DEFAULT_CONFIDENTIAL_FIRMWARE, help=help_strings.CONFIDENTIAL_FIRMWARE
     ),
     memory: int = typer.Option(settings.DEFAULT_INSTANCE_MEMORY, help="Maximum memory allocation on vm in MiB"),
@@ -186,8 +186,11 @@ async def create(
             rootfs_size = rootfs_message.content.size
 
     # Validate confidential firmware message exist
+    confidential_firmware_as_hash = None
     if confidential:
         async with AlephHttpClient(api_server=sdk_settings.API_HOST) as client:
+
+            confidential_firmware_as_hash = ItemHash(confidential_firmware)
             firmware_message: StoreMessage = await client.get_message(
                 item_hash=confidential_firmware, message_type=StoreMessage
             )
@@ -254,7 +257,7 @@ async def create(
                 hypervisor=hypervisor,
                 payment=payment,
                 requirements=HostRequirements(node=NodeRequirements(node_hash=crn.hash)) if crn else None,
-                trusted_execution=TrustedExecutionEnvironment(firmware=confidential_firmware),
+                trusted_execution=TrustedExecutionEnvironment(firmware=confidential_firmware_as_hash),
             )
         except InsufficientFundsError as e:
             typer.echo(
