@@ -24,7 +24,6 @@ from aleph_message.models.base import Chain, MessageType
 from aleph_message.models.execution.base import Payment, PaymentType
 from aleph_message.models.execution.environment import HypervisorType
 from aleph_message.models.item_hash import ItemHash
-from click import echo
 from rich import box
 from rich.console import Console
 from rich.prompt import Confirm, Prompt
