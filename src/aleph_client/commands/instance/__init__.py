@@ -39,7 +39,7 @@ from rich.prompt import Confirm, Prompt
 from rich.table import Table
 
 from aleph_client.commands import help_strings
-from aleph_client.commands.instance.display import CRNTable
+from aleph_client.commands.instance.display import CRNTable, CRNInfo
 from aleph_client.commands.node import NodeInfo, _fetch_nodes
 from aleph_client.commands.utils import (
     get_or_prompt_volumes,
@@ -98,6 +98,8 @@ async def create(
         None,
         help=help_strings.IMMUATABLE_VOLUME,
     ),
+    crn_url=typer.Option(None, help=help_strings.CRN_HASH),
+    crn_hash=typer.Option(None, help=help_strings.CRN_URL),
 ):
     """Register a new instance on aleph.im"""
     setup_logging(debug)
@@ -215,6 +217,8 @@ async def create(
     # For now, we allow hold for confidential, but the user still has to choose on which CRN to run.
     reward_address = None
     crn = None
+    if crn_url and crn_hash:
+        crn = CRNInfo(url=crn_url, hash=crn_hash, score=10, name="", reward_address="")
     if not hold or confidential:
         while not crn:
             crn_table = CRNTable()
@@ -282,7 +286,8 @@ async def create(
                     logger.debug(status, result)
                     if status != 200:
                         print(status, result)
-                        return "Could not start instance on CRN"
+                        echo(f"Could not start instance  {item_hash} on CRN")
+                        return
 
         console.print(
             f"\nYour instance {item_hash} has been deployed on aleph.im\n"

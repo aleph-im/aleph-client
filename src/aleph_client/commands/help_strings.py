@@ -22,3 +22,5 @@ CONFIDENTIAL_OPTION = "Launch a confidential instance (requires creating an encr
 CONFIDENTIAL_FIRMWARE = "Hash to UEFI Firmware to launch confidential instance"
 CONFIDENTIAL_FIRMWARE_HASH = "Hash of the UEFI Firmware content, to validate measure (ignored if path is provided)"
 CONFIDENTIAL_FIRMWARE_PATH = "Path to the UEFI Firmware content, to validate measure (instead of the hash)"
+CRN_HASH = "Hash of the CRN to deploy to"
+CRN_URL = "URL of the CRN to deploy to"
