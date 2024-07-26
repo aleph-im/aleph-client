@@ -75,7 +75,7 @@ async def create(
         help="Size of the rootfs to use for your instance. If not set, content.size of the --rootfs store message will be used.",
     ),
     hypervisor: HypervisorType = typer.Option(
-        default=settings.DEFAULT_HYPERVISOR,
+        default=None,
         help="Hypervisor to use to launch your instance. Defaults to Firecracker.",
     ),
     debug: bool = False,
@@ -125,15 +125,17 @@ async def create(
         },
     }
 
-    hypervisor_choice = HypervisorType[
-        Prompt.ask(
-            "Which hypervisor you want to use?",
-            default=hypervisor.name,
-            choices=[x.name for x in available_hypervisors],
-        )
-    ]
+    if hypervisor is None:
+        hypervisor_choice = HypervisorType[
+            Prompt.ask(
+                "Which hypervisor you want to use?",
+                default=settings.DEFAULT_HYPERVISOR.name,
+                choices=[x.name for x in available_hypervisors],
+            )
+        ]
+        hypervisor = HypervisorType(hypervisor_choice)
 
-    os_choices = available_hypervisors[hypervisor_choice]
+    os_choices = available_hypervisors[hypervisor]
     rootfs = Prompt.ask(
         "Do you want to use a custom rootfs or one of the following prebuilt ones?",
         default=rootfs,
