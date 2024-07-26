@@ -289,12 +289,21 @@ async def create(
                         echo(f"Could not start instance  {item_hash} on CRN")
                         return
 
+    if not confidential:
         console.print(
             f"\nYour instance {item_hash} has been deployed on aleph.im\n"
             f"Your SSH key has been added to the instance. You can connect in a few minutes to it using:\n\n"
             f"  ssh root@<ipv6 address>\n\n"
             f"Run the following command to get the IPv6 address of your instance:\n\n"
             f"  aleph instance list\n\n"
+        )
+    else:
+        console.print(
+            f"\nYour instance {item_hash} has been deployed on aleph.im\n"
+            f"Initialize a confidential session using :\n\n"
+            f"  aleph instance confidential-init-session {item_hash} {crn.url}\n\n"
+            f"Then start it using :\n\n"
+            f"  aleph instance confidential-start {item_hash} {crn.url}\n\n"
         )
 
 
