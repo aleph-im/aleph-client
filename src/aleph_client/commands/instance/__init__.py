@@ -39,7 +39,7 @@ from rich.prompt import Confirm, Prompt
 from rich.table import Table
 
 from aleph_client.commands import help_strings
-from aleph_client.commands.instance.display import CRNTable, CRNInfo
+from aleph_client.commands.instance.display import CRNInfo, CRNTable
 from aleph_client.commands.node import NodeInfo, _fetch_nodes
 from aleph_client.commands.utils import (
     get_or_prompt_volumes,
@@ -218,7 +218,16 @@ async def create(
     reward_address = None
     crn = None
     if crn_url and crn_hash:
-        crn = CRNInfo(url=crn_url, hash=crn_hash, score=10, name="", reward_address="")
+        crn = CRNInfo(
+            url=crn_url,
+            hash=crn_hash,
+            score=10,
+            name="",
+            reward_address="",
+            machine_usage=None,
+            version=None,
+            confidential_computing=None,
+        )
     if not hold or confidential:
         while not crn:
             crn_table = CRNTable()
@@ -284,27 +293,27 @@ async def create(
                 async with VmClient(account, crn.url) as crn_client:
                     status, result = await crn_client.start_instance(vm_id=item_hash)
                     logger.debug(status, result)
-                    if status != 200:
+                    if int(status) != 200:
                         print(status, result)
                         echo(f"Could not start instance  {item_hash} on CRN")
                         return
 
-    if not confidential:
-        console.print(
-            f"\nYour instance {item_hash} has been deployed on aleph.im\n"
-            f"Your SSH key has been added to the instance. You can connect in a few minutes to it using:\n\n"
-            f"  ssh root@<ipv6 address>\n\n"
-            f"Run the following command to get the IPv6 address of your instance:\n\n"
-            f"  aleph instance list\n\n"
-        )
-    else:
-        console.print(
-            f"\nYour instance {item_hash} has been deployed on aleph.im\n"
-            f"Initialize a confidential session using :\n\n"
-            f"  aleph instance confidential-init-session {item_hash} {crn.url}\n\n"
-            f"Then start it using :\n\n"
-            f"  aleph instance confidential-start {item_hash} {crn.url}\n\n"
-        )
+            if not confidential:
+                console.print(
+                    f"\nYour instance {item_hash} has been deployed on aleph.im\n"
+                    f"Your SSH key has been added to the instance. You can connect in a few minutes to it using:\n\n"
+                    f"  ssh root@<ipv6 address>\n\n"
+                    f"Run the following command to get the IPv6 address of your instance:\n\n"
+                    f"  aleph instance list\n\n"
+                )
+            else:
+                console.print(
+                    f"\nYour instance {item_hash} has been deployed on aleph.im\n"
+                    f"Initialize a confidential session using :\n\n"
+                    f"  aleph instance confidential-init-session {item_hash} {crn.url}\n\n"
+                    f"Then start it using :\n\n"
+                    f"  aleph instance confidential-start {item_hash} {crn.url}\n\n"
+                )
 
 
 @app.command()
