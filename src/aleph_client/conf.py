@@ -46,6 +46,9 @@ class Settings(BaseSettings):
     VM_URL_PATH = "https://aleph.sh/vm/{hash}"
     VM_URL_HOST = "https://{hash_base32}.aleph.sh"
 
+    DEFAULT_CONFIDENTIAL_FIRMWARE = "ba5bb13f3abca960b101a759be162b229e2b7e93ecad9d1307e54de887f177ff"
+    DEFAULT_CONFIDENTIAL_FIRMWARE_HASH = "89b76b0e64fe9015084fbffdf8ac98185bafc688bfe7a0b398585c392d03c7ee"
+
     class Config:
         env_prefix = "ALEPH_"
         case_sensitive = False

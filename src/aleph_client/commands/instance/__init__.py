@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import shutil
 from pathlib import Path
 from typing import List, Optional, Tuple, Union, cast
 
@@ -11,6 +12,7 @@ from aiohttp import ClientResponseError, ClientSession
 from aleph.sdk import AlephHttpClient, AuthenticatedAlephHttpClient
 from aleph.sdk.account import _load_account
 from aleph.sdk.client.vm_client import VmClient
+from aleph.sdk.client.vm_confidential_client import VmConfidentialClient
 from aleph.sdk.conf import settings as sdk_settings
 from aleph.sdk.exceptions import (
     ForgottenMessageError,
@@ -18,19 +20,26 @@ from aleph.sdk.exceptions import (
     MessageNotFoundError,
 )
 from aleph.sdk.query.filters import MessageFilter
-from aleph.sdk.types import Account, AccountFromPrivateKey, StorageEnum
+from aleph.sdk.types import AccountFromPrivateKey, StorageEnum
+from aleph.sdk.utils import calculate_firmware_hash
 from aleph_message.models import InstanceMessage, StoreMessage
 from aleph_message.models.base import Chain, MessageType
 from aleph_message.models.execution.base import Payment, PaymentType
-from aleph_message.models.execution.environment import HypervisorType
+from aleph_message.models.execution.environment import (
+    HostRequirements,
+    HypervisorType,
+    NodeRequirements,
+    TrustedExecutionEnvironment,
+)
 from aleph_message.models.item_hash import ItemHash
+from click import echo
 from rich import box
 from rich.console import Console
 from rich.prompt import Confirm, Prompt
 from rich.table import Table
 
 from aleph_client.commands import help_strings
-from aleph_client.commands.instance.display import CRNTable
+from aleph_client.commands.instance.display import CRNInfo, CRNTable
 from aleph_client.commands.node import NodeInfo, _fetch_nodes
 from aleph_client.commands.utils import (
     get_or_prompt_volumes,
@@ -53,6 +62,10 @@ async def create(
         help="Pay using the holder tier instead of pay-as-you-go",
     ),
     channel: Optional[str] = typer.Option(default=None, help=help_strings.CHANNEL),
+    confidential: Optional[bool] = typer.Option(default=None, help=help_strings.CONFIDENTIAL_OPTION),
+    confidential_firmware: str = typer.Option(
+        default=settings.DEFAULT_CONFIDENTIAL_FIRMWARE, help=help_strings.CONFIDENTIAL_FIRMWARE
+    ),
     memory: int = typer.Option(settings.DEFAULT_INSTANCE_MEMORY, help="Maximum memory allocation on vm in MiB"),
     vcpus: int = typer.Option(sdk_settings.DEFAULT_VM_VCPUS, help="Number of virtual cpus to allocate."),
     timeout_seconds: float = typer.Option(
@@ -85,6 +98,8 @@ async def create(
         None,
         help=help_strings.IMMUATABLE_VOLUME,
     ),
+    crn_url=typer.Option(None, help=help_strings.CRN_HASH),
+    crn_hash=typer.Option(None, help=help_strings.CRN_URL),
 ):
     """Register a new instance on aleph.im"""
     setup_logging(debug)
@@ -112,6 +127,14 @@ async def create(
 
     account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
 
+    if confidential:
+        if hypervisor and hypervisor != HypervisorType.qemu:
+            echo(f"Only QEMU is supported as an hypervisor for confidential")
+            raise typer.Exit(code=1)
+        elif not hypervisor:
+            echo(f"Using QEMU as hypervisor for confidential")
+            hypervisor = HypervisorType.qemu
+
     available_hypervisors = {
         HypervisorType.firecracker: {
             "Ubuntu 22": settings.UBUNTU_22_ROOTFS_ID,
@@ -136,11 +159,16 @@ async def create(
         hypervisor = HypervisorType(hypervisor_choice)
 
     os_choices = available_hypervisors[hypervisor]
-    rootfs = Prompt.ask(
-        "Do you want to use a custom rootfs or one of the following prebuilt ones?",
-        default=rootfs,
-        choices=[*os_choices, "custom"],
-    )
+
+    if confidential:
+        # Confidential only support custom rootfs
+        rootfs = "custom"
+    else:
+        rootfs = Prompt.ask(
+            "Do you want to use a custom rootfs or one of the following prebuilt ones?",
+            default=rootfs,
+            choices=[*os_choices, "custom"],
+        )
 
     if rootfs == "custom":
         rootfs = validated_prompt(
@@ -150,6 +178,7 @@ async def create(
     else:
         rootfs = os_choices[rootfs]
 
+    # Validate rootfs message exist
     async with AlephHttpClient(api_server=sdk_settings.API_HOST) as client:
         rootfs_message: StoreMessage = await client.get_message(item_hash=rootfs, message_type=StoreMessage)
         if not rootfs_message:
@@ -157,6 +186,19 @@ async def create(
             raise typer.Exit(code=1)
         if rootfs_size is None and rootfs_message.content.size:
             rootfs_size = rootfs_message.content.size
+
+    # Validate confidential firmware message exist
+    confidential_firmware_as_hash = None
+    if confidential:
+        async with AlephHttpClient(api_server=sdk_settings.API_HOST) as client:
+
+            confidential_firmware_as_hash = ItemHash(confidential_firmware)
+            firmware_message: StoreMessage = await client.get_message(
+                item_hash=confidential_firmware, message_type=StoreMessage
+            )
+            if not firmware_message:
+                typer.echo("Confidential Firmware hash does not exist on aleph.im")
+                raise typer.Exit(code=1)
 
     vcpus = validated_int_prompt("Number of virtual cpus to allocate", vcpus, min_value=1, max_value=4)
 
@@ -170,11 +212,23 @@ async def create(
         immutable_volume=immutable_volume,
     )
 
-    # For PAYG, the user select directly the node on which to run on
-    #  Use have to make the payment stream separately for no
+    # For PAYG or confidential, the user select directly the node on which to run on
+    # For PAYG User have to make the payment stream separately
+    # For now, we allow hold for confidential, but the user still has to choose on which CRN to run.
     reward_address = None
-    if not hold:
-        crn = None
+    crn = None
+    if crn_url and crn_hash:
+        crn = CRNInfo(
+            url=crn_url,
+            hash=crn_hash,
+            score=10,
+            name="",
+            reward_address="",
+            machine_usage=None,
+            version=None,
+            confidential_computing=None,
+        )
+    if not hold or confidential:
         while not crn:
             crn_table = CRNTable()
             crn = await crn_table.run_async()
@@ -215,6 +269,8 @@ async def create(
                 ssh_keys=[ssh_pubkey],
                 hypervisor=hypervisor,
                 payment=payment,
+                requirements=HostRequirements(node=NodeRequirements(node_hash=crn.hash)) if crn else None,
+                trusted_execution=TrustedExecutionEnvironment(firmware=confidential_firmware_as_hash),
             )
         except InsufficientFundsError as e:
             typer.echo(
@@ -228,13 +284,36 @@ async def create(
         item_hash: ItemHash = message.item_hash
 
         console = Console()
-        console.print(
-            f"\nYour instance {item_hash} has been deployed on aleph.im\n"
-            f"Your SSH key has been added to the instance. You can connect in a few minutes to it using:\n\n"
-            f"  ssh root@<ipv6 address>\n\n"
-            f"Run the following command to get the IPv6 address of your instance:\n\n"
-            f"  aleph instance list\n\n"
-        )
+        if crn and (confidential or not hold):
+            if not crn.url:
+                return
+            async with AuthenticatedAlephHttpClient(account=account, api_server=sdk_settings.API_HOST) as client:
+                account = _load_account(private_key, private_key_file)
+
+                async with VmClient(account, crn.url) as crn_client:
+                    status, result = await crn_client.start_instance(vm_id=item_hash)
+                    logger.debug(status, result)
+                    if int(status) != 200:
+                        print(status, result)
+                        echo(f"Could not start instance  {item_hash} on CRN")
+                        return
+
+            if not confidential:
+                console.print(
+                    f"\nYour instance {item_hash} has been deployed on aleph.im\n"
+                    f"Your SSH key has been added to the instance. You can connect in a few minutes to it using:\n\n"
+                    f"  ssh root@<ipv6 address>\n\n"
+                    f"Run the following command to get the IPv6 address of your instance:\n\n"
+                    f"  aleph instance list\n\n"
+                )
+            else:
+                console.print(
+                    f"\nYour instance {item_hash} has been deployed on aleph.im\n"
+                    f"Initialize a confidential session using :\n\n"
+                    f"  aleph instance confidential-init-session {item_hash} {crn.url}\n\n"
+                    f"Then start it using :\n\n"
+                    f"  aleph instance confidential-start {item_hash} {crn.url}\n\n"
+                )
 
 
 @app.command()
@@ -479,3 +558,126 @@ async def stop(
         if status != 200:
             typer.echo(f"Status : {status}")
         typer.echo(result)
+
+
+@app.command()
+async def confidential_init_session(
+    vm_id: str,
+    domain: str,
+    policy: int = typer.Option(default=0x1),
+    private_key: Optional[str] = typer.Option(sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
+    private_key_file: Optional[Path] = typer.Option(sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
+    debug: bool = False,
+):
+    "Initialize a confidential communication session wit the VM"
+    assert settings.CONFIG_HOME
+
+    session_dir = Path(settings.CONFIG_HOME) / "confidential_sessions" / vm_id
+    session_dir.mkdir(exist_ok=True, parents=True)
+
+    setup_logging(debug)
+    account = _load_account(private_key, private_key_file)
+
+    sevctl_path = shutil.which("sevctl")
+    if sevctl_path is None:
+        echo("sevctl is not available. Please install sevctl, ensure it is in the PATH and try again.")
+        return
+
+    if (session_dir / "vm_godh.b64").exists():
+        if not Confirm.ask(
+            "Session already initiated for this instance, are you sure you want to override the previous one? You won't be able to communicate with already running vm"
+        ):
+            return
+
+    client = VmConfidentialClient(account, Path(sevctl_path), domain)
+
+    code, platform_file = await client.get_certificates()
+    if code != 200:
+        echo("Could not get the certificate from the CRN.")
+        return
+
+    platform_cert_path = Path(platform_file).rename(session_dir / "platform_certificate.pem")
+    certificate_prefix = str(session_dir) + "/vm"
+
+    # Create local session files
+    await client.create_session(certificate_prefix, certificate_path=platform_cert_path, policy=policy)  # type:ignore
+    # TOFIX in sdk Create session should take a string and not an item hash
+
+    logger.info(f"Certificate created in {platform_cert_path}")
+
+    godh_path = session_dir / "vm_godh.b64"
+    session_path = session_dir / "vm_session.b64"
+    assert godh_path.exists()
+
+    vm_hash = ItemHash(vm_id)
+
+    await client.initialize(vm_hash, session_path, godh_path)
+    echo("Confidential Session with VM and CRN initiated")
+    await client.close()
+
+
+@app.command()
+async def confidential_start(
+    vm_id: str,
+    domain: str,
+    policy: int = typer.Option(default=0x1),
+    firmware_hash: str = typer.Option(
+        settings.DEFAULT_CONFIDENTIAL_FIRMWARE_HASH, help=help_strings.CONFIDENTIAL_FIRMWARE_HASH
+    ),
+    firmware_file: str = typer.Option(default=None, help=help_strings.PRIVATE_KEY),
+    private_key: Optional[str] = typer.Option(sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
+    private_key_file: Optional[Path] = typer.Option(sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
+    debug: bool = False,
+):
+    "Validate the authenticity of the VM and start it"
+    assert settings.CONFIG_HOME
+    session_dir = Path(settings.CONFIG_HOME) / "confidential_sessions" / vm_id
+    session_dir.mkdir(exist_ok=True, parents=True)
+
+    setup_logging(debug)
+    account = _load_account(private_key, private_key_file)
+
+    sevctl_path = shutil.which("sevctl")
+    if sevctl_path is None:
+        echo("sevctl is not available. Please install sevctl, ensure it is in the PATH and try again.")
+        return
+
+    client = VmConfidentialClient(account, Path(sevctl_path), domain)
+
+    bytes.fromhex(firmware_hash)
+
+    vm_hash = ItemHash(vm_id)
+
+    if not session_dir.exists():
+        echo("Please run confidential-init-session first ")
+        return 1
+
+    sev_data = await client.measurement(vm_hash)
+    echo("Retrieved measurement")
+
+    tek_path = session_dir / "vm_tek.bin"
+    tik_path = session_dir / "vm_tik.bin"
+
+    if firmware_file:
+        firmware_path = Path(firmware_file)
+        if not firmware_path.exists():
+            raise Exception("Firmware path does not exist")
+        firmware_hash = calculate_firmware_hash(firmware_path)
+        logger.info(f"Calculated Firmware hash: {firmware_hash}")
+    logger.info(sev_data)
+    valid = await client.validate_measure(sev_data, tik_path, firmware_hash=firmware_hash)
+    if not valid:
+        echo("Could not validate authenticity of the VM. Please check that you are validating against the proper hash")
+        return 2
+    echo("Measurement are authentic")
+
+    secret_key = Prompt.ask(
+        "Please enter secret to start the VM",
+    )
+
+    encoded_packet_header, encoded_secret = await client.build_secret(tek_path, tik_path, sev_data, secret_key)
+    await client.inject_secret(vm_hash, encoded_packet_header, encoded_secret)
+    echo("Starting the instance...")
+    echo("Logs can be fetched using the `aleph instance logs` command")
+    echo("Run the following command to get the IPv6 address of your instance:  aleph instance list")
+    await client.close()
