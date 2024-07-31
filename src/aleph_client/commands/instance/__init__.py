@@ -366,8 +366,14 @@ async def _get_ipv6_address(message: InstanceMessage, node_list: NodeInfo) -> Tu
             for node in node_list.nodes:
                 if node["stream_reward"] == message.content.payment.receiver:
 
+                    # Handle both cases where the address might or might not end with a '/'
+                    path: str = (
+                        f"{node['address']}about/executions/list"
+                        if node["address"][-1] == "/"
+                        else f"{node['address']}/about/executions/list"
+                    )
                     # Fetch from the CRN API if payment
-                    executions = await fetch_json(session, f"{node['address']}about/executions/list")
+                    executions = await fetch_json(session, path)
                     if message.item_hash in executions:
                         ipv6_address = executions[message.item_hash]["networking"]["ipv6"]
                         return message.item_hash, ipv6_address
