@@ -78,7 +78,7 @@ async def create(
         Path("~/.ssh/id_rsa.pub").expanduser(),
         help="Path to a public ssh key to be added to the instance.",
     ),
-    print_messages: bool = typer.Option(True),
+    print_messages: bool = typer.Option(False),
     rootfs: str = typer.Option(
         "Ubuntu 22",
         help="Hash of the rootfs to use for your instance. Defaults to Ubuntu 22. You can also create your own rootfs and pin it",
