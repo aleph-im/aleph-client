@@ -304,7 +304,7 @@ async def create(
                 logger.debug(status, result)
                 if int(status) != 200:
                     print(status, result)
-                    echo(f"Could not start instance  {item_hash} on CRN")
+                    echo(f"Could not start instance {item_hash} on CRN")
                     return
 
             if not confidential:
