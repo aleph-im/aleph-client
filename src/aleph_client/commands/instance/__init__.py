@@ -160,23 +160,24 @@ async def create(
 
     os_choices = available_hypervisors[hypervisor]
 
-    if confidential:
-        # Confidential only support custom rootfs
-        rootfs = "custom"
-    else:
-        rootfs = Prompt.ask(
-            "Do you want to use a custom rootfs or one of the following prebuilt ones?",
-            default=rootfs,
-            choices=[*os_choices, "custom"],
-        )
+    if not rootfs or len(rootfs) != 64:
+        if confidential:
+            # Confidential only support custom rootfs
+            rootfs = "custom"
+        else:
+            rootfs = Prompt.ask(
+                "Do you want to use a custom rootfs or one of the following prebuilt ones?",
+                default=rootfs,
+                choices=[*os_choices, "custom"],
+            )
 
-    if rootfs == "custom":
-        rootfs = validated_prompt(
-            "Enter the item hash of the rootfs to use for your instance",
-            lambda x: len(x) == 64,
-        )
-    else:
-        rootfs = os_choices[rootfs]
+        if rootfs == "custom":
+            rootfs = validated_prompt(
+                "Enter the item hash of the rootfs to use for your instance",
+                lambda x: len(x) == 64,
+            )
+        else:
+            rootfs = os_choices[rootfs]
 
     # Validate rootfs message exist
     async with AlephHttpClient(api_server=sdk_settings.API_HOST) as client:
