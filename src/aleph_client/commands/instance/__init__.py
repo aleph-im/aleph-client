@@ -48,6 +48,7 @@ from aleph_client.commands.instance.superfluid import handle_flow, handle_flow_r
 from aleph_client.commands.node import NodeInfo, _fetch_nodes
 from aleph_client.commands.utils import (
     get_or_prompt_volumes,
+    load_superfluid_account,
     setup_logging,
     validated_int_prompt,
     validated_prompt,
@@ -303,7 +304,7 @@ async def create(
             price = "0.000003555555555555"  # This value work only because right now PriceCalculations is bug on this release (patch already in pyaleph)
 
             # We load SuperFluid account
-            superfluid_client = _load_account(private_key, private_key_file, account_type=SuperFluid)
+            superfluid_client: SuperFluid = load_superfluid_account(private_key, private_key_file)
 
             flow_hash = await handle_flow(
                 account=superfluid_client,
@@ -382,7 +383,7 @@ async def delete(
         if payment is not None and payment.type == PaymentType.superfluid:
             # price: PriceResponse = await client.get_program_price(item_hash)
             flow = "0.000003555555555555"
-            superfluid_client = _load_account(private_key, private_key_file, account_type=SuperFluid)
+            superfluid_client = load_superfluid_account(private_key, private_key_file)
 
             # Check if payment.receiver is not None
             if payment.receiver is not None:
