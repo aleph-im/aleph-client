@@ -357,8 +357,8 @@ async def delete(
 async def _get_ipv6_address(message: InstanceMessage, node_list: NodeInfo) -> Tuple[str, str]:
     async with ClientSession() as session:
         try:
-            if not message.content.payment:
-                # Fetch from the scheduler API directly if no payment
+            if not message.content.payment or not message.content.payment.receiver:
+                # Fetch from the scheduler API directly if no payment or no receiver
                 status = await fetch_json(
                     session,
                     f"https://scheduler.api.aleph.cloud/api/v0/allocation/{message.item_hash}",
@@ -366,13 +366,8 @@ async def _get_ipv6_address(message: InstanceMessage, node_list: NodeInfo) -> Tu
                 return status["vm_hash"], status["vm_ipv6"]
             for node in node_list.nodes:
                 if node["stream_reward"] == message.content.payment.receiver:
-
                     # Handle both cases where the address might or might not end with a '/'
-                    path: str = (
-                        f"{node['address']}about/executions/list"
-                        if node["address"][-1] == "/"
-                        else f"{node['address']}/about/executions/list"
-                    )
+                    path = f"{node['address'].rstrip('/')}/about/executions/list"
                     # Fetch from the CRN API if payment
                     executions = await fetch_json(session, path)
                     if message.item_hash in executions:
