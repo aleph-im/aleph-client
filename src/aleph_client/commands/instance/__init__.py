@@ -4,6 +4,9 @@ import asyncio
 import json
 import logging
 import shutil
+from decimal import Decimal
+
+# from aleph.sdk.query.responses import PriceResponse // This should be uncomment when https://github.com/aleph-im/aleph-sdk-python/pull/143 is merge
 from pathlib import Path
 from typing import List, Optional, Tuple, Union, cast
 
@@ -11,6 +14,7 @@ import typer
 from aiohttp import ClientResponseError, ClientSession
 from aleph.sdk import AlephHttpClient, AuthenticatedAlephHttpClient
 from aleph.sdk.account import _load_account
+from aleph.sdk.client.superfluid import SuperFluid
 from aleph.sdk.client.vm_client import VmClient
 from aleph.sdk.client.vm_confidential_client import VmConfidentialClient
 from aleph.sdk.conf import settings as sdk_settings
@@ -40,6 +44,7 @@ from rich.table import Table
 
 from aleph_client.commands import help_strings
 from aleph_client.commands.instance.display import CRNInfo, CRNTable
+from aleph_client.commands.instance.superfluid import handle_flow, handle_flow_reduction
 from aleph_client.commands.node import NodeInfo, _fetch_nodes
 from aleph_client.commands.utils import (
     get_or_prompt_volumes,
@@ -98,8 +103,11 @@ async def create(
         None,
         help=help_strings.IMMUATABLE_VOLUME,
     ),
-    crn_url=typer.Option(None, help=help_strings.CRN_HASH),
-    crn_hash=typer.Option(None, help=help_strings.CRN_URL),
+    crn_url=typer.Option(None, help=help_strings.CRN_URL),
+    crn_hash=typer.Option(None, help=help_strings.CRN_HASH),
+    stream_reward=typer.Option(None, help="stream reward Node hash"),
+    sync_cloud: Optional[bool] = typer.Option(True, help=help_strings.SYNC_CLOUD),
+    instance_name: Optional[str] = typer.Option(None, help=help_strings.INSTANCE_NAME),
 ):
     """Register a new instance on aleph.im"""
     setup_logging(debug)
@@ -178,6 +186,11 @@ async def create(
     else:
         rootfs = os_choices[rootfs]
 
+    if sync_cloud:
+        instance_name = Prompt.ask(
+            "How do you want to call your instance ?",
+        )
+
     # Validate rootfs message exist
     async with AlephHttpClient(api_server=sdk_settings.API_HOST) as client:
         rootfs_message: StoreMessage = await client.get_message(item_hash=rootfs, message_type=StoreMessage)
@@ -212,10 +225,6 @@ async def create(
         immutable_volume=immutable_volume,
     )
 
-    # For PAYG or confidential, the user select directly the node on which to run on
-    # For PAYG User have to make the payment stream separately
-    # For now, we allow hold for confidential, but the user still has to choose on which CRN to run.
-    reward_address = None
     crn = None
     if crn_url and crn_hash:
         crn = CRNInfo(
@@ -223,7 +232,7 @@ async def create(
             hash=crn_hash,
             score=10,
             name="",
-            reward_address="",
+            stream_reward=stream_reward,
             machine_usage=None,
             version=None,
             confidential_computing=None,
@@ -237,7 +246,7 @@ async def create(
                 return
             print("Run instance on CRN:")
             print("\t Name", crn.name)
-            print("\t Reward address", crn.reward_address)
+            print("\t Stream address", crn.stream_reward)
             print("\t URL", crn.url)
             if isinstance(crn.machine_usage, MachineUsage):
                 print("\t Available disk space", crn.machine_usage.disk)
@@ -245,14 +254,14 @@ async def create(
             if not Confirm.ask("Deploy on this node ?"):
                 crn = None
                 continue
-            reward_address = crn.reward_address
+            stream_reward = crn.stream_reward
 
     async with AuthenticatedAlephHttpClient(account=account, api_server=sdk_settings.API_HOST) as client:
         payment: Optional[Payment] = None
-        if reward_address:
+        if stream_reward:
             payment = Payment(
                 chain=Chain.AVAX,
-                receiver=reward_address,
+                receiver=stream_reward,
                 type=PaymentType["superfluid"],
             )
         try:
@@ -261,16 +270,19 @@ async def create(
                 rootfs=rootfs,
                 rootfs_size=rootfs_size,
                 storage_engine=StorageEnum.storage,
-                channel=channel,
+                channel=channel if not sync_cloud else settings.CLOUD_CHANNEL,
+                metadata={"name": instance_name} if sync_cloud else None,
                 memory=memory,
                 vcpus=vcpus,
                 timeout_seconds=timeout_seconds,
                 volumes=volumes,
                 ssh_keys=[ssh_pubkey],
-                hypervisor=hypervisor,
                 payment=payment,
-                requirements=HostRequirements(node=NodeRequirements(node_hash=crn.hash)) if crn else None,
-                trusted_execution=TrustedExecutionEnvironment(firmware=confidential_firmware_as_hash),
+                hypervisor=hypervisor,
+                # requirements=HostRequirements(node=NodeRequirements(node_hash=crn.hash)) if crn else None, # Make message get reject on api2
+                trusted_execution=(
+                    TrustedExecutionEnvironment(firmware=confidential_firmware_as_hash) if confidential else None
+                ),
             )
         except InsufficientFundsError as e:
             typer.echo(
@@ -287,33 +299,52 @@ async def create(
         if crn and (confidential or not hold):
             if not crn.url:
                 return
+            # price: PriceResponse = await client.get_program_price(item_hash) // https://github.com/aleph-im/aleph-sdk-python/pull/143
+            price = "0.000003555555555555"  # This value work only because right now PriceCalculations is bug on this release (patch already in pyaleph)
+
+            # We load SuperFluid account
+            superfluid_client = _load_account(private_key, private_key_file, account_type=SuperFluid)
+
+            flow_hash = await handle_flow(
+                account=superfluid_client,  # type: ignore
+                sender=account.get_address(),
+                receiver=crn.stream_reward,
+                flow=Decimal(price),  # should be price.required_token (cause it's should be a PriceResponse)
+            )
+            typer.echo(f"Flow {flow_hash} has been created of {price}")
+
             async with AuthenticatedAlephHttpClient(account=account, api_server=sdk_settings.API_HOST) as client:
                 account = _load_account(private_key, private_key_file)
-
                 async with VmClient(account, crn.url) as crn_client:
-                    status, result = await crn_client.start_instance(vm_id=item_hash)
-                    logger.debug(status, result)
-                    if int(status) != 200:
-                        print(status, result)
-                        echo(f"Could not start instance  {item_hash} on CRN")
-                        return
+                    while True:
+                        try:
+                            status, result = await crn_client.start_instance(vm_id=item_hash)
+                            logger.debug(f"Crn : {crn.url} Status: {status}, Result: {result}")
+                            if int(status) == 200:
+                                if not confidential:
+                                    console.print(
+                                        f"\nYour instance {item_hash} has been deployed on aleph.im\n"
+                                        f"Your SSH key has been added to the instance. You can connect in a few minutes to it using:\n\n"
+                                        f"  ssh root@<ipv6 address>\n\n"
+                                        f"Run the following command to get the IPv6 address of your instance:\n\n"
+                                        f"  aleph instance list\n\n"
+                                    )
+                                else:
+                                    console.print(
+                                        f"\nYour instance {item_hash} has been deployed on aleph.im\n"
+                                        f"Initialize a confidential session using :\n\n"
+                                        f"  aleph instance confidential-init-session {item_hash} {crn.url}\n\n"
+                                        f"Then start it using :\n\n"
+                                        f"  aleph instance confidential-start {item_hash} {crn.url}\n\n"
+                                    )
+                                return
+                            else:
+                                print(f"Failed to start instance {crn.url} {item_hash}, status: {status}. Retrying...")
+                        except Exception as e:
+                            logger.error(f"Error starting instance {item_hash}: {e}")
 
-            if not confidential:
-                console.print(
-                    f"\nYour instance {item_hash} has been deployed on aleph.im\n"
-                    f"Your SSH key has been added to the instance. You can connect in a few minutes to it using:\n\n"
-                    f"  ssh root@<ipv6 address>\n\n"
-                    f"Run the following command to get the IPv6 address of your instance:\n\n"
-                    f"  aleph instance list\n\n"
-                )
-            else:
-                console.print(
-                    f"\nYour instance {item_hash} has been deployed on aleph.im\n"
-                    f"Initialize a confidential session using :\n\n"
-                    f"  aleph instance confidential-init-session {item_hash} {crn.url}\n\n"
-                    f"Then start it using :\n\n"
-                    f"  aleph instance confidential-start {item_hash} {crn.url}\n\n"
-                )
+                        logger.debug(f"Retrying in {10} seconds...")
+                        await asyncio.sleep(10)
 
 
 @app.command()
@@ -345,6 +376,22 @@ async def delete(
         if existing_message.sender != account.get_address():
             typer.echo("You are not the owner of this instance")
             raise typer.Exit(code=1)
+
+        payment: Optional[Payment] = existing_message.content.payment
+
+        if payment is not None and payment.type == PaymentType.superfluid:
+            # price: PriceResponse = await client.get_program_price(item_hash)
+            flow = "0.000003555555555555"
+            superfluid_client = _load_account(private_key, private_key_file, account_type=SuperFluid)
+
+            # Check if payment.receiver is not None
+            if payment.receiver is not None:
+                flow_hash = await handle_flow_reduction(
+                    superfluid_client,  # type: ignore
+                    existing_message.sender,
+                    payment.receiver,
+                    Decimal(flow),  # should be replaced with price
+                )
 
         message, status = await client.forget(hashes=[ItemHash(item_hash)], reason=reason)
         if print_message:

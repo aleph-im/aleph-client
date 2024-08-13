@@ -24,7 +24,7 @@ classifiers = [
 ]
 
 dependencies = [
-  "aleph-sdk-python@git+https://github.com/aleph-im/aleph-sdk-python.git@1yam-feat-price",
+  "aleph-sdk-python@git+https://github.com/aleph-im/aleph-sdk-python.git@1yam-superfuild-integrations",
   "aleph-message>=0.4.6",
   "aiohttp==3.9.5",
   "typer==0.12.3",
@@ -32,6 +32,7 @@ dependencies = [
   "pygments==2.18.0",
   "rich==13.7.1",
   "aiodns==3.2.0",
+  "superfluid~=0.2.1",
   "textual==0.73.0",
 ]
 [project.optional-dependencies]

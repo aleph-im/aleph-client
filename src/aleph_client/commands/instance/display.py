@@ -48,7 +48,7 @@ class CRNInfo(BaseModel):
     hash: ItemHash
     name: str
     version: Optional[str]
-    reward_address: str
+    stream_reward: str
     url: str
     confidential_computing: Optional[bool]
 
@@ -95,16 +95,22 @@ class CRNTable(App[CRNInfo]):
         nodes: NodeInfo = await _fetch_nodes()
 
         for node in nodes.nodes:
+            # Skip nodes without a reward address for streaming
+            if not node["stream_reward"]:
+                logger.debug(f"Skipping node {node['hash']}, no stream address")
+                continue
+
             info = CRNInfo(
                 hash=node["hash"],
                 score=node["score"],
                 name=node["name"],
-                reward_address=node["reward"],
-                url=node["address"],
+                stream_reward=node["stream_reward"],  # Stream reward address instead
+                url=node["address"].rstrip("/"),
                 machine_usage=None,
                 version=None,
                 confidential_computing=None,
             )
+
             usage: DisplayMachineUsage = DisplayMachineUsage()
 
             if isinstance(info.machine_usage, MachineUsage):
@@ -115,7 +121,7 @@ class CRNTable(App[CRNInfo]):
             self.table.add_row(
                 _format_score(info.score),
                 info.name,
-                info.reward_address,
+                info.stream_reward,
                 info.confidential_computing,
                 info.version,
                 usage.cpu,
@@ -152,8 +158,9 @@ class CRNTable(App[CRNInfo]):
             return
 
         # Skip nodes without a reward address
-        if not node.reward_address:
-            logger.debug(f"Skipping node {node.hash}, no reward address")
+
+        if not node.stream_reward:
+            logger.debug(f"Skipping node {node.hash}, no stream address")
             return
 
         # Fetch the machine usage and version from its HTTP API
@@ -180,8 +187,8 @@ class CRNTable(App[CRNInfo]):
             return
 
         # Skip nodes without a reward address
-        if not node.reward_address:
-            logger.debug(f"Skipping node {node.hash}, no reward address")
+        if not node.stream_reward:
+            logger.debug(f"Skipping node {node.hash}, no stream address")
             return
 
         crn_config = await fetch_crn_config(node_url)
