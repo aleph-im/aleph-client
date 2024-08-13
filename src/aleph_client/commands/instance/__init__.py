@@ -306,7 +306,7 @@ async def create(
             superfluid_client = _load_account(private_key, private_key_file, account_type=SuperFluid)
 
             flow_hash = await handle_flow(
-                account=superfluid_client,  # type: ignore
+                account=superfluid_client,
                 sender=account.get_address(),
                 receiver=crn.stream_reward,
                 flow=Decimal(price),  # should be price.required_token (cause it's should be a PriceResponse)
@@ -387,7 +387,7 @@ async def delete(
             # Check if payment.receiver is not None
             if payment.receiver is not None:
                 flow_hash = await handle_flow_reduction(
-                    superfluid_client,  # type: ignore
+                    superfluid_client,
                     existing_message.sender,
                     payment.receiver,
                     Decimal(flow),  # should be replaced with price
