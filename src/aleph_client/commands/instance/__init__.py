@@ -296,7 +296,7 @@ async def create(
                     logger.debug(status, result)
                     if int(status) != 200:
                         print(status, result)
-                        echo(f"Could not start instance  {item_hash} on CRN")
+                        echo(f"Could not start instance {item_hash} on CRN")
                         return
 
             if not confidential:
@@ -404,7 +404,7 @@ async def _show_instances(messages: List[InstanceMessage], node_list: NodeInfo):
         )
     console = Console()
     console.print(table)
-    console.print("To connect to an instance, use:\n\n" "  ssh root@<ipv6 address>\n")
+    console.print("To connect to an instance, use:\n\n" "  ssh root@<ipv6 address> -i ssh-pubkey-file\n")
 
 
 @app.command()
