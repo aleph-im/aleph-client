@@ -279,7 +279,7 @@ async def create(
                 ssh_keys=[ssh_pubkey],
                 payment=payment,
                 hypervisor=hypervisor,
-                # requirements=HostRequirements(node=NodeRequirements(node_hash=crn.hash)) if crn else None, # Make message get reject on api2
+                requirements=HostRequirements(node=NodeRequirements(node_hash=crn.hash)) if crn else None,
                 trusted_execution=(
                     TrustedExecutionEnvironment(firmware=confidential_firmware_as_hash) if confidential else None
                 ),
