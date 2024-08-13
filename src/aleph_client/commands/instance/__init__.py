@@ -235,6 +235,10 @@ async def create(
             if not crn:
                 # User has ctrl-c
                 return
+            if confidential and crn.confidential_computing is False:
+                print("Instance do not support confidential computing. Please select another one.")
+                crn = None
+                continue
             print("Run instance on CRN:")
             print("\t Name", crn.name)
             print("\t Reward address", crn.reward_address)
@@ -242,6 +246,7 @@ async def create(
             if isinstance(crn.machine_usage, MachineUsage):
                 print("\t Available disk space", crn.machine_usage.disk)
                 print("\t Available ram", crn.machine_usage.mem)
+
             if not Confirm.ask("Deploy on this node ?"):
                 crn = None
                 continue
