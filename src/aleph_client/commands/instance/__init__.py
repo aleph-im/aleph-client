@@ -98,8 +98,8 @@ async def create(
         None,
         help=help_strings.IMMUATABLE_VOLUME,
     ),
-    crn_url=typer.Option(None, help=help_strings.CRN_HASH),
-    crn_hash=typer.Option(None, help=help_strings.CRN_URL),
+    crn_url=typer.Option(None, help=help_strings.CRN_URL),
+    crn_hash=typer.Option(None, help=help_strings.CRN_HASH),
 ):
     """Register a new instance on aleph.im"""
     setup_logging(debug)
