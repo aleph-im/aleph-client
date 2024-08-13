@@ -100,7 +100,7 @@ class CRNTable(App[CRNInfo]):
                 score=node["score"],
                 name=node["name"],
                 reward_address=node["reward"],
-                url=node["address"].rstrip('/'),
+                url=node["address"].rstrip("/"),
                 machine_usage=None,
                 version=None,
                 confidential_computing=None,
