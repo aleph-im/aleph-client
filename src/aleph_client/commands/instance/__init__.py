@@ -356,8 +356,15 @@ async def delete(
 
 async def _get_ipv6_address(message: InstanceMessage, node_list: NodeInfo) -> Tuple[str, str]:
     async with ClientSession() as session:
+        is_hold = not message.content.payment or message.content.payment.type == PaymentType["hold"]
+        is_confidential = (
+            hasattr(message.content, "environment")
+            and hasattr(message.content.environment, "trusted_execution")
+            and hasattr(message.content.environment.trusted_execution, "firmware")
+            and len(message.content.environment.trusted_execution.firmware) == 64
+        )
         try:
-            if not message.content.payment or not message.content.payment.receiver:
+            if is_hold and not is_confidential:
                 # Fetch from the scheduler API directly if no payment or no receiver
                 status = await fetch_json(
                     session,
@@ -365,13 +372,16 @@ async def _get_ipv6_address(message: InstanceMessage, node_list: NodeInfo) -> Tu
                 )
                 return status["vm_hash"], status["vm_ipv6"]
             for node in node_list.nodes:
-                if node["stream_reward"] == message.content.payment.receiver:
+                if node["stream_reward"] == message.content.payment.receiver or (
+                    hasattr(message.content, "requirements")
+                    and node["hash"] == message.content.requirements.node.node_hash
+                ):
                     # Handle both cases where the address might or might not end with a '/'
                     path = f"{node['address'].rstrip('/')}/about/executions/list"
                     # Fetch from the CRN API if payment
                     executions = await fetch_json(session, path)
                     if message.item_hash in executions:
-                        ipv6_address = executions[message.item_hash]["networking"]["ipv6"]
+                        ipv6_address = executions[message.item_hash]["networking"]["ipv6"].split("/")[0]
                         return message.item_hash, ipv6_address
 
             return message.item_hash, "Not available (yet)"
