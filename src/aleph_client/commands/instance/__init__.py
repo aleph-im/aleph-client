@@ -72,8 +72,8 @@ async def create(
     confidential_firmware: str = typer.Option(
         default=settings.DEFAULT_CONFIDENTIAL_FIRMWARE, help=help_strings.CONFIDENTIAL_FIRMWARE
     ),
-    memory: int = typer.Option(settings.DEFAULT_INSTANCE_MEMORY, help="Maximum memory allocation on vm in MiB"),
-    vcpus: int = typer.Option(sdk_settings.DEFAULT_VM_VCPUS, help="Number of virtual cpus to allocate."),
+    memory: int = typer.Option(None, help="Maximum memory allocation on vm in MiB"),
+    vcpus: int = typer.Option(None, help="Number of virtual cpus to allocate."),
     timeout_seconds: float = typer.Option(
         sdk_settings.DEFAULT_VM_TIMEOUT,
         help="If vm is not called after [timeout_seconds] it will shutdown",
@@ -86,11 +86,11 @@ async def create(
     ),
     print_messages: bool = typer.Option(False),
     rootfs: str = typer.Option(
-        "Ubuntu 22",
+        None,
         help="Hash of the rootfs to use for your instance. Defaults to Ubuntu 22. You can also create your own rootfs and pin it",
     ),
     rootfs_size: int = typer.Option(
-        settings.DEFAULT_ROOTFS_SIZE,
+        None,
         help="Size of the rootfs to use for your instance. If not set, content.size of the --rootfs store message will be used.",
     ),
     hypervisor: HypervisorType = typer.Option(
@@ -169,25 +169,24 @@ async def create(
 
     os_choices = available_hypervisors[hypervisor]
 
-    if confidential:
-        # Confidential only support custom rootfs
-        rootfs = "custom"
-    else:
-        rootfs = Prompt.ask(
-            "Do you want to use a custom rootfs or one of the following prebuilt ones?",
-            default=rootfs,
-            choices=[*os_choices, "custom"],
-        )
+    if not rootfs and len(rootfs) != 64:
+        if confidential:
+            rootfs = "custom"
+        else:
+            rootfs = Prompt.ask(
+                "Do you want to use a custom rootfs or one of the following prebuilt ones?",
+                default=rootfs,
+                choices=[*os_choices, "custom"],
+            )
+        if rootfs == "custom":
+            rootfs = validated_prompt(
+                "Enter the item hash of the rootfs to use for your instance",
+                lambda x: len(x) == 64,
+            )
+        else:
+            rootfs = os_choices[rootfs]
 
-    if rootfs == "custom":
-        rootfs = validated_prompt(
-            "Enter the item hash of the rootfs to use for your instance",
-            lambda x: len(x) == 64,
-        )
-    else:
-        rootfs = os_choices[rootfs]
-
-    if sync_cloud:
+    if sync_cloud and not instance_name:
         instance_name = Prompt.ask(
             "How do you want to call your instance ?",
         )
@@ -214,11 +213,16 @@ async def create(
                 typer.echo("Confidential Firmware hash does not exist on aleph.im")
                 raise typer.Exit(code=1)
 
-    vcpus = validated_int_prompt("Number of virtual cpus to allocate", vcpus, min_value=1, max_value=4)
-
-    memory = validated_int_prompt("Maximum memory allocation on vm in MiB", memory, min_value=2000, max_value=8000)
-
-    rootfs_size = validated_int_prompt("Disk size in MiB", rootfs_size, min_value=20000, max_value=100000)
+    if not vcpus:
+        vcpus = validated_int_prompt(
+            "Number of virtual cpus to allocate", settings.DEFAULT_VM_VCPUS, min_value=1, max_value=4
+        )
+    if not memory:
+        memory = validated_int_prompt(
+            "Maximum memory allocation on vm in MiB", settings.DEFAULT_INSTANCE_MEMORY, min_value=2000, max_value=8000
+        )
+    if not rootfs_size:
+        rootfs_size = validated_int_prompt("Disk size in MiB", rootfs_size, min_value=20000, max_value=100000)
 
     volumes = get_or_prompt_volumes(
         persistent_volume=persistent_volume,
