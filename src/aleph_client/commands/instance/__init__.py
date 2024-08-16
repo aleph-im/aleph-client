@@ -695,7 +695,8 @@ async def confidential_init_session(
         echo("Could not get the certificate from the CRN.")
         return
 
-    platform_cert_path = Path(platform_file).rename(session_dir / "platform_certificate.pem")
+    # pathlib.Path.rename raises "Invalid cross-device link" if the destination is not on the current filesystem.
+    platform_cert_path = shutil.move(platform_file, session_dir / "platform_certificate.pem")
     certificate_prefix = str(session_dir) + "/vm"
 
     # Create local session files
