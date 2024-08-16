@@ -48,7 +48,7 @@ class CRNInfo(BaseModel):
     hash: ItemHash
     name: str
     version: Optional[str]
-    reward_address: str
+    stream_reward_address: str
     url: str
     confidential_computing: Optional[bool]
 
@@ -99,8 +99,8 @@ class CRNTable(App[CRNInfo]):
                 hash=node["hash"],
                 score=node["score"],
                 name=node["name"],
-                reward_address=node["reward"],
-                url=node["address"],
+                stream_reward_address=node["stream_reward"],
+                url=node["address"].rstrip("/"),
                 machine_usage=None,
                 version=None,
                 confidential_computing=None,
@@ -115,7 +115,7 @@ class CRNTable(App[CRNInfo]):
             self.table.add_row(
                 _format_score(info.score),
                 info.name,
-                info.reward_address,
+                info.stream_reward_address,
                 info.confidential_computing,
                 info.version,
                 usage.cpu,
@@ -152,7 +152,7 @@ class CRNTable(App[CRNInfo]):
             return
 
         # Skip nodes without a reward address
-        if not node.reward_address:
+        if not node.stream_reward_address:
             logger.debug(f"Skipping node {node.hash}, no reward address")
             return
 
@@ -180,7 +180,7 @@ class CRNTable(App[CRNInfo]):
             return
 
         # Skip nodes without a reward address
-        if not node.reward_address:
+        if not node.stream_reward_address:
             logger.debug(f"Skipping node {node.hash}, no reward address")
             return
 

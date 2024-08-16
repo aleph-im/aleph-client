@@ -4,8 +4,9 @@ import asyncio
 import json
 import logging
 import shutil
+from ipaddress import IPv6Interface
 from pathlib import Path
-from typing import List, Optional, Tuple, Union, cast
+from typing import Dict, List, Optional, Tuple, Union, cast
 
 import typer
 from aiohttp import ClientResponseError, ClientSession
@@ -37,6 +38,7 @@ from rich import box
 from rich.console import Console
 from rich.prompt import Confirm, Prompt
 from rich.table import Table
+from rich.text import Text
 
 from aleph_client.commands import help_strings
 from aleph_client.commands.instance.display import CRNInfo, CRNTable
@@ -50,6 +52,8 @@ from aleph_client.commands.utils import (
 from aleph_client.conf import settings
 from aleph_client.models import MachineUsage
 from aleph_client.utils import AsyncTyper, fetch_json
+
+from ..utils import has_nested_attr
 
 logger = logging.getLogger(__name__)
 app = AsyncTyper(no_args_is_help=True)
@@ -98,8 +102,8 @@ async def create(
         None,
         help=help_strings.IMMUATABLE_VOLUME,
     ),
-    crn_url=typer.Option(None, help=help_strings.CRN_HASH),
-    crn_hash=typer.Option(None, help=help_strings.CRN_URL),
+    crn_url=typer.Option(None, help=help_strings.CRN_URL),
+    crn_hash=typer.Option(None, help=help_strings.CRN_HASH),
 ):
     """Register a new instance on aleph.im"""
     setup_logging(debug)
@@ -169,23 +173,24 @@ async def create(
 
     os_choices = available_hypervisors[hypervisor]
 
-    if confidential:
-        # Confidential only support custom rootfs
-        rootfs = "custom"
-    else:
-        rootfs = Prompt.ask(
-            "Do you want to use a custom rootfs or one of the following prebuilt ones?",
-            default=rootfs,
-            choices=[*os_choices, "custom"],
-        )
+    if not rootfs or len(rootfs) != 64:
+        if confidential:
+            # Confidential only support custom rootfs
+            rootfs = "custom"
+        else:
+            rootfs = Prompt.ask(
+                "Do you want to use a custom rootfs or one of the following prebuilt ones?",
+                default=rootfs,
+                choices=[*os_choices, "custom"],
+            )
 
-    if rootfs == "custom":
-        rootfs = validated_prompt(
-            "Enter the item hash of the rootfs to use for your instance",
-            lambda x: len(x) == 64,
-        )
-    else:
-        rootfs = os_choices[rootfs]
+        if rootfs == "custom":
+            rootfs = validated_prompt(
+                "Enter the item hash of the rootfs to use for your instance",
+                lambda x: len(x) == 64,
+            )
+        else:
+            rootfs = os_choices[rootfs]
 
     # Validate rootfs message exist
     async with AlephHttpClient(api_server=sdk_settings.API_HOST) as client:
@@ -210,9 +215,9 @@ async def create(
 
     vcpus = validated_int_prompt("Number of virtual cpus to allocate", vcpus, min_value=1, max_value=4)
 
-    memory = validated_int_prompt("Maximum memory allocation on vm in MiB", memory, min_value=2000, max_value=8000)
+    memory = validated_int_prompt("Maximum memory allocation on vm in MiB", memory, min_value=2_048, max_value=8_192)
 
-    rootfs_size = validated_int_prompt("Disk size in MiB", rootfs_size, min_value=20000, max_value=100000)
+    rootfs_size = validated_int_prompt("Disk size in MiB", rootfs_size, min_value=10_240, max_value=102_400)
 
     volumes = get_or_prompt_volumes(
         persistent_volume=persistent_volume,
@@ -223,7 +228,7 @@ async def create(
     # For PAYG or confidential, the user select directly the node on which to run on
     # For PAYG User have to make the payment stream separately
     # For now, we allow hold for confidential, but the user still has to choose on which CRN to run.
-    reward_address = None
+    stream_reward_address = None
     crn = None
     if crn_url and crn_hash:
         crn = CRNInfo(
@@ -231,7 +236,7 @@ async def create(
             hash=crn_hash,
             score=10,
             name="",
-            reward_address="",
+            stream_reward_address="",
             machine_usage=None,
             version=None,
             confidential_computing=None,
@@ -245,7 +250,7 @@ async def create(
                 return
             print("Run instance on CRN:")
             print("\t Name", crn.name)
-            print("\t Reward address", crn.reward_address)
+            print("\t Stream reward address", crn.stream_reward_address)
             print("\t URL", crn.url)
             if isinstance(crn.machine_usage, MachineUsage):
                 print("\t Available disk space", crn.machine_usage.disk)
@@ -253,14 +258,14 @@ async def create(
             if not Confirm.ask("Deploy on this node ?"):
                 crn = None
                 continue
-            reward_address = crn.reward_address
+            stream_reward_address = crn.stream_reward_address
 
     async with AuthenticatedAlephHttpClient(account=account, api_server=sdk_settings.API_HOST) as client:
         payment: Optional[Payment] = None
-        if reward_address:
+        if stream_reward_address:
             payment = Payment(
                 chain=Chain.AVAX,
-                receiver=reward_address,
+                receiver=stream_reward_address,
                 type=payment_type,
             )
         try:
@@ -359,57 +364,139 @@ async def delete(
         typer.echo(f"Instance {item_hash} has been deleted. It will be removed by the scheduler in a few minutes.")
 
 
-async def _get_ipv6_address(message: InstanceMessage, node_list: NodeInfo) -> Tuple[str, str]:
+async def _get_instance_details(message: InstanceMessage, node_list: NodeInfo) -> Tuple[str, Dict[str, object]]:
     async with ClientSession() as session:
+        hold = not message.content.payment or message.content.payment.type == PaymentType["hold"]
+        confidential = (
+            has_nested_attr(message.content, ["environment", "trusted_execution", "firmware"])
+            and len(getattr(message.content.environment.trusted_execution, "firmware")) == 64
+        )
+        details = dict(
+            ipv6_logs="",
+            payment="hold\t   " if hold else str(getattr(message.content.payment, "type").value),
+            confidential=confidential,
+        )
         try:
-            if not message.content.payment:
-                # Fetch from the scheduler API directly if no payment
+            if hold and not confidential:
+                # Fetch from the scheduler API directly if no payment or no receiver
                 status = await fetch_json(
                     session,
                     f"https://scheduler.api.aleph.cloud/api/v0/allocation/{message.item_hash}",
                 )
-                return status["vm_hash"], status["vm_ipv6"]
+                details["ipv6_logs"] = status["vm_ipv6"]
+                return str(status["vm_hash"]), details
             for node in node_list.nodes:
-                if node["stream_reward"] == message.content.payment.receiver:
-
+                if (
+                    has_nested_attr(message.content, ["payment", "receiver"])
+                    and node["stream_reward"] == getattr(message.content.payment, "receiver")
+                ) or (
+                    has_nested_attr(message.content, ["requirements", "node", "node_hash"])
+                    and message.content.requirements is not None
+                    and node["hash"] == getattr(message.content.requirements.node, "node_hash")
+                ):
                     # Handle both cases where the address might or might not end with a '/'
-                    path: str = (
-                        f"{node['address']}about/executions/list"
-                        if node["address"][-1] == "/"
-                        else f"{node['address']}/about/executions/list"
-                    )
+                    path = f"{node['address'].rstrip('/')}/about/executions/list"
                     # Fetch from the CRN API if payment
                     executions = await fetch_json(session, path)
                     if message.item_hash in executions:
-                        ipv6_address = executions[message.item_hash]["networking"]["ipv6"]
-                        return message.item_hash, ipv6_address
-
-            return message.item_hash, "Not available (yet)"
+                        interface = IPv6Interface(executions[message.item_hash]["networking"]["ipv6"])
+                        details["ipv6_logs"] = str(interface.ip)
+                        return message.item_hash, details
+            details["ipv6_logs"] = "Not initialized" if confidential else "Not available (yet)"
         except ClientResponseError as e:
-            return message.item_hash, f"Not available (yet), server not responding : {e}"
+            details["ipv6_logs"] = f"Not available (yet), server not responding : {e}"
+        return message.item_hash, details
 
 
 async def _show_instances(messages: List[InstanceMessage], node_list: NodeInfo):
     table = Table(box=box.SIMPLE_HEAVY)
-    table.add_column("Item Hash", style="cyan")
-    table.add_column("Vcpus", style="magenta")
-    table.add_column("Memory", style="magenta")
-    table.add_column("Disk size", style="magenta")
-    table.add_column("IPv6 address", style="yellow")
+    table.add_column(f"Instances ({len(messages)})", style="blue")
+    table.add_column("Specifications", style="magenta")
+    table.add_column("IPv6 Address - Logs", style="yellow")
 
-    scheduler_responses = dict(await asyncio.gather(*[_get_ipv6_address(message, node_list) for message in messages]))
-
+    scheduler_responses = dict(
+        await asyncio.gather(*[_get_instance_details(message, node_list) for message in messages])
+    )
+    uninitialized_confidential_found = False
     for message in messages:
-        table.add_row(
-            message.item_hash,
-            str(message.content.resources.vcpus),
-            str(message.content.resources.memory),
-            str(message.content.rootfs.size_mib),
-            scheduler_responses[message.item_hash],
+        resp = scheduler_responses[message.item_hash]
+        if resp["ipv6_logs"] == "Not initialized":
+            uninitialized_confidential_found = True
+        name = Text(
+            (
+                message.content.metadata["name"]
+                if hasattr(message.content, "metadata")
+                and isinstance(message.content.metadata, dict)
+                and "name" in message.content.metadata
+                else "-"
+            ),
+            style="orchid",
         )
+        item_hash_link = Text.from_markup(
+            f"[link={sdk_settings.API_HOST}/api/v0/messages/{message.item_hash}]{message.item_hash}[/link]",
+            style="bright_cyan",
+        )
+        payment = Text.assemble(
+            "Payment: ",
+            Text(str(resp["payment"]).capitalize(), style="orange3" if resp["payment"] == "superfluid" else "red"),
+        )
+        confidential = (
+            Text.assemble("Type: ", Text("Confidential", style="green"))
+            if resp["confidential"]
+            else Text.assemble("Type: ", Text("Regular", style="grey50"))
+        )
+        instance = Text.assemble(
+            "Item Hash ↓\t     Name: ", name, "\n", item_hash_link, "\n", payment, "  ", confidential
+        )
+        specifications = (
+            f"Vcpus: {message.content.resources.vcpus}\n"
+            f"RAM: {message.content.resources.memory / 1_024:.2f} GiB\n"
+            f"Disk: {message.content.rootfs.size_mib / 1_024:.2f} GiB"
+        )
+        table.add_row(
+            instance,
+            specifications,
+            str(resp["ipv6_logs"]),
+        )
+        table.add_section()
     console = Console()
+    console.print(
+        f"\n[bold]Address:[/bold] {messages[0].content.address}",
+    )
     console.print(table)
-    console.print("To connect to an instance, use:\n\n" "  ssh root@<ipv6 address>\n")
+    if uninitialized_confidential_found:
+        item_hash_field = Text("<vm-item-hash>", style="bright_cyan")
+        crn_url_field = Text("<crn-url>", style="blue")
+        console.print(
+            "To start to your uninitialized confidential instance, use:\n\n",
+            Text.assemble(
+                "\taleph instance confidential-init-session ",
+                item_hash_field,
+                " ",
+                crn_url_field,
+                "\n\n",
+                style="italic",
+            ),
+            Text.assemble(
+                "\taleph instance confidential-start ",
+                item_hash_field,
+                " ",
+                crn_url_field,
+                "\n",
+                style="italic",
+            ),
+        )
+    console.print(
+        "To connect to an instance, use:\n\n",
+        Text.assemble(
+            "\tssh root@",
+            Text("<ipv6-address>", style="yellow"),
+            " -i ",
+            Text("<ssh-pubkey-file>", style="orange3"),
+            "\n",
+            style="italic",
+        ),
+    )
 
 
 @app.command()
@@ -436,8 +523,8 @@ async def list(
             ),
             page_size=100,
         )
-        if not resp:
-            typer.echo("No instances found")
+        if not resp or len(resp.messages) == 0:
+            typer.echo(f"Address: {address}\n\nNo instance found\n")
             raise typer.Exit(code=1)
         if json:
             typer.echo(resp.json(indent=4))
