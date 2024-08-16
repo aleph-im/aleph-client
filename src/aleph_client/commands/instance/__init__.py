@@ -57,9 +57,9 @@ app = AsyncTyper(no_args_is_help=True)
 
 @app.command()
 async def create(
-    hold: bool = typer.Option(
-        default=False,
-        help="Pay using the holder tier instead of pay-as-you-go",
+    payment_type: PaymentType = typer.Option(
+        default=None,
+        help=help_strings.PAYMENT_TYPE,
     ),
     channel: Optional[str] = typer.Option(default=None, help=help_strings.CHANNEL),
     confidential: Optional[bool] = typer.Option(default=None, help=help_strings.CONFIDENTIAL_OPTION),
@@ -127,6 +127,15 @@ async def create(
 
     account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
 
+    if payment_type is None:
+        payment_type = PaymentType(
+            Prompt.ask(
+                "Which payment type do you want to use?",
+                choices=[ptype.value for ptype in PaymentType],
+                default=PaymentType.superfluid.value,
+            )
+        )
+
     if confidential:
         if hypervisor and hypervisor != HypervisorType.qemu:
             echo(f"Only QEMU is supported as an hypervisor for confidential")
@@ -191,7 +200,6 @@ async def create(
     confidential_firmware_as_hash = None
     if confidential:
         async with AlephHttpClient(api_server=sdk_settings.API_HOST) as client:
-
             confidential_firmware_as_hash = ItemHash(confidential_firmware)
             firmware_message: StoreMessage = await client.get_message(
                 item_hash=confidential_firmware, message_type=StoreMessage
@@ -228,7 +236,7 @@ async def create(
             version=None,
             confidential_computing=None,
         )
-    if not hold or confidential:
+    if payment_type != PaymentType.hold or confidential:
         while not crn:
             crn_table = CRNTable()
             crn = await crn_table.run_async()
@@ -253,7 +261,7 @@ async def create(
             payment = Payment(
                 chain=Chain.AVAX,
                 receiver=reward_address,
-                type=PaymentType["superfluid"],
+                type=payment_type,
             )
         try:
             message, status = await client.create_instance(
@@ -284,19 +292,17 @@ async def create(
         item_hash: ItemHash = message.item_hash
 
         console = Console()
-        if crn and (confidential or not hold):
+        if crn and (payment_type != PaymentType.hold or confidential):
             if not crn.url:
                 return
-            async with AuthenticatedAlephHttpClient(account=account, api_server=sdk_settings.API_HOST) as client:
-                account = _load_account(private_key, private_key_file)
-
-                async with VmClient(account, crn.url) as crn_client:
-                    status, result = await crn_client.start_instance(vm_id=item_hash)
-                    logger.debug(status, result)
-                    if int(status) != 200:
-                        print(status, result)
-                        echo(f"Could not start instance  {item_hash} on CRN")
-                        return
+            account = _load_account(private_key, private_key_file)
+            async with VmClient(account, crn.url) as crn_client:
+                status, result = await crn_client.start_instance(vm_id=item_hash)
+                logger.debug(status, result)
+                if int(status) != 200:
+                    print(status, result)
+                    echo(f"Could not start instance {item_hash} on CRN")
+                    return
 
             if not confidential:
                 console.print(

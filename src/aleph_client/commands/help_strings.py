@@ -24,3 +24,4 @@ CONFIDENTIAL_FIRMWARE_HASH = "Hash of the UEFI Firmware content, to validate mea
 CONFIDENTIAL_FIRMWARE_PATH = "Path to the UEFI Firmware content, to validate measure (instead of the hash)"
 CRN_HASH = "Hash of the CRN to deploy to"
 CRN_URL = "URL of the CRN to deploy to"
+PAYMENT_TYPE = "Pay using the holder tier instead of pay-as-you-go (hold or superfluid)"
