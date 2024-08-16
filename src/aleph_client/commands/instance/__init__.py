@@ -218,7 +218,7 @@ async def create(
     # For PAYG or confidential, the user select directly the node on which to run on
     # For PAYG User have to make the payment stream separately
     # For now, we allow hold for confidential, but the user still has to choose on which CRN to run.
-    reward_address = None
+    stream_reward_address = None
     crn = None
     if crn_url and crn_hash:
         crn = CRNInfo(
@@ -226,7 +226,7 @@ async def create(
             hash=crn_hash,
             score=10,
             name="",
-            reward_address="",
+            stream_reward_address="",
             machine_usage=None,
             version=None,
             confidential_computing=None,
@@ -240,7 +240,7 @@ async def create(
                 return
             print("Run instance on CRN:")
             print("\t Name", crn.name)
-            print("\t Reward address", crn.reward_address)
+            print("\t Stream reward address", crn.stream_reward)
             print("\t URL", crn.url)
             if isinstance(crn.machine_usage, MachineUsage):
                 print("\t Available disk space", crn.machine_usage.disk)
@@ -248,14 +248,14 @@ async def create(
             if not Confirm.ask("Deploy on this node ?"):
                 crn = None
                 continue
-            reward_address = crn.reward_address
+            stream_reward_address = crn.stream_reward
 
     async with AuthenticatedAlephHttpClient(account=account, api_server=sdk_settings.API_HOST) as client:
         payment: Optional[Payment] = None
-        if reward_address:
+        if stream_reward_address:
             payment = Payment(
                 chain=Chain.AVAX,
-                receiver=reward_address,
+                receiver=stream_reward_address,
                 type=PaymentType["superfluid"],
             )
         try:

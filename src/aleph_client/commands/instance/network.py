@@ -191,7 +191,7 @@ async def fetch_crn_info_in_queue(node: dict, queue: MachineInfoQueue) -> None:
             score=node["score"],
             name=node["name"],
             version=version,
-            reward_address=node["stream_reward"],
+            stream_reward_address=node["stream_reward"],
             url=node["address"],
         )
     )
