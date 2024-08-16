@@ -61,7 +61,7 @@ async def upload(
     ephemeral_volume: Optional[List[str]] = typer.Option(None, help=help_strings.EPHEMERAL_VOLUME),
     immutable_volume: Optional[List[str]] = typer.Option(
         None,
-        help=help_strings.IMMUATABLE_VOLUME,
+        help=help_strings.IMMUTABLE_VOLUME,
     ),
 ):
     """Register a program to run on aleph.im. For more information, see https://docs.aleph.im/computing/"""

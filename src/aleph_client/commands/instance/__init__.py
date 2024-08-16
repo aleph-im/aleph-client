@@ -61,49 +61,39 @@ app = AsyncTyper(no_args_is_help=True)
 
 @app.command()
 async def create(
-    payment_type: PaymentType = typer.Option(
-        default=None,
-        help=help_strings.PAYMENT_TYPE,
+    payment_type: PaymentType = typer.Option(None, help=help_strings.PAYMENT_TYPE),
+    hypervisor: HypervisorType = typer.Option(None, help=help_strings.HYPERVISOR),
+    name: Optional[str] = typer.Option(None, help=help_strings.INSTANCE_NAME),
+    rootfs: str = typer.Option("Ubuntu 22", help=help_strings.ROOTFS),
+    rootfs_size: int = typer.Option(None, help=help_strings.ROOTFS_SIZE),
+    vcpus: int = typer.Option(None, help=help_strings.VCPUS),
+    memory: int = typer.Option(None, help=help_strings.MEMORY),
+    timeout_seconds: float = typer.Option(
+        sdk_settings.DEFAULT_VM_TIMEOUT,
+        help=help_strings.TIMEOUT_SECONDS,
     ),
-    channel: Optional[str] = typer.Option(default=None, help=help_strings.CHANNEL),
-    confidential: Optional[bool] = typer.Option(default=None, help=help_strings.CONFIDENTIAL_OPTION),
+    ssh_pubkey_file: Path = typer.Option(
+        Path("~/.ssh/id_rsa.pub").expanduser(),
+        help=help_strings.SSH_PUBKEY_FILE,
+    ),
+    crn_hash: Optional[str] = typer.Option(None, help=help_strings.CRN_HASH),
+    crn_url: Optional[str] = typer.Option(None, help=help_strings.CRN_URL),
+    confidential: Optional[bool] = typer.Option(None, help=help_strings.CONFIDENTIAL_OPTION),
     confidential_firmware: str = typer.Option(
         default=settings.DEFAULT_CONFIDENTIAL_FIRMWARE, help=help_strings.CONFIDENTIAL_FIRMWARE
     ),
-    memory: int = typer.Option(settings.DEFAULT_INSTANCE_MEMORY, help="Maximum memory allocation on vm in MiB"),
-    vcpus: int = typer.Option(sdk_settings.DEFAULT_VM_VCPUS, help="Number of virtual cpus to allocate."),
-    timeout_seconds: float = typer.Option(
-        sdk_settings.DEFAULT_VM_TIMEOUT,
-        help="If vm is not called after [timeout_seconds] it will shutdown",
-    ),
-    private_key: Optional[str] = typer.Option(sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
-    private_key_file: Optional[Path] = typer.Option(sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
-    ssh_pubkey_file: Path = typer.Option(
-        Path("~/.ssh/id_rsa.pub").expanduser(),
-        help="Path to a public ssh key to be added to the instance.",
-    ),
-    print_messages: bool = typer.Option(False),
-    rootfs: str = typer.Option(
-        "Ubuntu 22",
-        help="Hash of the rootfs to use for your instance. Defaults to Ubuntu 22. You can also create your own rootfs and pin it",
-    ),
-    rootfs_size: int = typer.Option(
-        settings.DEFAULT_ROOTFS_SIZE,
-        help="Size of the rootfs to use for your instance. If not set, content.size of the --rootfs store message will be used.",
-    ),
-    hypervisor: HypervisorType = typer.Option(
-        default=None,
-        help="Hypervisor to use to launch your instance. Defaults to Firecracker.",
-    ),
-    debug: bool = False,
+    skip_volume: bool = typer.Option(False, help=help_strings.SKIP_VOLUME),
     persistent_volume: Optional[List[str]] = typer.Option(None, help=help_strings.PERSISTENT_VOLUME),
     ephemeral_volume: Optional[List[str]] = typer.Option(None, help=help_strings.EPHEMERAL_VOLUME),
     immutable_volume: Optional[List[str]] = typer.Option(
         None,
-        help=help_strings.IMMUATABLE_VOLUME,
+        help=help_strings.IMMUTABLE_VOLUME,
     ),
-    crn_url=typer.Option(None, help=help_strings.CRN_URL),
-    crn_hash=typer.Option(None, help=help_strings.CRN_HASH),
+    channel: Optional[str] = typer.Option(None, help=help_strings.CHANNEL),
+    private_key: Optional[str] = typer.Option(sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
+    private_key_file: Optional[Path] = typer.Option(sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
+    print_messages: bool = typer.Option(False),
+    debug: bool = False,
 ):
     """Register a new instance on aleph.im"""
     setup_logging(debug)
@@ -212,18 +202,31 @@ async def create(
             if not firmware_message:
                 typer.echo("Confidential Firmware hash does not exist on aleph.im")
                 raise typer.Exit(code=1)
+    if not name:
+        name = validated_prompt("Instance name", lambda x: len(x) < 65)
+    if not rootfs_size:
+        rootfs_size = validated_int_prompt(
+            "Disk size in MiB", default=settings.DEFAULT_ROOTFS_SIZE, min_value=10_240, max_value=102_400
+        )
+    if not vcpus:
+        vcpus = validated_int_prompt(
+            "Number of virtual cpus to allocate", default=sdk_settings.DEFAULT_VM_VCPUS, min_value=1, max_value=4
+        )
+    if not memory:
+        memory = validated_int_prompt(
+            "Maximum memory allocation on vm in MiB",
+            default=settings.DEFAULT_INSTANCE_MEMORY,
+            min_value=2_048,
+            max_value=8_192,
+        )
 
-    vcpus = validated_int_prompt("Number of virtual cpus to allocate", vcpus, min_value=1, max_value=4)
-
-    memory = validated_int_prompt("Maximum memory allocation on vm in MiB", memory, min_value=2_048, max_value=8_192)
-
-    rootfs_size = validated_int_prompt("Disk size in MiB", rootfs_size, min_value=10_240, max_value=102_400)
-
-    volumes = get_or_prompt_volumes(
-        persistent_volume=persistent_volume,
-        ephemeral_volume=ephemeral_volume,
-        immutable_volume=immutable_volume,
-    )
+    volumes = []
+    if not skip_volume:
+        volumes = get_or_prompt_volumes(
+            persistent_volume=persistent_volume,
+            ephemeral_volume=ephemeral_volume,
+            immutable_volume=immutable_volume,
+        )
 
     # For PAYG or confidential, the user select directly the node on which to run on
     # For PAYG User have to make the payment stream separately
@@ -233,7 +236,7 @@ async def create(
     if crn_url and crn_hash:
         crn = CRNInfo(
             url=crn_url,
-            hash=crn_hash,
+            hash=ItemHash(crn_hash),
             score=10,
             name="",
             stream_reward_address="",
@@ -275,6 +278,7 @@ async def create(
                 rootfs_size=rootfs_size,
                 storage_engine=StorageEnum.storage,
                 channel=channel,
+                metadata={"name": name},
                 memory=memory,
                 vcpus=vcpus,
                 timeout_seconds=timeout_seconds,
@@ -449,7 +453,7 @@ async def _show_instances(messages: List[InstanceMessage], node_list: NodeInfo):
             "Item Hash ↓\t     Name: ", name, "\n", item_hash_link, "\n", payment, "  ", confidential
         )
         specifications = (
-            f"Vcpus: {message.content.resources.vcpus}\n"
+            f"vCPUs: {message.content.resources.vcpus}\n"
             f"RAM: {message.content.resources.memory / 1_024:.2f} GiB\n"
             f"Disk: {message.content.rootfs.size_mib / 1_024:.2f} GiB"
         )
@@ -724,7 +728,7 @@ async def confidential_start(
     firmware_hash: str = typer.Option(
         settings.DEFAULT_CONFIDENTIAL_FIRMWARE_HASH, help=help_strings.CONFIDENTIAL_FIRMWARE_HASH
     ),
-    firmware_file: str = typer.Option(default=None, help=help_strings.PRIVATE_KEY),
+    firmware_file: str = typer.Option(None, help=help_strings.PRIVATE_KEY),
     private_key: Optional[str] = typer.Option(sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
     private_key_file: Optional[Path] = typer.Option(sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
     debug: bool = False,
