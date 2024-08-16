@@ -235,10 +235,14 @@ async def create(
             if not crn:
                 # User has ctrl-c
                 return
+
             if confidential and crn.confidential_computing is False:
-                print("Instance do not support confidential computing. Please select another one.")
+                print("Choosen CRN do not support confidential computing. Please select another one.")
                 crn = None
                 continue
+            if hypervisor == HypervisorType.qemu and crn.qemu_support is False:
+                print("Choosen CRN do not support QEMU hypervisor. Please select another one.")
+                crn = None
             print("Run instance on CRN:")
             print("\t Name", crn.name)
             print("\t Reward address", crn.reward_address)

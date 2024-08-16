@@ -51,6 +51,7 @@ class CRNInfo(BaseModel):
     reward_address: str
     url: str
     confidential_computing: Optional[bool]
+    qemu_support: Optional[bool]
 
 
 class DisplayMachineUsage(BaseModel):
@@ -188,6 +189,7 @@ class CRNTable(App[CRNInfo]):
         if crn_config:
             # The computing is only available on aleph-vm > 0.4.1
             node.confidential_computing = crn_config.get("computing", {}).get("ENABLE_CONFIDENTIAL_COMPUTING")
+            node.qemu_support = crn_config.get("computing", {}).get("ENABLE_QEMU_SUPPORT")
         confidential_computing = "Y" if node.confidential_computing else "N"
 
         self.table.update_cell(row_key=node.hash, column_key="confidential_computing", value=confidential_computing)
