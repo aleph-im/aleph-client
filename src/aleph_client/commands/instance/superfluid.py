@@ -1,7 +1,7 @@
 import logging
 from decimal import Decimal
 
-from aleph.sdk.client.superfluid import SuperFluid
+from aleph.sdk.chains.ethereum import ETHAccount
 from eth_utils.currency import to_wei
 from superfluid import Web3FlowInfo
 
@@ -13,7 +13,7 @@ def from_wei(wei_value: Decimal) -> Decimal:
     return wei_value / Decimal(10**18)
 
 
-async def handle_flow(account: SuperFluid, sender: str, receiver: str, flow: Decimal):
+async def handle_flow(account: ETHAccount, receiver: str, flow: Decimal):
     """
     Manages the flow of a Superfluid stream between a sender and receiver.
 
@@ -27,10 +27,10 @@ async def handle_flow(account: SuperFluid, sender: str, receiver: str, flow: Dec
     :param flow: The additional flow rate to be added (in ether).
     :return: The transaction hash of the executed operation (either create or update flow).
     """
-    flow_info: Web3FlowInfo = await account.get_flow(sender, receiver)
+    flow_info: Web3FlowInfo = await account.get_flow(receiver)
 
     if not flow_info["flowRate"]:
-        return await account.create_flow(sender, receiver, flow)
+        return await account.create_flow(receiver, flow)
     else:
         current_flow_rate_wei = Decimal(flow_info["flowRate"])
 
@@ -40,10 +40,10 @@ async def handle_flow(account: SuperFluid, sender: str, receiver: str, flow: Dec
 
         new_flow_rate_ether = from_wei(new_flow_rate_wei)
 
-        return await account.update_flow(sender, receiver, new_flow_rate_ether)
+        return await account.update_flow(receiver, new_flow_rate_ether)
 
 
-async def handle_flow_reduction(account: SuperFluid, sender: str, receiver: str, removed_flow: Decimal):
+async def handle_flow_reduction(account: ETHAccount, receiver: str, removed_flow: Decimal):
     """
     Reduces or deletes the flow between sender and receiver based on removed_flow.
 
@@ -54,7 +54,7 @@ async def handle_flow_reduction(account: SuperFluid, sender: str, receiver: str,
     :return: The transaction hash of the executed operation or a status message
     """
     # Retrieve current flow info
-    flow_info: Web3FlowInfo = await account.get_flow(sender, receiver)
+    flow_info: Web3FlowInfo = await account.get_flow(receiver)
 
     # Check if there is an existing flow
     if flow_info["flowRate"]:
@@ -67,7 +67,7 @@ async def handle_flow_reduction(account: SuperFluid, sender: str, receiver: str,
         if new_flow_rate_wei > 0:
             # Update the flow with the reduced rate
             new_flow_rate_ether = from_wei(new_flow_rate_wei)
-            return await account.update_flow(sender, receiver, new_flow_rate_ether)
+            return await account.update_flow(receiver, new_flow_rate_ether)
         else:
             # Delete the flow as the new flow rate would be zero or negative
-            return await account.delete_flow(sender, receiver)
+            return await account.delete_flow(receiver)

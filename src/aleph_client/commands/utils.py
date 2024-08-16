@@ -12,7 +12,6 @@ import typer
 from aleph.sdk.account import _load_account, account_from_file, account_from_hex_string
 from aleph.sdk.chains.common import get_fallback_private_key
 from aleph.sdk.chains.remote import RemoteAccount
-from aleph.sdk.client.superfluid import SuperFluid
 from aleph.sdk.conf import settings
 from aleph.sdk.types import AccountFromPrivateKey, GenericMessage
 from pygments import highlight
@@ -207,37 +206,3 @@ def is_environment_interactive() -> bool:
             not os.environ.get("DEBIAN_NONINTERACTIVE") == "noninteractive",
         )
     )
-
-
-def load_superfluid_account(
-    private_key_str: Optional[str] = None,
-    private_key_file: Optional[Path] = None,
-) -> SuperFluid:
-    # Call _load_account with SuperFluid as the account_type
-    """Load private key from a string or a file.
-
-    Only keys that accounts that can be initiated from a
-    """
-
-    assert not (private_key_str and private_key_file), "Private key should be a string or a filepath, not both."
-
-    if private_key_str:
-        logger.debug("Using account from string")
-        return account_from_hex_string(private_key_str, SuperFluid)
-    elif private_key_file and private_key_file.is_file():
-        logger.debug("Using account from file")
-        return account_from_file(private_key_file, SuperFluid)
-    elif settings.REMOTE_CRYPTO_HOST:
-        logger.debug("Using remote account")
-        loop = asyncio.get_event_loop()
-        return loop.run_until_complete(
-            RemoteAccount.from_crypto_host(
-                host=settings.REMOTE_CRYPTO_HOST,
-                unix_socket=settings.REMOTE_CRYPTO_UNIX_SOCKET,
-            )
-        )
-    else:
-        new_private_key = get_fallback_private_key()
-        account = SuperFluid(private_key=new_private_key)
-        logger.info(f"Generated fallback private key with address {account.get_address()}")
-        return account

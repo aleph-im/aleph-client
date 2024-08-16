@@ -14,7 +14,6 @@ import typer
 from aiohttp import ClientResponseError, ClientSession
 from aleph.sdk import AlephHttpClient, AuthenticatedAlephHttpClient
 from aleph.sdk.account import _load_account
-from aleph.sdk.client.superfluid import SuperFluid
 from aleph.sdk.client.vm_client import VmClient
 from aleph.sdk.client.vm_confidential_client import VmConfidentialClient
 from aleph.sdk.conf import settings as sdk_settings
@@ -48,7 +47,6 @@ from aleph_client.commands.instance.superfluid import handle_flow, handle_flow_r
 from aleph_client.commands.node import NodeInfo, _fetch_nodes
 from aleph_client.commands.utils import (
     get_or_prompt_volumes,
-    load_superfluid_account,
     setup_logging,
     validated_int_prompt,
     validated_prompt,
@@ -136,6 +134,9 @@ async def create(
 
     account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
 
+    if not rootfs_size:
+        rootfs_size = settings.DEFAULT_ROOTFS_SIZE
+
     if confidential:
         if hypervisor and hypervisor != HypervisorType.qemu:
             echo(f"Only QEMU is supported as an hypervisor for confidential")
@@ -169,13 +170,15 @@ async def create(
 
     os_choices = available_hypervisors[hypervisor]
 
-    if not rootfs and len(rootfs) != 64:
+    try:
+        ItemHash(rootfs)
+    except AttributeError:
         if confidential:
             rootfs = "custom"
         else:
             rootfs = Prompt.ask(
                 "Do you want to use a custom rootfs or one of the following prebuilt ones?",
-                default=rootfs,
+                default="Ubuntu 22",
                 choices=[*os_choices, "custom"],
             )
         if rootfs == "custom":
@@ -308,11 +311,9 @@ async def create(
             price = "0.000003555555555555"  # This value work only because right now PriceCalculations is bug on this release (patch already in pyaleph)
 
             # We load SuperFluid account
-            superfluid_client: SuperFluid = load_superfluid_account(private_key, private_key_file)
 
             flow_hash = await handle_flow(
-                account=superfluid_client,
-                sender=account.get_address(),
+                account=account,
                 receiver=crn.stream_reward,
                 flow=Decimal(price),  # should be price.required_token (cause it's should be a PriceResponse)
             )
@@ -387,13 +388,11 @@ async def delete(
         if payment is not None and payment.type == PaymentType.superfluid:
             # price: PriceResponse = await client.get_program_price(item_hash)
             flow = "0.000003555555555555"
-            superfluid_client = load_superfluid_account(private_key, private_key_file)
 
             # Check if payment.receiver is not None
             if payment.receiver is not None:
                 flow_hash = await handle_flow_reduction(
-                    superfluid_client,
-                    existing_message.sender,
+                    account,
                     payment.receiver,
                     Decimal(flow),  # should be replaced with price
                 )
