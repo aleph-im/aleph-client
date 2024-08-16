@@ -373,7 +373,7 @@ async def _get_instance_details(message: InstanceMessage, node_list: NodeInfo) -
         )
         details = dict(
             ipv6_logs="",
-            payment="hold\t   " if hold else str(getattr(message.content.payment, "type")),
+            payment="hold\t   " if hold else str(getattr(message.content.payment, "type").value),
             confidential=confidential,
         )
         try:
