@@ -4,6 +4,7 @@ import asyncio
 import json
 import logging
 import shutil
+from ipaddress import IPv6Interface
 from pathlib import Path
 from typing import List, Optional, Tuple, Union, cast
 
@@ -204,9 +205,9 @@ async def create(
 
     vcpus = validated_int_prompt("Number of virtual cpus to allocate", vcpus, min_value=1, max_value=4)
 
-    memory = validated_int_prompt("Maximum memory allocation on vm in MiB", memory, min_value=2000, max_value=8000)
+    memory = validated_int_prompt("Maximum memory allocation on vm in MiB", memory, min_value=2_048, max_value=8_192)
 
-    rootfs_size = validated_int_prompt("Disk size in MiB", rootfs_size, min_value=20000, max_value=100000)
+    rootfs_size = validated_int_prompt("Disk size in MiB", rootfs_size, min_value=10_240, max_value=102_400)
 
     volumes = get_or_prompt_volumes(
         persistent_volume=persistent_volume,
@@ -389,7 +390,8 @@ async def _get_instance_details(message: InstanceMessage, node_list: NodeInfo) -
                     # Fetch from the CRN API if payment
                     executions = await fetch_json(session, path)
                     if message.item_hash in executions:
-                        details["ipv6_logs"] = executions[message.item_hash]["networking"]["ipv6"].split("/")[0]
+                        interface = IPv6Interface(executions[message.item_hash]["networking"]["ipv6"])
+                        details["ipv6_logs"] = str(interface.ip)
                         return message.item_hash, details
             details["ipv6_logs"] = "Not initialized" if confidential else "Not available (yet)"
         except ClientResponseError as e:
@@ -439,8 +441,8 @@ async def _show_instances(messages: List[InstanceMessage], node_list: NodeInfo):
         )
         specifications = (
             f"Vcpus: {message.content.resources.vcpus}\n"
-            f"RAM: {message.content.resources.memory / 1024:.2f} GB\n"
-            f"Disk: {message.content.rootfs.size_mib / 1024:.2f} GB"
+            f"RAM: {message.content.resources.memory / 1_024:.2f} GiB\n"
+            f"Disk: {message.content.rootfs.size_mib / 1_024:.2f} GiB"
         )
         table.add_row(
             instance,

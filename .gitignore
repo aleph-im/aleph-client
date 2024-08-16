@@ -46,6 +46,7 @@ cover/*
 MANIFEST
 
 # Per-project virtualenvs
+.env
 .venv*/
 venv/*
 **/device.key
