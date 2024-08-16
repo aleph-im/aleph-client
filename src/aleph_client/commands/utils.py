@@ -200,3 +200,11 @@ def is_environment_interactive() -> bool:
             not os.environ.get("DEBIAN_NONINTERACTIVE") == "noninteractive",
         )
     )
+
+
+def has_nested_attr(obj, attr_chain) -> bool:
+    for attr in attr_chain:
+        if not hasattr(obj, attr) or getattr(obj, attr) is None:
+            return False
+        obj = getattr(obj, attr)
+    return True

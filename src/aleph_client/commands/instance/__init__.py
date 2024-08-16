@@ -6,7 +6,7 @@ import logging
 import shutil
 from ipaddress import IPv6Interface
 from pathlib import Path
-from typing import List, Optional, Tuple, Union, cast
+from typing import Dict, List, Optional, Tuple, Union, cast
 
 import typer
 from aiohttp import ClientResponseError, ClientSession
@@ -53,15 +53,17 @@ from aleph_client.conf import settings
 from aleph_client.models import MachineUsage
 from aleph_client.utils import AsyncTyper, fetch_json
 
+from ..utils import has_nested_attr
+
 logger = logging.getLogger(__name__)
 app = AsyncTyper(no_args_is_help=True)
 
 
 @app.command()
 async def create(
-    hold: bool = typer.Option(
-        default=False,
-        help="Pay using the holder tier instead of pay-as-you-go",
+    payment_type: PaymentType = typer.Option(
+        default=None,
+        help=help_strings.PAYMENT_TYPE,
     ),
     channel: Optional[str] = typer.Option(default=None, help=help_strings.CHANNEL),
     confidential: Optional[bool] = typer.Option(default=None, help=help_strings.CONFIDENTIAL_OPTION),
@@ -129,6 +131,15 @@ async def create(
 
     account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
 
+    if payment_type is None:
+        payment_type = PaymentType(
+            Prompt.ask(
+                "Which payment type do you want to use?",
+                choices=[ptype.value for ptype in PaymentType],
+                default=PaymentType.superfluid.value,
+            )
+        )
+
     if confidential:
         if hypervisor and hypervisor != HypervisorType.qemu:
             echo(f"Only QEMU is supported as an hypervisor for confidential")
@@ -194,7 +205,6 @@ async def create(
     confidential_firmware_as_hash = None
     if confidential:
         async with AlephHttpClient(api_server=sdk_settings.API_HOST) as client:
-
             confidential_firmware_as_hash = ItemHash(confidential_firmware)
             firmware_message: StoreMessage = await client.get_message(
                 item_hash=confidential_firmware, message_type=StoreMessage
@@ -231,7 +241,7 @@ async def create(
             version=None,
             confidential_computing=None,
         )
-    if not hold or confidential:
+    if payment_type != PaymentType.hold or confidential:
         while not crn:
             crn_table = CRNTable()
             crn = await crn_table.run_async()
@@ -240,7 +250,7 @@ async def create(
                 return
             print("Run instance on CRN:")
             print("\t Name", crn.name)
-            print("\t Stream reward address", crn.stream_reward)
+            print("\t Stream reward address", crn.stream_reward_address)
             print("\t URL", crn.url)
             if isinstance(crn.machine_usage, MachineUsage):
                 print("\t Available disk space", crn.machine_usage.disk)
@@ -248,7 +258,7 @@ async def create(
             if not Confirm.ask("Deploy on this node ?"):
                 crn = None
                 continue
-            stream_reward_address = crn.stream_reward
+            stream_reward_address = crn.stream_reward_address
 
     async with AuthenticatedAlephHttpClient(account=account, api_server=sdk_settings.API_HOST) as client:
         payment: Optional[Payment] = None
@@ -256,7 +266,7 @@ async def create(
             payment = Payment(
                 chain=Chain.AVAX,
                 receiver=stream_reward_address,
-                type=PaymentType["superfluid"],
+                type=payment_type,
             )
         try:
             message, status = await client.create_instance(
@@ -287,19 +297,17 @@ async def create(
         item_hash: ItemHash = message.item_hash
 
         console = Console()
-        if crn and (confidential or not hold):
+        if crn and (payment_type != PaymentType.hold or confidential):
             if not crn.url:
                 return
-            async with AuthenticatedAlephHttpClient(account=account, api_server=sdk_settings.API_HOST) as client:
-                account = _load_account(private_key, private_key_file)
-
-                async with VmClient(account, crn.url) as crn_client:
-                    status, result = await crn_client.start_instance(vm_id=item_hash)
-                    logger.debug(status, result)
-                    if int(status) != 200:
-                        print(status, result)
-                        echo(f"Could not start instance {item_hash} on CRN")
-                        return
+            account = _load_account(private_key, private_key_file)
+            async with VmClient(account, crn.url) as crn_client:
+                status, result = await crn_client.start_instance(vm_id=item_hash)
+                logger.debug(status, result)
+                if int(status) != 200:
+                    print(status, result)
+                    echo(f"Could not start instance {item_hash} on CRN")
+                    return
 
             if not confidential:
                 console.print(
@@ -356,18 +364,16 @@ async def delete(
         typer.echo(f"Instance {item_hash} has been deleted. It will be removed by the scheduler in a few minutes.")
 
 
-async def _get_instance_details(message: InstanceMessage, node_list: NodeInfo) -> Tuple[str, str]:
+async def _get_instance_details(message: InstanceMessage, node_list: NodeInfo) -> Tuple[str, Dict[str, object]]:
     async with ClientSession() as session:
         hold = not message.content.payment or message.content.payment.type == PaymentType["hold"]
         confidential = (
-            hasattr(message.content, "environment")
-            and hasattr(message.content.environment, "trusted_execution")
-            and hasattr(message.content.environment.trusted_execution, "firmware")
-            and len(message.content.environment.trusted_execution.firmware) == 64
+            has_nested_attr(message.content, ["environment", "trusted_execution", "firmware"])
+            and len(getattr(message.content.environment.trusted_execution, "firmware")) == 64
         )
         details = dict(
-            ipv6_logs=None,
-            payment="hold\t   " if hold else message.content.payment.type,
+            ipv6_logs="",
+            payment="hold\t   " if hold else str(getattr(message.content.payment, "type")),
             confidential=confidential,
         )
         try:
@@ -378,12 +384,15 @@ async def _get_instance_details(message: InstanceMessage, node_list: NodeInfo) -
                     f"https://scheduler.api.aleph.cloud/api/v0/allocation/{message.item_hash}",
                 )
                 details["ipv6_logs"] = status["vm_ipv6"]
-                return status["vm_hash"], details
+                return str(status["vm_hash"]), details
             for node in node_list.nodes:
-                if node["stream_reward"] == message.content.payment.receiver or (
-                    hasattr(message.content, "requirements")
-                    and hasattr(message.content.requirements, "node")
-                    and node["hash"] == message.content.requirements.node.node_hash
+                if (
+                    has_nested_attr(message.content, ["payment", "receiver"])
+                    and node["stream_reward"] == getattr(message.content.payment, "receiver")
+                ) or (
+                    has_nested_attr(message.content, ["requirements", "node", "node_hash"])
+                    and message.content.requirements is not None
+                    and node["hash"] == getattr(message.content.requirements.node, "node_hash")
                 ):
                     # Handle both cases where the address might or might not end with a '/'
                     path = f"{node['address'].rstrip('/')}/about/executions/list"
@@ -429,7 +438,7 @@ async def _show_instances(messages: List[InstanceMessage], node_list: NodeInfo):
         )
         payment = Text.assemble(
             "Payment: ",
-            Text(resp["payment"].capitalize(), style="orange3" if resp["payment"] == "superfluid" else "red"),
+            Text(str(resp["payment"]).capitalize(), style="orange3" if resp["payment"] == "superfluid" else "red"),
         )
         confidential = (
             Text.assemble("Type: ", Text("Confidential", style="green"))
@@ -447,7 +456,7 @@ async def _show_instances(messages: List[InstanceMessage], node_list: NodeInfo):
         table.add_row(
             instance,
             specifications,
-            resp["ipv6_logs"],
+            str(resp["ipv6_logs"]),
         )
         table.add_section()
     console = Console()
