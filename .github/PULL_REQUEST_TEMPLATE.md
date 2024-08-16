@@ -25,7 +25,7 @@ If a specific config is required explain it here (account, data entry, ...)
 
 ## Print screen / video
 
-Upload here print screens or videos showing the changes if relevant.
+Upload here screenshots or videos showing the changes if relevant.
 
 ## Notes
 
