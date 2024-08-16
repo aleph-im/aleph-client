@@ -4,12 +4,12 @@ Related ClickUp, GitHub or Jira tickets : ALEPH-XXX
 
 ## Self proofreading checklist
 
-- [ ] Is my code clear enough and well documented
-- [ ] Are my files well typed
-- [ ] New translations have been added or updated if new strings have been introduced in the frontend
-- [ ] Database migrations file are included
-- [ ] Are there enough tests
-- [ ] Documentation has been included (for new feature)
+- [ ] The new code clear, easy to read and well commented.
+- [ ] New code does not duplicate the functions of builtin or popular libraries.
+- [ ] An LLM was used to review the new code and look for simplifications.
+- [ ] New classes and functions contain docstrings explaining what they provide.
+- [ ] All new code is covered by relevant tests.
+- [ ] Documentation has been updated regarding these changes.
 
 ## Changes
 
