@@ -4,6 +4,7 @@ import asyncio
 import json
 import logging
 import shutil
+from decimal import Decimal
 from ipaddress import IPv6Interface
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Union, cast
@@ -21,6 +22,7 @@ from aleph.sdk.exceptions import (
     MessageNotFoundError,
 )
 from aleph.sdk.query.filters import MessageFilter
+from aleph.sdk.query.responses import PriceResponse
 from aleph.sdk.types import AccountFromPrivateKey, StorageEnum
 from aleph.sdk.utils import calculate_firmware_hash
 from aleph_message.models import InstanceMessage, StoreMessage
@@ -42,6 +44,7 @@ from rich.text import Text
 
 from aleph_client.commands import help_strings
 from aleph_client.commands.instance.display import CRNInfo, CRNTable
+from aleph_client.commands.instance.superfluid import handle_flow, handle_flow_reduction
 from aleph_client.commands.node import NodeInfo, _fetch_nodes
 from aleph_client.commands.utils import (
     get_or_prompt_volumes,
@@ -224,9 +227,6 @@ async def create(
             immutable_volume=immutable_volume,
         )
 
-    # For PAYG or confidential, the user select directly the node on which to run on
-    # For PAYG User have to make the payment stream separately
-    # For now, we allow hold for confidential, but the user still has to choose on which CRN to run.
     stream_reward_address = None
     crn = None
     if crn_url and crn_hash:
@@ -302,7 +302,18 @@ async def create(
         if crn and (payment_type != PaymentType.hold or confidential):
             if not crn.url:
                 return
-            account = _load_account(private_key, private_key_file)
+
+            price: PriceResponse = await client.get_program_price(item_hash)
+
+            flow_hash = await handle_flow(
+                account=account,
+                chain=message.content.payment.chain,
+                receiver=crn.stream_reward_address,
+                flow=Decimal(price.required_tokens),
+            )
+
+            typer.echo(f"Flow {flow_hash} has been created of {price.required_tokens}")
+
             async with VmClient(account, crn.url) as crn_client:
                 status, result = await crn_client.start_instance(vm_id=item_hash)
                 logger.debug(status, result)
@@ -358,6 +369,18 @@ async def delete(
         if existing_message.sender != account.get_address():
             typer.echo("You are not the owner of this instance")
             raise typer.Exit(code=1)
+
+        payment: Optional[Payment] = existing_message.content.payment
+        if payment is not None and payment.type == PaymentType.superfluid:
+            price: PriceResponse = await client.get_program_price(item_hash)
+            if payment.receiver is not None:
+                flow_hash = await handle_flow_reduction(
+                    account,
+                    payment.chain,
+                    payment.receiver,
+                    Decimal(price.required_tokens),
+                )
+                typer.echo(f"Flow {flow_hash} has been deleted.")
 
         message, status = await client.forget(hashes=[ItemHash(item_hash)], reason=reason)
         if print_message:
