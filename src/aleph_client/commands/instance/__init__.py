@@ -14,6 +14,7 @@ import typer
 from aiohttp import ClientConnectorError, ClientResponseError, ClientSession
 from aleph.sdk import AlephHttpClient, AuthenticatedAlephHttpClient
 from aleph.sdk.account import _load_account
+from aleph.sdk.chains.ethereum import ETHAccount
 from aleph.sdk.client.vm_client import VmClient
 from aleph.sdk.client.vm_confidential_client import VmConfidentialClient
 from aleph.sdk.conf import settings as sdk_settings
@@ -306,17 +307,18 @@ async def create(
                 return
 
             price: PriceResponse = await client.get_program_price(item_hash)
-
-            flow_hash = await handle_flow(
-                account=account,
-                chain=message.content.payment.chain,
-                receiver=crn.stream_reward_address,
-                flow=Decimal(price.required_tokens),
-            )
+            if isinstance(account, ETHAccount):
+                flow_hash = await handle_flow(
+                    account=account,
+                    chain=message.content.payment.chain,
+                    receiver=crn.stream_reward_address,
+                    flow=Decimal(price.required_tokens),
+                )
 
             typer.echo(f"Flow {flow_hash} has been created of {price.required_tokens}")
             async with aiohttp.ClientSession() as session:
-                await wait_for_processing(session, item_hash, account, message.content.payment.receiver)
+                if isinstance(account, ETHAccount):
+                    await wait_for_processing(session, item_hash, account, message.content.payment.receiver)
 
             async with VmClient(account, crn.url) as crn_client:
                 status, result = await crn_client.start_instance(vm_id=item_hash)
@@ -379,12 +381,13 @@ async def delete(
         if payment is not None and payment.type == PaymentType.superfluid:
             price: PriceResponse = await client.get_program_price(item_hash)
             if payment.receiver is not None:
-                flow_hash = await handle_flow_reduction(
-                    account,
-                    payment.chain,
-                    payment.receiver,
-                    Decimal(price.required_tokens),
-                )
+                if isinstance(account, ETHAccount):
+                    flow_hash = await handle_flow_reduction(
+                        account,
+                        payment.chain,
+                        payment.receiver,
+                        Decimal(price.required_tokens),
+                    )
                 typer.echo(f"Flow {flow_hash} has been deleted.")
 
         message, status = await client.forget(hashes=[ItemHash(item_hash)], reason=reason)
