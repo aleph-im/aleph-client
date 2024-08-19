@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Union, cast
 
 import typer
-from aiohttp import ClientResponseError, ClientSession
+from aiohttp import ClientConnectorError, ClientResponseError, ClientSession
 from aleph.sdk import AlephHttpClient, AuthenticatedAlephHttpClient
 from aleph.sdk.account import _load_account
 from aleph.sdk.client.vm_client import VmClient
@@ -402,10 +402,10 @@ async def _get_instance_details(message: InstanceMessage, node_list: NodeInfo) -
                     executions = await fetch_json(session, path)
                     if message.item_hash in executions:
                         interface = IPv6Interface(executions[message.item_hash]["networking"]["ipv6"])
-                        details["ipv6_logs"] = str(interface.ip)
+                        details["ipv6_logs"] = str(interface.ip + 1)
                         return message.item_hash, details
             details["ipv6_logs"] = "Not initialized" if confidential else "Not available (yet)"
-        except ClientResponseError as e:
+        except (ClientResponseError, ClientConnectorError) as e:
             details["ipv6_logs"] = f"Not available (yet), server not responding : {e}"
         return message.item_hash, details
 
