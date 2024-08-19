@@ -21,6 +21,7 @@ from rich.table import Table
 
 from aleph_client.commands import help_strings
 from aleph_client.commands.utils import setup_logging
+from aleph_client.conf import settings
 from aleph_client.utils import AsyncTyper
 
 logger = logging.getLogger(__name__)
@@ -30,7 +31,7 @@ app = AsyncTyper(no_args_is_help=True)
 @app.command()
 async def pin(
     item_hash: str = typer.Argument(..., help="IPFS hash to pin on aleph.im"),
-    channel: Optional[str] = typer.Option(default=None, help=help_strings.CHANNEL),
+    channel: Optional[str] = typer.Option(default=settings.DEFAULT_CHANNEL, help=help_strings.CHANNEL),
     private_key: Optional[str] = typer.Option(sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
     private_key_file: Optional[Path] = typer.Option(sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
     ref: Optional[str] = typer.Option(None, help=help_strings.REF),
@@ -58,7 +59,7 @@ async def pin(
 @app.command()
 async def upload(
     path: Path = typer.Argument(..., help="Path of the file to upload"),
-    channel: Optional[str] = typer.Option(default=None, help=help_strings.CHANNEL),
+    channel: Optional[str] = typer.Option(default=settings.DEFAULT_CHANNEL, help=help_strings.CHANNEL),
     private_key: Optional[str] = typer.Option(sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
     private_key_file: Optional[Path] = typer.Option(sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
     ref: Optional[str] = typer.Option(None, help=help_strings.REF),
@@ -129,7 +130,7 @@ async def download(
 async def forget(
     item_hash: str = typer.Argument(..., help="Hash to forget"),
     reason: str = typer.Argument(..., help="reason to forget"),
-    channel: Optional[str] = typer.Option(None, help="channel"),
+    channel: Optional[str] = typer.Option(default=settings.DEFAULT_CHANNEL, help=help_strings.CHANNEL),
     private_key: Optional[str] = typer.Option(sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
     private_key_file: Optional[Path] = typer.Option(sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
     debug: bool = False,

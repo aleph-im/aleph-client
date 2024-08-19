@@ -89,7 +89,7 @@ async def create(
         None,
         help=help_strings.IMMUTABLE_VOLUME,
     ),
-    channel: Optional[str] = typer.Option(None, help=help_strings.CHANNEL),
+    channel: Optional[str] = typer.Option(default=settings.DEFAULT_CHANNEL, help=help_strings.CHANNEL),
     private_key: Optional[str] = typer.Option(sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
     private_key_file: Optional[Path] = typer.Option(sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
     print_messages: bool = typer.Option(False),
