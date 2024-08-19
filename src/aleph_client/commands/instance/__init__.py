@@ -524,7 +524,7 @@ async def _show_instances(messages: List[InstanceMessage], node_list: NodeInfo):
         item_hash_field = Text("<vm-item-hash>", style="bright_cyan")
         crn_url_field = Text("<crn-url>", style="blue")
         console.print(
-            "To start to the uninitialized confidential instance(s), use:\n\n",
+            "To start uninitialized confidential instance(s), use:\n\n",
             Text.assemble(
                 "  aleph instance confidential-init-session ",
                 item_hash_field,
