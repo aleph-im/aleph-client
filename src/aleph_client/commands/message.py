@@ -30,8 +30,8 @@ from aleph_client.commands.utils import (
     setup_logging,
     str_to_datetime,
 )
-from aleph_client.utils import AsyncTyper
 from aleph_client.conf import settings
+from aleph_client.utils import AsyncTyper
 
 app = AsyncTyper(no_args_is_help=True)
 
