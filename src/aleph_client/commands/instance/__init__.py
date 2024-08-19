@@ -402,7 +402,7 @@ async def _get_instance_details(message: InstanceMessage, node_list: NodeInfo) -
                     executions = await fetch_json(session, path)
                     if message.item_hash in executions:
                         interface = IPv6Interface(executions[message.item_hash]["networking"]["ipv6"])
-                        details["ipv6_logs"] = str(interface.ip)
+                        details["ipv6_logs"] = str(interface.ip + 1)
                         return message.item_hash, details
             details["ipv6_logs"] = "Not initialized" if confidential else "Not available (yet)"
         except ClientResponseError as e:
