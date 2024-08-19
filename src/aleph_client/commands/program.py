@@ -35,7 +35,7 @@ app = AsyncTyper(no_args_is_help=True)
 async def upload(
     path: Path = typer.Argument(..., help="Path to your source code"),
     entrypoint: str = typer.Argument(..., help="Your program entrypoint"),
-    channel: Optional[str] = typer.Option(default=None, help=help_strings.CHANNEL),
+    channel: Optional[str] = typer.Option(default=settings.DEFAULT_CHANNEL, help=help_strings.CHANNEL),
     memory: int = typer.Option(sdk_settings.DEFAULT_VM_MEMORY, help="Maximum memory allocation on vm in MiB"),
     vcpus: int = typer.Option(sdk_settings.DEFAULT_VM_VCPUS, help="Number of virtual cpus to allocate."),
     timeout_seconds: float = typer.Option(
@@ -61,7 +61,7 @@ async def upload(
     ephemeral_volume: Optional[List[str]] = typer.Option(None, help=help_strings.EPHEMERAL_VOLUME),
     immutable_volume: Optional[List[str]] = typer.Option(
         None,
-        help=help_strings.IMMUATABLE_VOLUME,
+        help=help_strings.IMMUTABLE_VOLUME,
     ),
 ):
     """Register a program to run on aleph.im. For more information, see https://docs.aleph.im/computing/"""

@@ -30,6 +30,7 @@ from aleph_client.commands.utils import (
     setup_logging,
     str_to_datetime,
 )
+from aleph_client.conf import settings
 from aleph_client.utils import AsyncTyper
 
 app = AsyncTyper(no_args_is_help=True)
@@ -108,7 +109,7 @@ async def post(
     ),
     type: str = typer.Option("test", help="Text representing the message object type"),
     ref: Optional[str] = typer.Option(None, help=help_strings.REF),
-    channel: Optional[str] = typer.Option(default=None, help=help_strings.CHANNEL),
+    channel: Optional[str] = typer.Option(default=settings.DEFAULT_CHANNEL, help=help_strings.CHANNEL),
     private_key: Optional[str] = typer.Option(sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
     private_key_file: Optional[Path] = typer.Option(sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
     debug: bool = False,
@@ -209,7 +210,7 @@ async def amend(
 async def forget(
     hashes: str = typer.Argument(..., help="Comma separated list of hash references of messages to forget"),
     reason: Optional[str] = typer.Option(None, help="A description of why the messages are being forgotten."),
-    channel: Optional[str] = typer.Option(default=None, help=help_strings.CHANNEL),
+    channel: Optional[str] = typer.Option(default=settings.DEFAULT_CHANNEL, help=help_strings.CHANNEL),
     private_key: Optional[str] = typer.Option(sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
     private_key_file: Optional[Path] = typer.Option(sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
     debug: bool = False,
