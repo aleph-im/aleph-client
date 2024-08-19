@@ -9,6 +9,7 @@ from ipaddress import IPv6Interface
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Union, cast
 
+import aiohttp
 import typer
 from aiohttp import ClientConnectorError, ClientResponseError, ClientSession
 from aleph.sdk import AlephHttpClient, AuthenticatedAlephHttpClient
@@ -51,6 +52,7 @@ from aleph_client.commands.utils import (
     setup_logging,
     validated_int_prompt,
     validated_prompt,
+    wait_for_processing,
 )
 from aleph_client.conf import settings
 from aleph_client.models import MachineUsage
@@ -313,6 +315,8 @@ async def create(
             )
 
             typer.echo(f"Flow {flow_hash} has been created of {price.required_tokens}")
+            async with aiohttp.ClientSession() as session:
+                await wait_for_processing(session, item_hash, account, message.content.payment.receiver)
 
             async with VmClient(account, crn.url) as crn_client:
                 status, result = await crn_client.start_instance(vm_id=item_hash)
@@ -360,6 +364,7 @@ async def delete(
             existing_message: InstanceMessage = await client.get_message(
                 item_hash=ItemHash(item_hash), message_type=InstanceMessage
             )
+
         except MessageNotFoundError:
             typer.echo("Instance does not exist")
             raise typer.Exit(code=1)

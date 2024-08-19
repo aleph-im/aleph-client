@@ -24,7 +24,7 @@ classifiers = [
 ]
 
 dependencies = [
-  "aleph-sdk-python>=1.0.0rc2",
+  "aleph-sdk-python@git+https://github.com/aleph-im/aleph-sdk-python.git@1yam-superfuild-integrations",
   "aleph-message>=0.4.8",
   "aiohttp==3.9.5",
   "typer==0.12.3",
@@ -69,6 +69,7 @@ source = "vcs"
 [tool.hatch.envs.default]
 platforms = ["linux", "macos"]
 dependencies = [
+  "setuptools>=65.5.0",
   "pytest==8.2.2",
   "pytest-asyncio==0.23.7",
   "pytest-cov==5.0.0",

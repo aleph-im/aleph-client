@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 import sys
@@ -7,12 +8,16 @@ from datetime import datetime
 from typing import Any, Callable, Dict, List, Optional, TypeVar, Union
 
 import typer
+from aleph.sdk.chains.ethereum import ETHAccount
+from aleph.sdk.conf import settings as sdk_settings
 from aleph.sdk.types import GenericMessage
 from pygments import highlight
 from pygments.formatters.terminal256 import Terminal256Formatter
 from pygments.lexers import JsonLexer
 from rich.prompt import IntPrompt, Prompt, PromptError
 from typer import echo
+
+from aleph_client.utils import fetch_json
 
 logger = logging.getLogger(__name__)
 
@@ -208,3 +213,18 @@ def has_nested_attr(obj, attr_chain) -> bool:
             return False
         obj = getattr(obj, attr)
     return True
+
+
+async def wait_for_processing(session, item_hash, account: ETHAccount, receiver: str):
+    while True:
+        # Construct the absolute URL
+        url = f"{sdk_settings.API_HOST}/api/v0/messages/{item_hash}"
+        message = await fetch_json(session, url)
+
+        flow = await account.get_flow(receiver)
+
+        if message["status"] == "processed" and flow:
+            return
+        elif message["status"] == "pending" or not flow:
+            typer.echo(f"Message {item_hash} is still pending, waiting...")
+            await asyncio.sleep(10)
