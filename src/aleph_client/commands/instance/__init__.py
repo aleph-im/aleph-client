@@ -476,7 +476,7 @@ async def _show_instances(messages: List[InstanceMessage], node_list: NodeInfo):
     uninitialized_confidential_found = False
     for message in messages:
         resp = scheduler_responses[message.item_hash]
-        if resp["ipv6_logs"] == "Not initialized":
+        if resp["ipv6_logs"] == "Not initialized or not started":
             uninitialized_confidential_found = True
         name = Text(
             (
