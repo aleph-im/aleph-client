@@ -283,7 +283,9 @@ async def create(
                 hypervisor=hypervisor,
                 payment=payment,
                 requirements=HostRequirements(node=NodeRequirements(node_hash=crn.hash)) if crn else None,
-                trusted_execution=TrustedExecutionEnvironment(firmware=confidential_firmware_as_hash),
+                trusted_execution=(
+                    TrustedExecutionEnvironment(firmware=confidential_firmware_as_hash) if confidential else None
+                ),
             )
         except InsufficientFundsError as e:
             typer.echo(
