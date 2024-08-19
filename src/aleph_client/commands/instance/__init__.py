@@ -202,23 +202,19 @@ async def create(
             if not firmware_message:
                 typer.echo("Confidential Firmware hash does not exist on aleph.im")
                 raise typer.Exit(code=1)
-    if not name:
-        name = validated_prompt("Instance name", lambda x: len(x) < 65)
-    if not rootfs_size:
-        rootfs_size = validated_int_prompt(
-            "Disk size in MiB", default=settings.DEFAULT_ROOTFS_SIZE, min_value=10_240, max_value=102_400
-        )
-    if not vcpus:
-        vcpus = validated_int_prompt(
-            "Number of virtual cpus to allocate", default=sdk_settings.DEFAULT_VM_VCPUS, min_value=1, max_value=4
-        )
-    if not memory:
-        memory = validated_int_prompt(
-            "Maximum memory allocation on vm in MiB",
-            default=settings.DEFAULT_INSTANCE_MEMORY,
-            min_value=2_048,
-            max_value=8_192,
-        )
+    name = name or validated_prompt("Instance name", lambda x: len(x) < 65)
+    rootfs_size = rootfs_size or validated_int_prompt(
+        "Disk size in MiB", default=settings.DEFAULT_ROOTFS_SIZE, min_value=10_240, max_value=102_400
+    )
+    vcpus = vcpus or validated_int_prompt(
+        "Number of virtual cpus to allocate", default=sdk_settings.DEFAULT_VM_VCPUS, min_value=1, max_value=4
+    )
+    memory = memory or validated_int_prompt(
+        "Maximum memory allocation on vm in MiB",
+        default=settings.DEFAULT_INSTANCE_MEMORY,
+        min_value=2_048,
+        max_value=8_192,
+    )
 
     volumes = []
     if not skip_volume:

@@ -8,7 +8,7 @@ CUSTOM_DOMAIN_TARGET_TYPES = "IPFS|PROGRAM|INSTANCE"
 CUSTOM_DOMAIN_OWNER_ADDRESS = "Owner address, default current account"
 CUSTOM_DOMAIN_NAME = "Domain name. ex: aleph.im"
 CUSTOM_DOMAIN_ITEM_HASH = "Item hash"
-SKIP_VOLUME = "Skip addition of volume"
+SKIP_VOLUME = "Skip prompt to attach more volumes"
 PERSISTENT_VOLUME = """Persistent volumes are allocated on the host machine and are not deleted when the VM is stopped.\n
 Requires at least a "mount" and "size_mib". For more info, see the docs: https://docs.aleph.im/computing/volumes/persistent/\n
 Example: --persistent_volume persistence=host,size_mib=100,mount=/opt/data"""
