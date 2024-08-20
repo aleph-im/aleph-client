@@ -149,7 +149,11 @@ async def balance(
             response = await session.get(uri)
             if response.status == 200:
                 balance_data = await response.json()
-                typer.echo("\n" + "\n".join([f"{k.capitalize()}: {v}" for k, v in balance_data.items()]) + "\n")
+                typer.echo(
+                    "\n"
+                    + "\n".join([f"{k.capitalize().replace('_', ' ')}: {v}" for k, v in balance_data.items()])
+                    + "\n"
+                )
             else:
                 typer.echo(f"Failed to retrieve balance for address {address}. Status code: {response.status}")
     else:
