@@ -93,6 +93,7 @@ async def create(
     private_key: Optional[str] = typer.Option(sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
     private_key_file: Optional[Path] = typer.Option(sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
     print_messages: bool = typer.Option(False),
+    verbose: bool = typer.Option(True),
     debug: bool = False,
 ):
     """Register a new instance on aleph.im"""
@@ -246,7 +247,7 @@ async def create(
             crn = await crn_table.run_async()
             if not crn:
                 # User has ctrl-c
-                return
+                return None, None
             print("Run instance on CRN:")
             print("\t Name", crn.name)
             print("\t Stream reward address", crn.stream_reward_address)
@@ -302,70 +303,74 @@ async def create(
         console = Console()
 
         # Instances that need to be started by notifying a specific CRN
+        crn_url = crn.url if crn and crn.url else None
         if crn and (payment_type != PaymentType.hold or confidential):
-            if not crn.url:
-                return
+            if not crn_url:
+                return item_hash, crn_url
             account = _load_account(private_key, private_key_file)
             async with VmClient(account, crn.url) as crn_client:
                 status, result = await crn_client.start_instance(vm_id=item_hash)
                 logger.debug(status, result)
                 if int(status) != 200:
                     print(status, result)
-                    echo(f"Could not start instance {item_hash} on CRN")
-                    return
-
-            # PAYG-tier non-confidential instances
-            if not confidential:
+                    echo(f"Could not start instance {item_hash} on CRN.")
+                    return item_hash, crn_url
+            console.print(f"Your instance {item_hash_text} has been deployed on aleph.im.")
+            if verbose:
+                # PAYG-tier non-confidential instances
+                if not confidential:
+                    console.print(
+                        "\n\nTo get the IPv6 address of the instance, check out:\n\n",
+                        Text.assemble(
+                            "  aleph instance list\n",
+                            style="italic",
+                        ),
+                    )
+                # All confidential instances
+                else:
+                    crn_url_text = Text(crn.url, style="blue")
+                    console.print(
+                        "\n\nInitialize a confidential session using:\n\n",
+                        Text.assemble(
+                            "  aleph instance confidential-init-session ",
+                            item_hash_text,
+                            " ",
+                            crn_url_text,
+                            style="italic",
+                        ),
+                        "\n\nThen start it using:\n\n",
+                        Text.assemble(
+                            "  aleph instance confidential-start ",
+                            item_hash_text,
+                            " ",
+                            crn_url_text,
+                            style="italic",
+                        ),
+                        "\n\nOr just use the all-in-one command:\n\n",
+                        Text.assemble(
+                            "  aleph instance confidential ",
+                            item_hash_text,
+                            " ",
+                            crn_url_text,
+                            "\n",
+                            style="italic",
+                        ),
+                    )
+        # Instances started automatically by the scheduler (hold-tier non-confidential)
+        else:
+            console.print(
+                f"Your instance {item_hash_text} is registered to be deployed on aleph.im.",
+                f"\nThe scheduler usually takes a few minutes to set it up and start it.",
+            )
+            if verbose:
                 console.print(
-                    f"\nYour instance {item_hash_text} has been deployed on aleph.im",
                     "\n\nTo get the IPv6 address of the instance, check out:\n\n",
                     Text.assemble(
                         "  aleph instance list\n",
                         style="italic",
                     ),
                 )
-            # All confidential instances
-            else:
-                crn_url_text = Text(crn.url, style="blue")
-                console.print(
-                    f"\nYour instance {item_hash_text} has been deployed on aleph.im",
-                    "\n\nInitialize a confidential session using:\n\n",
-                    Text.assemble(
-                        "  aleph instance confidential-init-session ",
-                        item_hash_text,
-                        " ",
-                        crn_url_text,
-                        style="italic",
-                    ),
-                    "\n\nThen start it using:\n\n",
-                    Text.assemble(
-                        "  aleph instance confidential-start ",
-                        item_hash_text,
-                        " ",
-                        crn_url_text,
-                        style="italic",
-                    ),
-                    "\n\nOr just use the all-in-one command:\n\n",
-                    Text.assemble(
-                        "  aleph instance confidential ",
-                        item_hash_text,
-                        " ",
-                        crn_url_text,
-                        "\n",
-                        style="italic",
-                    ),
-                )
-        # Instances started automatically by the scheduler (hold-tier non-confidential)
-        else:
-            console.print(
-                f"\nYour instance {item_hash_text} is registered to be deployed on aleph.im.",
-                f"\nThe scheduler usually takes a few minutes to set it up and start it.",
-                "\n\nTo get the IPv6 address of the instance, check out:\n\n",
-                Text.assemble(
-                    "  aleph instance list\n",
-                    style="italic",
-                ),
-            )
+        return item_hash, crn_url
 
 
 @app.command()
@@ -870,32 +875,93 @@ async def confidential_start(
 
 @app.command()
 async def confidential(
-    vm_id: str,
-    domain: str,
+    crn_url: Optional[str] = typer.Option(None, help=help_strings.CRN_URL),
+    crn_hash: Optional[str] = typer.Option(None, help=help_strings.CRN_HASH),
+    vm_id: Optional[str] = typer.Option(None, help=help_strings.VM_ID),
     policy: int = typer.Option(default=0x1),
+    confidential_firmware: str = typer.Option(
+        default=settings.DEFAULT_CONFIDENTIAL_FIRMWARE, help=help_strings.CONFIDENTIAL_FIRMWARE
+    ),
     firmware_hash: str = typer.Option(
         settings.DEFAULT_CONFIDENTIAL_FIRMWARE_HASH, help=help_strings.CONFIDENTIAL_FIRMWARE_HASH
     ),
     firmware_file: str = typer.Option(None, help=help_strings.PRIVATE_KEY),
     keep_session: bool = typer.Option(None, help=help_strings.KEEP_SESSION),
     vm_secret: str = typer.Option(None, help=help_strings.VM_SECRET),
+    payment_type: PaymentType = typer.Option(None, help=help_strings.PAYMENT_TYPE),
+    name: Optional[str] = typer.Option(None, help=help_strings.INSTANCE_NAME),
+    rootfs: str = typer.Option("ubuntu22", help=help_strings.ROOTFS),
+    rootfs_size: int = typer.Option(None, help=help_strings.ROOTFS_SIZE),
+    vcpus: int = typer.Option(None, help=help_strings.VCPUS),
+    memory: int = typer.Option(None, help=help_strings.MEMORY),
+    timeout_seconds: float = typer.Option(
+        sdk_settings.DEFAULT_VM_TIMEOUT,
+        help=help_strings.TIMEOUT_SECONDS,
+    ),
+    ssh_pubkey_file: Path = typer.Option(
+        Path("~/.ssh/id_rsa.pub").expanduser(),
+        help=help_strings.SSH_PUBKEY_FILE,
+    ),
+    skip_volume: bool = typer.Option(False, help=help_strings.SKIP_VOLUME),
+    persistent_volume: Optional[List[str]] = typer.Option(None, help=help_strings.PERSISTENT_VOLUME),
+    ephemeral_volume: Optional[List[str]] = typer.Option(None, help=help_strings.EPHEMERAL_VOLUME),
+    immutable_volume: Optional[List[str]] = typer.Option(
+        None,
+        help=help_strings.IMMUTABLE_VOLUME,
+    ),
+    channel: Optional[str] = typer.Option(default=settings.DEFAULT_CHANNEL, help=help_strings.CHANNEL),
     private_key: Optional[str] = typer.Option(sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
     private_key_file: Optional[Path] = typer.Option(sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
     debug: bool = False,
 ):
-    "After creating a confidential instance, all-in-one command to initialize, validate and start the VM (allocate + confidential-init-session + confidential-start)"
-    allocated = (await allocate(vm_id, domain, private_key, private_key_file, debug)) is None
+    "All-in-one command to create (optional), allocate, initialize, validate and start a VM"
+    allocated = False
+    if not vm_id or len(vm_id) != 64:
+        vm_id, crn_url = await create(
+            payment_type,
+            None,
+            name,
+            rootfs,
+            rootfs_size,
+            vcpus,
+            memory,
+            timeout_seconds,
+            ssh_pubkey_file,
+            crn_hash,
+            crn_url,
+            True,
+            confidential_firmware,
+            skip_volume,
+            persistent_volume,
+            ephemeral_volume,
+            immutable_volume,
+            channel,
+            private_key,
+            private_key_file,
+            False,
+            False,
+            debug,
+        )
+        if not vm_id or len(vm_id) != 64:
+            echo("Could not create the VM")
+            return 1
+        allocated = vm_id is not None
+
+    crn_url = crn_url or Prompt.ask("CRN domain")
+
     if not allocated:
-        echo("Could not allocate the VM")
-        return 1
+        allocated = (await allocate(vm_id, crn_url, private_key, private_key_file, debug)) is None
+        if not allocated:
+            echo("Could not allocate the VM")
+            return 1
 
     initialized = (
-        await confidential_init_session(vm_id, domain, policy, keep_session, private_key, private_key_file, debug)
+        await confidential_init_session(vm_id, crn_url, policy, keep_session, private_key, private_key_file, debug)
     ) is None
     if not initialized:
         echo("Could not initialize the session")
         return 1
 
     await confidential_start(
-        vm_id, domain, policy, firmware_hash, firmware_file, vm_secret, private_key, private_key_file, debug
+        vm_id, crn_url, policy, firmware_hash, firmware_file, vm_secret, private_key, private_key_file, debug
     )

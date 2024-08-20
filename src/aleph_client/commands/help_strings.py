@@ -41,3 +41,4 @@ CONFIDENTIAL_FIRMWARE_PATH = "Path to the UEFI Firmware content, to validate mea
 KEEP_SESSION = "Keeping the already initiated session"
 VM_SECRET = "Secret password to start the VM"
 CRN_URL_VM_DELETION = "Domain of the CRN where an associated VM is running. If provided, it ensures your VM will be stopped and erased on the CRN before the instance message is actually deleted"
+VM_ID = "If provided, skip the instance creation"
