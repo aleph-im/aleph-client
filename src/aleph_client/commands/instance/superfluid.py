@@ -64,7 +64,7 @@ async def handle_flow_reduction(account: ETHAccount, chain: Chain, receiver: str
     rpc = get_rpc_for_chain(chain=chain)
     chain_id = get_chain_id_for_chain(chain=chain)
 
-    account.setup_superfluid_connector(rpc, chain_id)
+    account.update_superfluid_connector(rpc, chain_id)
 
     # Retrieve current flow info
     flow_info: Web3FlowInfo = await account.get_flow(receiver)

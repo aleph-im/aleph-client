@@ -216,6 +216,7 @@ def has_nested_attr(obj, attr_chain) -> bool:
 
 
 async def wait_for_processing(session, item_hash, account: ETHAccount, receiver: str):
+    """Wait for a message to be processed by pyaleph"""
     while True:
         # Construct the absolute URL
         url = f"{sdk_settings.API_HOST}/api/v0/messages/{item_hash}"

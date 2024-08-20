@@ -1,12 +1,19 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from decimal import Decimal
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from aiohttp import InvalidURL
+from aleph.sdk.chains.ethereum import ETHAccount
+from aleph_message.models import Chain
+from aleph_message.models.execution.base import Payment, PaymentType
 from aleph_message.models.execution.environment import CpuProperties
+from eth_utils.currency import to_wei
 from multidict import CIMultiDict, CIMultiDictProxy
 
+from aleph_client.commands.instance import delete
 from aleph_client.commands.instance.network import (
     FORBIDDEN_HOSTS,
     fetch_crn_info,
@@ -129,3 +136,44 @@ def test_sanitize_url_with_valid_url():
 def test_sanitize_url_with_https_scheme():
     url = "https://example.org"
     assert sanitize_url(url) == url
+
+
+@pytest.mark.asyncio
+async def test_delete_instance():
+    item_hash = "cafe" * 16
+    test_account = ETHAccount(private_key="deca" * 16)
+    # Patch the test account instance for assertions
+    test_account.get_flow = AsyncMock(return_value={"flowRate": to_wei(123, unit="ether")})
+    test_account.delete_flow = AsyncMock()
+
+    mock_response_message = MagicMock(
+        sender=test_account.get_address(),
+        content=MagicMock(
+            payment=Payment(
+                chain=Chain.AVAX,
+                type=PaymentType.superfluid,
+                receiver=ETHAccount(private_key="cafe" * 16).get_address(),
+            )
+        ),
+    )
+
+    mock_client = AsyncMock(
+        get_message=AsyncMock(return_value=mock_response_message),
+        get_program_price=AsyncMock(return_value=MagicMock(required_tokens=123)),
+        forget=AsyncMock(return_value=(MagicMock(), MagicMock())),
+    )
+
+    mock_client_class = MagicMock()
+    mock_client_class.return_value.__aenter__ = AsyncMock(return_value=mock_client)
+
+    mock_load_account = MagicMock(return_value=test_account)
+
+    with patch("aleph_client.commands.instance.AuthenticatedAlephHttpClient", mock_client_class):
+        with patch("aleph_client.commands.instance._load_account", mock_load_account):
+            await delete(item_hash)
+
+            # The flow has been deleted since payment uses Superfluid and there is only one flow mocked
+            test_account.delete_flow.assert_awaited()
+
+            # The message has been forgotten
+            mock_client.forget.assert_called_once()

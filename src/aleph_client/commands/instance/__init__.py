@@ -303,6 +303,7 @@ async def create(
 
         console = Console()
         if crn and (payment_type != PaymentType.hold or confidential):
+            # Pay-as-you go
             if not crn.url:
                 return
 
@@ -316,6 +317,8 @@ async def create(
                 )
 
             typer.echo(f"Flow {flow_hash} has been created of {price.required_tokens}")
+
+            # Wait for the instance message to be processed
             async with aiohttp.ClientSession() as session:
                 if isinstance(account, ETHAccount):
                     await wait_for_processing(session, item_hash, account, message.content.payment.receiver)
