@@ -375,7 +375,7 @@ async def create(
 
 @app.command()
 async def delete(
-    item_hash: str,
+    item_hash: str = typer.Argument(..., help="Instance item hash to forget"),
     reason: str = typer.Option("User deletion", help="Reason for deleting the instance"),
     crn_url: str = typer.Option(None, help=help_strings.CRN_URL_VM_DELETION),
     private_key: Optional[str] = sdk_settings.PRIVATE_KEY_STRING,
@@ -606,8 +606,8 @@ async def list(
 
 @app.command()
 async def expire(
-    vm_id: str,
-    domain: str,
+    vm_id: str = typer.Argument(..., help="VM item hash to expire"),
+    domain: str = typer.Argument(..., help="CRN domain where the VM is running"),
     private_key: Optional[str] = typer.Option(sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
     private_key_file: Optional[Path] = typer.Option(sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
     debug: bool = False,
@@ -627,8 +627,8 @@ async def expire(
 
 @app.command()
 async def erase(
-    vm_id: str,
-    domain: str,
+    vm_id: str = typer.Argument(..., help="VM item hash to erase"),
+    domain: str = typer.Argument(..., help="CRN domain where the VM is stored or running"),
     private_key: Optional[str] = typer.Option(sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
     private_key_file: Optional[Path] = typer.Option(sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
     debug: bool = False,
@@ -649,8 +649,8 @@ async def erase(
 
 @app.command()
 async def reboot(
-    vm_id: str,
-    domain: str,
+    vm_id: str = typer.Argument(..., help="VM item hash to reboot"),
+    domain: str = typer.Argument(..., help="CRN domain where the VM is running"),
     private_key: Optional[str] = typer.Option(sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
     private_key_file: Optional[Path] = typer.Option(sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
     debug: bool = False,
@@ -671,8 +671,8 @@ async def reboot(
 
 @app.command()
 async def allocate(
-    vm_id: str,
-    domain: str,
+    vm_id: str = typer.Argument(..., help="VM item hash to allocate"),
+    domain: str = typer.Argument(..., help="CRN domain where the VM will be allocated"),
     private_key: Optional[str] = typer.Option(sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
     private_key_file: Optional[Path] = typer.Option(sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
     debug: bool = False,
@@ -693,8 +693,8 @@ async def allocate(
 
 @app.command()
 async def logs(
-    vm_id: str,
-    domain: str,
+    vm_id: str = typer.Argument(..., help="VM item hash to retrieve the logs from"),
+    domain: str = typer.Argument(..., help="CRN domain where the VM is running"),
     private_key: Optional[str] = typer.Option(sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
     private_key_file: Optional[Path] = typer.Option(sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
     debug: bool = False,
@@ -713,8 +713,8 @@ async def logs(
 
 @app.command()
 async def stop(
-    vm_id: str,
-    domain: str,
+    vm_id: str = typer.Argument(..., help="VM item hash to stop"),
+    domain: str = typer.Argument(..., help="CRN domain where the VM is running"),
     private_key: Optional[str] = typer.Option(sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
     private_key_file: Optional[Path] = typer.Option(sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
     debug: bool = False,
@@ -735,8 +735,8 @@ async def stop(
 
 @app.command()
 async def confidential_init_session(
-    vm_id: str,
-    domain: str,
+    vm_id: str = typer.Argument(..., help="VM item hash to initialize the session for"),
+    domain: str = typer.Argument(..., help="CRN domain where the session will be initialized"),
     policy: int = typer.Option(default=0x1),
     keep_session: bool = typer.Option(None, help=help_strings.KEEP_SESSION),
     private_key: Optional[str] = typer.Option(sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
@@ -796,8 +796,8 @@ async def confidential_init_session(
 
 @app.command()
 async def confidential_start(
-    vm_id: str,
-    domain: str,
+    vm_id: str = typer.Argument(..., help="VM item hash to start"),
+    domain: str = typer.Argument(..., help="CRN domain where the VM will be started"),
     policy: int = typer.Option(default=0x1),
     firmware_hash: str = typer.Option(
         settings.DEFAULT_CONFIDENTIAL_FIRMWARE_HASH, help=help_strings.CONFIDENTIAL_FIRMWARE_HASH

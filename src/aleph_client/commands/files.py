@@ -129,7 +129,7 @@ async def download(
 @app.command()
 async def forget(
     item_hash: str = typer.Argument(..., help="Hash to forget"),
-    reason: str = typer.Argument(..., help="reason to forget"),
+    reason: str = typer.Argument("User deletion", help="reason to forget"),
     channel: Optional[str] = typer.Option(default=settings.DEFAULT_CHANNEL, help=help_strings.CHANNEL),
     private_key: Optional[str] = typer.Option(sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
     private_key_file: Optional[Path] = typer.Option(sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),

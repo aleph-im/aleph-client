@@ -38,7 +38,7 @@ app = AsyncTyper(no_args_is_help=True)
 
 @app.command()
 async def get(
-    item_hash: str,
+    item_hash: str = typer.Argument(..., help="Item hash of the message"),
 ):
     async with AlephHttpClient(api_server=sdk_settings.API_HOST) as client:
         message: AlephMessage = await client.get_message(item_hash=ItemHash(item_hash))
