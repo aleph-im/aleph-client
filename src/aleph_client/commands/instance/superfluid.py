@@ -48,8 +48,8 @@ async def update_flow(account: ETHAccount, chain: Chain, receiver: str, flow: De
     # Retrieve current flow info
     flow_info: Web3FlowInfo = await account.get_flow(receiver)
 
-    current_flow_rate_wei = Decimal(flow_info["flowRate"] or "0")
-    flow_rate_wei = to_wei(flow, "ether")
+    current_flow_rate_wei: Decimal = Decimal(flow_info["flowRate"] or "0")
+    flow_rate_wei: int = to_wei(flow, "ether")
 
     if update_type == FlowUpdate.INCREASE:
         if current_flow_rate_wei > 0:

@@ -8,9 +8,11 @@ from datetime import datetime
 from typing import Any, Callable, Dict, List, Optional, TypeVar, Union
 
 import typer
+from aiohttp import ClientSession
 from aleph.sdk.chains.ethereum import ETHAccount
 from aleph.sdk.conf import settings as sdk_settings
 from aleph.sdk.types import GenericMessage
+from aleph_message.models import ItemHash
 from pygments import highlight
 from pygments.formatters.terminal256 import Terminal256Formatter
 from pygments.lexers import JsonLexer
@@ -215,7 +217,7 @@ def has_nested_attr(obj, attr_chain) -> bool:
     return True
 
 
-async def wait_for_processing(session, item_hash, account: ETHAccount, receiver: str):
+async def wait_for_processing(session: ClientSession, item_hash: ItemHash, account: ETHAccount, receiver: str):
     """Wait for a message to be processed by pyaleph"""
     while True:
         # Construct the absolute URL
