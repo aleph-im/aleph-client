@@ -46,7 +46,6 @@ from rich.text import Text
 
 from aleph_client.commands import help_strings
 from aleph_client.commands.instance.display import CRNInfo, CRNTable
-from aleph_client.commands.instance.superfluid import handle_flow, handle_flow_reduction
 from aleph_client.commands.node import NodeInfo, _fetch_nodes
 from aleph_client.commands.utils import (
     get_or_prompt_volumes,
@@ -60,6 +59,7 @@ from aleph_client.models import MachineUsage
 from aleph_client.utils import AsyncTyper, fetch_json
 
 from ..utils import has_nested_attr
+from .superfluid import FlowUpdate, update_flow
 
 logger = logging.getLogger(__name__)
 app = AsyncTyper(no_args_is_help=True)
@@ -309,11 +309,12 @@ async def create(
 
             price: PriceResponse = await client.get_program_price(item_hash)
             if isinstance(account, ETHAccount):
-                flow_hash = await handle_flow(
+                flow_hash = await update_flow(
                     account=account,
                     chain=message.content.payment.chain,
                     receiver=crn.stream_reward_address,
                     flow=Decimal(price.required_tokens),
+                    update_type=FlowUpdate.INCREASE,
                 )
 
             typer.echo(f"Flow {flow_hash} has been created of {price.required_tokens}")
@@ -385,11 +386,8 @@ async def delete(
             price: PriceResponse = await client.get_program_price(item_hash)
             if payment.receiver is not None:
                 if isinstance(account, ETHAccount):
-                    flow_hash = await handle_flow_reduction(
-                        account,
-                        payment.chain,
-                        payment.receiver,
-                        Decimal(price.required_tokens),
+                    flow_hash = await update_flow(
+                        account, payment.chain, payment.receiver, Decimal(price.required_tokens), FlowUpdate.REDUCE
                     )
                 typer.echo(f"Flow {flow_hash} has been deleted.")
 
