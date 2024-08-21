@@ -193,7 +193,7 @@ async def create(
     async with AlephHttpClient(api_server=sdk_settings.API_HOST) as client:
         rootfs_message: StoreMessage = await client.get_message(item_hash=rootfs, message_type=StoreMessage)
         if not rootfs_message:
-            typer.echo("Given rootfs volume does not exist on aleph.im")
+            echo("Given rootfs volume does not exist on aleph.im")
             raise typer.Exit(code=1)
         if rootfs_size is None and rootfs_message.content.size:
             rootfs_size = rootfs_message.content.size
@@ -207,7 +207,7 @@ async def create(
                 item_hash=confidential_firmware, message_type=StoreMessage
             )
             if not firmware_message:
-                typer.echo("Confidential Firmware hash does not exist on aleph.im")
+                echo("Confidential Firmware hash does not exist on aleph.im")
                 raise typer.Exit(code=1)
     name = name or validated_prompt("Instance name", lambda x: len(x) < 65)
     rootfs_size = rootfs_size or validated_int_prompt(
@@ -292,13 +292,13 @@ async def create(
                 ),
             )
         except InsufficientFundsError as e:
-            typer.echo(
+            echo(
                 f"Instance creation failed due to insufficient funds.\n"
                 f"{account.get_address()} on {account.CHAIN} has {e.available_funds} ALEPH but needs {e.required_funds} ALEPH."
             )
             raise typer.Exit(code=1)
         if print_messages:
-            typer.echo(f"{message.json(indent=4)}")
+            echo(f"{message.json(indent=4)}")
 
         item_hash: ItemHash = message.item_hash
         item_hash_text = Text(item_hash, style="bright_cyan")
@@ -324,7 +324,7 @@ async def create(
                         flow=Decimal(price.required_tokens),
                         update_type=FlowUpdate.INCREASE,
                     )
-                typer.echo(f"Flow {flow_hash} has been created of {price.required_tokens}")
+                echo(f"Flow {flow_hash} has been created of {price.required_tokens}")
 
             # Wait for the instance message to be processed
             async with aiohttp.ClientSession() as session:
@@ -336,7 +336,6 @@ async def create(
                 status, result = await crn_client.start_instance(vm_id=item_hash)
                 logger.debug(status, result)
                 if int(status) != 200:
-                    print(status, result)
                     echo(f"Could not start instance {item_hash} on CRN.")
                     return item_hash, crn_url
             console.print(f"Your instance {item_hash_text} has been deployed on aleph.im.")
@@ -419,13 +418,13 @@ async def delete(
             )
 
         except MessageNotFoundError:
-            typer.echo("Instance does not exist")
+            echo("Instance does not exist")
             raise typer.Exit(code=1)
         except ForgottenMessageError:
-            typer.echo("Instance already forgotten")
+            echo("Instance already forgotten")
             raise typer.Exit(code=1)
         if existing_message.sender != account.get_address():
-            typer.echo("You are not the owner of this instance")
+            echo("You are not the owner of this instance")
             raise typer.Exit(code=1)
 
         # Check for streaming payment and eventually stop it
@@ -437,7 +436,7 @@ async def delete(
                     flow_hash = await update_flow(
                         account, payment.chain, payment.receiver, Decimal(price.required_tokens), FlowUpdate.REDUCE
                     )
-                typer.echo(f"Flow {flow_hash} has been deleted.")
+                echo(f"Flow {flow_hash} has been deleted.")
 
         # Check status of the instance and eventually erase associated VM
         node_list: NodeInfo = await _fetch_nodes()
@@ -448,16 +447,16 @@ async def delete(
             try:
                 status = await erase(item_hash, crn_url, private_key, private_key_file, True, debug)
                 if status == 1:
-                    typer.echo(f"No associated VM on {crn_url}. Skipping...")
+                    echo(f"No associated VM on {crn_url}. Skipping...")
             except Exception as e:
-                typer.echo(f"Failed to erase associated VM on {crn_url}. Skipping...")
+                echo(f"Failed to erase associated VM on {crn_url}. Skipping...")
         else:
-            typer.echo(f"Instance {item_hash} was auto-scheduled, VM will be erased automatically.")
+            echo(f"Instance {item_hash} was auto-scheduled, VM will be erased automatically.")
 
         message, status = await client.forget(hashes=[ItemHash(item_hash)], reason=reason)
         if print_message:
-            typer.echo(f"{message.json(indent=4)}")
-        typer.echo(f"Instance {item_hash} has been deleted.")
+            echo(f"{message.json(indent=4)}")
+        echo(f"Instance {item_hash} has been deleted.")
 
 
 async def _get_instance_details(message: InstanceMessage, node_list: NodeInfo) -> Tuple[str, Dict[str, object]]:
@@ -663,10 +662,10 @@ async def list(
             page_size=100,
         )
         if not resp or len(resp.messages) == 0:
-            typer.echo(f"Address: {address}\n\nNo instance found\n")
+            echo(f"Address: {address}\n\nNo instance found\n")
             raise typer.Exit(code=1)
         if json:
-            typer.echo(resp.json(indent=4))
+            echo(resp.json(indent=4))
         else:
             # Since we filtered on message type, we can safely cast as InstanceMessage.
             messages = cast(List[InstanceMessage], resp.messages)
@@ -690,9 +689,9 @@ async def expire(
     async with VmClient(account, domain) as manager:
         status, result = await manager.expire_instance(vm_id=vm_id)
         if status != 200:
-            typer.echo(f"Status: {status}")
+            echo(f"Status: {status}")
             return 1
-        typer.echo(f"VM expired on CRN: {domain}")
+        echo(f"VM expired on CRN: {domain}")
 
 
 @app.command()
@@ -714,9 +713,9 @@ async def erase(
         status, result = await manager.erase_instance(vm_id=vm_id)
         if status != 200:
             if not silent:
-                typer.echo(f"Status: {status}")
+                echo(f"Status: {status}")
             return 1
-        typer.echo(f"VM erased on CRN: {domain}")
+        echo(f"VM erased on CRN: {domain}")
 
 
 @app.command()
@@ -736,9 +735,9 @@ async def reboot(
     async with VmClient(account, domain) as manager:
         status, result = await manager.reboot_instance(vm_id=vm_id)
         if status != 200:
-            typer.echo(f"Status: {status}")
+            echo(f"Status: {status}")
             return 1
-        typer.echo(f"VM rebooted on CRN: {domain}")
+        echo(f"VM rebooted on CRN: {domain}")
 
 
 @app.command()
@@ -758,9 +757,9 @@ async def allocate(
     async with VmClient(account, domain) as manager:
         status, result = await manager.start_instance(vm_id=vm_id)
         if status != 200:
-            typer.echo(f"Status: {status}")
+            echo(f"Status: {status}")
             return 1
-        typer.echo(f"VM allocated on CRN: {domain}")
+        echo(f"VM allocated on CRN: {domain}")
 
 
 @app.command()
@@ -780,7 +779,7 @@ async def logs(
         async for log in manager.get_logs(vm_id=vm_id):
             log_data = json.loads(log)
             if "message" in log_data:
-                typer.echo(log_data["message"])
+                echo(log_data["message"])
 
 
 @app.command()
@@ -800,9 +799,9 @@ async def stop(
     async with VmClient(account, domain) as manager:
         status, result = await manager.stop_instance(vm_id=vm_id)
         if status != 200:
-            typer.echo(f"Status : {status}")
+            echo(f"Status : {status}")
             return 1
-        typer.echo(f"VM stopped on CRN: {domain}")
+        echo(f"VM stopped on CRN: {domain}")
 
 
 @app.command()
