@@ -70,7 +70,7 @@ async def create(
     payment_type: PaymentType = typer.Option(None, help=help_strings.PAYMENT_TYPE),
     hypervisor: HypervisorType = typer.Option(None, help=help_strings.HYPERVISOR),
     name: Optional[str] = typer.Option(None, help=help_strings.INSTANCE_NAME),
-    rootfs: str = typer.Option("Ubuntu 22", help=help_strings.ROOTFS),
+    rootfs: str = typer.Option("ubuntu22", help=help_strings.ROOTFS),
     rootfs_size: int = typer.Option(None, help=help_strings.ROOTFS_SIZE),
     vcpus: int = typer.Option(None, help=help_strings.VCPUS),
     memory: int = typer.Option(None, help=help_strings.MEMORY),
@@ -99,8 +99,9 @@ async def create(
     private_key: Optional[str] = typer.Option(sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
     private_key_file: Optional[Path] = typer.Option(sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
     print_messages: bool = typer.Option(False),
+    verbose: bool = typer.Option(True),
     debug: bool = False,
-):
+) -> Tuple[ItemHash, Optional[str]]:
     """Register a new instance on aleph.im"""
     setup_logging(debug)
 
@@ -146,14 +147,14 @@ async def create(
 
     available_hypervisors = {
         HypervisorType.firecracker: {
-            "Ubuntu 22": settings.UBUNTU_22_ROOTFS_ID,
-            "Debian 12": settings.DEBIAN_12_ROOTFS_ID,
-            "Debian 11": settings.DEBIAN_11_ROOTFS_ID,
+            "ubuntu22": settings.UBUNTU_22_ROOTFS_ID,
+            "debian12": settings.DEBIAN_12_ROOTFS_ID,
+            "debian11": settings.DEBIAN_11_ROOTFS_ID,
         },
         HypervisorType.qemu: {
-            "Ubuntu 22": settings.UBUNTU_22_QEMU_ROOTFS_ID,
-            "Debian 12": settings.DEBIAN_12_QEMU_ROOTFS_ID,
-            "Debian 11": settings.DEBIAN_11_QEMU_ROOTFS_ID,
+            "ubuntu22": settings.UBUNTU_22_QEMU_ROOTFS_ID,
+            "debian12": settings.DEBIAN_12_QEMU_ROOTFS_ID,
+            "debian11": settings.DEBIAN_11_QEMU_ROOTFS_ID,
         },
     }
 
@@ -173,9 +174,9 @@ async def create(
         if confidential:
             # Confidential only support custom rootfs
             rootfs = "custom"
-        else:
+        elif rootfs not in os_choices:
             rootfs = Prompt.ask(
-                "Do you want to use a custom rootfs or one of the following prebuilt ones?",
+                "Use a custom rootfs or one of the following prebuilt ones:",
                 default=rootfs,
                 choices=[*os_choices, "custom"],
             )
@@ -249,7 +250,7 @@ async def create(
             crn = await crn_table.run_async()
             if not crn:
                 # User has ctrl-c
-                return
+                raise typer.Exit(1)
             print("Run instance on CRN:")
             print("\t Name", crn.name)
             print("\t Stream reward address", crn.stream_reward_address)
@@ -300,71 +301,117 @@ async def create(
             typer.echo(f"{message.json(indent=4)}")
 
         item_hash: ItemHash = message.item_hash
+        item_hash_text = Text(item_hash, style="bright_cyan")
 
         console = Console()
+
+        # Instances that need to be started by notifying a specific CRN
+        crn_url = crn.url if crn and crn.url else None
         if crn and (payment_type != PaymentType.hold or confidential):
-            # Pay-as-you go
-            if not crn.url:
-                return
-
-            price: PriceResponse = await client.get_program_price(item_hash)
-            if isinstance(account, ETHAccount):
-                flow_hash = await update_flow(
-                    account=account,
-                    chain=message.content.payment.chain,
-                    receiver=crn.stream_reward_address,
-                    flow=Decimal(price.required_tokens),
-                    update_type=FlowUpdate.INCREASE,
-                )
-
-            typer.echo(f"Flow {flow_hash} has been created of {price.required_tokens}")
-
+            if not crn_url:
+                # Not the ideal solution
+                logger.debug(f"Cannot allocate {item_hash}: no CRN url")
+                return item_hash, crn_url
+        
+            # Pay-As-You-Go
+            if payment_type == PaymentType.superfluid:
+                price: PriceResponse = await client.get_program_price(item_hash)
+                if isinstance(account, ETHAccount):
+                    flow_hash = await update_flow(
+                        account=account,
+                        chain=message.content.payment.chain,
+                        receiver=crn.stream_reward_address,
+                        flow=Decimal(price.required_tokens),
+                        update_type=FlowUpdate.INCREASE,
+                    )
+                typer.echo(f"Flow {flow_hash} has been created of {price.required_tokens}")
+                
             # Wait for the instance message to be processed
             async with aiohttp.ClientSession() as session:
                 if isinstance(account, ETHAccount):
                     await wait_for_processing(session, item_hash, account, message.content.payment.receiver)
 
+            # Notify CRN
             async with VmClient(account, crn.url) as crn_client:
                 status, result = await crn_client.start_instance(vm_id=item_hash)
                 logger.debug(status, result)
                 if int(status) != 200:
                     print(status, result)
-                    echo(f"Could not start instance {item_hash} on CRN")
-                    return
-
-            if not confidential:
+                    echo(f"Could not start instance {item_hash} on CRN.")
+                    return item_hash, crn_url
+            console.print(f"Your instance {item_hash_text} has been deployed on aleph.im.")
+            if verbose:
+                # PAYG-tier non-confidential instances
+                if not confidential:
+                    console.print(
+                        "\n\nTo get the IPv6 address of the instance, check out:\n\n",
+                        Text.assemble(
+                            "  aleph instance list\n",
+                            style="italic",
+                        ),
+                    )
+                # All confidential instances
+                else:
+                    crn_url_text = Text(crn.url, style="blue")
+                    console.print(
+                        "\n\nInitialize a confidential session using:\n\n",
+                        Text.assemble(
+                            "  aleph instance confidential-init-session ",
+                            item_hash_text,
+                            " ",
+                            crn_url_text,
+                            style="italic",
+                        ),
+                        "\n\nThen start it using:\n\n",
+                        Text.assemble(
+                            "  aleph instance confidential-start ",
+                            item_hash_text,
+                            " ",
+                            crn_url_text,
+                            style="italic",
+                        ),
+                        "\n\nOr just use the all-in-one command:\n\n",
+                        Text.assemble(
+                            "  aleph instance confidential ",
+                            item_hash_text,
+                            " ",
+                            crn_url_text,
+                            "\n",
+                            style="italic",
+                        ),
+                    )
+        # Instances started automatically by the scheduler (hold-tier non-confidential)
+        else:
+            console.print(
+                f"Your instance {item_hash_text} is registered to be deployed on aleph.im.",
+                f"\nThe scheduler usually takes a few minutes to set it up and start it.",
+            )
+            if verbose:
                 console.print(
-                    f"\nYour instance {item_hash} has been deployed on aleph.im\n"
-                    f"Your SSH key has been added to the instance. You can connect in a few minutes to it using:\n\n"
-                    f"  ssh root@<ipv6 address>\n\n"
-                    f"Run the following command to get the IPv6 address of your instance:\n\n"
-                    f"  aleph instance list\n\n"
+                    "\n\nTo get the IPv6 address of the instance, check out:\n\n",
+                    Text.assemble(
+                        "  aleph instance list\n",
+                        style="italic",
+                    ),
                 )
-            else:
-                console.print(
-                    f"\nYour instance {item_hash} has been deployed on aleph.im\n"
-                    f"Initialize a confidential session using :\n\n"
-                    f"  aleph instance confidential-init-session {item_hash} {crn.url}\n\n"
-                    f"Then start it using :\n\n"
-                    f"  aleph instance confidential-start {item_hash} {crn.url}\n\n"
-                )
+        return item_hash, crn_url
 
 
 @app.command()
 async def delete(
-    item_hash: str,
+    item_hash: str = typer.Argument(..., help="Instance item hash to forget"),
     reason: str = typer.Option("User deletion", help="Reason for deleting the instance"),
+    crn_url: str = typer.Option(None, help=help_strings.CRN_URL_VM_DELETION),
     private_key: Optional[str] = sdk_settings.PRIVATE_KEY_STRING,
     private_key_file: Optional[Path] = sdk_settings.PRIVATE_KEY_FILE,
     print_message: bool = typer.Option(False),
     debug: bool = False,
 ):
-    """Delete an instance, unallocating all resources associated with it. Immutable volumes will not be deleted."""
+    """Delete an instance, unallocating all resources associated with it. Associated VM will be stopped and erased. Immutable volumes will not be deleted."""
 
     setup_logging(debug)
 
     account = _load_account(private_key, private_key_file)
-
     async with AuthenticatedAlephHttpClient(account=account, api_server=sdk_settings.API_HOST) as client:
         try:
             existing_message: InstanceMessage = await client.get_message(
@@ -381,6 +428,7 @@ async def delete(
             typer.echo("You are not the owner of this instance")
             raise typer.Exit(code=1)
 
+        # Check for streaming payment and eventually stop it
         payment: Optional[Payment] = existing_message.content.payment
         if payment is not None and payment.type == PaymentType.superfluid:
             price: PriceResponse = await client.get_program_price(item_hash)
@@ -391,11 +439,25 @@ async def delete(
                     )
                 typer.echo(f"Flow {flow_hash} has been deleted.")
 
+        # Check status of the instance and eventually erase associated VM
+        node_list: NodeInfo = await _fetch_nodes()
+        _, details = await _get_instance_details(existing_message, node_list)
+        auto_scheduled = details["allocation_type"] == help_strings.ALLOCATION_AUTO
+        crn_url = str(details["crn_url"])
+        if not auto_scheduled and crn_url:
+            try:
+                status = await erase(item_hash, crn_url, private_key, private_key_file, True, debug)
+                if status == 1:
+                    typer.echo(f"No associated VM on {crn_url}. Skipping...")
+            except Exception as e:
+                typer.echo(f"Failed to erase associated VM on {crn_url}. Skipping...")
+        else:
+            typer.echo(f"Instance {item_hash} was auto-scheduled, VM will be erased automatically.")
+
         message, status = await client.forget(hashes=[ItemHash(item_hash)], reason=reason)
         if print_message:
             typer.echo(f"{message.json(indent=4)}")
-
-        typer.echo(f"Instance {item_hash} has been deleted. It will be removed by the scheduler in a few minutes.")
+        typer.echo(f"Instance {item_hash} has been deleted.")
 
 
 async def _get_instance_details(message: InstanceMessage, node_list: NodeInfo) -> Tuple[str, Dict[str, object]]:
@@ -406,47 +468,64 @@ async def _get_instance_details(message: InstanceMessage, node_list: NodeInfo) -
             and len(getattr(message.content.environment.trusted_execution, "firmware")) == 64
         )
         details = dict(
-            ipv6_logs="",
             payment="hold\t   " if hold else str(getattr(message.content.payment, "type").value),
             confidential=confidential,
+            allocation_type="",
+            ipv6_logs="",
+            crn_url="",
         )
         try:
+            # Fetch from the scheduler API directly if no payment or no receiver (hold-tier non-confidential)
             if hold and not confidential:
-                # Fetch from the scheduler API directly if no payment or no receiver
-                status = await fetch_json(
-                    session,
-                    f"https://scheduler.api.aleph.cloud/api/v0/allocation/{message.item_hash}",
-                )
-                details["ipv6_logs"] = status["vm_ipv6"]
-                return str(status["vm_hash"]), details
-            for node in node_list.nodes:
-                if (
-                    has_nested_attr(message.content, ["payment", "receiver"])
-                    and node["stream_reward"] == getattr(message.content.payment, "receiver")
-                ) or (
-                    has_nested_attr(message.content, ["requirements", "node", "node_hash"])
-                    and message.content.requirements is not None
-                    and node["hash"] == getattr(message.content.requirements.node, "node_hash")
-                ):
-                    # Handle both cases where the address might or might not end with a '/'
-                    path = f"{node['address'].rstrip('/')}/about/executions/list"
-                    # Fetch from the CRN API if payment
-                    executions = await fetch_json(session, path)
-                    if message.item_hash in executions:
-                        interface = IPv6Interface(executions[message.item_hash]["networking"]["ipv6"])
-                        details["ipv6_logs"] = str(interface.ip + 1)
-                        return message.item_hash, details
-            details["ipv6_logs"] = "Not initialized" if confidential else "Not available (yet)"
+                try:
+                    details["allocation_type"] = help_strings.ALLOCATION_AUTO
+                    allocation = await fetch_json(
+                        session,
+                        f"https://scheduler.api.aleph.cloud/api/v0/allocation/{message.item_hash}",
+                    )
+                    nodes = await fetch_json(
+                        session,
+                        f"https://scheduler.api.aleph.cloud/api/v0/nodes",
+                    )
+                    details["ipv6_logs"] = allocation["vm_ipv6"]
+                    for node in nodes["nodes"]:
+                        if node["ipv6"].split("::")[0] == ":".join(str(details["ipv6_logs"]).split(":")[:4]):
+                            details["crn_url"] = node["url"].rstrip("/")
+                    return message.item_hash, details
+                except:
+                    details["ipv6_logs"] = help_strings.VM_SCHEDULED
+                    details["crn_url"] = help_strings.CRN_PENDING
+            else:
+                # Fetch from the CRN API if PAYG-tier or confidential
+                details["allocation_type"] = help_strings.ALLOCATION_MANUAL
+                for node in node_list.nodes:
+                    if (
+                        has_nested_attr(message.content, ["payment", "receiver"])
+                        and node["stream_reward"] == getattr(message.content.payment, "receiver")
+                    ) or (
+                        has_nested_attr(message.content, ["requirements", "node", "node_hash"])
+                        and message.content.requirements is not None
+                        and node["hash"] == getattr(message.content.requirements.node, "node_hash")
+                    ):
+                        details["crn_url"] = node["address"].rstrip("/")
+                        path = f"{node['address'].rstrip('/')}/about/executions/list"
+
+                        executions = await fetch_json(session, path)
+                        if message.item_hash in executions:
+                            interface = IPv6Interface(executions[message.item_hash]["networking"]["ipv6"])
+                            details["ipv6_logs"] = str(interface.ip + 1)
+                            return message.item_hash, details
+                details["ipv6_logs"] = help_strings.VM_NOT_READY if confidential else help_strings.VM_NOT_AVAILABLE_YET
         except (ClientResponseError, ClientConnectorError) as e:
-            details["ipv6_logs"] = f"Not available (yet), server not responding : {e}"
+            details["ipv6_logs"] = f"Not available. Server error: {e}"
         return message.item_hash, details
 
 
 async def _show_instances(messages: List[InstanceMessage], node_list: NodeInfo):
     table = Table(box=box.SIMPLE_HEAVY)
-    table.add_column(f"Instances ({len(messages)})", style="blue")
+    table.add_column(f"Instances [{len(messages)}]", style="blue", overflow="fold")
     table.add_column("Specifications", style="magenta")
-    table.add_column("IPv6 Address - Logs", style="yellow")
+    table.add_column("Logs", style="blue", overflow="fold")
 
     scheduler_responses = dict(
         await asyncio.gather(*[_get_instance_details(message, node_list) for message in messages])
@@ -454,7 +533,7 @@ async def _show_instances(messages: List[InstanceMessage], node_list: NodeInfo):
     uninitialized_confidential_found = False
     for message in messages:
         resp = scheduler_responses[message.item_hash]
-        if resp["ipv6_logs"] == "Not initialized":
+        if resp["ipv6_logs"] == help_strings.VM_NOT_READY:
             uninitialized_confidential_found = True
         name = Text(
             (
@@ -472,7 +551,7 @@ async def _show_instances(messages: List[InstanceMessage], node_list: NodeInfo):
         )
         payment = Text.assemble(
             "Payment: ",
-            Text(str(resp["payment"]).capitalize(), style="orange3" if resp["payment"] == "superfluid" else "red"),
+            Text(str(resp["payment"]).capitalize(), style="red" if resp["payment"] != PaymentType.hold else "orange3"),
         )
         confidential = (
             Text.assemble("Type: ", Text("Confidential", style="green"))
@@ -485,13 +564,31 @@ async def _show_instances(messages: List[InstanceMessage], node_list: NodeInfo):
         specifications = (
             f"vCPUs: {message.content.resources.vcpus}\n"
             f"RAM: {message.content.resources.memory / 1_024:.2f} GiB\n"
-            f"Disk: {message.content.rootfs.size_mib / 1_024:.2f} GiB"
+            f"Disk: {message.content.rootfs.size_mib / 1_024:.2f} GiB\n"
+            f"HyperV: {message.content.environment.hypervisor if has_nested_attr(message.content, ['environment', 'hypervisor']) else 'firecracker'}\n"
         )
-        table.add_row(
-            instance,
-            specifications,
-            str(resp["ipv6_logs"]),
+        status_column = Text.assemble(
+            Text.assemble(
+                Text("Allocation: ", style="blue"),
+                Text(
+                    str(resp["allocation_type"]) + "\n",
+                    style="magenta3" if resp["allocation_type"] == help_strings.ALLOCATION_MANUAL else "deep_sky_blue1",
+                ),
+            ),
+            Text.assemble(
+                Text("Target CRN: ", style="blue"),
+                Text(
+                    str(resp["crn_url"]) + "\n",
+                    style="green1" if str(resp["crn_url"]).startswith("http") else "dark_slate_gray1",
+                ),
+            ),
+            Text.assemble(
+                Text("IPv6: ", style="blue"),
+                Text(str(resp["ipv6_logs"])),
+                style="bright_yellow" if len(str(resp["ipv6_logs"]).split(":")) == 8 else "dark_orange",
+            ),
         )
+        table.add_row(instance, specifications, status_column)
         table.add_section()
     console = Console()
     console.print(
@@ -502,17 +599,25 @@ async def _show_instances(messages: List[InstanceMessage], node_list: NodeInfo):
         item_hash_field = Text("<vm-item-hash>", style="bright_cyan")
         crn_url_field = Text("<crn-url>", style="blue")
         console.print(
-            "To start to your uninitialized confidential instance, use:\n\n",
+            "To start uninitialized confidential instance(s), use:\n\n",
             Text.assemble(
-                "\taleph instance confidential-init-session ",
+                "  aleph instance confidential-init-session ",
                 item_hash_field,
                 " ",
                 crn_url_field,
-                "\n\n",
+                "\n",
                 style="italic",
             ),
             Text.assemble(
-                "\taleph instance confidential-start ",
+                "  aleph instance confidential-start ",
+                item_hash_field,
+                " ",
+                crn_url_field,
+                style="italic",
+            ),
+            "\n\nOr just use the all-in-one command:\n\n",
+            Text.assemble(
+                "  aleph instance confidential ",
                 item_hash_field,
                 " ",
                 crn_url_field,
@@ -523,7 +628,7 @@ async def _show_instances(messages: List[InstanceMessage], node_list: NodeInfo):
     console.print(
         "To connect to an instance, use:\n\n",
         Text.assemble(
-            "\tssh root@",
+            "  ssh root@",
             Text("<ipv6-address>", style="yellow"),
             " -i ",
             Text("<ssh-pubkey-file>", style="orange3"),
@@ -541,7 +646,7 @@ async def list(
     json: bool = typer.Option(default=False, help="Print as json instead of rich table"),
     debug: bool = False,
 ):
-    """List all instances associated with your private key"""
+    """List all instances associated to an account"""
 
     setup_logging(debug)
 
@@ -571,13 +676,13 @@ async def list(
 
 @app.command()
 async def expire(
-    vm_id: str,
-    domain: str,
+    vm_id: str = typer.Argument(..., help="VM item hash to expire"),
+    domain: str = typer.Argument(..., help="CRN domain where the VM is running"),
     private_key: Optional[str] = typer.Option(sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
     private_key_file: Optional[Path] = typer.Option(sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
     debug: bool = False,
 ):
-    """expire an instance"""
+    """Expire an instance"""
 
     setup_logging(debug)
     account = _load_account(private_key, private_key_file)
@@ -585,19 +690,21 @@ async def expire(
     async with VmClient(account, domain) as manager:
         status, result = await manager.expire_instance(vm_id=vm_id)
         if status != 200:
-            typer.echo(f"Status : {status}")
-        typer.echo(result)
+            typer.echo(f"Status: {status}")
+            return 1
+        typer.echo(f"VM expired on CRN: {domain}")
 
 
 @app.command()
 async def erase(
-    vm_id: str,
-    domain: str,
+    vm_id: str = typer.Argument(..., help="VM item hash to erase"),
+    domain: str = typer.Argument(..., help="CRN domain where the VM is stored or running"),
     private_key: Optional[str] = typer.Option(sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
     private_key_file: Optional[Path] = typer.Option(sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
+    silent: bool = False,
     debug: bool = False,
 ):
-    """erase an instance"""
+    """Erase an instance stored or running on a CRN"""
 
     setup_logging(debug)
 
@@ -606,19 +713,21 @@ async def erase(
     async with VmClient(account, domain) as manager:
         status, result = await manager.erase_instance(vm_id=vm_id)
         if status != 200:
-            typer.echo(f"Status : {status}")
-        typer.echo(result)
+            if not silent:
+                typer.echo(f"Status: {status}")
+            return 1
+        typer.echo(f"VM erased on CRN: {domain}")
 
 
 @app.command()
 async def reboot(
-    vm_id: str,
-    domain: str,
+    vm_id: str = typer.Argument(..., help="VM item hash to reboot"),
+    domain: str = typer.Argument(..., help="CRN domain where the VM is running"),
     private_key: Optional[str] = typer.Option(sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
     private_key_file: Optional[Path] = typer.Option(sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
     debug: bool = False,
 ):
-    """reboot an instance"""
+    """Reboot an instance"""
 
     setup_logging(debug)
 
@@ -627,19 +736,20 @@ async def reboot(
     async with VmClient(account, domain) as manager:
         status, result = await manager.reboot_instance(vm_id=vm_id)
         if status != 200:
-            typer.echo(f"Status : {status}")
-        typer.echo(result)
+            typer.echo(f"Status: {status}")
+            return 1
+        typer.echo(f"VM rebooted on CRN: {domain}")
 
 
 @app.command()
 async def allocate(
-    vm_id: str,
-    domain: str,
+    vm_id: str = typer.Argument(..., help="VM item hash to allocate"),
+    domain: str = typer.Argument(..., help="CRN domain where the VM will be allocated"),
     private_key: Optional[str] = typer.Option(sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
     private_key_file: Optional[Path] = typer.Option(sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
     debug: bool = False,
 ):
-    """Tell the CRN to start an instance with Pay as you go"""
+    """Notify a CRN to start an instance (for Pay-As-You-Go and confidential instances only)"""
 
     setup_logging(debug)
 
@@ -648,19 +758,20 @@ async def allocate(
     async with VmClient(account, domain) as manager:
         status, result = await manager.start_instance(vm_id=vm_id)
         if status != 200:
-            typer.echo(f"Status : {status}")
-        typer.echo(result)
+            typer.echo(f"Status: {status}")
+            return 1
+        typer.echo(f"VM allocated on CRN: {domain}")
 
 
 @app.command()
 async def logs(
-    vm_id: str,
-    domain: str,
+    vm_id: str = typer.Argument(..., help="VM item hash to retrieve the logs from"),
+    domain: str = typer.Argument(..., help="CRN domain where the VM is running"),
     private_key: Optional[str] = typer.Option(sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
     private_key_file: Optional[Path] = typer.Option(sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
     debug: bool = False,
 ):
-    """logs of the instance"""
+    """Retrieve the logs of an instance"""
     setup_logging(debug)
 
     account = _load_account(private_key, private_key_file)
@@ -674,8 +785,8 @@ async def logs(
 
 @app.command()
 async def stop(
-    vm_id: str,
-    domain: str,
+    vm_id: str = typer.Argument(..., help="VM item hash to stop"),
+    domain: str = typer.Argument(..., help="CRN domain where the VM is running"),
     private_key: Optional[str] = typer.Option(sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
     private_key_file: Optional[Path] = typer.Option(sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
     debug: bool = False,
@@ -690,19 +801,21 @@ async def stop(
         status, result = await manager.stop_instance(vm_id=vm_id)
         if status != 200:
             typer.echo(f"Status : {status}")
-        typer.echo(result)
+            return 1
+        typer.echo(f"VM stopped on CRN: {domain}")
 
 
 @app.command()
 async def confidential_init_session(
-    vm_id: str,
-    domain: str,
+    vm_id: str = typer.Argument(..., help="VM item hash to initialize the session for"),
+    domain: str = typer.Argument(..., help="CRN domain where the session will be initialized"),
     policy: int = typer.Option(default=0x1),
+    keep_session: bool = typer.Option(None, help=help_strings.KEEP_SESSION),
     private_key: Optional[str] = typer.Option(sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
     private_key_file: Optional[Path] = typer.Option(sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
     debug: bool = False,
 ):
-    "Initialize a confidential communication session wit the VM"
+    "Initialize a confidential communication session with the VM"
     assert settings.CONFIG_HOME
 
     session_dir = Path(settings.CONFIG_HOME) / "confidential_sessions" / vm_id
@@ -711,23 +824,23 @@ async def confidential_init_session(
     setup_logging(debug)
     account = _load_account(private_key, private_key_file)
 
-    sevctl_path = shutil.which("sevctl")
-    if sevctl_path is None:
-        echo("sevctl is not available. Please install sevctl, ensure it is in the PATH and try again.")
-        return
+    sevctl_path = find_sevctl_or_exit()
 
     if (session_dir / "vm_godh.b64").exists():
-        if not Confirm.ask(
-            "Session already initiated for this instance, are you sure you want to override the previous one? You won't be able to communicate with already running vm"
-        ):
+        if keep_session is None:
+            keep_session = Confirm.ask(
+                "Session already initiated for this instance, are you sure you want to override the previous one? You won't be able to communicate with already running VM"
+            )
+        if keep_session:
+            echo("Keeping already initiated session")
             return
 
-    client = VmConfidentialClient(account, Path(sevctl_path), domain)
+    client = VmConfidentialClient(account, sevctl_path, domain)
 
     code, platform_file = await client.get_certificates()
     if code != 200:
         echo("Could not get the certificate from the CRN.")
-        return
+        return 1
 
     # pathlib.Path.rename raises "Invalid cross-device link" if the destination is not on the current filesystem.
     platform_cert_path = shutil.move(platform_file, session_dir / "platform_certificate.pem")
@@ -750,15 +863,26 @@ async def confidential_init_session(
     await client.close()
 
 
+def find_sevctl_or_exit() -> Path:
+    "Find sevctl in path, exit with message if not available"
+    sevctl_path = shutil.which("sevctl")
+    if sevctl_path is None:
+        echo("sevctl binary is not available. Please install sevctl, ensure it is in the PATH and try again.")
+        echo("Instructions for setup https://docs.aleph.im/computing/confidential/requirements/")
+        raise typer.Exit(code=1)
+    return Path(sevctl_path)
+
+
 @app.command()
 async def confidential_start(
-    vm_id: str,
-    domain: str,
+    vm_id: str = typer.Argument(..., help="VM item hash to start"),
+    domain: str = typer.Argument(..., help="CRN domain where the VM will be started"),
     policy: int = typer.Option(default=0x1),
     firmware_hash: str = typer.Option(
         settings.DEFAULT_CONFIDENTIAL_FIRMWARE_HASH, help=help_strings.CONFIDENTIAL_FIRMWARE_HASH
     ),
     firmware_file: str = typer.Option(None, help=help_strings.PRIVATE_KEY),
+    vm_secret: str = typer.Option(None, help=help_strings.VM_SECRET),
     private_key: Optional[str] = typer.Option(sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
     private_key_file: Optional[Path] = typer.Option(sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
     debug: bool = False,
@@ -770,13 +894,9 @@ async def confidential_start(
 
     setup_logging(debug)
     account = _load_account(private_key, private_key_file)
+    sevctl_path = find_sevctl_or_exit()
 
-    sevctl_path = shutil.which("sevctl")
-    if sevctl_path is None:
-        echo("sevctl is not available. Please install sevctl, ensure it is in the PATH and try again.")
-        return
-
-    client = VmConfidentialClient(account, Path(sevctl_path), domain)
+    client = VmConfidentialClient(account, sevctl_path, domain)
 
     bytes.fromhex(firmware_hash)
 
@@ -802,16 +922,131 @@ async def confidential_start(
     valid = await client.validate_measure(sev_data, tik_path, firmware_hash=firmware_hash)
     if not valid:
         echo("Could not validate authenticity of the VM. Please check that you are validating against the proper hash")
-        return 2
+        return 1
     echo("Measurement are authentic")
 
-    secret_key = Prompt.ask(
-        "Please enter secret to start the VM",
-    )
+    secret_key = vm_secret or Prompt.ask("Please enter secret to start the VM", password=True)
 
     encoded_packet_header, encoded_secret = await client.build_secret(tek_path, tik_path, sev_data, secret_key)
     await client.inject_secret(vm_hash, encoded_packet_header, encoded_secret)
-    echo("Starting the instance...")
-    echo("Logs can be fetched using the `aleph instance logs` command")
-    echo("Run the following command to get the IPv6 address of your instance:  aleph instance list")
     await client.close()
+    console = Console()
+    console.print(
+        "Your instance is currently starting..." "\n\nLogs can be fetched using:\n\n",
+        Text.assemble(
+            "  aleph instance logs ",
+            Text(vm_id, style="bright_cyan"),
+            " ",
+            Text(domain, style="blue"),
+            style="italic",
+        ),
+        "\n\nTo get the IPv6 address of the instance, check out:\n\n",
+        Text.assemble(
+            "  aleph instance list\n",
+            style="italic",
+        ),
+    )
+
+
+@app.command()
+async def confidential(
+    crn_url: Optional[str] = typer.Option(None, help=help_strings.CRN_URL),
+    crn_hash: Optional[str] = typer.Option(None, help=help_strings.CRN_HASH),
+    vm_id: Optional[str] = typer.Option(None, help=help_strings.VM_ID),
+    policy: int = typer.Option(default=0x1),
+    confidential_firmware: str = typer.Option(
+        default=settings.DEFAULT_CONFIDENTIAL_FIRMWARE, help=help_strings.CONFIDENTIAL_FIRMWARE
+    ),
+    firmware_hash: str = typer.Option(
+        settings.DEFAULT_CONFIDENTIAL_FIRMWARE_HASH, help=help_strings.CONFIDENTIAL_FIRMWARE_HASH
+    ),
+    firmware_file: str = typer.Option(None, help=help_strings.PRIVATE_KEY),
+    keep_session: bool = typer.Option(None, help=help_strings.KEEP_SESSION),
+    vm_secret: str = typer.Option(None, help=help_strings.VM_SECRET),
+    payment_type: PaymentType = typer.Option(None, help=help_strings.PAYMENT_TYPE),
+    name: Optional[str] = typer.Option(None, help=help_strings.INSTANCE_NAME),
+    rootfs: str = typer.Option("ubuntu22", help=help_strings.ROOTFS),
+    rootfs_size: int = typer.Option(None, help=help_strings.ROOTFS_SIZE),
+    vcpus: int = typer.Option(None, help=help_strings.VCPUS),
+    memory: int = typer.Option(None, help=help_strings.MEMORY),
+    timeout_seconds: float = typer.Option(
+        sdk_settings.DEFAULT_VM_TIMEOUT,
+        help=help_strings.TIMEOUT_SECONDS,
+    ),
+    ssh_pubkey_file: Path = typer.Option(
+        Path("~/.ssh/id_rsa.pub").expanduser(),
+        help=help_strings.SSH_PUBKEY_FILE,
+    ),
+    skip_volume: bool = typer.Option(False, help=help_strings.SKIP_VOLUME),
+    persistent_volume: Optional[List[str]] = typer.Option(None, help=help_strings.PERSISTENT_VOLUME),
+    ephemeral_volume: Optional[List[str]] = typer.Option(None, help=help_strings.EPHEMERAL_VOLUME),
+    immutable_volume: Optional[List[str]] = typer.Option(
+        None,
+        help=help_strings.IMMUTABLE_VOLUME,
+    ),
+    channel: Optional[str] = typer.Option(default=settings.DEFAULT_CHANNEL, help=help_strings.CHANNEL),
+    private_key: Optional[str] = typer.Option(sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
+    private_key_file: Optional[Path] = typer.Option(sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
+    debug: bool = False,
+):
+    """Create, start and unlock a confidential VM (all-in-one command)
+
+    This command combines the following commands:
+    \n\t- create (unless vm_id is passed)
+    \n\t- allocate
+    \n\t- confidential-init-session
+    \n\t- confidential-start
+    """
+
+    # Ensure sevctl is accessible before we start process with user
+    find_sevctl_or_exit()
+    allocated = False
+    if not vm_id or len(vm_id) != 64:
+        vm_id, crn_url = await create(
+            payment_type,
+            None,
+            name,
+            rootfs,
+            rootfs_size,
+            vcpus,
+            memory,
+            timeout_seconds,
+            ssh_pubkey_file,
+            crn_hash,
+            crn_url,
+            True,
+            confidential_firmware,
+            skip_volume,
+            persistent_volume,
+            ephemeral_volume,
+            immutable_volume,
+            channel,
+            private_key,
+            private_key_file,
+            False,
+            False,
+            debug,
+        )
+        if not vm_id or len(vm_id) != 64:
+            echo("Could not create the VM")
+            return 1
+        allocated = vm_id is not None
+
+    crn_url = crn_url or Prompt.ask("URL of the CRN (Compute node) on which the instance is running")
+
+    if not allocated:
+        allocated = (await allocate(vm_id, crn_url, private_key, private_key_file, debug)) is None
+        if not allocated:
+            echo("Could not allocate the VM")
+            return 1
+
+    initialized = (
+        await confidential_init_session(vm_id, crn_url, policy, keep_session, private_key, private_key_file, debug)
+    ) is None
+    if not initialized:
+        echo("Could not initialize the session")
+        return 1
+
+    await confidential_start(
+        vm_id, crn_url, policy, firmware_hash, firmware_file, vm_secret, private_key, private_key_file, debug
+    )

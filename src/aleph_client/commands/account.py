@@ -15,7 +15,6 @@ from aleph.sdk.chains.common import generate_key
 from aleph.sdk.chains.ethereum import ETHAccount
 from aleph.sdk.conf import settings as sdk_settings
 from aleph.sdk.types import AccountFromPrivateKey
-from aleph.sdk.utils import extended_json_encoder
 from typer.colors import RED
 
 from aleph_client.commands import help_strings
@@ -150,8 +149,11 @@ async def balance(
             response = await session.get(uri)
             if response.status == 200:
                 balance_data = await response.json()
-                formatted_balance_data = json.dumps(balance_data, indent=4, default=extended_json_encoder)
-                typer.echo(formatted_balance_data)
+                typer.echo(
+                    "\n"
+                    + "\n".join([f"{k.capitalize().replace('_', ' ')}: {v}" for k, v in balance_data.items()])
+                    + "\n"
+                )
             else:
                 typer.echo(f"Failed to retrieve balance for address {address}. Status code: {response.status}")
     else:
