@@ -917,7 +917,14 @@ async def confidential(
     private_key_file: Optional[Path] = typer.Option(sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
     debug: bool = False,
 ):
-    "All-in-one command to create (optional), allocate, initialize, validate and start a VM"
+    """Create, start and unlock a confidential VM (all-in-one command)
+
+    This command combine the following commands
+        - create (unless vm_id is passed )
+        - allocate
+        - confidential-init-session
+        - confidential-start
+    """
 
     # Ensure sevctl is accessible before we start process with user
     find_sevctl_or_exit()
