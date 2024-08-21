@@ -826,7 +826,7 @@ async def confidential_init_session(
 
     if (session_dir / "vm_godh.b64").exists():
         if keep_session is None:
-            keep_session = Confirm.ask(
+            keep_session = not Confirm.ask(
                 "Session already initiated for this instance, are you sure you want to override the previous one? You won't be able to communicate with already running VM"
             )
         if keep_session:
