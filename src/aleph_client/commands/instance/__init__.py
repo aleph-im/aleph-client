@@ -242,20 +242,23 @@ async def create(
         crn_url = sanitize_url(crn_url)
         try:
             crn_config = await fetch_crn_config(crn_url)
+            if crn_config:
+                crn = CRNInfo(
+                    url=crn_url,
+                    hash=ItemHash(crn_hash),
+                    score=10,
+                    name="",
+                    stream_reward_address=str(crn_config.get("payment", {}).get("PAYMENT_RECEIVER_ADDRESS", "")),
+                    machine_usage=None,
+                    version=None,
+                    confidential_computing=bool(
+                        crn_config.get("computing", {}).get("ENABLE_CONFIDENTIAL_COMPUTING", False)
+                    ),
+                    qemu_support=bool(crn_config.get("computing", {}).get("ENABLE_QEMU_SUPPORT", False)),
+                )
         except Exception as e:
             echo(f"Unable to fetch CRN config: {e}")
             raise typer.Exit(1)
-        crn = CRNInfo(
-            url=crn_url,
-            hash=ItemHash(crn_hash),
-            score=10,
-            name="",
-            stream_reward_address=crn_config.get("payment", {}).get("PAYMENT_RECEIVER_ADDRESS", None),
-            machine_usage=None,
-            version=None,
-            confidential_computing=crn_config.get("computing", {}).get("ENABLE_CONFIDENTIAL_COMPUTING", False),
-            qemu_support=crn_config.get("computing", {}).get("ENABLE_QEMU_SUPPORT", False),
-        )
     if payment_type != PaymentType.hold or confidential:
         while not crn:
             crn_table = CRNTable()
@@ -274,16 +277,17 @@ async def create(
                 crn = None
                 continue
 
-    stream_reward_address = crn.stream_reward_address
-    if payment_type != PaymentType.hold and not stream_reward_address:
-        echo("Selected CRN does not have a defined receiver address.")
-        raise typer.Exit(1)
-    if confidential and crn.confidential_computing is False:
-        echo("Selected CRN does not support confidential computing.")
-        raise typer.Exit(1)
-    if hypervisor == HypervisorType.qemu and crn.qemu_support is False:
-        echo("Selected CRN does not support QEMU hypervisor.")
-        raise typer.Exit(1)
+    if crn:
+        stream_reward_address = crn.stream_reward_address if has_nested_attr(crn, ["stream_reward_address"]) else ""
+        if payment_type != PaymentType.hold and not stream_reward_address:
+            echo("Selected CRN does not have a defined receiver address.")
+            raise typer.Exit(1)
+        if confidential and (not has_nested_attr(crn, ["confidential_computing"]) or not crn.confidential_computing):
+            echo("Selected CRN does not support confidential computing.")
+            raise typer.Exit(1)
+        if hypervisor == HypervisorType.qemu and (not has_nested_attr(crn, ["qemu_support"]) or not crn.qemu_support):
+            echo("Selected CRN does not support QEMU hypervisor.")
+            raise typer.Exit(1)
 
     async with AuthenticatedAlephHttpClient(account=account, api_server=sdk_settings.API_HOST) as client:
         payment: Optional[Payment] = None
