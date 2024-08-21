@@ -95,7 +95,7 @@ async def create(
     print_messages: bool = typer.Option(False),
     verbose: bool = typer.Option(True),
     debug: bool = False,
-):
+) -> Tuple[ItemHash, Optional[str]]:
     """Register a new instance on aleph.im"""
     setup_logging(debug)
 
@@ -247,7 +247,7 @@ async def create(
             crn = await crn_table.run_async()
             if not crn:
                 # User has ctrl-c
-                return None, None
+                raise typer.Exit(1)
             print("Run instance on CRN:")
             print("\t Name", crn.name)
             print("\t Stream reward address", crn.stream_reward_address)
@@ -306,6 +306,8 @@ async def create(
         crn_url = crn.url if crn and crn.url else None
         if crn and (payment_type != PaymentType.hold or confidential):
             if not crn_url:
+                # Not the ideal solution
+                logger.debug("Cannot allocate {item_hash}, no CRN url")
                 return item_hash, crn_url
             account = _load_account(private_key, private_key_file)
             async with VmClient(account, crn.url) as crn_client:
