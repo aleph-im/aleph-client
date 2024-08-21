@@ -752,10 +752,7 @@ async def confidential_init_session(
     setup_logging(debug)
     account = _load_account(private_key, private_key_file)
 
-    sevctl_path = shutil.which("sevctl")
-    if sevctl_path is None:
-        echo("sevctl is not available. Please install sevctl, ensure it is in the PATH and try again.")
-        return 1
+    sevctl_path = find_sevctl_or_exit()
 
     if (session_dir / "vm_godh.b64").exists():
         if keep_session is None:
@@ -766,7 +763,7 @@ async def confidential_init_session(
             echo("Keeping already initiated session")
             return
 
-    client = VmConfidentialClient(account, Path(sevctl_path), domain)
+    client = VmConfidentialClient(account, sevctl_path, domain)
 
     code, platform_file = await client.get_certificates()
     if code != 200:
@@ -794,6 +791,16 @@ async def confidential_init_session(
     await client.close()
 
 
+def find_sevctl_or_exit() -> Path:
+    "Find sevctl in path, exit with message if not available"
+    sevctl_path = shutil.which("sevctl")
+    if sevctl_path is None:
+        echo("sevctl binary is not available. Please install sevctl, ensure it is in the PATH and try again.")
+        echo("Instructions for setup https://docs.aleph.im/computing/confidential/requirements/")
+        raise typer.Exit(code=1)
+    return Path(sevctl_path)
+
+
 @app.command()
 async def confidential_start(
     vm_id: str = typer.Argument(..., help="VM item hash to start"),
@@ -815,13 +822,9 @@ async def confidential_start(
 
     setup_logging(debug)
     account = _load_account(private_key, private_key_file)
+    sevctl_path = find_sevctl_or_exit()
 
-    sevctl_path = shutil.which("sevctl")
-    if sevctl_path is None:
-        echo("sevctl is not available. Please install sevctl, ensure it is in the PATH and try again.")
-        return 1
-
-    client = VmConfidentialClient(account, Path(sevctl_path), domain)
+    client = VmConfidentialClient(account, sevctl_path, domain)
 
     bytes.fromhex(firmware_hash)
 
