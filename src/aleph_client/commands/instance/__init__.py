@@ -346,7 +346,10 @@ async def create(
                         flow=Decimal(price.required_tokens),
                         update_type=FlowUpdate.INCREASE,
                     )
-                echo(f"Flow {flow_hash} has been created of {price.required_tokens}")
+                    if flow_hash:
+                        echo(
+                            f"Flow {flow_hash} has been created:\n\t- amount: {price.required_tokens} ALEPH\n\t- receiver: {crn.stream_reward_address}"
+                        )
 
             # Wait for the instance message to be processed
             async with aiohttp.ClientSession() as session:
@@ -458,7 +461,8 @@ async def delete(
                     flow_hash = await update_flow(
                         account, payment.chain, payment.receiver, Decimal(price.required_tokens), FlowUpdate.REDUCE
                     )
-                echo(f"Flow {flow_hash} has been deleted.")
+                    if flow_hash:
+                        echo(f"Flow {flow_hash} has been deleted.")
 
         # Check status of the instance and eventually erase associated VM
         node_list: NodeInfo = await _fetch_nodes()
