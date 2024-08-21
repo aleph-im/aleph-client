@@ -139,12 +139,9 @@ def test_sanitize_url_with_https_scheme():
 
 
 class MockETHAccount(ETHAccount):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.delete_flow = AsyncMock()
+    pass
 
 
-# Use this factory in your tests
 def create_test_account() -> MockETHAccount:
     return MockETHAccount(private_key=b"deca" * 8)
 
@@ -156,7 +153,8 @@ async def test_delete_instance():
 
     # Mocking get_flow and delete_flow methods using patch.object
     with patch.object(test_account, "get_flow", AsyncMock(return_value={"flowRate": to_wei(123, unit="ether")})):
-        with patch.object(test_account, "delete_flow", AsyncMock()):
+        delete_flow_mock = AsyncMock()
+        with patch.object(test_account, "delete_flow", delete_flow_mock):
             mock_response_message = MagicMock(
                 sender=test_account.get_address(),
                 content=MagicMock(
@@ -184,7 +182,7 @@ async def test_delete_instance():
                     await delete(item_hash)
 
                     # The flow has been deleted since payment uses Superfluid and there is only one flow mocked
-                    AsyncMock, test_account.delete_flow.assert_awaited()
+                    delete_flow_mock.assert_awaited_once()
 
                     # The message has been forgotten
                     mock_client.forget.assert_called_once()
