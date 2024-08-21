@@ -312,7 +312,7 @@ async def create(
                 # Not the ideal solution
                 logger.debug(f"Cannot allocate {item_hash}: no CRN url")
                 return item_hash, crn_url
-        
+
             # Pay-As-You-Go
             if payment_type == PaymentType.superfluid:
                 price: PriceResponse = await client.get_program_price(item_hash)
@@ -325,7 +325,7 @@ async def create(
                         update_type=FlowUpdate.INCREASE,
                     )
                 typer.echo(f"Flow {flow_hash} has been created of {price.required_tokens}")
-                
+
             # Wait for the instance message to be processed
             async with aiohttp.ClientSession() as session:
                 if isinstance(account, ETHAccount):
