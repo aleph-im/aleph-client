@@ -158,8 +158,8 @@ async def upload(
 
 @app.command()
 async def update(
-    item_hash: str,
-    path: Path,
+    item_hash: str = typer.Argument(..., help="Item hash to update"),
+    path: Path = typer.Argument(..., help="Source path to upload"),
     private_key: Optional[str] = sdk_settings.PRIVATE_KEY_STRING,
     private_key_file: Optional[Path] = sdk_settings.PRIVATE_KEY_FILE,
     print_message: bool = True,
@@ -214,7 +214,7 @@ async def update(
 
 @app.command()
 async def unpersist(
-    item_hash: str,
+    item_hash: str = typer.Argument(..., help="Item hash to unpersist"),
     private_key: Optional[str] = sdk_settings.PRIVATE_KEY_STRING,
     private_key_file: Optional[Path] = sdk_settings.PRIVATE_KEY_FILE,
     debug: bool = False,
