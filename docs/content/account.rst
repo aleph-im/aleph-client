@@ -22,7 +22,7 @@ Example using Ethereum:
 
 .. code-block:: python3
 
-    from aleph_client.chains.ethereum import get_fallback_account
+    from aleph.sdk.chains.ethereum import get_fallback_account
 
     account = get_fallback_account()
 
@@ -30,7 +30,7 @@ Another example setting the private key manually:
 
 .. code-block:: python3
 
-    from aleph_client.chains.ethereum import ETHAccount
+    from aleph.sdk.chains.ethereum import ETHAccount
 
     prv = bytes.fromhex("xxxxxx")
 
@@ -41,7 +41,7 @@ It's the case for Ethereum:
 
 .. code-block:: python3
 
-    >>> from aleph_client.chains.ethereum import ETHAccount
+    >>> from aleph.sdk.chains.ethereum import ETHAccount
     >>> account = ETHAccount("0x0000000000000000000000000000000000000000000000000000000000000001")
     >>> account.get_address()
     '0x7E5F4552091A69125d5DfCb7b8C2659029395Bdf'
@@ -58,7 +58,7 @@ Example using Substrate (if you already used a fallback on ethereum or nuls, you
 
 .. code-block:: python3
 
-    from aleph_client.chains.substrate import get_fallback_account
+    from aleph.sdk.chains.substrate import get_fallback_account
 
     account = get_fallback_account()
 
@@ -66,7 +66,7 @@ Another example setting the mnemonics manually:
 
 .. code-block:: python3
 
-    from aleph_client.chains.substrate import DOTAccount
+    from aleph.sdk.chains.substrate import DOTAccount
 
     account = DOTAccount("payment shy team bargain chest fold bless artwork identify breeze pelican category")
 
@@ -77,7 +77,7 @@ You can also change the address_type (0 for polkadot, 2 for canary, 42 generic..
 
 .. code-block:: python3
 
-    >>> from aleph_client.chains.substrate import DOTAccount
+    >>> from aleph.sdk.chains.substrate import DOTAccount
     >>> account = DOTAccount("payment shy team bargain chest fold bless artwork identify breeze pelican category")
     >>> account.get_address()
     '5CGNMKCscqN2QNcT7Jtuz23ab7JUxh8wTEtXhECZLJn5vCGX'
@@ -98,7 +98,7 @@ Fallback account:
 
 .. code-block:: python3
 
-    from aleph_client.chains.nuls2 import get_fallback_account
+    from aleph.sdk.chains.nuls2 import get_fallback_account
 
     account = get_fallback_account()
 
@@ -106,7 +106,7 @@ From a private key:
 
 .. code-block:: python3
 
-    >>> from aleph_client.chains.nuls2 import NULSAccount
+    >>> from aleph.sdk.chains.nuls2 import NULSAccount
     >>> account = NULSAccount(
     ...    bytes.fromhex(
     ...    "0000000000000000000000000000000000000000000000000000000000000001"))
