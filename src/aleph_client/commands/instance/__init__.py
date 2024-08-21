@@ -307,7 +307,7 @@ async def create(
         if crn and (payment_type != PaymentType.hold or confidential):
             if not crn_url:
                 # Not the ideal solution
-                logger.debug("Cannot allocate {item_hash}, no CRN url")
+                logger.debug(f"Cannot allocate {item_hash}: no CRN url")
                 return item_hash, crn_url
             account = _load_account(private_key, private_key_file)
             async with VmClient(account, crn.url) as crn_client:
@@ -385,23 +385,11 @@ async def delete(
     print_message: bool = typer.Option(False),
     debug: bool = False,
 ):
-    """Delete an instance, unallocating all resources associated with it. Associated VM will be stopped and erased if the CRN domain is provided. Immutable volumes will not be deleted."""
-
-    if (
-        not crn_url
-        and Prompt.ask("If relevant, erase associated VM beforehand ?", default="n", choices=["y", "n"]) == "y"
-    ):
-        crn_url = Prompt.ask("URL of the CRN (Compute node) on which the instance is running")
-    if crn_url:
-        try:
-            await erase(item_hash, crn_url, private_key, private_key_file, debug)
-        except Exception as e:
-            typer.echo("Failed to erase associated VM. Skipping...")
+    """Delete an instance, unallocating all resources associated with it. Associated VM will be stopped and erased. Immutable volumes will not be deleted."""
 
     setup_logging(debug)
 
     account = _load_account(private_key, private_key_file)
-
     async with AuthenticatedAlephHttpClient(account=account, api_server=sdk_settings.API_HOST) as client:
         try:
             existing_message: InstanceMessage = await client.get_message(
@@ -417,10 +405,25 @@ async def delete(
             typer.echo("You are not the owner of this instance")
             raise typer.Exit(code=1)
 
+        # Check status of the instance and eventually erase associated VM
+        node_list: NodeInfo = await _fetch_nodes()
+        _, details = await _get_instance_details(existing_message, node_list)
+        auto_scheduled = details["allocation_type"] == help_strings.ALLOCATION_AUTO
+        crn_url = str(details["crn_url"])
+        if not auto_scheduled and crn_url:
+            try:
+                status = await erase(item_hash, crn_url, private_key, private_key_file, True, debug)
+                if status == 1:
+                    typer.echo(f"No associated VM on {crn_url}. Skipping...")
+            except Exception as e:
+                typer.echo(f"Failed to erase associated VM on {crn_url}. Skipping...")
+        else:
+            typer.echo(f"Instance {item_hash} was auto-scheduled, VM will be erased automatically.")
+
         message, status = await client.forget(hashes=[ItemHash(item_hash)], reason=reason)
         if print_message:
             typer.echo(f"{message.json(indent=4)}")
-        typer.echo(f"Instance {item_hash} has been deleted.\nIt will be removed by the scheduler in a few minutes.")
+        typer.echo(f"Instance {item_hash} has been deleted.")
 
 
 async def _get_instance_details(message: InstanceMessage, node_list: NodeInfo) -> Tuple[str, Dict[str, object]]:
@@ -431,25 +434,36 @@ async def _get_instance_details(message: InstanceMessage, node_list: NodeInfo) -
             and len(getattr(message.content.environment.trusted_execution, "firmware")) == 64
         )
         details = dict(
-            ipv6_logs="",
             payment="hold\t   " if hold else str(getattr(message.content.payment, "type").value),
             confidential=confidential,
+            allocation_type="",
+            ipv6_logs="",
             crn_url="",
         )
         try:
             # Fetch from the scheduler API directly if no payment or no receiver (hold-tier non-confidential)
             if hold and not confidential:
                 try:
-                    status = await fetch_json(
+                    details["allocation_type"] = help_strings.ALLOCATION_AUTO
+                    allocation = await fetch_json(
                         session,
                         f"https://scheduler.api.aleph.cloud/api/v0/allocation/{message.item_hash}",
                     )
-                    details["ipv6_logs"] = status["vm_ipv6"]
-                    return str(status["vm_hash"]), details
+                    nodes = await fetch_json(
+                        session,
+                        f"https://scheduler.api.aleph.cloud/api/v0/nodes",
+                    )
+                    details["ipv6_logs"] = allocation["vm_ipv6"]
+                    for node in nodes["nodes"]:
+                        if node["ipv6"].split("::")[0] == ":".join(str(details["ipv6_logs"]).split(":")[:4]):
+                            details["crn_url"] = node["url"].rstrip("/")
+                    return message.item_hash, details
                 except:
-                    details["ipv6_logs"] = "Scheduled but not available yet"
+                    details["ipv6_logs"] = help_strings.VM_SCHEDULED
+                    details["crn_url"] = help_strings.CRN_PENDING
             else:
                 # Fetch from the CRN API if PAYG-tier or confidential
+                details["allocation_type"] = help_strings.ALLOCATION_MANUAL
                 for node in node_list.nodes:
                     if (
                         has_nested_attr(message.content, ["payment", "receiver"])
@@ -467,7 +481,7 @@ async def _get_instance_details(message: InstanceMessage, node_list: NodeInfo) -
                             interface = IPv6Interface(executions[message.item_hash]["networking"]["ipv6"])
                             details["ipv6_logs"] = str(interface.ip + 1)
                             return message.item_hash, details
-                details["ipv6_logs"] = "Not initialized or not started" if confidential else "Not available yet"
+                details["ipv6_logs"] = help_strings.VM_NOT_READY if confidential else help_strings.VM_NOT_AVAILABLE_YET
         except (ClientResponseError, ClientConnectorError) as e:
             details["ipv6_logs"] = f"Not available. Server error: {e}"
         return message.item_hash, details
@@ -485,7 +499,7 @@ async def _show_instances(messages: List[InstanceMessage], node_list: NodeInfo):
     uninitialized_confidential_found = False
     for message in messages:
         resp = scheduler_responses[message.item_hash]
-        if resp["ipv6_logs"] == "Not initialized or not started":
+        if resp["ipv6_logs"] == help_strings.VM_NOT_READY:
             uninitialized_confidential_found = True
         name = Text(
             (
@@ -503,7 +517,7 @@ async def _show_instances(messages: List[InstanceMessage], node_list: NodeInfo):
         )
         payment = Text.assemble(
             "Payment: ",
-            Text(str(resp["payment"]).capitalize(), style="orange3" if resp["payment"] == "superfluid" else "red"),
+            Text(str(resp["payment"]).capitalize(), style="red" if resp["payment"] != PaymentType.hold else "orange3"),
         )
         confidential = (
             Text.assemble("Type: ", Text("Confidential", style="green"))
@@ -516,16 +530,30 @@ async def _show_instances(messages: List[InstanceMessage], node_list: NodeInfo):
         specifications = (
             f"vCPUs: {message.content.resources.vcpus}\n"
             f"RAM: {message.content.resources.memory / 1_024:.2f} GiB\n"
-            f"Disk: {message.content.rootfs.size_mib / 1_024:.2f} GiB"
+            f"Disk: {message.content.rootfs.size_mib / 1_024:.2f} GiB\n"
+            f"HyperV: {message.content.environment.hypervisor if has_nested_attr(message.content, ['environment', 'hypervisor']) else 'firecracker'}\n"
         )
         status_column = Text.assemble(
-            Text("IPv6: ", style="blue"),
-            Text(str(resp["ipv6_logs"]), style="yellow"),
+            Text.assemble(
+                Text("Allocation: ", style="blue"),
+                Text(
+                    str(resp["allocation_type"]) + "\n",
+                    style="magenta3" if resp["allocation_type"] == help_strings.ALLOCATION_MANUAL else "deep_sky_blue1",
+                ),
+            ),
+            Text.assemble(
+                Text("Target CRN: ", style="blue"),
+                Text(
+                    str(resp["crn_url"]) + "\n",
+                    style="green1" if str(resp["crn_url"]).startswith("http") else "dark_slate_gray1",
+                ),
+            ),
+            Text.assemble(
+                Text("IPv6: ", style="blue"),
+                Text(str(resp["ipv6_logs"])),
+                style="bright_yellow" if len(str(resp["ipv6_logs"]).split(":")) == 8 else "dark_orange",
+            ),
         )
-        if resp["crn_url"]:
-            status_column = Text.assemble(
-                status_column, "\n", Text("CRN: ", style="blue"), Text(resp["crn_url"], style="green")
-            )
         table.add_row(instance, specifications, status_column)
         table.add_section()
     console = Console()
@@ -639,6 +667,7 @@ async def erase(
     domain: str = typer.Argument(..., help="CRN domain where the VM is stored or running"),
     private_key: Optional[str] = typer.Option(sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
     private_key_file: Optional[Path] = typer.Option(sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
+    silent: bool = False,
     debug: bool = False,
 ):
     """Erase an instance stored or running on a CRN"""
@@ -650,7 +679,8 @@ async def erase(
     async with VmClient(account, domain) as manager:
         status, result = await manager.erase_instance(vm_id=vm_id)
         if status != 200:
-            typer.echo(f"Status: {status}")
+            if not silent:
+                typer.echo(f"Status: {status}")
             return 1
         typer.echo(f"VM erased on CRN: {domain}")
 
@@ -927,11 +957,11 @@ async def confidential(
 ):
     """Create, start and unlock a confidential VM (all-in-one command)
 
-    This command combine the following commands
-        - create (unless vm_id is passed )
-        - allocate
-        - confidential-init-session
-        - confidential-start
+    This command combines the following commands:
+    \n\t- create (unless vm_id is passed)
+    \n\t- allocate
+    \n\t- confidential-init-session
+    \n\t- confidential-start
     """
 
     # Ensure sevctl is accessible before we start process with user
