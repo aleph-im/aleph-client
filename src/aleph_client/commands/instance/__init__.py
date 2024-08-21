@@ -916,9 +916,9 @@ async def confidential_start(
 
 @app.command()
 async def confidential(
-    crn_url: Optional[str] = typer.Option(None, help=help_strings.CRN_URL),
-    crn_hash: Optional[str] = typer.Option(None, help=help_strings.CRN_HASH),
-    vm_id: Optional[str] = typer.Option(None, help=help_strings.VM_ID),
+    vm_id: Optional[str] = typer.Argument(default=None, help=help_strings.VM_ID),
+    crn_url: Optional[str] = typer.Argument(default=None, help=help_strings.CRN_URL),
+    crn_hash: Optional[str] = typer.Option(default=None, help=help_strings.CRN_HASH),
     policy: int = typer.Option(default=0x1),
     confidential_firmware: str = typer.Option(
         default=settings.DEFAULT_CONFIDENTIAL_FIRMWARE, help=help_strings.CONFIDENTIAL_FIRMWARE
