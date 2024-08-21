@@ -918,6 +918,9 @@ async def confidential(
     debug: bool = False,
 ):
     "All-in-one command to create (optional), allocate, initialize, validate and start a VM"
+
+    # Ensure sevctl is accessible before we start process with user
+    find_sevctl_or_exit()
     allocated = False
     if not vm_id or len(vm_id) != 64:
         vm_id, crn_url = await create(
