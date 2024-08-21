@@ -391,7 +391,7 @@ async def delete(
         not crn_url
         and Prompt.ask("If relevant, erase associated VM beforehand ?", default="n", choices=["y", "n"]) == "y"
     ):
-        crn_url = Prompt.ask("CRN domain")
+        crn_url = Prompt.ask("URL of the CRN (Compute node) on which the instance is running")
     if crn_url:
         try:
             await erase(item_hash, crn_url, private_key, private_key_file, debug)
@@ -962,7 +962,7 @@ async def confidential(
             return 1
         allocated = vm_id is not None
 
-    crn_url = crn_url or Prompt.ask("CRN domain")
+    crn_url = crn_url or Prompt.ask("URL of the CRN (Compute node) on which the instance is running")
 
     if not allocated:
         allocated = (await allocate(vm_id, crn_url, private_key, private_key_file, debug)) is None
