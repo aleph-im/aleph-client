@@ -459,7 +459,7 @@ async def _get_instance_details(message: InstanceMessage, node_list: NodeInfo) -
                         and message.content.requirements is not None
                         and node["hash"] == getattr(message.content.requirements.node, "node_hash")
                     ):
-                        details["crn_url"] = node["address"]
+                        details["crn_url"] = node["address"].rstrip("/")
                         path = f"{node['address'].rstrip('/')}/about/executions/list"
 
                         executions = await fetch_json(session, path)
@@ -475,10 +475,9 @@ async def _get_instance_details(message: InstanceMessage, node_list: NodeInfo) -
 
 async def _show_instances(messages: List[InstanceMessage], node_list: NodeInfo):
     table = Table(box=box.SIMPLE_HEAVY)
-    table.add_column(f"Instances [{len(messages)}]", style="blue")
+    table.add_column(f"Instances [{len(messages)}]", style="blue", overflow="fold")
     table.add_column("Specifications", style="magenta")
-    table.add_column("IPv6 Address - Logs", style="yellow")
-    table.add_column("CRN URL", style="yellow")
+    table.add_column("Logs", style="blue", overflow="fold")
 
     scheduler_responses = dict(
         await asyncio.gather(*[_get_instance_details(message, node_list) for message in messages])
@@ -519,7 +518,15 @@ async def _show_instances(messages: List[InstanceMessage], node_list: NodeInfo):
             f"RAM: {message.content.resources.memory / 1_024:.2f} GiB\n"
             f"Disk: {message.content.rootfs.size_mib / 1_024:.2f} GiB"
         )
-        table.add_row(instance, specifications, str(resp["ipv6_logs"]), str(resp["crn_url"]))
+        status_column = Text.assemble(
+            Text("IPv6: ", style="blue"),
+            Text(str(resp["ipv6_logs"]), style="yellow"),
+        )
+        if resp["crn_url"]:
+            status_column = Text.assemble(
+                status_column, "\n", Text("CRN: ", style="blue"), Text(resp["crn_url"], style="green")
+            )
+        table.add_row(instance, specifications, status_column)
         table.add_section()
     console = Console()
     console.print(
