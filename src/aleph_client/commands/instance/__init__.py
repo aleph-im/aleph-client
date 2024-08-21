@@ -434,6 +434,7 @@ async def _get_instance_details(message: InstanceMessage, node_list: NodeInfo) -
             ipv6_logs="",
             payment="hold\t   " if hold else str(getattr(message.content.payment, "type").value),
             confidential=confidential,
+            crn_url="",
         )
         try:
             # Fetch from the scheduler API directly if no payment or no receiver (hold-tier non-confidential)
@@ -458,6 +459,7 @@ async def _get_instance_details(message: InstanceMessage, node_list: NodeInfo) -
                         and message.content.requirements is not None
                         and node["hash"] == getattr(message.content.requirements.node, "node_hash")
                     ):
+                        details["crn_url"] = node["address"]
                         path = f"{node['address'].rstrip('/')}/about/executions/list"
 
                         executions = await fetch_json(session, path)
@@ -476,6 +478,7 @@ async def _show_instances(messages: List[InstanceMessage], node_list: NodeInfo):
     table.add_column(f"Instances [{len(messages)}]", style="blue")
     table.add_column("Specifications", style="magenta")
     table.add_column("IPv6 Address - Logs", style="yellow")
+    table.add_column("CRN URL", style="yellow")
 
     scheduler_responses = dict(
         await asyncio.gather(*[_get_instance_details(message, node_list) for message in messages])
@@ -516,11 +519,7 @@ async def _show_instances(messages: List[InstanceMessage], node_list: NodeInfo):
             f"RAM: {message.content.resources.memory / 1_024:.2f} GiB\n"
             f"Disk: {message.content.rootfs.size_mib / 1_024:.2f} GiB"
         )
-        table.add_row(
-            instance,
-            specifications,
-            str(resp["ipv6_logs"]),
-        )
+        table.add_row(instance, specifications, str(resp["ipv6_logs"]), str(resp["crn_url"]))
         table.add_section()
     console = Console()
     console.print(
