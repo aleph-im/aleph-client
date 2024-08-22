@@ -9,7 +9,14 @@ Related ClickUp, GitHub or Jira tickets : ALEPH-XXX
 - [ ] An LLM was used to review the new code and look for simplifications.
 - [ ] New classes and functions contain docstrings explaining what they provide.
 - [ ] All new code is covered by relevant tests.
-- [ ] Documentation has been updated regarding these changes.
+
+## Documentation
+
+The documentation regarding the impacted features is available on:
+> URL
+
+The changes in the documentation are available here:
+> URL
 
 ## Changes
 
