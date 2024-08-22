@@ -42,6 +42,7 @@ from rich.text import Text
 
 from aleph_client.commands import help_strings
 from aleph_client.commands.instance.display import CRNInfo, CRNTable
+from aleph_client.commands.instance.network import fetch_crn_info, sanitize_url
 from aleph_client.commands.node import NodeInfo, _fetch_nodes
 from aleph_client.commands.utils import (
     get_or_prompt_volumes,
@@ -231,34 +232,59 @@ async def create(
     stream_reward_address = None
     crn = None
     if crn_url and crn_hash:
-        crn = CRNInfo(
-            url=crn_url,
-            hash=ItemHash(crn_hash),
-            score=10,
-            name="",
-            stream_reward_address="",
-            machine_usage=None,
-            version=None,
-            confidential_computing=None,
-        )
+        crn_url = sanitize_url(crn_url)
+        try:
+            crn_config = await fetch_crn_info(crn_url)
+            if crn_config:
+                crn = CRNInfo(
+                    url=crn_url,
+                    hash=ItemHash(crn_hash),
+                    score=10,
+                    name="",
+                    stream_reward_address=str(crn_config.get("payment", {}).get("PAYMENT_RECEIVER_ADDRESS", "")),
+                    machine_usage=None,
+                    version=None,
+                    confidential_computing=bool(
+                        crn_config.get("computing", {}).get("ENABLE_CONFIDENTIAL_COMPUTING", False)
+                    ),
+                    qemu_support=bool(crn_config.get("computing", {}).get("ENABLE_QEMU_SUPPORT", False)),
+                )
+        except Exception as e:
+            echo(f"Unable to fetch CRN config: {e}")
+            raise typer.Exit(1)
     if payment_type != PaymentType.hold or confidential:
         while not crn:
-            crn_table = CRNTable()
+            crn_table = CRNTable(only_confidentials=confidential)
             crn = await crn_table.run_async()
             if not crn:
                 # User has ctrl-c
                 raise typer.Exit(1)
-            print("Run instance on CRN:")
-            print("\t Name", crn.name)
-            print("\t Stream reward address", crn.stream_reward_address)
-            print("\t URL", crn.url)
+            echo("Run instance on CRN:")
+            echo(f"  Name: {crn.name}")
+            echo(f"  URL: {crn.url}")
+            echo(f"  Version: {crn.version}")
+            echo(f"  Stream receiver: {crn.stream_reward_address}")
+            echo(f"  Support Qemu: {crn.qemu_support}")
+            echo(f"  Support Confidential: {crn.confidential_computing}")
             if isinstance(crn.machine_usage, MachineUsage):
-                print("\t Available disk space", crn.machine_usage.disk)
-                print("\t Available ram", crn.machine_usage.mem)
+                echo(f"  Available Cores: {crn.display_cpu}")
+                echo(f"  Available RAM: {crn.display_ram}")
+                echo(f"  Available Disk: {crn.display_hdd}")
             if not Confirm.ask("Deploy on this node ?"):
                 crn = None
                 continue
-            stream_reward_address = crn.stream_reward_address
+
+    if crn:
+        stream_reward_address = crn.stream_reward_address if has_nested_attr(crn, ["stream_reward_address"]) else ""
+        if payment_type != PaymentType.hold and not stream_reward_address:
+            echo("Selected CRN does not have a defined receiver address.")
+            raise typer.Exit(1)
+        if confidential and (not has_nested_attr(crn, ["confidential_computing"]) or not crn.confidential_computing):
+            echo("Selected CRN does not support confidential computing.")
+            raise typer.Exit(1)
+        if hypervisor == HypervisorType.qemu and (not has_nested_attr(crn, ["qemu_support"]) or not crn.qemu_support):
+            echo("Selected CRN does not support QEMU hypervisor.")
+            raise typer.Exit(1)
 
     async with AuthenticatedAlephHttpClient(account=account, api_server=sdk_settings.API_HOST) as client:
         payment: Optional[Payment] = None

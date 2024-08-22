@@ -2,6 +2,7 @@ import asyncio
 import inspect
 import logging
 import os
+import re
 from functools import partial, wraps
 from pathlib import Path
 from shutil import make_archive
@@ -91,3 +92,12 @@ async def fetch_json(session: ClientSession, url: str) -> dict:
     async with session.get(url) as resp:
         resp.raise_for_status()
         return await resp.json()
+
+
+def extract_valid_eth_address(address: str) -> str:
+    if address:
+        pattern = r"0x[a-fA-F0-9]{40}"
+        match = re.search(pattern, address)
+        if match:
+            return match.group(0)
+    return ""
