@@ -202,7 +202,7 @@ def is_environment_interactive() -> bool:
     )
 
 
-def has_nested_attr(obj, attr_chain) -> bool:
+def has_nested_attr(obj, *attr_chain) -> bool:
     for attr in attr_chain:
         if not hasattr(obj, attr) or getattr(obj, attr) is None:
             return False

@@ -430,7 +430,7 @@ async def _get_instance_details(message: InstanceMessage, node_list: NodeInfo) -
     async with ClientSession() as session:
         hold = not message.content.payment or message.content.payment.type == PaymentType["hold"]
         confidential = (
-            has_nested_attr(message.content, ["environment", "trusted_execution", "firmware"])
+            has_nested_attr(message.content, "environment", "trusted_execution", "firmware")
             and len(getattr(message.content.environment.trusted_execution, "firmware")) == 64
         )
         details = dict(
@@ -466,10 +466,10 @@ async def _get_instance_details(message: InstanceMessage, node_list: NodeInfo) -
                 details["allocation_type"] = help_strings.ALLOCATION_MANUAL
                 for node in node_list.nodes:
                     if (
-                        has_nested_attr(message.content, ["payment", "receiver"])
+                        has_nested_attr(message.content, "payment", "receiver")
                         and node["stream_reward"] == getattr(message.content.payment, "receiver")
                     ) or (
-                        has_nested_attr(message.content, ["requirements", "node", "node_hash"])
+                        has_nested_attr(message.content, "requirements", "node", "node_hash")
                         and message.content.requirements is not None
                         and node["hash"] == getattr(message.content.requirements.node, "node_hash")
                     ):
@@ -531,7 +531,7 @@ async def _show_instances(messages: List[InstanceMessage], node_list: NodeInfo):
             f"vCPUs: {message.content.resources.vcpus}\n"
             f"RAM: {message.content.resources.memory / 1_024:.2f} GiB\n"
             f"Disk: {message.content.rootfs.size_mib / 1_024:.2f} GiB\n"
-            f"HyperV: {message.content.environment.hypervisor if has_nested_attr(message.content, ['environment', 'hypervisor']) else 'firecracker'}\n"
+            f"HyperV: {message.content.environment.hypervisor if has_nested_attr(message.content, 'environment', 'hypervisor') else 'firecracker'}\n"
         )
         status_column = Text.assemble(
             Text.assemble(
