@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from decimal import Decimal
+from typing import cast
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -76,7 +77,6 @@ def dict_to_ci_multi_dict_proxy(d: dict) -> CIMultiDictProxy:
 
 
 def test_get_version() -> None:
-
     # No server field in headers
     headers = dict_to_ci_multi_dict_proxy({})
     assert get_version(headers) is None
@@ -138,14 +138,23 @@ def test_sanitize_url_with_https_scheme():
     assert sanitize_url(url) == url
 
 
+class MockETHAccount(ETHAccount):
+    pass
+
+
+def create_test_account() -> MockETHAccount:
+    return MockETHAccount(private_key=b"deca" * 8)
+
+
 @pytest.mark.asyncio
 async def test_delete_instance():
     item_hash = "cafe" * 16
-    test_account = ETHAccount(private_key=b"deca" * 8)
+    test_account = create_test_account()
 
     # Mocking get_flow and delete_flow methods using patch.object
     with patch.object(test_account, "get_flow", AsyncMock(return_value={"flowRate": to_wei(123, unit="ether")})):
-        with patch.object(test_account, "delete_flow", AsyncMock()):
+        delete_flow_mock = AsyncMock()
+        with patch.object(test_account, "delete_flow", delete_flow_mock):
             mock_response_message = MagicMock(
                 sender=test_account.get_address(),
                 content=MagicMock(
@@ -173,7 +182,7 @@ async def test_delete_instance():
                     await delete(item_hash)
 
                     # The flow has been deleted since payment uses Superfluid and there is only one flow mocked
-                    test_account.delete_flow.assert_awaited()
+                    delete_flow_mock.assert_awaited_once()
 
                     # The message has been forgotten
                     mock_client.forget.assert_called_once()

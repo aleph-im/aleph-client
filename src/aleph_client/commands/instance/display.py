@@ -51,6 +51,7 @@ class CRNInfo(BaseModel):
     stream_reward_address: str
     url: str
     confidential_computing: Optional[bool]
+    qemu_support: Optional[bool]
 
 
 class DisplayMachineUsage(BaseModel):
@@ -104,6 +105,7 @@ class CRNTable(App[CRNInfo]):
                 machine_usage=None,
                 version=None,
                 confidential_computing=None,
+                qemu_support=None,
             )
             usage: DisplayMachineUsage = DisplayMachineUsage()
 
