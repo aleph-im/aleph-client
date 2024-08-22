@@ -1001,6 +1001,7 @@ async def confidential(
     keep_session: bool = typer.Option(None, help=help_strings.KEEP_SESSION),
     vm_secret: str = typer.Option(None, help=help_strings.VM_SECRET),
     payment_type: PaymentType = typer.Option(None, help=help_strings.PAYMENT_TYPE),
+    payment_chain: Optional[Chain] = typer.Option(None, help=help_strings.PAYMENT_CHAIN),
     name: Optional[str] = typer.Option(None, help=help_strings.INSTANCE_NAME),
     rootfs: str = typer.Option("ubuntu22", help=help_strings.ROOTFS),
     rootfs_size: int = typer.Option(None, help=help_strings.ROOTFS_SIZE),
@@ -1041,6 +1042,7 @@ async def confidential(
     if not vm_id or len(vm_id) != 64:
         vm_id, crn_url = await create(
             payment_type,
+            payment_chain,
             None,
             name,
             rootfs,
