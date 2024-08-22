@@ -41,7 +41,8 @@ from rich.table import Table
 from rich.text import Text
 
 from aleph_client.commands import help_strings
-from aleph_client.commands.instance.display import CRNInfo, CRNTable
+from aleph_client.commands.instance.display import CRNTable
+from aleph_client.commands.instance.network import fetch_crn_info, sanitize_url
 from aleph_client.commands.node import NodeInfo, _fetch_nodes
 from aleph_client.commands.utils import (
     get_or_prompt_volumes,
@@ -50,7 +51,7 @@ from aleph_client.commands.utils import (
     validated_prompt,
 )
 from aleph_client.conf import settings
-from aleph_client.models import MachineUsage
+from aleph_client.models import CRNInfo
 from aleph_client.utils import AsyncTyper, fetch_json
 
 from ..utils import has_nested_attr
@@ -130,6 +131,7 @@ async def create(
                 default=PaymentType.superfluid.value,
             )
         )
+    is_stream = payment_type != PaymentType.hold
 
     if confidential:
         if hypervisor and hypervisor != HypervisorType.qemu:
@@ -161,6 +163,7 @@ async def create(
             )
         ]
         hypervisor = HypervisorType(hypervisor_choice)
+    is_qemu = hypervisor == HypervisorType.qemu
 
     os_choices = available_hypervisors[hypervisor]
 
@@ -231,34 +234,63 @@ async def create(
     stream_reward_address = None
     crn = None
     if crn_url and crn_hash:
-        crn = CRNInfo(
-            url=crn_url,
-            hash=ItemHash(crn_hash),
-            score=10,
-            name="",
-            stream_reward_address="",
-            machine_usage=None,
-            version=None,
-            confidential_computing=None,
-        )
-    if payment_type != PaymentType.hold or confidential:
+        crn_url = sanitize_url(crn_url)
+        try:
+            name, score, reward_addr = "?", 0, ""
+            nodes: NodeInfo = await _fetch_nodes()
+            for node in nodes.nodes:
+                if node["address"].rstrip("/") == crn_url:
+                    name = node["name"]
+                    score = node["score"]
+                    reward_addr = node["stream_reward"]
+                    break
+            crn_info = await fetch_crn_info(crn_url)
+            if crn_info:
+                crn = CRNInfo(
+                    hash=ItemHash(crn_hash),
+                    name=name,
+                    url=crn_url,
+                    version=crn_info.get("version", ""),
+                    score=score,
+                    stream_reward_address=str(crn_info.get("payment", {}).get("PAYMENT_RECEIVER_ADDRESS"))
+                    or reward_addr
+                    or "",
+                    machine_usage=crn_info.get("machine_usage"),
+                    qemu_support=bool(crn_info.get("computing", {}).get("ENABLE_QEMU_SUPPORT", False)),
+                    confidential_computing=bool(
+                        crn_info.get("computing", {}).get("ENABLE_CONFIDENTIAL_COMPUTING", False)
+                    ),
+                )
+                echo("\n* Selected CRN *")
+                crn.display_crn_specs()
+                echo()
+        except Exception as e:
+            echo(f"Unable to fetch CRN config: {e}")
+            raise typer.Exit(1)
+    if is_stream or confidential:
         while not crn:
-            crn_table = CRNTable()
+            crn_table = CRNTable(only_reward_address=is_stream, only_qemu=is_qemu, only_confidentials=confidential)
             crn = await crn_table.run_async()
             if not crn:
                 # User has ctrl-c
                 raise typer.Exit(1)
-            print("Run instance on CRN:")
-            print("\t Name", crn.name)
-            print("\t Stream reward address", crn.stream_reward_address)
-            print("\t URL", crn.url)
-            if isinstance(crn.machine_usage, MachineUsage):
-                print("\t Available disk space", crn.machine_usage.disk)
-                print("\t Available ram", crn.machine_usage.mem)
-            if not Confirm.ask("Deploy on this node ?"):
+            echo("\n* Selected CRN *")
+            crn.display_crn_specs()
+            if not Confirm.ask("\nDeploy on this node ?"):
                 crn = None
                 continue
-            stream_reward_address = crn.stream_reward_address
+
+    if crn:
+        stream_reward_address = crn.stream_reward_address if has_nested_attr(crn, "stream_reward_address") else ""
+        if is_stream and not stream_reward_address:
+            echo("Selected CRN does not have a defined receiver address.")
+            raise typer.Exit(1)
+        if is_qemu and (not has_nested_attr(crn, "qemu_support") or not crn.qemu_support):
+            echo("Selected CRN does not support QEMU hypervisor.")
+            raise typer.Exit(1)
+        if confidential and (not has_nested_attr(crn, "confidential_computing") or not crn.confidential_computing):
+            echo("Selected CRN does not support confidential computing.")
+            raise typer.Exit(1)
 
     async with AuthenticatedAlephHttpClient(account=account, api_server=sdk_settings.API_HOST) as client:
         payment: Optional[Payment] = None
@@ -304,7 +336,7 @@ async def create(
 
         # Instances that need to be started by notifying a specific CRN
         crn_url = crn.url if crn and crn.url else None
-        if crn and (payment_type != PaymentType.hold or confidential):
+        if crn and (is_stream or confidential):
             if not crn_url:
                 # Not the ideal solution
                 logger.debug(f"Cannot allocate {item_hash}: no CRN url")

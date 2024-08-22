@@ -54,7 +54,7 @@ class Settings(BaseSettings):
         case_sensitive = False
         env_file = ".env"
 
-    HTTP_REQUEST_TIMEOUT = 5.0
+    HTTP_REQUEST_TIMEOUT = 10.0
 
 
 # Settings singleton
