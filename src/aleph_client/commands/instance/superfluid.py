@@ -8,6 +8,7 @@ from aleph.sdk.chains.ethereum import (
     get_rpc_for_chain,
 )
 from aleph_message.models import Chain
+from click import echo
 from eth_utils.currency import to_wei
 from superfluid import Web3FlowInfo
 
@@ -71,4 +72,4 @@ async def update_flow(account: ETHAccount, chain: Chain, receiver: str, flow: De
                 # Delete the flow if the new flow rate is zero or negative
                 return await account.delete_flow(receiver)
         else:
-            raise ValueError("No existing flow to reduce.")
+            echo("No existing flow to stop. Skipping...")

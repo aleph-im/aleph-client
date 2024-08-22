@@ -52,7 +52,8 @@ from aleph_client.commands.utils import (
     setup_logging,
     validated_int_prompt,
     validated_prompt,
-    wait_for_processing,
+    wait_for_confirmed_flow,
+    wait_for_processed_instance,
 )
 from aleph_client.conf import settings
 from aleph_client.models import MachineUsage
@@ -84,7 +85,7 @@ async def create(
     ),
     crn_hash: Optional[str] = typer.Option(None, help=help_strings.CRN_HASH),
     crn_url: Optional[str] = typer.Option(None, help=help_strings.CRN_URL),
-    confidential: Optional[bool] = typer.Option(None, help=help_strings.CONFIDENTIAL_OPTION),
+    confidential: bool = typer.Option(False, help=help_strings.CONFIDENTIAL_OPTION),
     confidential_firmware: str = typer.Option(
         default=settings.DEFAULT_CONFIDENTIAL_FIRMWARE, help=help_strings.CONFIDENTIAL_FIRMWARE
     ),
@@ -312,7 +313,11 @@ async def create(
                 # Not the ideal solution
                 logger.debug(f"Cannot allocate {item_hash}: no CRN url")
                 return item_hash, crn_url
-        
+
+            # Wait for the instance message to be processed
+            async with aiohttp.ClientSession() as session:
+                await wait_for_processed_instance(session, item_hash)
+
             # Pay-As-You-Go
             if payment_type == PaymentType.superfluid:
                 price: PriceResponse = await client.get_program_price(item_hash)
@@ -324,19 +329,18 @@ async def create(
                         flow=Decimal(price.required_tokens),
                         update_type=FlowUpdate.INCREASE,
                     )
-                typer.echo(f"Flow {flow_hash} has been created of {price.required_tokens}")
-                
-            # Wait for the instance message to be processed
-            async with aiohttp.ClientSession() as session:
-                if isinstance(account, ETHAccount):
-                    await wait_for_processing(session, item_hash, account, message.content.payment.receiver)
+                    # Wait for the flow transaction to be confirmed
+                    await wait_for_confirmed_flow(account, message.content.payment.receiver)
+                    if flow_hash:
+                        echo(
+                            f"Flow {flow_hash} has been created:\n\t- amount: {price.required_tokens} ALEPH\n\t- receiver: {crn.stream_reward_address}"
+                        )
 
             # Notify CRN
             async with VmClient(account, crn.url) as crn_client:
                 status, result = await crn_client.start_instance(vm_id=item_hash)
                 logger.debug(status, result)
                 if int(status) != 200:
-                    print(status, result)
                     echo(f"Could not start instance {item_hash} on CRN.")
                     return item_hash, crn_url
             console.print(f"Your instance {item_hash_text} has been deployed on aleph.im.")
@@ -437,7 +441,8 @@ async def delete(
                     flow_hash = await update_flow(
                         account, payment.chain, payment.receiver, Decimal(price.required_tokens), FlowUpdate.REDUCE
                     )
-                typer.echo(f"Flow {flow_hash} has been deleted.")
+                    if flow_hash:
+                        echo(f"Flow {flow_hash} has been deleted.")
 
         # Check status of the instance and eventually erase associated VM
         node_list: NodeInfo = await _fetch_nodes()
