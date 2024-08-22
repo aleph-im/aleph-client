@@ -14,7 +14,7 @@ import typer
 from aiohttp import ClientConnectorError, ClientResponseError, ClientSession
 from aleph.sdk import AlephHttpClient, AuthenticatedAlephHttpClient
 from aleph.sdk.account import _load_account
-from aleph.sdk.chains.ethereum import ETHAccount
+from aleph.sdk.chains.ethereum import CHAINS_WITH_SUPERTOKEN, ETHAccount
 from aleph.sdk.client.vm_client import VmClient
 from aleph.sdk.client.vm_confidential_client import VmConfidentialClient
 from aleph.sdk.conf import settings as sdk_settings
@@ -74,6 +74,7 @@ app = AsyncTyper(no_args_is_help=True)
 @app.command()
 async def create(
     payment_type: PaymentType = typer.Option(None, help=help_strings.PAYMENT_TYPE),
+    payment_chain: Optional[Chain] = typer.Option(None, help=help_strings.PAYMENT_CHAIN),
     hypervisor: HypervisorType = typer.Option(None, help=help_strings.HYPERVISOR),
     name: Optional[str] = typer.Option(None, help=help_strings.INSTANCE_NAME),
     rootfs: str = typer.Option("ubuntu22", help=help_strings.ROOTFS),
@@ -142,6 +143,16 @@ async def create(
                 default=PaymentType.superfluid.value,
             )
         )
+    if payment_type == PaymentType.superfluid and payment_chain is None:
+        payment_chain = Chain(
+            Prompt.ask(
+                "Which chain did you want to pay with ?",
+                choices=[chain for chain in CHAINS_WITH_SUPERTOKEN],
+                default=Chain.AVAX.value,
+            )
+        )
+    if payment_type == PaymentType.hold and payment_chain is None:
+        payment_chain = Chain.ETH  # Hold Method only compatible with ETH
 
     if confidential:
         if hypervisor and hypervisor != HypervisorType.qemu:
@@ -286,18 +297,13 @@ async def create(
         if confidential and (not has_nested_attr(crn, ["confidential_computing"]) or not crn.confidential_computing):
             echo("Selected CRN does not support confidential computing.")
             raise typer.Exit(1)
-        if hypervisor == HypervisorType.qemu and (not has_nested_attr(crn, ["qemu_support"]) or not crn.qemu_support):
-            echo("Selected CRN does not support QEMU hypervisor.")
-            raise typer.Exit(1)
 
     async with AuthenticatedAlephHttpClient(account=account, api_server=sdk_settings.API_HOST) as client:
-        payment: Optional[Payment] = None
-        if stream_reward_address:
-            payment = Payment(
-                chain=Chain.AVAX,
-                receiver=stream_reward_address,
-                type=payment_type,
-            )
+        payment = Payment(
+            chain=payment_chain,
+            receiver=stream_reward_address if stream_reward_address else None,
+            type=payment_type,
+        )
         try:
             message, status = await client.create_instance(
                 sync=True,
