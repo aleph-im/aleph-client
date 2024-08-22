@@ -217,17 +217,25 @@ def has_nested_attr(obj, attr_chain) -> bool:
     return True
 
 
-async def wait_for_processing(session: ClientSession, item_hash: ItemHash, account: ETHAccount, receiver: str):
-    """Wait for a message to be processed by pyaleph"""
+async def wait_for_processed_instance(session: ClientSession, item_hash: ItemHash):
+    """Wait for a message to be processed by CCN"""
     while True:
-        # Construct the absolute URL
-        url = f"{sdk_settings.API_HOST}/api/v0/messages/{item_hash}"
+        url = f"{sdk_settings.API_HOST.rstrip('/')}/api/v0/messages/{item_hash}"
         message = await fetch_json(session, url)
-
-        flow = await account.get_flow(receiver)
-
-        if message["status"] == "processed" and flow:
+        if message["status"] == "processed":
             return
-        elif message["status"] == "pending" or not flow:
-            typer.echo(f"Message {item_hash} is still pending, waiting...")
+        elif message["status"] == "pending":
+            typer.echo(f"Message {item_hash} is still pending, waiting 10sec...")
             await asyncio.sleep(10)
+        elif message["status"] == "rejected":
+            raise Exception(f"Message {item_hash} has been rejected")
+
+
+async def wait_for_confirmed_flow(account: ETHAccount, receiver: str):
+    """Wait for a flow to be confirmed on-chain"""
+    while True:
+        flow = await account.get_flow(receiver)
+        if flow:
+            return
+        typer.echo(f"Flow transaction is still pending, waiting 10sec...")
+        await asyncio.sleep(10)

@@ -72,4 +72,4 @@ async def update_flow(account: ETHAccount, chain: Chain, receiver: str, flow: De
                 # Delete the flow if the new flow rate is zero or negative
                 return await account.delete_flow(receiver)
         else:
-            echo("No existing flow to reduce. Skipping...")
+            echo("No existing flow to stop. Skipping...")
