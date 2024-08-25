@@ -135,10 +135,10 @@ async def create(
 
     if confidential:
         if hypervisor and hypervisor != HypervisorType.qemu:
-            echo(f"Only QEMU is supported as an hypervisor for confidential")
+            echo("Only QEMU is supported as an hypervisor for confidential")
             raise typer.Exit(code=1)
         elif not hypervisor:
-            echo(f"Using QEMU as hypervisor for confidential")
+            echo("Using QEMU as hypervisor for confidential")
             hypervisor = HypervisorType.qemu
 
     available_hypervisors = {
@@ -393,7 +393,7 @@ async def create(
         else:
             console.print(
                 f"Your instance {item_hash_text} is registered to be deployed on aleph.im.",
-                f"\nThe scheduler usually takes a few minutes to set it up and start it.",
+                "\nThe scheduler usually takes a few minutes to set it up and start it.",
             )
             if verbose:
                 console.print(
@@ -447,7 +447,7 @@ async def delete(
                 status = await erase(item_hash, crn_url, private_key, private_key_file, True, debug)
                 if status == 1:
                     echo(f"No associated VM on {crn_url}. Skipping...")
-            except Exception as e:
+            except Exception:
                 echo(f"Failed to erase associated VM on {crn_url}. Skipping...")
         else:
             echo(f"Instance {item_hash} was auto-scheduled, VM will be erased automatically.")
@@ -483,7 +483,7 @@ async def _get_instance_details(message: InstanceMessage, node_list: NodeInfo) -
                     )
                     nodes = await fetch_json(
                         session,
-                        f"https://scheduler.api.aleph.cloud/api/v0/nodes",
+                        "https://scheduler.api.aleph.cloud/api/v0/nodes",
                     )
                     details["ipv6_logs"] = allocation["vm_ipv6"]
                     for node in nodes["nodes"]:
@@ -930,7 +930,7 @@ async def confidential_start(
     await client.close()
     console = Console()
     console.print(
-        "Your instance is currently starting..." "\n\nLogs can be fetched using:\n\n",
+        "Your instance is currently starting...\n\nLogs can be fetched using:\n\n",
         Text.assemble(
             "  aleph instance logs ",
             Text(vm_id, style="bright_cyan"),

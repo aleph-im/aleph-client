@@ -10,7 +10,7 @@ from typing import Tuple, Type
 from zipfile import BadZipFile, ZipFile
 
 import typer
-from aiohttp import ClientResponseError, ClientSession
+from aiohttp import ClientSession
 from aleph.sdk.types import GenericMessage
 from aleph_message.models.base import MessageType
 from aleph_message.models.execution.base import Encoding
