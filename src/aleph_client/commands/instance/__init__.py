@@ -41,7 +41,8 @@ from rich.table import Table
 from rich.text import Text
 
 from aleph_client.commands import help_strings
-from aleph_client.commands.instance.display import CRNInfo, CRNTable
+from aleph_client.commands.instance.display import CRNTable
+from aleph_client.commands.instance.network import fetch_crn_info, sanitize_url
 from aleph_client.commands.node import NodeInfo, _fetch_nodes
 from aleph_client.commands.utils import (
     get_or_prompt_volumes,
@@ -50,7 +51,7 @@ from aleph_client.commands.utils import (
     validated_prompt,
 )
 from aleph_client.conf import settings
-from aleph_client.models import MachineUsage
+from aleph_client.models import CRNInfo
 from aleph_client.utils import AsyncTyper, fetch_json
 
 from ..utils import has_nested_attr
@@ -78,7 +79,7 @@ async def create(
     ),
     crn_hash: Optional[str] = typer.Option(None, help=help_strings.CRN_HASH),
     crn_url: Optional[str] = typer.Option(None, help=help_strings.CRN_URL),
-    confidential: Optional[bool] = typer.Option(None, help=help_strings.CONFIDENTIAL_OPTION),
+    confidential: bool = typer.Option(False, help=help_strings.CONFIDENTIAL_OPTION),
     confidential_firmware: str = typer.Option(
         default=settings.DEFAULT_CONFIDENTIAL_FIRMWARE, help=help_strings.CONFIDENTIAL_FIRMWARE
     ),
@@ -130,13 +131,14 @@ async def create(
                 default=PaymentType.superfluid.value,
             )
         )
+    is_stream = payment_type != PaymentType.hold
 
     if confidential:
         if hypervisor and hypervisor != HypervisorType.qemu:
-            echo(f"Only QEMU is supported as an hypervisor for confidential")
+            echo("Only QEMU is supported as an hypervisor for confidential")
             raise typer.Exit(code=1)
         elif not hypervisor:
-            echo(f"Using QEMU as hypervisor for confidential")
+            echo("Using QEMU as hypervisor for confidential")
             hypervisor = HypervisorType.qemu
 
     available_hypervisors = {
@@ -161,6 +163,7 @@ async def create(
             )
         ]
         hypervisor = HypervisorType(hypervisor_choice)
+    is_qemu = hypervisor == HypervisorType.qemu
 
     os_choices = available_hypervisors[hypervisor]
 
@@ -187,7 +190,7 @@ async def create(
     async with AlephHttpClient(api_server=sdk_settings.API_HOST) as client:
         rootfs_message: StoreMessage = await client.get_message(item_hash=rootfs, message_type=StoreMessage)
         if not rootfs_message:
-            typer.echo("Given rootfs volume does not exist on aleph.im")
+            echo("Given rootfs volume does not exist on aleph.im")
             raise typer.Exit(code=1)
         if rootfs_size is None and rootfs_message.content.size:
             rootfs_size = rootfs_message.content.size
@@ -201,7 +204,7 @@ async def create(
                 item_hash=confidential_firmware, message_type=StoreMessage
             )
             if not firmware_message:
-                typer.echo("Confidential Firmware hash does not exist on aleph.im")
+                echo("Confidential Firmware hash does not exist on aleph.im")
                 raise typer.Exit(code=1)
     name = name or validated_prompt("Instance name", lambda x: len(x) < 65)
     rootfs_size = rootfs_size or validated_int_prompt(
@@ -231,34 +234,63 @@ async def create(
     stream_reward_address = None
     crn = None
     if crn_url and crn_hash:
-        crn = CRNInfo(
-            url=crn_url,
-            hash=ItemHash(crn_hash),
-            score=10,
-            name="",
-            stream_reward_address="",
-            machine_usage=None,
-            version=None,
-            confidential_computing=None,
-        )
-    if payment_type != PaymentType.hold or confidential:
+        crn_url = sanitize_url(crn_url)
+        try:
+            name, score, reward_addr = "?", 0, ""
+            nodes: NodeInfo = await _fetch_nodes()
+            for node in nodes.nodes:
+                if node["address"].rstrip("/") == crn_url:
+                    name = node["name"]
+                    score = node["score"]
+                    reward_addr = node["stream_reward"]
+                    break
+            crn_info = await fetch_crn_info(crn_url)
+            if crn_info:
+                crn = CRNInfo(
+                    hash=ItemHash(crn_hash),
+                    name=name or "?",
+                    url=crn_url,
+                    version=crn_info.get("version", ""),
+                    score=score,
+                    stream_reward_address=str(crn_info.get("payment", {}).get("PAYMENT_RECEIVER_ADDRESS"))
+                    or reward_addr
+                    or "",
+                    machine_usage=crn_info.get("machine_usage"),
+                    qemu_support=bool(crn_info.get("computing", {}).get("ENABLE_QEMU_SUPPORT", False)),
+                    confidential_computing=bool(
+                        crn_info.get("computing", {}).get("ENABLE_CONFIDENTIAL_COMPUTING", False)
+                    ),
+                )
+                echo("\n* Selected CRN *")
+                crn.display_crn_specs()
+                echo()
+        except Exception as e:
+            echo(f"Unable to fetch CRN config: {e}")
+            raise typer.Exit(1)
+    if is_stream or confidential:
         while not crn:
-            crn_table = CRNTable()
+            crn_table = CRNTable(only_reward_address=is_stream, only_qemu=is_qemu, only_confidentials=confidential)
             crn = await crn_table.run_async()
             if not crn:
                 # User has ctrl-c
                 raise typer.Exit(1)
-            print("Run instance on CRN:")
-            print("\t Name", crn.name)
-            print("\t Stream reward address", crn.stream_reward_address)
-            print("\t URL", crn.url)
-            if isinstance(crn.machine_usage, MachineUsage):
-                print("\t Available disk space", crn.machine_usage.disk)
-                print("\t Available ram", crn.machine_usage.mem)
-            if not Confirm.ask("Deploy on this node ?"):
+            echo("\n* Selected CRN *")
+            crn.display_crn_specs()
+            if not Confirm.ask("\nDeploy on this node ?"):
                 crn = None
                 continue
-            stream_reward_address = crn.stream_reward_address
+
+    if crn:
+        stream_reward_address = crn.stream_reward_address if has_nested_attr(crn, "stream_reward_address") else ""
+        if is_stream and not stream_reward_address:
+            echo("Selected CRN does not have a defined receiver address.")
+            raise typer.Exit(1)
+        if is_qemu and (not has_nested_attr(crn, "qemu_support") or not crn.qemu_support):
+            echo("Selected CRN does not support QEMU hypervisor.")
+            raise typer.Exit(1)
+        if confidential and (not has_nested_attr(crn, "confidential_computing") or not crn.confidential_computing):
+            echo("Selected CRN does not support confidential computing.")
+            raise typer.Exit(1)
 
     async with AuthenticatedAlephHttpClient(account=account, api_server=sdk_settings.API_HOST) as client:
         payment: Optional[Payment] = None
@@ -289,13 +321,13 @@ async def create(
                 ),
             )
         except InsufficientFundsError as e:
-            typer.echo(
+            echo(
                 f"Instance creation failed due to insufficient funds.\n"
                 f"{account.get_address()} on {account.CHAIN} has {e.available_funds} ALEPH but needs {e.required_funds} ALEPH."
             )
             raise typer.Exit(code=1)
         if print_messages:
-            typer.echo(f"{message.json(indent=4)}")
+            echo(f"{message.json(indent=4)}")
 
         item_hash: ItemHash = message.item_hash
         item_hash_text = Text(item_hash, style="bright_cyan")
@@ -304,7 +336,7 @@ async def create(
 
         # Instances that need to be started by notifying a specific CRN
         crn_url = crn.url if crn and crn.url else None
-        if crn and (payment_type != PaymentType.hold or confidential):
+        if crn and (is_stream or confidential):
             if not crn_url:
                 # Not the ideal solution
                 logger.debug(f"Cannot allocate {item_hash}: no CRN url")
@@ -314,7 +346,6 @@ async def create(
                 status, result = await crn_client.start_instance(vm_id=item_hash)
                 logger.debug(status, result)
                 if int(status) != 200:
-                    print(status, result)
                     echo(f"Could not start instance {item_hash} on CRN.")
                     return item_hash, crn_url
             console.print(f"Your instance {item_hash_text} has been deployed on aleph.im.")
@@ -362,7 +393,7 @@ async def create(
         else:
             console.print(
                 f"Your instance {item_hash_text} is registered to be deployed on aleph.im.",
-                f"\nThe scheduler usually takes a few minutes to set it up and start it.",
+                "\nThe scheduler usually takes a few minutes to set it up and start it.",
             )
             if verbose:
                 console.print(
@@ -395,14 +426,15 @@ async def delete(
             existing_message: InstanceMessage = await client.get_message(
                 item_hash=ItemHash(item_hash), message_type=InstanceMessage
             )
+
         except MessageNotFoundError:
-            typer.echo("Instance does not exist")
+            echo("Instance does not exist")
             raise typer.Exit(code=1)
         except ForgottenMessageError:
-            typer.echo("Instance already forgotten")
+            echo("Instance already forgotten")
             raise typer.Exit(code=1)
         if existing_message.sender != account.get_address():
-            typer.echo("You are not the owner of this instance")
+            echo("You are not the owner of this instance")
             raise typer.Exit(code=1)
 
         # Check status of the instance and eventually erase associated VM
@@ -414,23 +446,23 @@ async def delete(
             try:
                 status = await erase(item_hash, crn_url, private_key, private_key_file, True, debug)
                 if status == 1:
-                    typer.echo(f"No associated VM on {crn_url}. Skipping...")
-            except Exception as e:
-                typer.echo(f"Failed to erase associated VM on {crn_url}. Skipping...")
+                    echo(f"No associated VM on {crn_url}. Skipping...")
+            except Exception:
+                echo(f"Failed to erase associated VM on {crn_url}. Skipping...")
         else:
-            typer.echo(f"Instance {item_hash} was auto-scheduled, VM will be erased automatically.")
+            echo(f"Instance {item_hash} was auto-scheduled, VM will be erased automatically.")
 
         message, status = await client.forget(hashes=[ItemHash(item_hash)], reason=reason)
         if print_message:
-            typer.echo(f"{message.json(indent=4)}")
-        typer.echo(f"Instance {item_hash} has been deleted.")
+            echo(f"{message.json(indent=4)}")
+        echo(f"Instance {item_hash} has been deleted.")
 
 
 async def _get_instance_details(message: InstanceMessage, node_list: NodeInfo) -> Tuple[str, Dict[str, object]]:
     async with ClientSession() as session:
         hold = not message.content.payment or message.content.payment.type == PaymentType["hold"]
         confidential = (
-            has_nested_attr(message.content, ["environment", "trusted_execution", "firmware"])
+            has_nested_attr(message.content, "environment", "trusted_execution", "firmware")
             and len(getattr(message.content.environment.trusted_execution, "firmware")) == 64
         )
         details = dict(
@@ -451,7 +483,7 @@ async def _get_instance_details(message: InstanceMessage, node_list: NodeInfo) -
                     )
                     nodes = await fetch_json(
                         session,
-                        f"https://scheduler.api.aleph.cloud/api/v0/nodes",
+                        "https://scheduler.api.aleph.cloud/api/v0/nodes",
                     )
                     details["ipv6_logs"] = allocation["vm_ipv6"]
                     for node in nodes["nodes"]:
@@ -466,10 +498,10 @@ async def _get_instance_details(message: InstanceMessage, node_list: NodeInfo) -
                 details["allocation_type"] = help_strings.ALLOCATION_MANUAL
                 for node in node_list.nodes:
                     if (
-                        has_nested_attr(message.content, ["payment", "receiver"])
+                        has_nested_attr(message.content, "payment", "receiver")
                         and node["stream_reward"] == getattr(message.content.payment, "receiver")
                     ) or (
-                        has_nested_attr(message.content, ["requirements", "node", "node_hash"])
+                        has_nested_attr(message.content, "requirements", "node", "node_hash")
                         and message.content.requirements is not None
                         and node["hash"] == getattr(message.content.requirements.node, "node_hash")
                     ):
@@ -531,7 +563,7 @@ async def _show_instances(messages: List[InstanceMessage], node_list: NodeInfo):
             f"vCPUs: {message.content.resources.vcpus}\n"
             f"RAM: {message.content.resources.memory / 1_024:.2f} GiB\n"
             f"Disk: {message.content.rootfs.size_mib / 1_024:.2f} GiB\n"
-            f"HyperV: {message.content.environment.hypervisor if has_nested_attr(message.content, ['environment', 'hypervisor']) else 'firecracker'}\n"
+            f"HyperV: {message.content.environment.hypervisor if has_nested_attr(message.content, 'environment', 'hypervisor') else 'firecracker'}\n"
         )
         status_column = Text.assemble(
             Text.assemble(
@@ -629,10 +661,10 @@ async def list(
             page_size=100,
         )
         if not resp or len(resp.messages) == 0:
-            typer.echo(f"Address: {address}\n\nNo instance found\n")
+            echo(f"Address: {address}\n\nNo instance found\n")
             raise typer.Exit(code=1)
         if json:
-            typer.echo(resp.json(indent=4))
+            echo(resp.json(indent=4))
         else:
             # Since we filtered on message type, we can safely cast as InstanceMessage.
             messages = cast(List[InstanceMessage], resp.messages)
@@ -656,9 +688,9 @@ async def expire(
     async with VmClient(account, domain) as manager:
         status, result = await manager.expire_instance(vm_id=vm_id)
         if status != 200:
-            typer.echo(f"Status: {status}")
+            echo(f"Status: {status}")
             return 1
-        typer.echo(f"VM expired on CRN: {domain}")
+        echo(f"VM expired on CRN: {domain}")
 
 
 @app.command()
@@ -680,9 +712,9 @@ async def erase(
         status, result = await manager.erase_instance(vm_id=vm_id)
         if status != 200:
             if not silent:
-                typer.echo(f"Status: {status}")
+                echo(f"Status: {status}")
             return 1
-        typer.echo(f"VM erased on CRN: {domain}")
+        echo(f"VM erased on CRN: {domain}")
 
 
 @app.command()
@@ -702,9 +734,9 @@ async def reboot(
     async with VmClient(account, domain) as manager:
         status, result = await manager.reboot_instance(vm_id=vm_id)
         if status != 200:
-            typer.echo(f"Status: {status}")
+            echo(f"Status: {status}")
             return 1
-        typer.echo(f"VM rebooted on CRN: {domain}")
+        echo(f"VM rebooted on CRN: {domain}")
 
 
 @app.command()
@@ -724,9 +756,9 @@ async def allocate(
     async with VmClient(account, domain) as manager:
         status, result = await manager.start_instance(vm_id=vm_id)
         if status != 200:
-            typer.echo(f"Status: {status}")
+            echo(f"Status: {status}")
             return 1
-        typer.echo(f"VM allocated on CRN: {domain}")
+        echo(f"VM allocated on CRN: {domain}")
 
 
 @app.command()
@@ -746,7 +778,7 @@ async def logs(
         async for log in manager.get_logs(vm_id=vm_id):
             log_data = json.loads(log)
             if "message" in log_data:
-                typer.echo(log_data["message"])
+                echo(log_data["message"])
 
 
 @app.command()
@@ -766,9 +798,9 @@ async def stop(
     async with VmClient(account, domain) as manager:
         status, result = await manager.stop_instance(vm_id=vm_id)
         if status != 200:
-            typer.echo(f"Status : {status}")
+            echo(f"Status : {status}")
             return 1
-        typer.echo(f"VM stopped on CRN: {domain}")
+        echo(f"VM stopped on CRN: {domain}")
 
 
 @app.command()
@@ -898,7 +930,7 @@ async def confidential_start(
     await client.close()
     console = Console()
     console.print(
-        "Your instance is currently starting..." "\n\nLogs can be fetched using:\n\n",
+        "Your instance is currently starting...\n\nLogs can be fetched using:\n\n",
         Text.assemble(
             "  aleph instance logs ",
             Text(vm_id, style="bright_cyan"),
