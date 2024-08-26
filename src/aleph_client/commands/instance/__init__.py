@@ -6,6 +6,7 @@ import logging
 import shutil
 from decimal import Decimal
 from ipaddress import IPv6Interface
+from math import ceil
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Union, cast
 
@@ -18,7 +19,6 @@ from aleph.sdk.chains.ethereum import ETHAccount
 from aleph.sdk.client.vm_client import VmClient
 from aleph.sdk.client.vm_confidential_client import VmConfidentialClient
 from aleph.sdk.conf import settings as sdk_settings
-from aleph.sdk.evm_utils import get_chains_with_super_token
 from aleph.sdk.exceptions import (
     ForgottenMessageError,
     InsufficientFundsError,
@@ -142,7 +142,8 @@ async def create(
         )
     is_stream = payment_type != PaymentType.hold
 
-    super_token_chains = get_chains_with_super_token()
+    # super_token_chains = get_chains_with_super_token()
+    super_token_chains = [Chain.AVAX]
     if is_stream:
         if payment_chain is None or payment_chain not in super_token_chains:
             payment_chain = Chain(
@@ -375,6 +376,8 @@ async def create(
             # Pay-As-You-Go
             if payment_type == PaymentType.superfluid:
                 price: PriceResponse = await client.get_program_price(item_hash)
+                ceil_factor = 10 ** 18
+                required_tokens = ceil(Decimal(price.required_tokens) * ceil_factor) / ceil_factor
                 if isinstance(account, ETHAccount) and account.superfluid_connector:
                     try:  # Double check with effective price
                         account.superfluid_connector.can_start_flow(Decimal(0.000031))  # Min for 0.11/h
@@ -384,7 +387,7 @@ async def create(
                     flow_hash = await update_flow(
                         account=account,
                         receiver=crn.stream_reward_address,
-                        flow=Decimal(price.required_tokens),
+                        flow=Decimal(required_tokens),
                         update_type=FlowUpdate.INCREASE,
                     )
                     # Wait for the flow transaction to be confirmed
