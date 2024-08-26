@@ -248,7 +248,7 @@ async def create(
             if crn_info:
                 crn = CRNInfo(
                     hash=ItemHash(crn_hash),
-                    name=name,
+                    name=name or "?",
                     url=crn_url,
                     version=crn_info.get("version", ""),
                     score=score,

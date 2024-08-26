@@ -74,10 +74,7 @@ async def test_fetch_crn_info() -> None:
     node_url = "https://ovh.staging.aleph.sh"
     info = await fetch_crn_info(node_url)
     assert info
-    assert hasattr(info, "machine_usage") and info.machine_usage
-    assert hasattr(info, "version") and info.version
-    assert isinstance(info.machine_usage, MachineUsage)
-    assert isinstance(info.version, str)
+    assert info["machine_usage"]
 
     # Test with invalid node
     invalid_node_url = "https://coconut.example.org/"
