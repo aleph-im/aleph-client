@@ -117,29 +117,20 @@ class CRNInfo(BaseModel):
 
     @property
     def display_cpu(self) -> str:
-        try:
-            if self.machine_usage:
-                return f"{self.machine_usage.cpu.count:>3}"
-        except:
-            pass
+        if self.machine_usage:
+            return f"{self.machine_usage.cpu.count:>3}"
         return ""
 
     @property
     def display_ram(self) -> str:
-        try:
-            if self.machine_usage:
-                return f"{self.machine_usage.mem.available_kB / 1_000_000:>3.0f} / {self.machine_usage.mem.total_kB / 1_000_000:>3.0f} GB"
-        except:
-            pass
+        if self.machine_usage:
+            return f"{self.machine_usage.mem.available_kB / 1_000_000:>3.0f} / {self.machine_usage.mem.total_kB / 1_000_000:>3.0f} GB"
         return ""
 
     @property
     def display_hdd(self) -> str:
-        try:
-            if self.machine_usage:
-                return f"{self.machine_usage.disk.available_kB / 1_000_000:>4.0f} / {self.machine_usage.disk.total_kB / 1_000_000:>4.0f} GB"
-        except:
-            pass
+        if self.machine_usage:
+            return f"{self.machine_usage.disk.available_kB / 1_000_000:>4.0f} / {self.machine_usage.disk.total_kB / 1_000_000:>4.0f} GB"
         return ""
 
     def display_crn_specs(self):

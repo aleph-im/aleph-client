@@ -37,7 +37,7 @@ class CRNTable(App[CRNInfo]):
         ("n", "sort_by_name", "Sort By Name"),
         ("v", "sort_by_version", "Sort By Version"),
         ("a", "sort_by_address", "Sort By Address"),
-        ("c", "sort_by_confidential", "Sort By 🔒"),
+        ("c", "sort_by_confidential", "Sort By 🔒 Confidential"),
         ("q", "sort_by_qemu", "Sort By Qemu"),
         ("u", "sort_by_url", "Sort By URL"),
         ("x", "quit", "Exit"),
