@@ -2,11 +2,8 @@ import logging
 from decimal import Decimal
 from enum import Enum
 
-from aleph.sdk.chains.ethereum import (
-    ETHAccount,
-    get_chain_id_for_chain,
-    get_rpc_for_chain,
-)
+from aleph.sdk.chains.ethereum import ETHAccount
+from aleph.sdk.conf import settings
 from aleph_message.models import Chain
 from click import echo
 from eth_utils.currency import to_wei
@@ -17,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 def from_wei(wei_value: Decimal) -> Decimal:
     """Converts the given wei value to ether."""
-    return wei_value / Decimal(10**18)
+    return wei_value / Decimal(10**settings.TOKEN_DECIMALS)
 
 
 class FlowUpdate(str, Enum):
@@ -25,7 +22,7 @@ class FlowUpdate(str, Enum):
     INCREASE = "increase"
 
 
-async def update_flow(account: ETHAccount, chain: Chain, receiver: str, flow: Decimal, update_type: FlowUpdate):
+async def update_flow(account: ETHAccount, receiver: str, flow: Decimal, update_type: FlowUpdate):
     """
     Update the flow of a Superfluid stream between a sender and receiver.
     This function either increases or decreases the flow rate between the sender and receiver,
@@ -40,11 +37,6 @@ async def update_flow(account: ETHAccount, chain: Chain, receiver: str, flow: De
     :param update_type: The type of update to perform (augmentation or reduction).
     :return: The transaction hash of the executed operation (create, update, or delete flow).
     """
-    # Upgrade EthAccount to handle PAYG flow
-    rpc = get_rpc_for_chain(chain=chain)
-    chain_id = get_chain_id_for_chain(chain=chain)
-
-    account.update_superfluid_connector(rpc, chain_id)
 
     # Retrieve current flow info
     flow_info: Web3FlowInfo = await account.get_flow(receiver)

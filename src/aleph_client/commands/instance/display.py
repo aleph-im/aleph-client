@@ -92,7 +92,6 @@ class CRNTable(App[CRNInfo]):
                 machine_usage=None,
                 qemu_support=None,
                 confidential_computing=None,
-                qemu_support=None,
             )
 
         # Initialize the progress bar

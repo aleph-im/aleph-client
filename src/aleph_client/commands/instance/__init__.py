@@ -14,10 +14,11 @@ import typer
 from aiohttp import ClientConnectorError, ClientResponseError, ClientSession
 from aleph.sdk import AlephHttpClient, AuthenticatedAlephHttpClient
 from aleph.sdk.account import _load_account
-from aleph.sdk.chains.ethereum import CHAINS_WITH_SUPERTOKEN, ETHAccount
+from aleph.sdk.chains.ethereum import ETHAccount
 from aleph.sdk.client.vm_client import VmClient
 from aleph.sdk.client.vm_confidential_client import VmConfidentialClient
 from aleph.sdk.conf import settings as sdk_settings
+from aleph.sdk.evm_utils import get_chains_with_super_token
 from aleph.sdk.exceptions import (
     ForgottenMessageError,
     InsufficientFundsError,
@@ -141,17 +142,26 @@ async def create(
         )
     is_stream = payment_type != PaymentType.hold
 
-    """ TODO:
-    if is_stream and payment_chain is None:
-        payment_chain = Chain(
-            Prompt.ask(
-                "Which chain did you want to pay with ?",
-                choices=[chain for chain in CHAINS_WITH_SUPERTOKEN],
-                default=Chain.AVAX.value,
+    super_token_chains = get_chains_with_super_token()
+    if is_stream:
+        if payment_chain is None or payment_chain not in super_token_chains:
+            payment_chain = Chain(
+                Prompt.ask(
+                    "Which chain do you want to use for Pay-As-You-Go?",
+                    choices=super_token_chains,
+                    default=Chain.AVAX.value,
+                )
             )
-        )
-    if payment_type == PaymentType.hold and payment_chain is None:
-        payment_chain = Chain.ETH  # Hold Method only compatible with ETH """
+        if isinstance(account, ETHAccount):
+            account.switch_chain(payment_chain)
+            if account.superfluid_connector:  # Quick check with theoretical min price
+                try:
+                    account.superfluid_connector.can_start_flow(Decimal(0.000031))  # 0.11/h
+                except Exception as e:
+                    echo(e)
+                    raise typer.Exit(code=1)
+    else:
+        payment_chain = Chain.ETH  # Hold chain for all balances
 
     if confidential:
         if hypervisor and hypervisor != HypervisorType.qemu:
@@ -226,6 +236,7 @@ async def create(
             if not firmware_message:
                 echo("Confidential Firmware hash does not exist on aleph.im")
                 raise typer.Exit(code=1)
+
     name = name or validated_prompt("Instance name", lambda x: len(x) < 65)
     rootfs_size = rootfs_size or validated_int_prompt(
         "Disk size in MiB", default=settings.DEFAULT_ROOTFS_SIZE, min_value=10_240, max_value=102_400
@@ -364,10 +375,14 @@ async def create(
             # Pay-As-You-Go
             if payment_type == PaymentType.superfluid:
                 price: PriceResponse = await client.get_program_price(item_hash)
-                if isinstance(account, ETHAccount):
+                if isinstance(account, ETHAccount) and account.superfluid_connector:
+                    try:  # Double check with effective price
+                        account.superfluid_connector.can_start_flow(Decimal(0.000031))  # Min for 0.11/h
+                    except Exception as e:
+                        echo(e)
+                        raise typer.Exit(code=1)
                     flow_hash = await update_flow(
                         account=account,
-                        chain=message.content.payment.chain,
                         receiver=crn.stream_reward_address,
                         flow=Decimal(price.required_tokens),
                         update_type=FlowUpdate.INCREASE,
@@ -376,7 +391,7 @@ async def create(
                     await wait_for_confirmed_flow(account, message.content.payment.receiver)
                     if flow_hash:
                         echo(
-                            f"Flow {flow_hash} has been created:\n\t- amount: {price.required_tokens} ALEPH\n\t- receiver: {crn.stream_reward_address}"
+                            f"Flow {flow_hash} has been created:\n\t- price/sec: {price.required_tokens:.7f} ALEPH\n\t- receiver: {crn.stream_reward_address}"
                         )
 
             # Notify CRN
@@ -481,11 +496,13 @@ async def delete(
             price: PriceResponse = await client.get_program_price(item_hash)
             if payment.receiver is not None:
                 if isinstance(account, ETHAccount):
-                    flow_hash = await update_flow(
-                        account, payment.chain, payment.receiver, Decimal(price.required_tokens), FlowUpdate.REDUCE
-                    )
-                    if flow_hash:
-                        echo(f"Flow {flow_hash} has been deleted.")
+                    account.switch_chain(payment.chain)
+                    if account.superfluid_connector:
+                        flow_hash = await update_flow(
+                            account, payment.receiver, Decimal(price.required_tokens), FlowUpdate.REDUCE
+                        )
+                        if flow_hash:
+                            echo(f"Flow {flow_hash} has been deleted.")
 
         # Check status of the instance and eventually erase associated VM
         node_list: NodeInfo = await _fetch_nodes()
