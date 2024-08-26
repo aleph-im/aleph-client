@@ -376,7 +376,7 @@ async def create(
             # Pay-As-You-Go
             if payment_type == PaymentType.superfluid:
                 price: PriceResponse = await client.get_program_price(item_hash)
-                ceil_factor = 10 ** 18
+                ceil_factor = 10**18
                 required_tokens = ceil(Decimal(price.required_tokens) * ceil_factor) / ceil_factor
                 if isinstance(account, ETHAccount) and account.superfluid_connector:
                     try:  # Double check with effective price
