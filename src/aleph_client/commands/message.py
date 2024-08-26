@@ -128,7 +128,7 @@ async def post(
         file_size = os.path.getsize(path)
         storage_engine = StorageEnum.ipfs if file_size > 4 * 1024 * 1024 else StorageEnum.storage
 
-        with open(path, "r") as fd:
+        with open(path) as fd:
             content = json.load(fd)
 
     else:
