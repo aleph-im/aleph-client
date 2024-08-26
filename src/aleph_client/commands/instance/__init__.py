@@ -264,11 +264,11 @@ async def create(
     if crn_url and crn_hash:
         crn_url = sanitize_url(crn_url)
         try:
-            name, score, reward_addr = "?", 0, ""
+            crn_name, score, reward_addr = "?", 0, ""
             nodes: NodeInfo = await _fetch_nodes()
             for node in nodes.nodes:
                 if node["address"].rstrip("/") == crn_url:
-                    name = node["name"]
+                    crn_name = node["name"]
                     score = node["score"]
                     reward_addr = node["stream_reward"]
                     break
@@ -276,7 +276,7 @@ async def create(
             if crn_info:
                 crn = CRNInfo(
                     hash=ItemHash(crn_hash),
-                    name=name or "?",
+                    name=crn_name or "?",
                     url=crn_url,
                     version=crn_info.get("version", ""),
                     score=score,
