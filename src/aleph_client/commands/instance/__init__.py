@@ -143,7 +143,7 @@ async def create(
     is_stream = payment_type != PaymentType.hold
 
     # super_token_chains = get_chains_with_super_token()
-    super_token_chains = [Chain.AVAX]
+    super_token_chains = [Chain.AVAX.value]
     if is_stream:
         if payment_chain is None or payment_chain not in super_token_chains:
             payment_chain = Chain(
