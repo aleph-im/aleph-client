@@ -74,7 +74,7 @@ app = AsyncTyper(no_args_is_help=True)
 @app.command()
 async def create(
     payment_type: PaymentType = typer.Option(None, help=help_strings.PAYMENT_TYPE),
-    payment_chain: Optional[Chain] = typer.Option(None, help=help_strings.PAYMENT_CHAIN),
+    payment_chain: Chain = typer.Option(None, help=help_strings.PAYMENT_CHAIN),
     hypervisor: HypervisorType = typer.Option(None, help=help_strings.HYPERVISOR),
     name: Optional[str] = typer.Option(None, help=help_strings.INSTANCE_NAME),
     rootfs: str = typer.Option("ubuntu22", help=help_strings.ROOTFS),
