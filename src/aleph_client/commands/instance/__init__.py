@@ -74,7 +74,7 @@ async def create(
     payment_chain: Chain = typer.Option(None, help=help_strings.PAYMENT_CHAIN),
     hypervisor: HypervisorType = typer.Option(None, help=help_strings.HYPERVISOR),
     name: Optional[str] = typer.Option(None, help=help_strings.INSTANCE_NAME),
-    rootfs: str = typer.Option("ubuntu22", help=help_strings.ROOTFS),
+    rootfs: str = typer.Option(None, help=help_strings.ROOTFS),
     rootfs_size: int = typer.Option(None, help=help_strings.ROOTFS_SIZE),
     vcpus: int = typer.Option(None, help=help_strings.VCPUS),
     memory: int = typer.Option(None, help=help_strings.MEMORY),
@@ -201,7 +201,7 @@ async def create(
         if confidential:
             # Confidential only support custom rootfs
             rootfs = "custom"
-        elif rootfs not in os_choices:
+        elif not rootfs or rootfs not in os_choices:
             rootfs = Prompt.ask(
                 "Use a custom rootfs or one of the following prebuilt ones:",
                 default=rootfs,
