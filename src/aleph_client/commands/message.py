@@ -62,7 +62,9 @@ async def find(
     end_date: Optional[str] = None,
     ignore_invalid_messages: bool = True,
 ):
-    parsed_message_types = message_types.split(",") if message_types else None
+    parsed_message_types = (
+        [MessageType(message_type) for message_type in message_types.split(",")] if message_types else None
+    )
     parsed_content_types = content_types.split(",") if content_types else None
     parsed_content_keys = content_keys.split(",") if content_keys else None
     parsed_refs = refs.split(",") if refs else None
@@ -72,10 +74,6 @@ async def find(
     parsed_channels = channels.split(",") if channels else None
     parsed_chains = chains.split(",") if chains else None
 
-    message_types = (
-        [MessageType(message_type) for message_type in parsed_message_types] if parsed_message_types else None
-    )
-
     start_time = str_to_datetime(start_date)
     end_time = str_to_datetime(end_date)
 
@@ -84,7 +82,7 @@ async def find(
             page_size=pagination,
             page=page,
             message_filter=MessageFilter(
-                message_types=message_types,
+                message_types=parsed_message_types,
                 content_types=parsed_content_types,
                 content_keys=parsed_content_keys,
                 refs=parsed_refs,
@@ -130,7 +128,7 @@ async def post(
         file_size = os.path.getsize(path)
         storage_engine = StorageEnum.ipfs if file_size > 4 * 1024 * 1024 else StorageEnum.storage
 
-        with open(path, "r") as fd:
+        with open(path) as fd:
             content = json.load(fd)
 
     else:

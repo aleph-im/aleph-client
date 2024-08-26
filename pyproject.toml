@@ -26,7 +26,7 @@ classifiers = [
 dependencies = [
   "aleph-sdk-python@git+https://github.com/aleph-im/aleph-sdk-python.git@1yam-base-payg",
   "setuptools>=65.5.0",
-  "aleph-message@git+https://github.com/1yam/aleph-message.git@1yam-base-chain",
+  "aleph-message>=0.4.9",
   "aiohttp==3.9.5",
   "typer==0.12.3",
   "python-magic==0.4.27",

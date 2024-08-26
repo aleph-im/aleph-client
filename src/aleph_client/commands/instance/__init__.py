@@ -45,12 +45,8 @@ from rich.table import Table
 from rich.text import Text
 
 from aleph_client.commands import help_strings
-from aleph_client.commands.instance.display import CRNInfo, CRNTable
-from aleph_client.commands.instance.network import (
-    fetch_crn_config,
-    fetch_crn_info,
-    sanitize_url,
-)
+from aleph_client.commands.instance.display import CRNTable
+from aleph_client.commands.instance.network import fetch_crn_info, sanitize_url
 from aleph_client.commands.node import NodeInfo, _fetch_nodes
 from aleph_client.commands.utils import (
     get_or_prompt_volumes,
@@ -61,7 +57,7 @@ from aleph_client.commands.utils import (
     wait_for_processed_instance,
 )
 from aleph_client.conf import settings
-from aleph_client.models import MachineUsage
+from aleph_client.models import CRNInfo
 from aleph_client.utils import AsyncTyper, fetch_json
 
 from ..utils import has_nested_attr
@@ -143,7 +139,10 @@ async def create(
                 default=PaymentType.superfluid.value,
             )
         )
-    if payment_type == PaymentType.superfluid and payment_chain is None:
+    is_stream = payment_type != PaymentType.hold
+
+    """ TODO:
+    if is_stream and payment_chain is None:
         payment_chain = Chain(
             Prompt.ask(
                 "Which chain did you want to pay with ?",
@@ -152,14 +151,14 @@ async def create(
             )
         )
     if payment_type == PaymentType.hold and payment_chain is None:
-        payment_chain = Chain.ETH  # Hold Method only compatible with ETH
+        payment_chain = Chain.ETH  # Hold Method only compatible with ETH """
 
     if confidential:
         if hypervisor and hypervisor != HypervisorType.qemu:
-            echo(f"Only QEMU is supported as an hypervisor for confidential")
+            echo("Only QEMU is supported as an hypervisor for confidential")
             raise typer.Exit(code=1)
         elif not hypervisor:
-            echo(f"Using QEMU as hypervisor for confidential")
+            echo("Using QEMU as hypervisor for confidential")
             hypervisor = HypervisorType.qemu
 
     available_hypervisors = {
@@ -184,6 +183,7 @@ async def create(
             )
         ]
         hypervisor = HypervisorType(hypervisor_choice)
+    is_qemu = hypervisor == HypervisorType.qemu
 
     os_choices = available_hypervisors[hypervisor]
 
@@ -253,48 +253,59 @@ async def create(
     if crn_url and crn_hash:
         crn_url = sanitize_url(crn_url)
         try:
-            crn_config = await fetch_crn_config(crn_url)
-            if crn_config:
+            name, score, reward_addr = "?", 0, ""
+            nodes: NodeInfo = await _fetch_nodes()
+            for node in nodes.nodes:
+                if node["address"].rstrip("/") == crn_url:
+                    name = node["name"]
+                    score = node["score"]
+                    reward_addr = node["stream_reward"]
+                    break
+            crn_info = await fetch_crn_info(crn_url)
+            if crn_info:
                 crn = CRNInfo(
-                    url=crn_url,
                     hash=ItemHash(crn_hash),
-                    score=10,
-                    name="",
-                    stream_reward_address=str(crn_config.get("payment", {}).get("PAYMENT_RECEIVER_ADDRESS", "")),
-                    machine_usage=None,
-                    version=None,
+                    name=name or "?",
+                    url=crn_url,
+                    version=crn_info.get("version", ""),
+                    score=score,
+                    stream_reward_address=str(crn_info.get("payment", {}).get("PAYMENT_RECEIVER_ADDRESS"))
+                    or reward_addr
+                    or "",
+                    machine_usage=crn_info.get("machine_usage"),
+                    qemu_support=bool(crn_info.get("computing", {}).get("ENABLE_QEMU_SUPPORT", False)),
                     confidential_computing=bool(
-                        crn_config.get("computing", {}).get("ENABLE_CONFIDENTIAL_COMPUTING", False)
+                        crn_info.get("computing", {}).get("ENABLE_CONFIDENTIAL_COMPUTING", False)
                     ),
-                    qemu_support=bool(crn_config.get("computing", {}).get("ENABLE_QEMU_SUPPORT", False)),
                 )
+                echo("\n* Selected CRN *")
+                crn.display_crn_specs()
+                echo()
         except Exception as e:
             echo(f"Unable to fetch CRN config: {e}")
             raise typer.Exit(1)
-    if payment_type != PaymentType.hold or confidential:
+    if is_stream or confidential:
         while not crn:
-            crn_table = CRNTable()
+            crn_table = CRNTable(only_reward_address=is_stream, only_qemu=is_qemu, only_confidentials=confidential)
             crn = await crn_table.run_async()
             if not crn:
                 # User has ctrl-c
                 raise typer.Exit(1)
-            print("Run instance on CRN:")
-            print("\t Name", crn.name)
-            print("\t Stream reward address", crn.stream_reward_address)
-            print("\t URL", crn.url)
-            if isinstance(crn.machine_usage, MachineUsage):
-                print("\t Available disk space", crn.machine_usage.disk)
-                print("\t Available ram", crn.machine_usage.mem)
-            if not Confirm.ask("Deploy on this node ?"):
+            echo("\n* Selected CRN *")
+            crn.display_crn_specs()
+            if not Confirm.ask("\nDeploy on this node ?"):
                 crn = None
                 continue
 
     if crn:
-        stream_reward_address = crn.stream_reward_address if has_nested_attr(crn, ["stream_reward_address"]) else ""
-        if payment_type != PaymentType.hold and not stream_reward_address:
+        stream_reward_address = crn.stream_reward_address if has_nested_attr(crn, "stream_reward_address") else ""
+        if is_stream and not stream_reward_address:
             echo("Selected CRN does not have a defined receiver address.")
             raise typer.Exit(1)
-        if confidential and (not has_nested_attr(crn, ["confidential_computing"]) or not crn.confidential_computing):
+        if is_qemu and (not has_nested_attr(crn, "qemu_support") or not crn.qemu_support):
+            echo("Selected CRN does not support QEMU hypervisor.")
+            raise typer.Exit(1)
+        if confidential and (not has_nested_attr(crn, "confidential_computing") or not crn.confidential_computing):
             echo("Selected CRN does not support confidential computing.")
             raise typer.Exit(1)
 
@@ -340,7 +351,7 @@ async def create(
 
         # Instances that need to be started by notifying a specific CRN
         crn_url = crn.url if crn and crn.url else None
-        if crn and (payment_type != PaymentType.hold or confidential):
+        if crn and (is_stream or confidential):
             if not crn_url:
                 # Not the ideal solution
                 logger.debug(f"Cannot allocate {item_hash}: no CRN url")
@@ -420,7 +431,7 @@ async def create(
         else:
             console.print(
                 f"Your instance {item_hash_text} is registered to be deployed on aleph.im.",
-                f"\nThe scheduler usually takes a few minutes to set it up and start it.",
+                "\nThe scheduler usually takes a few minutes to set it up and start it.",
             )
             if verbose:
                 console.print(
@@ -486,7 +497,7 @@ async def delete(
                 status = await erase(item_hash, crn_url, private_key, private_key_file, True, debug)
                 if status == 1:
                     echo(f"No associated VM on {crn_url}. Skipping...")
-            except Exception as e:
+            except Exception:
                 echo(f"Failed to erase associated VM on {crn_url}. Skipping...")
         else:
             echo(f"Instance {item_hash} was auto-scheduled, VM will be erased automatically.")
@@ -501,7 +512,7 @@ async def _get_instance_details(message: InstanceMessage, node_list: NodeInfo) -
     async with ClientSession() as session:
         hold = not message.content.payment or message.content.payment.type == PaymentType["hold"]
         confidential = (
-            has_nested_attr(message.content, ["environment", "trusted_execution", "firmware"])
+            has_nested_attr(message.content, "environment", "trusted_execution", "firmware")
             and len(getattr(message.content.environment.trusted_execution, "firmware")) == 64
         )
         details = dict(
@@ -522,7 +533,7 @@ async def _get_instance_details(message: InstanceMessage, node_list: NodeInfo) -
                     )
                     nodes = await fetch_json(
                         session,
-                        f"https://scheduler.api.aleph.cloud/api/v0/nodes",
+                        "https://scheduler.api.aleph.cloud/api/v0/nodes",
                     )
                     details["ipv6_logs"] = allocation["vm_ipv6"]
                     for node in nodes["nodes"]:
@@ -537,10 +548,10 @@ async def _get_instance_details(message: InstanceMessage, node_list: NodeInfo) -
                 details["allocation_type"] = help_strings.ALLOCATION_MANUAL
                 for node in node_list.nodes:
                     if (
-                        has_nested_attr(message.content, ["payment", "receiver"])
+                        has_nested_attr(message.content, "payment", "receiver")
                         and node["stream_reward"] == getattr(message.content.payment, "receiver")
                     ) or (
-                        has_nested_attr(message.content, ["requirements", "node", "node_hash"])
+                        has_nested_attr(message.content, "requirements", "node", "node_hash")
                         and message.content.requirements is not None
                         and node["hash"] == getattr(message.content.requirements.node, "node_hash")
                     ):
@@ -602,7 +613,7 @@ async def _show_instances(messages: List[InstanceMessage], node_list: NodeInfo):
             f"vCPUs: {message.content.resources.vcpus}\n"
             f"RAM: {message.content.resources.memory / 1_024:.2f} GiB\n"
             f"Disk: {message.content.rootfs.size_mib / 1_024:.2f} GiB\n"
-            f"HyperV: {message.content.environment.hypervisor if has_nested_attr(message.content, ['environment', 'hypervisor']) else 'firecracker'}\n"
+            f"HyperV: {message.content.environment.hypervisor if has_nested_attr(message.content, 'environment', 'hypervisor') else 'firecracker'}\n"
         )
         status_column = Text.assemble(
             Text.assemble(
@@ -969,7 +980,7 @@ async def confidential_start(
     await client.close()
     console = Console()
     console.print(
-        "Your instance is currently starting..." "\n\nLogs can be fetched using:\n\n",
+        "Your instance is currently starting...\n\nLogs can be fetched using:\n\n",
         Text.assemble(
             "  aleph instance logs ",
             Text(vm_id, style="bright_cyan"),
@@ -987,9 +998,9 @@ async def confidential_start(
 
 @app.command()
 async def confidential(
-    crn_url: Optional[str] = typer.Option(None, help=help_strings.CRN_URL),
-    crn_hash: Optional[str] = typer.Option(None, help=help_strings.CRN_HASH),
-    vm_id: Optional[str] = typer.Option(None, help=help_strings.VM_ID),
+    vm_id: Optional[str] = typer.Argument(default=None, help=help_strings.VM_ID),
+    crn_url: Optional[str] = typer.Argument(default=None, help=help_strings.CRN_URL),
+    crn_hash: Optional[str] = typer.Option(default=None, help=help_strings.CRN_HASH),
     policy: int = typer.Option(default=0x1),
     confidential_firmware: str = typer.Option(
         default=settings.DEFAULT_CONFIDENTIAL_FIRMWARE, help=help_strings.CONFIDENTIAL_FIRMWARE

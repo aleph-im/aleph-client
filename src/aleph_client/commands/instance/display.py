@@ -2,11 +2,8 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import Dict, Optional, Set, Tuple
+from typing import Dict, Optional, Set
 
-from aiohttp import InvalidURL
-from aleph_message.models import ItemHash
-from pydantic import BaseModel
 from textual.app import App
 from textual.containers import Horizontal
 from textual.css.query import NoMatches
@@ -14,196 +11,201 @@ from textual.reactive import reactive
 from textual.widgets import DataTable, Footer, Label, ProgressBar
 from textual.widgets._data_table import RowKey
 
-from aleph_client.commands.instance.network import (
-    fetch_crn_config,
-    fetch_crn_info,
-    sanitize_url,
-)
+from aleph_client.commands.instance.network import fetch_crn_info
 from aleph_client.commands.node import NodeInfo, _fetch_nodes, _format_score
-from aleph_client.models import MachineUsage
+from aleph_client.models import CRNInfo
+from aleph_client.utils import extract_valid_eth_address
 
 logger = logging.getLogger(__name__)
 
 
-def convert_system_info_to_str(data: CRNInfo) -> Tuple[str, str, str]:
-    """
-    Converts MachineInfo object that contains CPU, RAM and HDD information to a tuple of strings.
-
-    Args:
-        data: Information obtained about the CRN.
-
-    Returns:
-        CPU, RAM, and HDD information as strings.
-    """
-    cpu: str = f"{data.machine_usage.cpu.count}" if data.machine_usage else "N/A"
-    hdd: str = f"{data.machine_usage.disk.available_kB / 1_000_000:.0f} GB" if data.machine_usage else "N/A"
-    ram: str = f"{data.machine_usage.mem.available_kB / 1_000_000:.0f} GB" if data.machine_usage else "N/A"
-
-    return cpu, hdd, ram
-
-
-class CRNInfo(BaseModel):
-    machine_usage: Optional[MachineUsage]
-    score: float
-    hash: ItemHash
-    name: str
-    version: Optional[str]
-    stream_reward_address: str
-    url: str
-    confidential_computing: Optional[bool]
-    qemu_support: Optional[bool]
-
-
-class DisplayMachineUsage(BaseModel):
-    cpu: str = "N/A"
-    mem: str = "N/A"
-    disk: str = "N/A"
-
-
 class CRNTable(App[CRNInfo]):
-    crns: Dict[RowKey, CRNInfo] = {}
-    tasks: Set[asyncio.Task] = set()
-    text = reactive("Loading CRNs list ")
     table: DataTable
+    tasks: Set[asyncio.Task] = set()
+    crns: Dict[RowKey, CRNInfo] = {}
+    total_crns: int
+    active_crns: int = 0
+    filtered_crns: int = 0
+    label_start = reactive("Loading CRNs list ")
+    label_end = reactive("")
+    only_reward_address: bool = False
+    only_qemu: bool = False
+    only_confidentials: bool = False
+    current_sorts: set = set()
+    BINDINGS = [
+        ("s", "sort_by_score", "Sort By Score"),
+        ("n", "sort_by_name", "Sort By Name"),
+        ("v", "sort_by_version", "Sort By Version"),
+        ("a", "sort_by_address", "Sort By Address"),
+        ("c", "sort_by_confidential", "Sort By 🔒 Confidential"),
+        ("q", "sort_by_qemu", "Sort By Qemu"),
+        ("u", "sort_by_url", "Sort By URL"),
+        ("x", "quit", "Exit"),
+    ]
+
+    def __init__(self, only_reward_address: bool = False, only_qemu: bool = False, only_confidentials: bool = False):
+        super().__init__()
+        self.only_reward_address = only_reward_address
+        self.only_qemu = only_qemu
+        self.only_confidentials = only_confidentials
 
     def compose(self):
         """Create child widgets for the app."""
         self.table = DataTable(cursor_type="row", name="Select CRN")
         self.table.add_column("Score", key="score")
         self.table.add_column("Name", key="name")
-        self.table.add_column("Reward Address")
-        self.table.add_column("Confidential", key="confidential_computing")
-        self.table.add_column("Cores", key="cpu")
-        self.table.add_column("RAM", key="ram")
-        self.table.add_column("HDD", key="hdd")
         self.table.add_column("Version", key="version")
-        self.table.add_column("URL")
+        self.table.add_column("Reward Address", key="stream_reward_address")
+        self.table.add_column("🔒", key="confidential_computing")
+        self.table.add_column("Qemu", key="qemu_support")
+        self.table.add_column("Cores", key="cpu")
+        self.table.add_column("Free RAM 🌡", key="ram")
+        self.table.add_column("Free Disk 💿", key="hdd")
+        self.table.add_column("URL", key="url")
         yield Label("Choose a Compute Resource Node (CRN) to run your instance")
         with Horizontal():
-            self.loader_label = Label(self.text)
-            yield self.loader_label
-            yield ProgressBar(show_eta=False)
+            self.loader_label_start = Label(self.label_start)
+            yield self.loader_label_start
+            self.progress_bar = ProgressBar(show_eta=False)
+            yield self.progress_bar
+            self.loader_label_end = Label(self.label_end)
+            yield self.loader_label_end
         yield self.table
         yield Footer()
 
     async def on_mount(self):
-
+        self.table.styles.height = "95%"
         task = asyncio.create_task(self.fetch_node_list())
         self.tasks.add(task)
         task.add_done_callback(self.tasks.discard)
 
     async def fetch_node_list(self):
         nodes: NodeInfo = await _fetch_nodes()
-
         for node in nodes.nodes:
-            info = CRNInfo(
+            self.crns[RowKey(node["hash"])] = CRNInfo(
                 hash=node["hash"],
-                score=node["score"],
                 name=node["name"],
-                stream_reward_address=node["stream_reward"],
                 url=node["address"].rstrip("/"),
-                machine_usage=None,
                 version=None,
+                score=node["score"],
+                stream_reward_address=node["stream_reward"],
+                machine_usage=None,
+                qemu_support=None,
                 confidential_computing=None,
                 qemu_support=None,
             )
-            usage: DisplayMachineUsage = DisplayMachineUsage()
 
-            if isinstance(info.machine_usage, MachineUsage):
-                usage.disk = str(info.machine_usage.disk.available_kB)
-                usage.mem = str(info.machine_usage.mem.available_kB)
-                usage.cpu = str(info.machine_usage.cpu.count)
-
-            self.table.add_row(
-                _format_score(info.score),
-                info.name,
-                info.stream_reward_address,
-                info.confidential_computing,
-                info.version,
-                usage.cpu,
-                usage.mem,
-                usage.disk,
-                info.url,
-                key=info.hash,
-            )
-            self.crns[RowKey(info.hash)] = info
-
-        progress = self.query_one(ProgressBar)
-        progress.total = len(self.crns)
-        # Retrieve more info by contacting each separate CRN in the background
-        self.loader_label.update("Fetching information from each node ")
+        # Initialize the progress bar
+        self.total_crns = len(self.crns)
+        self.progress_bar.total = self.total_crns
+        self.loader_label_start.update(f"Fetching data of {self.total_crns} nodes ")
         self.tasks = set()
+
+        # Fetch all CRNs
         for node in list(self.crns.values()):
-            # Machine usage
             task = asyncio.create_task(self.fetch_node_info(node))
             self.tasks.add(task)
-            task.add_done_callback(self.tasks.discard)
             task.add_done_callback(self.make_progress)
-            # Resource
-
-            task = asyncio.create_task(self.fetch_node_config(node))
-            self.tasks.add(task)
             task.add_done_callback(self.tasks.discard)
-            task.add_done_callback(self.make_progress)
 
     async def fetch_node_info(self, node: CRNInfo):
         try:
-            node_url = sanitize_url(node.url)
-        except InvalidURL:
-            logger.debug(f"Skipping node {node.hash}, invalid url")
+            crn_info = await fetch_crn_info(node.url)
+        except:
             return
+        if crn_info:
+            node.version = crn_info.get("version", "")
+            node.stream_reward_address = extract_valid_eth_address(
+                crn_info.get("payment", {}).get("PAYMENT_RECEIVER_ADDRESS") or node.stream_reward_address or ""
+            )
+            node.qemu_support = crn_info.get("computing", {}).get("ENABLE_QEMU_SUPPORT", False)
+            node.confidential_computing = crn_info.get("computing", {}).get("ENABLE_CONFIDENTIAL_COMPUTING", False)
+            node.machine_usage = crn_info.get("machine_usage")
 
-        # Skip nodes without a reward address
-        if not node.stream_reward_address:
-            logger.debug(f"Skipping node {node.hash}, no reward address")
-            return
+            # Skip nodes without machine usage
+            if not node.machine_usage:
+                logger.debug(f"Skipping node {node.hash}, no machine usage")
+                return
 
-        # Fetch the machine usage and version from its HTTP API
-        machine_usage, version = await fetch_crn_info(node_url)
+            self.active_crns += 1
+            # Skip nodes without reward address if only_reward_address is set
+            if self.only_reward_address and not node.stream_reward_address:
+                logger.debug(f"Skipping node {node.hash}, no reward address")
+                return
+            # Skip non-qemu nodes if only_qemu is set
+            if self.only_qemu and not node.qemu_support:
+                logger.debug(f"Skipping node {node.hash}, no qemu support")
+                return
+            # Skip non-confidential nodes if only_confidentials is set
+            if self.only_confidentials and not node.confidential_computing:
+                logger.debug(f"Skipping node {node.hash}, no confidential support")
+                return
+            self.filtered_crns += 1
 
-        if not machine_usage:
-            logger.debug(f"Skipping node {node.hash}, no machine usage")
-            return
-        node.machine_usage = MachineUsage.parse_obj(machine_usage)
-        node.version = version
+            self.table.add_row(
+                _format_score(node.score),
+                node.name,
+                node.version,
+                node.stream_reward_address,
+                "✅" if node.confidential_computing else "✖",
+                "✅" if node.qemu_support else "✖",
+                node.display_cpu,
+                node.display_ram,
+                node.display_hdd,
+                node.url,
+                key=node.hash,
+            )
 
-        cpu, hdd, ram = convert_system_info_to_str(node)
-
-        self.table.update_cell(row_key=node.hash, column_key="cpu", value=cpu)
-        self.table.update_cell(row_key=node.hash, column_key="hdd", value=hdd)
-        self.table.update_cell(row_key=node.hash, column_key="ram", value=ram)
-        self.table.update_cell(row_key=node.hash, column_key="version", value=node.version)
-
-    async def fetch_node_config(self, node: CRNInfo):
+    def make_progress(self, task):
+        """Called automatically to advance the progress bar."""
         try:
-            node_url = sanitize_url(node.url)
-        except InvalidURL:
-            logger.debug(f"Skipping node {node.hash}, invalid url")
-            return
+            self.progress_bar.advance(1)
+            self.loader_label_end.update(f"    Available: {self.active_crns}    Match: {self.filtered_crns}")
+        except NoMatches:
+            pass
+        if len(self.tasks) == 0:
+            self.loader_label_start.update(f"Fetched {self.total_crns} nodes ")
 
-        # Skip nodes without a reward address
-        if not node.stream_reward_address:
-            logger.debug(f"Skipping node {node.hash}, no reward address")
-            return
-
-        crn_config = await fetch_crn_config(node_url)
-        if crn_config:
-            # The computing is only available on aleph-vm > 0.4.1
-            node.confidential_computing = crn_config.get("computing", {}).get("ENABLE_CONFIDENTIAL_COMPUTING")
-        confidential_computing = "Y" if node.confidential_computing else "N"
-
-        self.table.update_cell(row_key=node.hash, column_key="confidential_computing", value=confidential_computing)
-
-    def on_data_table_row_selected(self, message: DataTable.RowSelected) -> None:
+    def on_data_table_row_selected(self, message: DataTable.RowSelected):
         """Return the selected row"""
         selected_crn: Optional[CRNInfo] = self.crns.get(message.row_key)
         self.exit(selected_crn)
 
-    def make_progress(self, task) -> None:
-        """Called automatically to advance the progress bar."""
-        try:
-            self.query_one(ProgressBar).advance(1)
-        except NoMatches:
-            pass
-        if len(self.tasks) == 0:
-            self.loader_label.update("Fetched ")
+    def sort_reverse(self, sort_type: str) -> bool:
+        """Determine if `sort_type` is ascending or descending."""
+        reverse = sort_type in self.current_sorts
+        if reverse:
+            self.current_sorts.remove(sort_type)
+        else:
+            self.current_sorts.add(sort_type)
+        return reverse
+
+    def sort_by(self, column, sort_func=lambda row: row.lower(), invert=False):
+        table = self.query_one(DataTable)
+        reverse = self.sort_reverse(column)
+        table.sort(
+            column,
+            key=sort_func,
+            reverse=not reverse if invert else reverse,
+        )
+
+    def action_sort_by_score(self):
+        self.sort_by("score", sort_func=lambda row: float(row.plain.rstrip("%")), invert=True)
+
+    def action_sort_by_name(self):
+        self.sort_by("name")
+
+    def action_sort_by_version(self):
+        self.sort_by("version")
+
+    def action_sort_by_address(self):
+        self.sort_by("stream_reward_address")
+
+    def action_sort_by_confidential(self):
+        self.sort_by("confidential_computing")
+
+    def action_sort_by_qemu(self):
+        self.sort_by("qemu_support")
+
+    def action_sort_by_url(self):
+        self.sort_by("url")

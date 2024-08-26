@@ -18,7 +18,6 @@ from aleph_client.commands.instance import delete
 from aleph_client.commands.instance.network import (
     FORBIDDEN_HOSTS,
     fetch_crn_info,
-    get_version,
     sanitize_url,
 )
 from aleph_client.models import (
@@ -76,38 +75,18 @@ def dict_to_ci_multi_dict_proxy(d: dict) -> CIMultiDictProxy:
     return CIMultiDictProxy(CIMultiDict(d))
 
 
-def test_get_version() -> None:
-    # No server field in headers
-    headers = dict_to_ci_multi_dict_proxy({})
-    assert get_version(headers) is None
-
-    # Server header but no aleph-vm
-    headers = dict_to_ci_multi_dict_proxy({"Server": "nginx"})
-    assert get_version(headers) is None
-
-    # Server header with aleph-vm
-    headers = dict_to_ci_multi_dict_proxy({"Server": "aleph-vm/0.1.0"})
-    assert get_version(headers) == "0.1.0"
-
-    # Server header multiple aleph-vm values
-    headers = dict_to_ci_multi_dict_proxy({"Server": "aleph-vm/0.1.0", "server": "aleph-vm/0.2.0"})
-    assert get_version(headers) == "0.1.0"
-
-
 @pytest.mark.asyncio
 async def test_fetch_crn_info() -> None:
     # Test with valid node
     # TODO: Mock the response from the node, don't rely on a real node
     node_url = "https://ovh.staging.aleph.sh"
-    machine_usage, version = await fetch_crn_info(node_url)
-    assert machine_usage is not None
-    assert version is not None
-    assert isinstance(machine_usage, MachineUsage)
-    assert isinstance(version, str)
+    info = await fetch_crn_info(node_url)
+    assert info
+    assert info["machine_usage"]
 
     # Test with invalid node
     invalid_node_url = "https://coconut.example.org/"
-    assert await fetch_crn_info(invalid_node_url) == (None, None)
+    assert not (await fetch_crn_info(invalid_node_url))
 
     # TODO: Test different error handling
 

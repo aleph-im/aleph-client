@@ -1,12 +1,12 @@
 from datetime import datetime
 from typing import Optional
 
+from aleph_message.models import ItemHash
 from aleph_message.models.execution.environment import CpuProperties
 from pydantic import BaseModel
+from typer import echo
 
 from aleph_client.commands.node import _escape_and_normalize, _remove_ansi_escape
-
-# This is a copy from aleph-vm
 
 
 class LoadAverage(BaseModel):
@@ -102,3 +102,47 @@ class MachineInfo(BaseModel):
             url=url,
             hash=hash,
         )
+
+
+class CRNInfo(BaseModel):
+    hash: ItemHash
+    name: str
+    url: str
+    version: Optional[str]
+    score: float
+    stream_reward_address: str
+    machine_usage: Optional[MachineUsage]
+    qemu_support: Optional[bool]
+    confidential_computing: Optional[bool]
+
+    @property
+    def display_cpu(self) -> str:
+        if self.machine_usage:
+            return f"{self.machine_usage.cpu.count:>3}"
+        return ""
+
+    @property
+    def display_ram(self) -> str:
+        if self.machine_usage:
+            return f"{self.machine_usage.mem.available_kB / 1_000_000:>3.0f} / {self.machine_usage.mem.total_kB / 1_000_000:>3.0f} GB"
+        return ""
+
+    @property
+    def display_hdd(self) -> str:
+        if self.machine_usage:
+            return f"{self.machine_usage.disk.available_kB / 1_000_000:>4.0f} / {self.machine_usage.disk.total_kB / 1_000_000:>4.0f} GB"
+        return ""
+
+    def display_crn_specs(self):
+        echo(f"Hash: {self.hash}")
+        echo(f"Name: {self.name}")
+        echo(f"URL: {self.url}")
+        echo(f"Version: {self.version}")
+        echo(f"Score: {self.score}")
+        echo(f"Stream receiver: {self.stream_reward_address}")
+        if isinstance(self.machine_usage, MachineUsage):
+            echo(f"Available Cores: {self.display_cpu}")
+            echo(f"Available RAM: {self.display_ram}")
+            echo(f"Available Disk: {self.display_hdd}")
+        echo(f"Support Qemu: {self.qemu_support}")
+        echo(f"Support Confidential: {self.confidential_computing}")

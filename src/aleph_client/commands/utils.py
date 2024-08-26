@@ -209,7 +209,7 @@ def is_environment_interactive() -> bool:
     )
 
 
-def has_nested_attr(obj, attr_chain) -> bool:
+def has_nested_attr(obj, *attr_chain) -> bool:
     for attr in attr_chain:
         if not hasattr(obj, attr) or getattr(obj, attr) is None:
             return False
@@ -237,5 +237,5 @@ async def wait_for_confirmed_flow(account: ETHAccount, receiver: str):
         flow = await account.get_flow(receiver)
         if flow:
             return
-        typer.echo(f"Flow transaction is still pending, waiting 10sec...")
+        typer.echo("Flow transaction is still pending, waiting 10sec...")
         await asyncio.sleep(10)
