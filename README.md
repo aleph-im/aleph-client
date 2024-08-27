@@ -1,7 +1,7 @@
 # aleph-client
 
 Python Client for the [aleph.im network](https://www.aleph.im), next generation network of
-decentralized big data applications. Developement follows the [Aleph
+decentralized big data applications. Development follows the [Aleph
 Whitepaper](https://github.com/aleph-im/aleph-whitepaper).
 
 ## Documentation

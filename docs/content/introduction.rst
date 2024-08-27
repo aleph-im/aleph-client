@@ -17,7 +17,7 @@ data type).
 Data structures
 ---------------
 
-All data transfered over the aleph.im network are aleph messages.
+All data transferred over the aleph.im network are aleph messages.
 
 .. uml::
 
