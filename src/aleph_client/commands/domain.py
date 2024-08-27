@@ -249,7 +249,7 @@ async def add(
                     raise typer.Exit()
 
     """Attach option"""
-    if (not interactive) or Confirm.ask(f"Attach ressource to [bold green]{fqdn}"):
+    if (not interactive) or Confirm.ask(f"Attach resource to [bold green]{fqdn}"):
         await attach_resource(account, fqdn, item_hash)
 
     raise typer.Exit()

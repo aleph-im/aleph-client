@@ -11,7 +11,7 @@ to use it.
 
 For this reason, all the functions have an async version
 and a sync version. The sync version are actually
-calling the async code behing your back (sneaky!) so you might
+calling the async code behind your back (sneaky!) so you might
 be careful if you are calling it in an environment where you
 already have an asyncio loop used.
 
