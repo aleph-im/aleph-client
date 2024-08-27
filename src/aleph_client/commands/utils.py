@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 import sys
@@ -7,12 +8,18 @@ from datetime import datetime
 from typing import Any, Callable, Dict, List, Optional, TypeVar, Union
 
 import typer
+from aiohttp import ClientSession
+from aleph.sdk.chains.ethereum import ETHAccount
+from aleph.sdk.conf import settings as sdk_settings
 from aleph.sdk.types import GenericMessage
+from aleph_message.models import ItemHash
 from pygments import highlight
 from pygments.formatters.terminal256 import Terminal256Formatter
 from pygments.lexers import JsonLexer
 from rich.prompt import IntPrompt, Prompt, PromptError
 from typer import echo
+
+from aleph_client.utils import fetch_json
 
 logger = logging.getLogger(__name__)
 
@@ -208,3 +215,27 @@ def has_nested_attr(obj, *attr_chain) -> bool:
             return False
         obj = getattr(obj, attr)
     return True
+
+
+async def wait_for_processed_instance(session: ClientSession, item_hash: ItemHash):
+    """Wait for a message to be processed by CCN"""
+    while True:
+        url = f"{sdk_settings.API_HOST.rstrip('/')}/api/v0/messages/{item_hash}"
+        message = await fetch_json(session, url)
+        if message["status"] == "processed":
+            return
+        elif message["status"] == "pending":
+            typer.echo(f"Message {item_hash} is still pending, waiting 10sec...")
+            await asyncio.sleep(10)
+        elif message["status"] == "rejected":
+            raise Exception(f"Message {item_hash} has been rejected")
+
+
+async def wait_for_confirmed_flow(account: ETHAccount, receiver: str):
+    """Wait for a flow to be confirmed on-chain"""
+    while True:
+        flow = await account.get_flow(receiver)
+        if flow:
+            return
+        typer.echo("Flow transaction is still pending, waiting 10sec...")
+        await asyncio.sleep(10)

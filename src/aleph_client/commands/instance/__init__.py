@@ -4,14 +4,18 @@ import asyncio
 import json
 import logging
 import shutil
+from decimal import Decimal
 from ipaddress import IPv6Interface
+from math import ceil
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Union, cast
 
+import aiohttp
 import typer
 from aiohttp import ClientConnectorError, ClientResponseError, ClientSession
 from aleph.sdk import AlephHttpClient, AuthenticatedAlephHttpClient
 from aleph.sdk.account import _load_account
+from aleph.sdk.chains.ethereum import ETHAccount
 from aleph.sdk.client.vm_client import VmClient
 from aleph.sdk.client.vm_confidential_client import VmConfidentialClient
 from aleph.sdk.conf import settings as sdk_settings
@@ -21,6 +25,7 @@ from aleph.sdk.exceptions import (
     MessageNotFoundError,
 )
 from aleph.sdk.query.filters import MessageFilter
+from aleph.sdk.query.responses import PriceResponse
 from aleph.sdk.types import AccountFromPrivateKey, StorageEnum
 from aleph.sdk.utils import calculate_firmware_hash
 from aleph_message.models import InstanceMessage, StoreMessage
@@ -49,12 +54,15 @@ from aleph_client.commands.utils import (
     setup_logging,
     validated_int_prompt,
     validated_prompt,
+    wait_for_confirmed_flow,
+    wait_for_processed_instance,
 )
 from aleph_client.conf import settings
 from aleph_client.models import CRNInfo
 from aleph_client.utils import AsyncTyper, fetch_json
 
 from ..utils import has_nested_attr
+from .superfluid import FlowUpdate, update_flow
 
 logger = logging.getLogger(__name__)
 app = AsyncTyper(no_args_is_help=True)
@@ -63,9 +71,10 @@ app = AsyncTyper(no_args_is_help=True)
 @app.command()
 async def create(
     payment_type: PaymentType = typer.Option(None, help=help_strings.PAYMENT_TYPE),
+    payment_chain: Chain = typer.Option(None, help=help_strings.PAYMENT_CHAIN),
     hypervisor: HypervisorType = typer.Option(None, help=help_strings.HYPERVISOR),
     name: Optional[str] = typer.Option(None, help=help_strings.INSTANCE_NAME),
-    rootfs: str = typer.Option("ubuntu22", help=help_strings.ROOTFS),
+    rootfs: str = typer.Option(None, help=help_strings.ROOTFS),
     rootfs_size: int = typer.Option(None, help=help_strings.ROOTFS_SIZE),
     vcpus: int = typer.Option(None, help=help_strings.VCPUS),
     memory: int = typer.Option(None, help=help_strings.MEMORY),
@@ -133,6 +142,28 @@ async def create(
         )
     is_stream = payment_type != PaymentType.hold
 
+    # super_token_chains = get_chains_with_super_token()
+    super_token_chains = [Chain.AVAX.value]
+    if is_stream:
+        if payment_chain is None or payment_chain not in super_token_chains:
+            payment_chain = Chain(
+                Prompt.ask(
+                    "Which chain do you want to use for Pay-As-You-Go?",
+                    choices=super_token_chains,
+                    default=Chain.AVAX.value,
+                )
+            )
+        if isinstance(account, ETHAccount):
+            account.switch_chain(payment_chain)
+            if account.superfluid_connector:  # Quick check with theoretical min price
+                try:
+                    account.superfluid_connector.can_start_flow(Decimal(0.000031))  # 0.11/h
+                except Exception as e:
+                    echo(e)
+                    raise typer.Exit(code=1)
+    else:
+        payment_chain = Chain.ETH  # Hold chain for all balances
+
     if confidential:
         if hypervisor and hypervisor != HypervisorType.qemu:
             echo("Only QEMU is supported as an hypervisor for confidential")
@@ -171,7 +202,7 @@ async def create(
         if confidential:
             # Confidential only support custom rootfs
             rootfs = "custom"
-        elif rootfs not in os_choices:
+        elif not rootfs or rootfs not in os_choices:
             rootfs = Prompt.ask(
                 "Use a custom rootfs or one of the following prebuilt ones:",
                 default=rootfs,
@@ -206,6 +237,7 @@ async def create(
             if not firmware_message:
                 echo("Confidential Firmware hash does not exist on aleph.im")
                 raise typer.Exit(code=1)
+
     name = name or validated_prompt("Instance name", lambda x: len(x) < 65)
     rootfs_size = rootfs_size or validated_int_prompt(
         "Disk size in MiB", default=settings.DEFAULT_ROOTFS_SIZE, min_value=10_240, max_value=102_400
@@ -228,19 +260,16 @@ async def create(
             immutable_volume=immutable_volume,
         )
 
-    # For PAYG or confidential, the user select directly the node on which to run on
-    # For PAYG User have to make the payment stream separately
-    # For now, we allow hold for confidential, but the user still has to choose on which CRN to run.
     stream_reward_address = None
     crn = None
     if crn_url and crn_hash:
         crn_url = sanitize_url(crn_url)
         try:
-            name, score, reward_addr = "?", 0, ""
+            crn_name, score, reward_addr = "?", 0, ""
             nodes: NodeInfo = await _fetch_nodes()
             for node in nodes.nodes:
                 if node["address"].rstrip("/") == crn_url:
-                    name = node["name"]
+                    crn_name = node["name"]
                     score = node["score"]
                     reward_addr = node["stream_reward"]
                     break
@@ -248,7 +277,7 @@ async def create(
             if crn_info:
                 crn = CRNInfo(
                     hash=ItemHash(crn_hash),
-                    name=name or "?",
+                    name=crn_name or "?",
                     url=crn_url,
                     version=crn_info.get("version", ""),
                     score=score,
@@ -293,13 +322,11 @@ async def create(
             raise typer.Exit(1)
 
     async with AuthenticatedAlephHttpClient(account=account, api_server=sdk_settings.API_HOST) as client:
-        payment: Optional[Payment] = None
-        if stream_reward_address:
-            payment = Payment(
-                chain=Chain.AVAX,
-                receiver=stream_reward_address,
-                type=payment_type,
-            )
+        payment = Payment(
+            chain=payment_chain,
+            receiver=stream_reward_address if stream_reward_address else None,
+            type=payment_type,
+        )
         try:
             message, status = await client.create_instance(
                 sync=True,
@@ -341,7 +368,36 @@ async def create(
                 # Not the ideal solution
                 logger.debug(f"Cannot allocate {item_hash}: no CRN url")
                 return item_hash, crn_url
-            account = _load_account(private_key, private_key_file)
+
+            # Wait for the instance message to be processed
+            async with aiohttp.ClientSession() as session:
+                await wait_for_processed_instance(session, item_hash)
+
+            # Pay-As-You-Go
+            if payment_type == PaymentType.superfluid:
+                price: PriceResponse = await client.get_program_price(item_hash)
+                ceil_factor = 10**18
+                required_tokens = ceil(Decimal(price.required_tokens) * ceil_factor) / ceil_factor
+                if isinstance(account, ETHAccount) and account.superfluid_connector:
+                    try:  # Double check with effective price
+                        account.superfluid_connector.can_start_flow(Decimal(0.000031))  # Min for 0.11/h
+                    except Exception as e:
+                        echo(e)
+                        raise typer.Exit(code=1)
+                    flow_hash = await update_flow(
+                        account=account,
+                        receiver=crn.stream_reward_address,
+                        flow=Decimal(required_tokens),
+                        update_type=FlowUpdate.INCREASE,
+                    )
+                    # Wait for the flow transaction to be confirmed
+                    await wait_for_confirmed_flow(account, message.content.payment.receiver)
+                    if flow_hash:
+                        echo(
+                            f"Flow {flow_hash} has been created:\n\t- price/sec: {price.required_tokens:.7f} ALEPH\n\t- receiver: {crn.stream_reward_address}"
+                        )
+
+            # Notify CRN
             async with VmClient(account, crn.url) as crn_client:
                 status, result = await crn_client.start_instance(vm_id=item_hash)
                 logger.debug(status, result)
@@ -436,6 +492,20 @@ async def delete(
         if existing_message.sender != account.get_address():
             echo("You are not the owner of this instance")
             raise typer.Exit(code=1)
+
+        # Check for streaming payment and eventually stop it
+        payment: Optional[Payment] = existing_message.content.payment
+        if payment is not None and payment.type == PaymentType.superfluid:
+            price: PriceResponse = await client.get_program_price(item_hash)
+            if payment.receiver is not None:
+                if isinstance(account, ETHAccount):
+                    account.switch_chain(payment.chain)
+                    if account.superfluid_connector:
+                        flow_hash = await update_flow(
+                            account, payment.receiver, Decimal(price.required_tokens), FlowUpdate.REDUCE
+                        )
+                        if flow_hash:
+                            echo(f"Flow {flow_hash} has been deleted.")
 
         # Check status of the instance and eventually erase associated VM
         node_list: NodeInfo = await _fetch_nodes()
@@ -964,6 +1034,7 @@ async def confidential(
     keep_session: bool = typer.Option(None, help=help_strings.KEEP_SESSION),
     vm_secret: str = typer.Option(None, help=help_strings.VM_SECRET),
     payment_type: PaymentType = typer.Option(None, help=help_strings.PAYMENT_TYPE),
+    payment_chain: Optional[Chain] = typer.Option(None, help=help_strings.PAYMENT_CHAIN),
     name: Optional[str] = typer.Option(None, help=help_strings.INSTANCE_NAME),
     rootfs: str = typer.Option("ubuntu22", help=help_strings.ROOTFS),
     rootfs_size: int = typer.Option(None, help=help_strings.ROOTFS_SIZE),
@@ -1004,6 +1075,7 @@ async def confidential(
     if not vm_id or len(vm_id) != 64:
         vm_id, crn_url = await create(
             payment_type,
+            payment_chain,
             None,
             name,
             rootfs,
