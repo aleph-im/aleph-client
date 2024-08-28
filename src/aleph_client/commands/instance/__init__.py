@@ -63,7 +63,7 @@ from aleph_client.conf import settings
 from aleph_client.models import CRNInfo
 from aleph_client.utils import AsyncTyper
 
-from ..utils import has_nested_attr
+from ..utils import safe_getattr
 from .superfluid import FlowUpdate, update_flow
 
 logger = logging.getLogger(__name__)
@@ -312,14 +312,14 @@ async def create(
                 continue
 
     if crn:
-        stream_reward_address = crn.stream_reward_address if has_nested_attr(crn, "stream_reward_address") else ""
+        stream_reward_address = crn.stream_reward_address if hasattr(crn, "stream_reward_address") else ""
         if is_stream and not stream_reward_address:
             echo("Selected CRN does not have a defined receiver address.")
             raise typer.Exit(1)
-        if is_qemu and (not has_nested_attr(crn, "qemu_support") or not crn.qemu_support):
+        if is_qemu and (not hasattr(crn, "qemu_support") or not crn.qemu_support):
             echo("Selected CRN does not support QEMU hypervisor.")
             raise typer.Exit(1)
-        if confidential and (not has_nested_attr(crn, "confidential_computing") or not crn.confidential_computing):
+        if confidential and (not hasattr(crn, "confidential_computing") or not crn.confidential_computing):
             echo("Selected CRN does not support confidential computing.")
             raise typer.Exit(1)
 
@@ -572,7 +572,7 @@ async def _show_instances(messages: List[InstanceMessage], node_list: NodeInfo):
             f"vCPUs: {message.content.resources.vcpus}\n"
             f"RAM: {message.content.resources.memory / 1_024:.2f} GiB\n"
             f"Disk: {message.content.rootfs.size_mib / 1_024:.2f} GiB\n"
-            f"HyperV: {message.content.environment.hypervisor if has_nested_attr(message.content, 'environment', 'hypervisor') else 'firecracker'}\n"
+            f"HyperV: {message.content.environment.hypervisor if safe_getattr(message, 'content.environment.hypervisor') else 'firecracker'}\n"
         )
         status_column = Text.assemble(
             Text.assemble(
