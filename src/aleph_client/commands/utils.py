@@ -7,12 +7,13 @@ import sys
 from datetime import datetime
 from typing import Any, Callable, Dict, List, Optional, TypeVar, Union
 
-import typer
 from aiohttp import ClientSession
+from aleph.sdk import AlephHttpClient
 from aleph.sdk.chains.ethereum import ETHAccount
 from aleph.sdk.conf import settings as sdk_settings
+from aleph.sdk.exceptions import ForgottenMessageError, MessageNotFoundError
 from aleph.sdk.types import GenericMessage
-from aleph_message.models import ItemHash
+from aleph_message.models import AlephMessage, ItemHash
 from aleph_message.status import MessageStatus
 from pygments import highlight
 from pygments.formatters.terminal256 import Terminal256Formatter
@@ -123,7 +124,7 @@ def get_or_prompt_volumes(ephemeral_volume, immutable_volume, persistent_volume)
     if persistent_volume is None or ephemeral_volume is None or immutable_volume is None:
         for volume in prompt_for_volumes():
             volumes.append(volume)
-            typer.echo("\n")
+            echo("\n")
 
     # else parse all the volumes that have passed as the cli parameters and put it into volume list
     else:
@@ -238,7 +239,7 @@ async def wait_for_processed_instance(session: ClientSession, item_hash: ItemHas
         if message["status"] == "processed":
             return
         elif message["status"] == "pending":
-            typer.echo(f"Message {item_hash} is still pending, waiting 10sec...")
+            echo(f"Message {item_hash} is still pending, waiting 10sec...")
             await asyncio.sleep(10)
         elif message["status"] == "rejected":
             raise Exception(f"Message {item_hash} has been rejected")
@@ -250,5 +251,23 @@ async def wait_for_confirmed_flow(account: ETHAccount, receiver: str):
         flow = await account.get_flow(receiver)
         if flow:
             return
-        typer.echo("Flow transaction is still pending, waiting 10sec...")
+        echo("Flow transaction is still pending, waiting 10sec...")
         await asyncio.sleep(10)
+
+
+async def filter_only_valid_messages(messages: List[AlephMessage]):
+    """Iteratively check the status of each message from the API and only return 
+    messages whose status is processed.
+    """
+    filtered_messages = []
+    async with AlephHttpClient(api_server=sdk_settings.API_HOST) as client:
+        for message in messages:
+            item_hash: ItemHash = message.item_hash 
+            try:
+                msg = await client.get_message(ItemHash(item_hash))
+                filtered_messages.append(msg)
+            except MessageNotFoundError:
+                logger.debug("Message not found %s", item_hash)
+            except ForgottenMessageError:
+                logger.debug("Message not found %s", item_hash)
+        return filtered_messages
