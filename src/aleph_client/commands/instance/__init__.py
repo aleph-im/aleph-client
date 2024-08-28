@@ -17,6 +17,7 @@ from aleph.sdk.chains.ethereum import ETHAccount
 from aleph.sdk.client.vm_client import VmClient
 from aleph.sdk.client.vm_confidential_client import VmConfidentialClient
 from aleph.sdk.conf import settings as sdk_settings
+from aleph.sdk.evm_utils import get_chains_with_super_token
 from aleph.sdk.exceptions import (
     ForgottenMessageError,
     InsufficientFundsError,
@@ -144,8 +145,7 @@ async def create(
         )
     is_stream = payment_type != PaymentType.hold
 
-    # super_token_chains = get_chains_with_super_token()
-    super_token_chains = [Chain.AVAX.value]
+    super_token_chains = get_chains_with_super_token()
     if is_stream:
         if payment_chain is None or payment_chain not in super_token_chains:
             payment_chain = Chain(
