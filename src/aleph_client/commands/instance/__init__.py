@@ -405,7 +405,7 @@ async def create(
                 status, result = await crn_client.start_instance(vm_id=item_hash)
                 logger.debug(status, result)
                 if int(status) != 200:
-                    echo(f"Could not start instance {item_hash} on CRN.")
+                    echo(f"Could not allocate instance {item_hash} on CRN.")
                     return item_hash, crn_url
             console.print(f"Your instance {item_hash_text} has been deployed on aleph.im.")
             if verbose:
@@ -420,30 +420,23 @@ async def create(
                     )
                 # All confidential instances
                 else:
-                    crn_url_text = Text(crn.url, style="blue")
                     console.print(
                         "\n\nInitialize a confidential session using:\n\n",
                         Text.assemble(
                             "  aleph instance confidential-init-session ",
                             item_hash_text,
-                            " ",
-                            crn_url_text,
                             style="italic",
                         ),
                         "\n\nThen start it using:\n\n",
                         Text.assemble(
                             "  aleph instance confidential-start ",
                             item_hash_text,
-                            " ",
-                            crn_url_text,
                             style="italic",
                         ),
                         "\n\nOr just use the all-in-one command:\n\n",
                         Text.assemble(
                             "  aleph instance confidential ",
                             item_hash_text,
-                            " ",
-                            crn_url_text,
                             "\n",
                             style="italic",
                         ),
@@ -616,24 +609,18 @@ async def _show_instances(messages: List[InstanceMessage], node_list: NodeInfo):
             Text.assemble(
                 "  aleph instance confidential-init-session ",
                 item_hash_field,
-                " ",
-                crn_url_field,
                 "\n",
                 style="italic",
             ),
             Text.assemble(
                 "  aleph instance confidential-start ",
                 item_hash_field,
-                " ",
-                crn_url_field,
                 style="italic",
             ),
             "\n\nOr just use the all-in-one command:\n\n",
             Text.assemble(
                 "  aleph instance confidential ",
                 item_hash_field,
-                " ",
-                crn_url_field,
                 "\n",
                 style="italic",
             ),
@@ -1000,8 +987,6 @@ async def confidential_start(
         Text.assemble(
             "  aleph instance logs ",
             Text(vm_id, style="bright_cyan"),
-            " ",
-            Text(domain, style="blue"),
             style="italic",
         ),
         "\n\nTo get the IPv6 address of the instance, check out:\n\n",
