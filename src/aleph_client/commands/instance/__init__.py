@@ -49,6 +49,7 @@ from aleph_client.commands.instance.display import CRNTable
 from aleph_client.commands.instance.network import (
     fetch_crn_info,
     fetch_vm_info,
+    find_crn_of_vm,
     sanitize_url,
 )
 from aleph_client.commands.instance.superfluid import FlowUpdate, update_flow
@@ -468,7 +469,7 @@ async def create(
 async def delete(
     item_hash: str = typer.Argument(..., help="Instance item hash to forget"),
     reason: str = typer.Option("User deletion", help="Reason for deleting the instance"),
-    crn_url: str = typer.Option(None, help=help_strings.CRN_URL_VM_DELETION),
+    crn_url: Optional[str] = typer.Option(None, help=help_strings.CRN_URL_VM_DELETION),
     private_key: Optional[str] = sdk_settings.PRIVATE_KEY_STRING,
     private_key_file: Optional[Path] = sdk_settings.PRIVATE_KEY_FILE,
     print_message: bool = typer.Option(False),
@@ -690,7 +691,7 @@ async def list(
 @app.command()
 async def expire(
     vm_id: str = typer.Argument(..., help="VM item hash to expire"),
-    domain: str = typer.Argument(..., help="CRN domain where the VM is running"),
+    domain: Optional[str] = typer.Option(None, help="CRN domain on which the VM is running"),
     private_key: Optional[str] = typer.Option(sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
     private_key_file: Optional[Path] = typer.Option(sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
     debug: bool = False,
@@ -698,6 +699,13 @@ async def expire(
     """Expire an instance"""
 
     setup_logging(debug)
+
+    domain = (
+        (domain and sanitize_url(domain))
+        or await find_crn_of_vm(vm_id)
+        or Prompt.ask("URL of the CRN (Compute node) on which the VM is running")
+    )
+
     account = _load_account(private_key, private_key_file)
 
     async with VmClient(account, domain) as manager:
@@ -711,7 +719,7 @@ async def expire(
 @app.command()
 async def erase(
     vm_id: str = typer.Argument(..., help="VM item hash to erase"),
-    domain: str = typer.Argument(..., help="CRN domain where the VM is stored or running"),
+    domain: Optional[str] = typer.Option(None, help="CRN domain on which the VM is stored or running"),
     private_key: Optional[str] = typer.Option(sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
     private_key_file: Optional[Path] = typer.Option(sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
     silent: bool = False,
@@ -720,6 +728,12 @@ async def erase(
     """Erase an instance stored or running on a CRN"""
 
     setup_logging(debug)
+
+    domain = (
+        (domain and sanitize_url(domain))
+        or await find_crn_of_vm(vm_id)
+        or Prompt.ask("URL of the CRN (Compute node) on which the VM is stored or running")
+    )
 
     account = _load_account(private_key, private_key_file)
 
@@ -735,7 +749,7 @@ async def erase(
 @app.command()
 async def reboot(
     vm_id: str = typer.Argument(..., help="VM item hash to reboot"),
-    domain: str = typer.Argument(..., help="CRN domain where the VM is running"),
+    domain: Optional[str] = typer.Option(None, help="CRN domain on which the VM is running"),
     private_key: Optional[str] = typer.Option(sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
     private_key_file: Optional[Path] = typer.Option(sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
     debug: bool = False,
@@ -743,6 +757,12 @@ async def reboot(
     """Reboot an instance"""
 
     setup_logging(debug)
+
+    domain = (
+        (domain and sanitize_url(domain))
+        or await find_crn_of_vm(vm_id)
+        or Prompt.ask("URL of the CRN (Compute node) on which the VM is running")
+    )
 
     account = _load_account(private_key, private_key_file)
 
@@ -757,7 +777,7 @@ async def reboot(
 @app.command()
 async def allocate(
     vm_id: str = typer.Argument(..., help="VM item hash to allocate"),
-    domain: str = typer.Argument(..., help="CRN domain where the VM will be allocated"),
+    domain: Optional[str] = typer.Option(None, help="CRN domain on which the VM will be allocated"),
     private_key: Optional[str] = typer.Option(sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
     private_key_file: Optional[Path] = typer.Option(sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
     debug: bool = False,
@@ -765,6 +785,12 @@ async def allocate(
     """Notify a CRN to start an instance (for Pay-As-You-Go and confidential instances only)"""
 
     setup_logging(debug)
+
+    domain = (
+        (domain and sanitize_url(domain))
+        or await find_crn_of_vm(vm_id)
+        or Prompt.ask("URL of the CRN (Compute node) on which the VM will be allocated")
+    )
 
     account = _load_account(private_key, private_key_file)
 
@@ -779,13 +805,19 @@ async def allocate(
 @app.command()
 async def logs(
     vm_id: str = typer.Argument(..., help="VM item hash to retrieve the logs from"),
-    domain: str = typer.Argument(..., help="CRN domain where the VM is running"),
+    domain: Optional[str] = typer.Option(None, help="CRN domain on which the VM is running"),
     private_key: Optional[str] = typer.Option(sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
     private_key_file: Optional[Path] = typer.Option(sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
     debug: bool = False,
 ):
     """Retrieve the logs of an instance"""
     setup_logging(debug)
+
+    domain = (
+        (domain and sanitize_url(domain))
+        or await find_crn_of_vm(vm_id)
+        or Prompt.ask("URL of the CRN (Compute node) on which the instance is running")
+    )
 
     account = _load_account(private_key, private_key_file)
 
@@ -799,7 +831,7 @@ async def logs(
 @app.command()
 async def stop(
     vm_id: str = typer.Argument(..., help="VM item hash to stop"),
-    domain: str = typer.Argument(..., help="CRN domain where the VM is running"),
+    domain: Optional[str] = typer.Option(None, help="CRN domain on which the VM is running"),
     private_key: Optional[str] = typer.Option(sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
     private_key_file: Optional[Path] = typer.Option(sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
     debug: bool = False,
@@ -807,6 +839,12 @@ async def stop(
     """Stop an instance"""
 
     setup_logging(debug)
+
+    domain = (
+        (domain and sanitize_url(domain))
+        or await find_crn_of_vm(vm_id)
+        or Prompt.ask("URL of the CRN (Compute node) on which the instance is running")
+    )
 
     account = _load_account(private_key, private_key_file)
 
@@ -821,7 +859,7 @@ async def stop(
 @app.command()
 async def confidential_init_session(
     vm_id: str = typer.Argument(..., help="VM item hash to initialize the session for"),
-    domain: str = typer.Argument(..., help="CRN domain where the session will be initialized"),
+    domain: Optional[str] = typer.Option(None, help="CRN domain on which the session will be initialized"),
     policy: int = typer.Option(default=0x1),
     keep_session: bool = typer.Option(None, help=help_strings.KEEP_SESSION),
     private_key: Optional[str] = typer.Option(sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
@@ -835,6 +873,13 @@ async def confidential_init_session(
     session_dir.mkdir(exist_ok=True, parents=True)
 
     setup_logging(debug)
+
+    domain = (
+        (domain and sanitize_url(domain))
+        or await find_crn_of_vm(vm_id)
+        or Prompt.ask("URL of the CRN (Compute node) on which the session will be initialized")
+    )
+
     account = _load_account(private_key, private_key_file)
 
     sevctl_path = find_sevctl_or_exit()
@@ -890,7 +935,7 @@ def find_sevctl_or_exit() -> Path:
 @app.command()
 async def confidential_start(
     vm_id: str = typer.Argument(..., help="VM item hash to start"),
-    domain: str = typer.Argument(..., help="CRN domain where the VM will be started"),
+    domain: Optional[str] = typer.Option(None, help="CRN domain on which the VM will be started"),
     firmware_hash: str = typer.Option(
         settings.DEFAULT_CONFIDENTIAL_FIRMWARE_HASH, help=help_strings.CONFIDENTIAL_FIRMWARE_HASH
     ),
@@ -908,6 +953,12 @@ async def confidential_start(
     setup_logging(debug)
     account = _load_account(private_key, private_key_file)
     sevctl_path = find_sevctl_or_exit()
+
+    domain = (
+        (domain and sanitize_url(domain))
+        or await find_crn_of_vm(vm_id)
+        or Prompt.ask("URL of the CRN (Compute node) on which the VM will be started")
+    )
 
     client = VmConfidentialClient(account, sevctl_path, domain)
 
@@ -1047,10 +1098,18 @@ async def confidential(
             return 1
         allocated = vm_id is not None
 
-    crn_url = crn_url or Prompt.ask("URL of the CRN (Compute node) on which the instance is running")
+    crn_url = (
+        (crn_url and sanitize_url(crn_url))
+        or await find_crn_of_vm(vm_id)
+        or Prompt.ask("URL of the CRN (Compute node) on which the instance is running")
+    )
 
     if not allocated:
-        allocated = (await allocate(vm_id, crn_url, private_key, private_key_file, debug)) is None
+        allocated = (
+            await allocate(
+                vm_id=vm_id, domain=crn_url, private_key=private_key, private_key_file=private_key_file, debug=debug
+            )
+        ) is None
         if not allocated:
             echo("Could not allocate the VM")
             return 1
