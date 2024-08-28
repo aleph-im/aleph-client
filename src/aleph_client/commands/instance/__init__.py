@@ -205,7 +205,7 @@ async def create(
         elif not rootfs or rootfs not in os_choices:
             rootfs = Prompt.ask(
                 "Use a custom rootfs or one of the following prebuilt ones:",
-                default=rootfs,
+                default="ubuntu22",
                 choices=[*os_choices, "custom"],
             )
 
