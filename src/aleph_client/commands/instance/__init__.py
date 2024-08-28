@@ -495,19 +495,11 @@ async def delete(
             echo("You are not the owner of this instance")
             raise typer.Exit(code=1)
 
-        # Check for streaming payment and eventually stop it
+        # If PAYG, retrieve flow price
         payment: Optional[Payment] = existing_message.content.payment
-        if payment is not None and payment.type == PaymentType.superfluid:
-            price: PriceResponse = await client.get_program_price(item_hash)
-            if payment.receiver is not None:
-                if isinstance(account, ETHAccount):
-                    account.switch_chain(payment.chain)
-                    if account.superfluid_connector:
-                        flow_hash = await update_flow(
-                            account, payment.receiver, Decimal(price.required_tokens), FlowUpdate.REDUCE
-                        )
-                        if flow_hash:
-                            echo(f"Flow {flow_hash} has been deleted.")
+        price: Optional[PriceResponse] = None
+        if safe_getattr(payment, "type") == PaymentType.superfluid:
+            price = await client.get_program_price(item_hash)
 
         # Check status of the instance and eventually erase associated VM
         node_list: NodeInfo = await _fetch_nodes()
@@ -523,6 +515,16 @@ async def delete(
                 echo(f"Failed to erase associated VM on {crn_url}. Skipping...")
         else:
             echo(f"Instance {item_hash} was auto-scheduled, VM will be erased automatically.")
+
+        # Check for streaming payment and eventually stop it
+        if payment and payment.type == PaymentType.superfluid and payment.receiver and isinstance(account, ETHAccount):
+            account.switch_chain(payment.chain)
+            if account.superfluid_connector and price:
+                flow_hash = await update_flow(
+                    account, payment.receiver, Decimal(price.required_tokens), FlowUpdate.REDUCE
+                )
+                if flow_hash:
+                    echo(f"Flow {flow_hash} has been deleted.")
 
         message, status = await client.forget(hashes=[ItemHash(item_hash)], reason=reason)
         if print_message:
@@ -557,7 +559,10 @@ async def _show_instances(messages: List[InstanceMessage], node_list: NodeInfo):
         item_hash_link = Text.from_markup(f"[link={link}]{message.item_hash}[/link]", style="bright_cyan")
         payment = Text.assemble(
             "Payment: ",
-            Text(str(info["payment"]).capitalize(), style="red" if info["payment"] != PaymentType.hold else "orange3"),
+            Text(
+                str(info["payment"]).capitalize(),
+                style="red" if str(info["payment"]).startswith("hold") else "orange3",
+            ),
         )
         confidential = (
             Text.assemble("Type: ", Text("Confidential", style="green"))
