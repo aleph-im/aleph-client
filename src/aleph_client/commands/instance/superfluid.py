@@ -3,7 +3,6 @@ from decimal import Decimal
 from enum import Enum
 
 from aleph.sdk.chains.ethereum import ETHAccount
-from aleph.sdk.conf import settings
 from click import echo
 from eth_utils.currency import to_wei
 from superfluid import Web3FlowInfo
@@ -13,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 def from_wei(wei_value: Decimal) -> Decimal:
     """Converts the given wei value to ether."""
-    return wei_value / Decimal(10**settings.TOKEN_DECIMALS)
+    return wei_value / Decimal(10**18)
 
 
 class FlowUpdate(str, Enum):

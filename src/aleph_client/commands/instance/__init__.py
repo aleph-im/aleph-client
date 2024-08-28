@@ -16,7 +16,6 @@ from aleph.sdk.account import _load_account
 from aleph.sdk.chains.ethereum import ETHAccount
 from aleph.sdk.client.vm_client import VmClient
 from aleph.sdk.client.vm_confidential_client import VmConfidentialClient
-from aleph.sdk.conf import settings as sdk_settings
 from aleph.sdk.evm_utils import get_chains_with_super_token
 from aleph.sdk.exceptions import (
     ForgottenMessageError,
@@ -83,7 +82,7 @@ async def create(
     vcpus: int = typer.Option(None, help=help_strings.VCPUS),
     memory: int = typer.Option(None, help=help_strings.MEMORY),
     timeout_seconds: float = typer.Option(
-        sdk_settings.DEFAULT_VM_TIMEOUT,
+        settings.DEFAULT_VM_TIMEOUT,
         help=help_strings.TIMEOUT_SECONDS,
     ),
     ssh_pubkey_file: Path = typer.Option(
@@ -104,8 +103,8 @@ async def create(
         help=help_strings.IMMUTABLE_VOLUME,
     ),
     channel: Optional[str] = typer.Option(default=settings.DEFAULT_CHANNEL, help=help_strings.CHANNEL),
-    private_key: Optional[str] = typer.Option(sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
-    private_key_file: Optional[Path] = typer.Option(sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
+    private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
+    private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
     print_messages: bool = typer.Option(False),
     verbose: bool = typer.Option(True),
     debug: bool = False,
@@ -221,7 +220,7 @@ async def create(
             rootfs = os_choices[rootfs]
 
     # Validate rootfs message exist
-    async with AlephHttpClient(api_server=sdk_settings.API_HOST) as client:
+    async with AlephHttpClient(api_server=settings.API_HOST) as client:
         rootfs_message: StoreMessage = await client.get_message(item_hash=rootfs, message_type=StoreMessage)
         if not rootfs_message:
             echo("Given rootfs volume does not exist on aleph.im")
@@ -232,7 +231,7 @@ async def create(
     # Validate confidential firmware message exist
     confidential_firmware_as_hash = None
     if confidential:
-        async with AlephHttpClient(api_server=sdk_settings.API_HOST) as client:
+        async with AlephHttpClient(api_server=settings.API_HOST) as client:
             confidential_firmware_as_hash = ItemHash(confidential_firmware)
             firmware_message: StoreMessage = await client.get_message(
                 item_hash=confidential_firmware, message_type=StoreMessage
@@ -246,7 +245,7 @@ async def create(
         "Disk size in MiB", default=settings.DEFAULT_ROOTFS_SIZE, min_value=10_240, max_value=102_400
     )
     vcpus = vcpus or validated_int_prompt(
-        "Number of virtual cpus to allocate", default=sdk_settings.DEFAULT_VM_VCPUS, min_value=1, max_value=4
+        "Number of virtual cpus to allocate", default=settings.DEFAULT_VM_VCPUS, min_value=1, max_value=4
     )
     memory = memory or validated_int_prompt(
         "Maximum memory allocation on vm in MiB",
@@ -324,7 +323,7 @@ async def create(
             echo("Selected CRN does not support confidential computing.")
             raise typer.Exit(1)
 
-    async with AuthenticatedAlephHttpClient(account=account, api_server=sdk_settings.API_HOST) as client:
+    async with AuthenticatedAlephHttpClient(account=account, api_server=settings.API_HOST) as client:
         payment = Payment(
             chain=payment_chain,
             receiver=stream_reward_address if stream_reward_address else None,
@@ -463,8 +462,8 @@ async def delete(
     item_hash: str = typer.Argument(..., help="Instance item hash to forget"),
     reason: str = typer.Option("User deletion", help="Reason for deleting the instance"),
     crn_url: Optional[str] = typer.Option(None, help=help_strings.CRN_URL_VM_DELETION),
-    private_key: Optional[str] = sdk_settings.PRIVATE_KEY_STRING,
-    private_key_file: Optional[Path] = sdk_settings.PRIVATE_KEY_FILE,
+    private_key: Optional[str] = settings.PRIVATE_KEY_STRING,
+    private_key_file: Optional[Path] = settings.PRIVATE_KEY_FILE,
     print_message: bool = typer.Option(False),
     debug: bool = False,
 ):
@@ -473,7 +472,7 @@ async def delete(
     setup_logging(debug)
 
     account = _load_account(private_key, private_key_file)
-    async with AuthenticatedAlephHttpClient(account=account, api_server=sdk_settings.API_HOST) as client:
+    async with AuthenticatedAlephHttpClient(account=account, api_server=settings.API_HOST) as client:
         try:
             existing_message: InstanceMessage = await client.get_message(
                 item_hash=ItemHash(item_hash), message_type=InstanceMessage
@@ -549,7 +548,7 @@ async def _show_instances(messages: List[InstanceMessage], node_list: NodeInfo):
             style="orchid",
         )
         link = f"https://explorer.aleph.im/address/ETH/{message.sender}/message/INSTANCE/{message.item_hash}"
-        # link = f"{sdk_settings.API_HOST}/api/v0/messages/{message.item_hash}"
+        # link = f"{settings.API_HOST}/api/v0/messages/{message.item_hash}"
         item_hash_link = Text.from_markup(f"[link={link}]{message.item_hash}[/link]", style="bright_cyan")
         payment = Text.assemble(
             "Payment: ",
@@ -641,8 +640,8 @@ async def _show_instances(messages: List[InstanceMessage], node_list: NodeInfo):
 @app.command()
 async def list(
     address: Optional[str] = typer.Option(None, help="Owner address of the instance"),
-    private_key: Optional[str] = typer.Option(sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
-    private_key_file: Optional[Path] = typer.Option(sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
+    private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
+    private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
     json: bool = typer.Option(default=False, help="Print as json instead of rich table"),
     debug: bool = False,
 ):
@@ -654,7 +653,7 @@ async def list(
         account = _load_account(private_key, private_key_file)
         address = account.get_address()
 
-    async with AlephHttpClient(api_server=sdk_settings.API_HOST) as client:
+    async with AlephHttpClient(api_server=settings.API_HOST) as client:
         resp = await client.get_messages(
             message_filter=MessageFilter(
                 message_types=[MessageType.instance],
@@ -679,8 +678,8 @@ async def list(
 async def expire(
     vm_id: str = typer.Argument(..., help="VM item hash to expire"),
     domain: Optional[str] = typer.Option(None, help="CRN domain on which the VM is running"),
-    private_key: Optional[str] = typer.Option(sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
-    private_key_file: Optional[Path] = typer.Option(sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
+    private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
+    private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
     debug: bool = False,
 ):
     """Expire an instance"""
@@ -707,8 +706,8 @@ async def expire(
 async def erase(
     vm_id: str = typer.Argument(..., help="VM item hash to erase"),
     domain: Optional[str] = typer.Option(None, help="CRN domain on which the VM is stored or running"),
-    private_key: Optional[str] = typer.Option(sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
-    private_key_file: Optional[Path] = typer.Option(sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
+    private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
+    private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
     silent: bool = False,
     debug: bool = False,
 ):
@@ -737,8 +736,8 @@ async def erase(
 async def reboot(
     vm_id: str = typer.Argument(..., help="VM item hash to reboot"),
     domain: Optional[str] = typer.Option(None, help="CRN domain on which the VM is running"),
-    private_key: Optional[str] = typer.Option(sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
-    private_key_file: Optional[Path] = typer.Option(sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
+    private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
+    private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
     debug: bool = False,
 ):
     """Reboot an instance"""
@@ -765,8 +764,8 @@ async def reboot(
 async def allocate(
     vm_id: str = typer.Argument(..., help="VM item hash to allocate"),
     domain: Optional[str] = typer.Option(None, help="CRN domain on which the VM will be allocated"),
-    private_key: Optional[str] = typer.Option(sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
-    private_key_file: Optional[Path] = typer.Option(sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
+    private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
+    private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
     debug: bool = False,
 ):
     """Notify a CRN to start an instance (for Pay-As-You-Go and confidential instances only)"""
@@ -793,8 +792,8 @@ async def allocate(
 async def logs(
     vm_id: str = typer.Argument(..., help="VM item hash to retrieve the logs from"),
     domain: Optional[str] = typer.Option(None, help="CRN domain on which the VM is running"),
-    private_key: Optional[str] = typer.Option(sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
-    private_key_file: Optional[Path] = typer.Option(sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
+    private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
+    private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
     debug: bool = False,
 ):
     """Retrieve the logs of an instance"""
@@ -819,8 +818,8 @@ async def logs(
 async def stop(
     vm_id: str = typer.Argument(..., help="VM item hash to stop"),
     domain: Optional[str] = typer.Option(None, help="CRN domain on which the VM is running"),
-    private_key: Optional[str] = typer.Option(sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
-    private_key_file: Optional[Path] = typer.Option(sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
+    private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
+    private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
     debug: bool = False,
 ):
     """Stop an instance"""
@@ -849,8 +848,8 @@ async def confidential_init_session(
     domain: Optional[str] = typer.Option(None, help="CRN domain on which the session will be initialized"),
     policy: int = typer.Option(default=0x1),
     keep_session: bool = typer.Option(None, help=help_strings.KEEP_SESSION),
-    private_key: Optional[str] = typer.Option(sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
-    private_key_file: Optional[Path] = typer.Option(sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
+    private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
+    private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
     debug: bool = False,
 ):
     "Initialize a confidential communication session with the VM"
@@ -928,8 +927,8 @@ async def confidential_start(
     ),
     firmware_file: str = typer.Option(None, help=help_strings.PRIVATE_KEY),
     vm_secret: str = typer.Option(None, help=help_strings.VM_SECRET),
-    private_key: Optional[str] = typer.Option(sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
-    private_key_file: Optional[Path] = typer.Option(sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
+    private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
+    private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
     debug: bool = False,
 ):
     "Validate the authenticity of the VM and start it"
@@ -1020,7 +1019,7 @@ async def confidential(
     vcpus: int = typer.Option(None, help=help_strings.VCPUS),
     memory: int = typer.Option(None, help=help_strings.MEMORY),
     timeout_seconds: float = typer.Option(
-        sdk_settings.DEFAULT_VM_TIMEOUT,
+        settings.DEFAULT_VM_TIMEOUT,
         help=help_strings.TIMEOUT_SECONDS,
     ),
     ssh_pubkey_file: Path = typer.Option(
@@ -1035,8 +1034,8 @@ async def confidential(
         help=help_strings.IMMUTABLE_VOLUME,
     ),
     channel: Optional[str] = typer.Option(default=settings.DEFAULT_CHANNEL, help=help_strings.CHANNEL),
-    private_key: Optional[str] = typer.Option(sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
-    private_key_file: Optional[Path] = typer.Option(sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
+    private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
+    private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
     debug: bool = False,
 ):
     """Create, start and unlock a confidential VM (all-in-one command)

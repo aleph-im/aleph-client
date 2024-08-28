@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import asyncio
 import base64
-import json
 import logging
 import sys
 from pathlib import Path
@@ -13,12 +12,12 @@ import typer
 from aleph.sdk.account import _load_account
 from aleph.sdk.chains.common import generate_key
 from aleph.sdk.chains.ethereum import ETHAccount
-from aleph.sdk.conf import settings as sdk_settings
 from aleph.sdk.types import AccountFromPrivateKey
 from typer.colors import RED
 
 from aleph_client.commands import help_strings
 from aleph_client.commands.utils import setup_logging
+from aleph_client.conf import settings
 from aleph_client.utils import AsyncTyper
 
 logger = logging.getLogger(__name__)
@@ -37,7 +36,7 @@ def create(
     setup_logging(debug)
 
     if private_key_file is None:
-        private_key_file = Path(typer.prompt("Enter file in which to save the key", sdk_settings.PRIVATE_KEY_FILE))
+        private_key_file = Path(typer.prompt("Enter file in which to save the key", settings.PRIVATE_KEY_FILE))
 
     if private_key_file.exists() and not replace:
         typer.secho(f"Error: key already exists: '{private_key_file}'", fg=RED)
@@ -63,8 +62,8 @@ def create(
 
 @app.command()
 def address(
-    private_key: Optional[str] = typer.Option(sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
-    private_key_file: Optional[Path] = typer.Option(sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
+    private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
+    private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
 ):
     """
     Display your public address.
@@ -82,8 +81,8 @@ def address(
 
 @app.command()
 def export_private_key(
-    private_key: Optional[str] = typer.Option(sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
-    private_key_file: Optional[Path] = typer.Option(sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
+    private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
+    private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
 ):
     """
     Display your private key.
@@ -105,15 +104,15 @@ def export_private_key(
 
 @app.command()
 def path():
-    if sdk_settings.PRIVATE_KEY_FILE:
-        typer.echo(sdk_settings.PRIVATE_KEY_FILE)
+    if settings.PRIVATE_KEY_FILE:
+        typer.echo(settings.PRIVATE_KEY_FILE)
 
 
 @app.command("sign-bytes")
 def sign_bytes(
     message: Optional[str] = typer.Option(None, help="Message to sign"),
-    private_key: Optional[str] = typer.Option(sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
-    private_key_file: Optional[Path] = typer.Option(sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
+    private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
+    private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
     debug: bool = False,
 ):
     """Sign a message using your private key."""
@@ -134,8 +133,8 @@ def sign_bytes(
 @app.command()
 async def balance(
     address: Optional[str] = typer.Option(None, help="Address"),
-    private_key: Optional[str] = typer.Option(sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
-    private_key_file: Optional[Path] = typer.Option(sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
+    private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
+    private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
 ):
     account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
 
@@ -143,7 +142,7 @@ async def balance(
         address = account.get_address()
 
     if address:
-        uri = f"{sdk_settings.API_HOST}/api/v0/addresses/{address}/balance"
+        uri = f"{settings.API_HOST}/api/v0/addresses/{address}/balance"
 
         async with aiohttp.ClientSession() as session:
             response = await session.get(uri)

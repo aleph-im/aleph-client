@@ -10,7 +10,6 @@ import aiohttp
 import typer
 from aleph.sdk import AlephHttpClient, AuthenticatedAlephHttpClient
 from aleph.sdk.account import _load_account
-from aleph.sdk.conf import settings as sdk_settings
 from aleph.sdk.types import AccountFromPrivateKey, StorageEnum
 from aleph_message.models import ItemHash, StoreMessage
 from aleph_message.status import MessageStatus
@@ -32,8 +31,8 @@ app = AsyncTyper(no_args_is_help=True)
 async def pin(
     item_hash: str = typer.Argument(..., help="IPFS hash to pin on aleph.im"),
     channel: Optional[str] = typer.Option(default=settings.DEFAULT_CHANNEL, help=help_strings.CHANNEL),
-    private_key: Optional[str] = typer.Option(sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
-    private_key_file: Optional[Path] = typer.Option(sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
+    private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
+    private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
     ref: Optional[str] = typer.Option(None, help=help_strings.REF),
     debug: bool = False,
 ):
@@ -43,7 +42,7 @@ async def pin(
 
     account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
 
-    async with AuthenticatedAlephHttpClient(account=account, api_server=sdk_settings.API_HOST) as client:
+    async with AuthenticatedAlephHttpClient(account=account, api_server=settings.API_HOST) as client:
         result: StoreMessage
         status: MessageStatus
         result, status = await client.create_store(
@@ -60,8 +59,8 @@ async def pin(
 async def upload(
     path: Path = typer.Argument(..., help="Path of the file to upload"),
     channel: Optional[str] = typer.Option(default=settings.DEFAULT_CHANNEL, help=help_strings.CHANNEL),
-    private_key: Optional[str] = typer.Option(sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
-    private_key_file: Optional[Path] = typer.Option(sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
+    private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
+    private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
     ref: Optional[str] = typer.Option(None, help=help_strings.REF),
     debug: bool = False,
 ):
@@ -71,7 +70,7 @@ async def upload(
 
     account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
 
-    async with AuthenticatedAlephHttpClient(account=account, api_server=sdk_settings.API_HOST) as client:
+    async with AuthenticatedAlephHttpClient(account=account, api_server=settings.API_HOST) as client:
         if not path.is_file():
             typer.echo(f"Error: File not found: '{path}'")
             raise typer.Exit(code=1)
@@ -115,7 +114,7 @@ async def download(
 
     output_file_path = output_path / f"{file_name}{file_extension}"
 
-    async with AlephHttpClient(api_server=sdk_settings.API_HOST) as client:
+    async with AlephHttpClient(api_server=settings.API_HOST) as client:
         logger.info(f"Downloading {hash} ...")
         with open(output_file_path, "wb") as fd:
             if not use_ipfs:
@@ -131,8 +130,8 @@ async def forget(
     item_hash: str = typer.Argument(..., help="Hash to forget"),
     reason: str = typer.Argument("User deletion", help="reason to forget"),
     channel: Optional[str] = typer.Option(default=settings.DEFAULT_CHANNEL, help=help_strings.CHANNEL),
-    private_key: Optional[str] = typer.Option(sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
-    private_key_file: Optional[Path] = typer.Option(sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
+    private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
+    private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
     debug: bool = False,
 ):
     """forget a file and his message on aleph.im."""
@@ -141,7 +140,7 @@ async def forget(
 
     account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
 
-    async with AuthenticatedAlephHttpClient(account=account, api_server=sdk_settings.API_HOST) as client:
+    async with AuthenticatedAlephHttpClient(account=account, api_server=settings.API_HOST) as client:
         value = await client.forget(hashes=[ItemHash(item_hash)], reason=reason, channel=channel)
         typer.echo(f"{value[0].json(indent=4)}")
 
@@ -208,8 +207,8 @@ def _show_files(files_data: dict) -> None:
 @app.command()
 async def list(
     address: Optional[str] = typer.Option(None, help="Address"),
-    private_key: Optional[str] = typer.Option(sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
-    private_key_file: Optional[Path] = typer.Option(sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
+    private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
+    private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
     pagination: int = typer.Option(100, help="Maximum number of files to return."),
     page: int = typer.Option(1, help="Offset in pages."),
     sort_order: int = typer.Option(
@@ -228,7 +227,7 @@ async def list(
         # Build the query parameters
         query_params = GetAccountFilesQueryParams(pagination=pagination, page=page, sort_order=sort_order)
 
-        uri = f"{sdk_settings.API_HOST}/api/v0/addresses/{address}/files"
+        uri = f"{settings.API_HOST}/api/v0/addresses/{address}/files"
         async with aiohttp.ClientSession() as session:
             response = await session.get(uri, params=query_params.dict())
             if response.status == 200:

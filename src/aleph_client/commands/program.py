@@ -3,14 +3,14 @@ from __future__ import annotations
 import json
 import logging
 from base64 import b16decode, b32encode
+from collections.abc import Mapping
 from pathlib import Path
-from typing import List, Mapping, Optional
+from typing import List, Optional
 from zipfile import BadZipFile
 
 import typer
 from aleph.sdk import AuthenticatedAlephHttpClient
 from aleph.sdk.account import _load_account
-from aleph.sdk.conf import settings as sdk_settings
 from aleph.sdk.types import AccountFromPrivateKey, StorageEnum
 from aleph_message.models import ProgramMessage, StoreMessage
 from aleph_message.models.execution.program import ProgramContent
@@ -36,14 +36,14 @@ async def upload(
     path: Path = typer.Argument(..., help="Path to your source code"),
     entrypoint: str = typer.Argument(..., help="Your program entrypoint"),
     channel: Optional[str] = typer.Option(default=settings.DEFAULT_CHANNEL, help=help_strings.CHANNEL),
-    memory: int = typer.Option(sdk_settings.DEFAULT_VM_MEMORY, help="Maximum memory allocation on vm in MiB"),
-    vcpus: int = typer.Option(sdk_settings.DEFAULT_VM_VCPUS, help="Number of virtual cpus to allocate."),
+    memory: int = typer.Option(settings.DEFAULT_VM_MEMORY, help="Maximum memory allocation on vm in MiB"),
+    vcpus: int = typer.Option(settings.DEFAULT_VM_VCPUS, help="Number of virtual cpus to allocate."),
     timeout_seconds: float = typer.Option(
-        sdk_settings.DEFAULT_VM_TIMEOUT,
+        settings.DEFAULT_VM_TIMEOUT,
         help="If vm is not called after [timeout_seconds] it will shutdown",
     ),
-    private_key: Optional[str] = typer.Option(sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
-    private_key_file: Optional[Path] = typer.Option(sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
+    private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
+    private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
     print_messages: bool = typer.Option(False),
     print_code_message: bool = typer.Option(False),
     print_program_message: bool = typer.Option(False),
@@ -81,9 +81,7 @@ async def upload(
 
     account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
 
-    runtime = (
-        runtime or input(f"Ref of runtime ? [{sdk_settings.DEFAULT_RUNTIME_ID}] ") or sdk_settings.DEFAULT_RUNTIME_ID
-    )
+    runtime = runtime or input(f"Ref of runtime ? [{settings.DEFAULT_RUNTIME_ID}] ") or settings.DEFAULT_RUNTIME_ID
 
     volumes = get_or_prompt_volumes(
         persistent_volume=persistent_volume,
@@ -102,7 +100,7 @@ async def upload(
     else:
         subscriptions = None
 
-    async with AuthenticatedAlephHttpClient(account=account, api_server=sdk_settings.API_HOST) as client:
+    async with AuthenticatedAlephHttpClient(account=account, api_server=settings.API_HOST) as client:
         # Upload the source code
         with open(path_object, "rb") as fd:
             logger.debug("Reading file")
@@ -160,8 +158,8 @@ async def upload(
 async def update(
     item_hash: str = typer.Argument(..., help="Item hash to update"),
     path: Path = typer.Argument(..., help="Source path to upload"),
-    private_key: Optional[str] = sdk_settings.PRIVATE_KEY_STRING,
-    private_key_file: Optional[Path] = sdk_settings.PRIVATE_KEY_FILE,
+    private_key: Optional[str] = settings.PRIVATE_KEY_STRING,
+    private_key_file: Optional[Path] = settings.PRIVATE_KEY_FILE,
     print_message: bool = True,
     debug: bool = False,
 ):
@@ -172,7 +170,7 @@ async def update(
     account = _load_account(private_key, private_key_file)
     path = path.absolute()
 
-    async with AuthenticatedAlephHttpClient(account=account, api_server=sdk_settings.API_HOST) as client:
+    async with AuthenticatedAlephHttpClient(account=account, api_server=settings.API_HOST) as client:
         program_message: ProgramMessage = await client.get_message(item_hash=item_hash, message_type=ProgramMessage)
         code_ref = program_message.content.code.ref
         code_message: StoreMessage = await client.get_message(item_hash=code_ref, message_type=StoreMessage)
@@ -215,8 +213,8 @@ async def update(
 @app.command()
 async def unpersist(
     item_hash: str = typer.Argument(..., help="Item hash to unpersist"),
-    private_key: Optional[str] = sdk_settings.PRIVATE_KEY_STRING,
-    private_key_file: Optional[Path] = sdk_settings.PRIVATE_KEY_FILE,
+    private_key: Optional[str] = settings.PRIVATE_KEY_STRING,
+    private_key_file: Optional[Path] = settings.PRIVATE_KEY_FILE,
     debug: bool = False,
 ):
     """Stop a persistent virtual machine by making it non-persistent"""
@@ -225,7 +223,7 @@ async def unpersist(
 
     account = _load_account(private_key, private_key_file)
 
-    async with AuthenticatedAlephHttpClient(account=account, api_server=sdk_settings.API_HOST) as client:
+    async with AuthenticatedAlephHttpClient(account=account, api_server=settings.API_HOST) as client:
         message: ProgramMessage = await client.get_message(item_hash=item_hash, message_type=ProgramMessage)
         content: ProgramContent = message.content.copy()
 

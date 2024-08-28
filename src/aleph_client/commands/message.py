@@ -13,7 +13,6 @@ from typing import Dict, List, Optional
 import typer
 from aleph.sdk import AlephHttpClient, AuthenticatedAlephHttpClient
 from aleph.sdk.account import _load_account
-from aleph.sdk.conf import settings as sdk_settings
 from aleph.sdk.query.filters import MessageFilter
 from aleph.sdk.query.responses import MessagesResponse
 from aleph.sdk.types import AccountFromPrivateKey, StorageEnum
@@ -40,7 +39,7 @@ app = AsyncTyper(no_args_is_help=True)
 async def get(
     item_hash: str = typer.Argument(..., help="Item hash of the message"),
 ):
-    async with AlephHttpClient(api_server=sdk_settings.API_HOST) as client:
+    async with AlephHttpClient(api_server=settings.API_HOST) as client:
         message: AlephMessage = await client.get_message(item_hash=ItemHash(item_hash))
     typer.echo(colorful_message_json(message))
 
@@ -77,7 +76,7 @@ async def find(
     start_time = str_to_datetime(start_date)
     end_time = str_to_datetime(end_date)
 
-    async with AlephHttpClient(api_server=sdk_settings.API_HOST) as client:
+    async with AlephHttpClient(api_server=settings.API_HOST) as client:
         response: MessagesResponse = await client.get_messages(
             page_size=pagination,
             page=page,
@@ -108,8 +107,8 @@ async def post(
     type: str = typer.Option("test", help="Text representing the message object type"),
     ref: Optional[str] = typer.Option(None, help=help_strings.REF),
     channel: Optional[str] = typer.Option(default=settings.DEFAULT_CHANNEL, help=help_strings.CHANNEL),
-    private_key: Optional[str] = typer.Option(sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
-    private_key_file: Optional[Path] = typer.Option(sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
+    private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
+    private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
     debug: bool = False,
 ):
     """Post a message on aleph.im."""
@@ -140,7 +139,7 @@ async def post(
             typer.echo("Not valid JSON")
             raise typer.Exit(code=2)
 
-    async with AuthenticatedAlephHttpClient(account=account, api_server=sdk_settings.API_HOST) as client:
+    async with AuthenticatedAlephHttpClient(account=account, api_server=settings.API_HOST) as client:
         result, status = await client.create_post(
             post_content=content,
             post_type=type,
@@ -156,8 +155,8 @@ async def post(
 @app.command()
 async def amend(
     item_hash: str = typer.Argument(..., help="Hash reference of the message to amend"),
-    private_key: Optional[str] = typer.Option(sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
-    private_key_file: Optional[Path] = typer.Option(sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
+    private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
+    private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
     debug: bool = False,
 ):
     """Amend an existing aleph.im message."""
@@ -166,7 +165,7 @@ async def amend(
 
     account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
 
-    async with AlephHttpClient(api_server=sdk_settings.API_HOST) as client:
+    async with AlephHttpClient(api_server=settings.API_HOST) as client:
         existing_message: AlephMessage = await client.get_message(item_hash=item_hash)
 
     editor: str = os.getenv("EDITOR", default="nano")
@@ -195,7 +194,7 @@ async def amend(
     new_content.type = "amend"
 
     typer.echo(new_content)
-    async with AuthenticatedAlephHttpClient(account=account, api_server=sdk_settings.API_HOST) as client:
+    async with AuthenticatedAlephHttpClient(account=account, api_server=settings.API_HOST) as client:
         message, status, response = await client.submit(
             content=new_content.dict(),
             message_type=existing_message.type,
@@ -209,8 +208,8 @@ async def forget(
     hashes: str = typer.Argument(..., help="Comma separated list of hash references of messages to forget"),
     reason: Optional[str] = typer.Option(None, help="A description of why the messages are being forgotten."),
     channel: Optional[str] = typer.Option(default=settings.DEFAULT_CHANNEL, help=help_strings.CHANNEL),
-    private_key: Optional[str] = typer.Option(sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
-    private_key_file: Optional[Path] = typer.Option(sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
+    private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
+    private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
     debug: bool = False,
 ):
     """Forget an existing aleph.im message."""
@@ -220,7 +219,7 @@ async def forget(
     hash_list: List[ItemHash] = [ItemHash(h) for h in hashes.split(",")]
 
     account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
-    async with AuthenticatedAlephHttpClient(account=account, api_server=sdk_settings.API_HOST) as client:
+    async with AuthenticatedAlephHttpClient(account=account, api_server=settings.API_HOST) as client:
         await client.forget(hashes=hash_list, reason=reason, channel=channel)
 
 
@@ -234,7 +233,7 @@ async def watch(
 
     setup_logging(debug)
 
-    async with AlephHttpClient(api_server=sdk_settings.API_HOST) as client:
+    async with AlephHttpClient(api_server=settings.API_HOST) as client:
         original: AlephMessage = await client.get_message(item_hash=ref)
         async for message in client.watch_messages(
             message_filter=MessageFilter(refs=[ref], addresses=[original.content.address])
@@ -245,8 +244,8 @@ async def watch(
 @app.command()
 def sign(
     message: Optional[str] = typer.Option(None, help=help_strings.SIGNABLE_MESSAGE),
-    private_key: Optional[str] = typer.Option(sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
-    private_key_file: Optional[Path] = typer.Option(sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
+    private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
+    private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
     debug: bool = False,
 ):
     """Sign an aleph message with a private key. If no --message is provided, the message will be read from stdin."""
