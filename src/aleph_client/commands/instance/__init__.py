@@ -50,9 +50,12 @@ from aleph_client.commands.instance.network import (
     fetch_vm_info,
     sanitize_url,
 )
+from aleph_client.commands.instance.superfluid import FlowUpdate, update_flow
 from aleph_client.commands.node import NodeInfo, _fetch_nodes
 from aleph_client.commands.utils import (
+    filter_only_valid_messages,
     get_or_prompt_volumes,
+    safe_getattr,
     setup_logging,
     validated_int_prompt,
     validated_prompt,
@@ -62,9 +65,6 @@ from aleph_client.commands.utils import (
 from aleph_client.conf import settings
 from aleph_client.models import CRNInfo
 from aleph_client.utils import AsyncTyper
-
-from ..utils import safe_getattr
-from .superfluid import FlowUpdate, update_flow
 
 logger = logging.getLogger(__name__)
 app = AsyncTyper(no_args_is_help=True)
@@ -669,14 +669,15 @@ async def list(
             ),
             page_size=100,
         )
-        if not resp or len(resp.messages) == 0:
+        messages = await filter_only_valid_messages(resp.messages)
+        if not messages:
             echo(f"Address: {address}\n\nNo instance found\n")
             raise typer.Exit(code=1)
         if json:
-            echo(resp.json(indent=4))
+            echo(messages.json(indent=4))
         else:
             # Since we filtered on message type, we can safely cast as InstanceMessage.
-            messages = cast(List[InstanceMessage], resp.messages)
+            messages = cast(List[InstanceMessage], messages)
             resource_nodes: NodeInfo = await _fetch_nodes()
             await _show_instances(messages, resource_nodes)
 
