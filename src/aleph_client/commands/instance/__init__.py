@@ -946,7 +946,6 @@ def find_sevctl_or_exit() -> Path:
 async def confidential_start(
     vm_id: str = typer.Argument(..., help="VM item hash to start"),
     domain: str = typer.Argument(..., help="CRN domain where the VM will be started"),
-    policy: int = typer.Option(default=0x1),
     firmware_hash: str = typer.Option(
         settings.DEFAULT_CONFIDENTIAL_FIRMWARE_HASH, help=help_strings.CONFIDENTIAL_FIRMWARE_HASH
     ),
@@ -1020,7 +1019,7 @@ async def confidential_start(
 @app.command()
 async def confidential(
     vm_id: Optional[str] = typer.Argument(default=None, help=help_strings.VM_ID),
-    crn_url: Optional[str] = typer.Argument(default=None, help=help_strings.CRN_URL),
+    crn_url: Optional[str] = typer.Option(default=None, help=help_strings.CRN_URL),
     crn_hash: Optional[str] = typer.Option(default=None, help=help_strings.CRN_HASH),
     policy: int = typer.Option(default=0x1),
     confidential_firmware: str = typer.Option(
@@ -1073,30 +1072,30 @@ async def confidential(
     allocated = False
     if not vm_id or len(vm_id) != 64:
         vm_id, crn_url = await create(
-            payment_type,
-            payment_chain,
-            None,
-            name,
-            rootfs,
-            rootfs_size,
-            vcpus,
-            memory,
-            timeout_seconds,
-            ssh_pubkey_file,
-            crn_hash,
-            crn_url,
-            True,
-            confidential_firmware,
-            skip_volume,
-            persistent_volume,
-            ephemeral_volume,
-            immutable_volume,
-            channel,
-            private_key,
-            private_key_file,
-            False,
-            False,
-            debug,
+            payment_type=payment_type,
+            payment_chain=payment_chain,
+            hypervisor=HypervisorType.qemu,
+            name=name,
+            rootfs=rootfs,
+            rootfs_size=rootfs_size,
+            vcpus=vcpus,
+            memory=memory,
+            timeout_seconds=timeout_seconds,
+            ssh_pubkey_file=ssh_pubkey_file,
+            crn_hash=crn_hash,
+            crn_url=crn_url,
+            confidential=True,
+            confidential_firmware=confidential_firmware,
+            skip_volume=skip_volume,
+            persistent_volume=persistent_volume,
+            ephemeral_volume=ephemeral_volume,
+            immutable_volume=immutable_volume,
+            channel=channel,
+            private_key=private_key,
+            private_key_file=private_key_file,
+            print_messages=False,
+            verbose=False,
+            debug=debug,
         )
         if not vm_id or len(vm_id) != 64:
             echo("Could not create the VM")
@@ -1112,12 +1111,27 @@ async def confidential(
             return 1
 
     initialized = (
-        await confidential_init_session(vm_id, crn_url, policy, keep_session, private_key, private_key_file, debug)
+        await confidential_init_session(
+            vm_id=vm_id,
+            domain=crn_url,
+            policy=policy,
+            keep_session=keep_session,
+            private_key=private_key,
+            private_key_file=private_key_file,
+            debug=debug,
+        )
     ) is None
     if not initialized:
         echo("Could not initialize the session")
         return 1
 
     await confidential_start(
-        vm_id, crn_url, policy, firmware_hash, firmware_file, vm_secret, private_key, private_key_file, debug
+        vm_id=vm_id,
+        domain=crn_url,
+        firmware_hash=firmware_hash,
+        firmware_file=firmware_file,
+        vm_secret=vm_secret,
+        private_key=private_key,
+        private_key_file=private_key_file,
+        debug=debug,
     )
