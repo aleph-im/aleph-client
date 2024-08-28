@@ -4,7 +4,6 @@ from enum import Enum
 
 from aleph.sdk.chains.ethereum import ETHAccount
 from aleph.sdk.conf import settings
-from aleph_message.models import Chain
 from click import echo
 from eth_utils.currency import to_wei
 from superfluid import Web3FlowInfo
