@@ -913,16 +913,13 @@ async def confidential_init_session(
             return 1
 
         # pathlib.Path.rename raises "Invalid cross-device link" if the destination is not on the current filesystem.
-        platform_cert_path = shutil.move(platform_file, session_dir / "platform_certificate.pem")
+        platform_certificate_path = shutil.move(platform_file, session_dir / "platform_certificate.pem")
         certificate_prefix = str(session_dir) + "/vm"
 
         # Create local session files
-        await client.create_session(
-            certificate_prefix, certificate_path=platform_cert_path, policy=policy
-        )  # type:ignore
-        # TOFIX in sdk Create session should take a string and not an item hash
+        await client.create_session(certificate_prefix, platform_certificate_path, policy)
 
-        logger.info(f"Certificate created in {platform_cert_path}")
+        logger.info(f"Certificate created in {platform_certificate_path}")
 
     vm_hash = ItemHash(vm_id)
     godh_path = session_dir / "vm_godh.b64"
