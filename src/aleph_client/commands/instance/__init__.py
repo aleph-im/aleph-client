@@ -894,38 +894,39 @@ async def confidential_init_session(
 
     sevctl_path = find_sevctl_or_exit()
 
-    if (session_dir / "vm_godh.b64").exists():
-        if keep_session is None:
-            keep_session = Confirm.ask(
-                "Session already initiated for this instance, are you sure you want to override the previous one? You won't be able to communicate with already running VM"
-            )
+    client = VmConfidentialClient(account, sevctl_path, domain)
+    godh_path = session_dir / "vm_godh.b64"
+
+    if godh_path.exists() and keep_session is None:
+        keep_session = not Confirm.ask(
+            "Session already initiated for this instance, are you sure you want to override the previous one? You won't be able to communicate with already running VM"
+        )
         if keep_session:
             echo("Keeping already initiated session")
-            return
 
-    client = VmConfidentialClient(account, sevctl_path, domain)
+    # Generate sessions certificate files
+    if not ((session_dir / "vm_godh.b64").exists() and keep_session):
 
-    code, platform_file = await client.get_certificates()
-    if code != 200:
-        echo("Could not get the certificate from the CRN.")
-        return 1
+        code, platform_file = await client.get_certificates()
+        if code != 200:
+            echo(
+                "Failed to retrieve platform certificate from the CRN. This node might be temporary down, please try again later. If the problem persist, contact the node operator."
+            )
+            return 1
 
-    # pathlib.Path.rename raises "Invalid cross-device link" if the destination is not on the current filesystem.
-    platform_cert_path = shutil.move(platform_file, session_dir / "platform_certificate.pem")
-    certificate_prefix = str(session_dir) + "/vm"
+        # pathlib.Path.rename raises "Invalid cross-device link" if the destination is not on the current filesystem.
+        platform_certificate_path = shutil.move(platform_file, session_dir / "platform_certificate.pem")
+        certificate_prefix = str(session_dir) + "/vm"
 
-    # Create local session files
-    await client.create_session(certificate_prefix, certificate_path=platform_cert_path, policy=policy)  # type:ignore
-    # TOFIX in sdk Create session should take a string and not an item hash
+        # Create local session files
+        await client.create_session(certificate_prefix, platform_certificate_path, policy)
 
-    logger.info(f"Certificate created in {platform_cert_path}")
+        logger.info(f"Certificate created in {platform_certificate_path}")
 
+    vm_hash = ItemHash(vm_id)
     godh_path = session_dir / "vm_godh.b64"
     session_path = session_dir / "vm_session.b64"
     assert godh_path.exists()
-
-    vm_hash = ItemHash(vm_id)
-
     await client.initialize(vm_hash, session_path, godh_path)
     echo("Confidential Session with VM and CRN initiated")
     await client.close()
