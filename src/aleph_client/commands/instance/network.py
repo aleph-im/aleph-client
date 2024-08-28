@@ -13,11 +13,10 @@ from pydantic import ValidationError
 
 from aleph_client.commands import help_strings
 from aleph_client.commands.node import NodeInfo
+from aleph_client.commands.utils import safe_getattr
 from aleph_client.conf import settings
 from aleph_client.models import MachineUsage
 from aleph_client.utils import fetch_json
-
-from ..utils import has_nested_attr
 
 logger = logging.getLogger(__name__)
 
@@ -117,12 +116,12 @@ async def fetch_vm_info(message: InstanceMessage, node_list: NodeInfo) -> tuple[
     """
     async with ClientSession() as session:
         hold = not message.content.payment or message.content.payment.type == PaymentType["hold"]
-        confidential = (
-            has_nested_attr(message.content, "environment", "trusted_execution", "firmware")
-            and len(getattr(message.content.environment.trusted_execution, "firmware")) == 64
-        )
+        crn_hash = safe_getattr(message, "content.requirements.node.node_hash")
+        firmware = safe_getattr(message, "content.environment.trusted_execution.firmware")
+        confidential = firmware and len(firmware) == 64
         info = dict(
-            payment="hold\t   " if hold else str(getattr(message.content.payment, "type").value),
+            crn_hash=str(crn_hash) if crn_hash else "",
+            payment="hold\t   " if hold else str(safe_getattr(message, "content.payment.type.value")),
             confidential=confidential,
             allocation_type="",
             ipv6_logs="",
@@ -153,14 +152,7 @@ async def fetch_vm_info(message: InstanceMessage, node_list: NodeInfo) -> tuple[
                 # Fetch from the CRN API if PAYG-tier or confidential
                 info["allocation_type"] = help_strings.ALLOCATION_MANUAL
                 for node in node_list.nodes:
-                    if (
-                        has_nested_attr(message.content, "payment", "receiver")
-                        and node["stream_reward"] == getattr(message.content.payment, "receiver")
-                    ) or (
-                        has_nested_attr(message.content, "requirements", "node", "node_hash")
-                        and message.content.requirements is not None
-                        and node["hash"] == getattr(message.content.requirements.node, "node_hash")
-                    ):
+                    if node["hash"] == safe_getattr(message, "content.requirements.node.node_hash"):
                         info["crn_url"] = node["address"].rstrip("/")
                         path = f"{node['address'].rstrip('/')}/about/executions/list"
                         executions = await fetch_json(session, path)
