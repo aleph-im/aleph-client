@@ -1,16 +1,23 @@
 from __future__ import annotations
 
 import logging
+from ipaddress import IPv6Interface
 from json import JSONDecodeError
-from typing import Optional
 from urllib.parse import ParseResult, urlparse
 
 import aiohttp
-from aiohttp import InvalidURL
+from aiohttp import ClientConnectorError, ClientResponseError, ClientSession, InvalidURL
+from aleph_message.models import InstanceMessage
+from aleph_message.models.execution.base import PaymentType
 from pydantic import ValidationError
 
+from aleph_client.commands import help_strings
+from aleph_client.commands.node import NodeInfo
 from aleph_client.conf import settings
 from aleph_client.models import MachineUsage
+from aleph_client.utils import fetch_json
+
+from ..utils import has_nested_attr
 
 logger = logging.getLogger(__name__)
 
@@ -34,14 +41,36 @@ PATH_STATUS_CONFIG = "/status/config"
 PATH_ABOUT_USAGE_SYSTEM = "/about/usage/system"
 
 
-async def fetch_crn_info(node_url: str) -> Optional[dict]:
+def sanitize_url(url: str) -> str:
+    """Ensure that the URL is valid and not obviously irrelevant.
+
+    Args:
+        url: URL to sanitize.
+    Returns:
+        Sanitized URL.
+    """
+    if not url:
+        raise InvalidURL("Empty URL")
+    parsed_url: ParseResult = urlparse(url)
+    if parsed_url.scheme not in ["http", "https"]:
+        raise InvalidURL(f"Invalid URL scheme: {parsed_url.scheme}")
+    if parsed_url.hostname in FORBIDDEN_HOSTS:
+        logger.debug(
+            f"Invalid URL {url} hostname {parsed_url.hostname} is in the forbidden host list "
+            f"({', '.join(FORBIDDEN_HOSTS)})"
+        )
+        raise InvalidURL("Invalid URL host")
+    return url
+
+
+async def fetch_crn_info(node_url: str) -> dict | None:
     """
     Fetches compute node usage information and version.
 
     Args:
         node_url: URL of the compute node.
     Returns:
-        All CRN information.
+        CRN information.
     """
     url = ""
     try:
@@ -76,23 +105,70 @@ async def fetch_crn_info(node_url: str) -> Optional[dict]:
     return None
 
 
-def sanitize_url(url: str) -> str:
-    """Ensure that the URL is valid and not obviously irrelevant.
+async def fetch_vm_info(message: InstanceMessage, node_list: NodeInfo) -> tuple[str, dict[str, object]]:
+    """
+    Fetches VM information given an instance message and the node list.
 
     Args:
-        url: URL to sanitize.
+        message: Instance message.
+        node_list: Node list.
     Returns:
-        Sanitized URL.
+        VM information.
     """
-    if not url:
-        raise InvalidURL("Empty URL")
-    parsed_url: ParseResult = urlparse(url)
-    if parsed_url.scheme not in ["http", "https"]:
-        raise InvalidURL(f"Invalid URL scheme: {parsed_url.scheme}")
-    if parsed_url.hostname in FORBIDDEN_HOSTS:
-        logger.debug(
-            f"Invalid URL {url} hostname {parsed_url.hostname} is in the forbidden host list "
-            f"({', '.join(FORBIDDEN_HOSTS)})"
+    async with ClientSession() as session:
+        hold = not message.content.payment or message.content.payment.type == PaymentType["hold"]
+        confidential = (
+            has_nested_attr(message.content, "environment", "trusted_execution", "firmware")
+            and len(getattr(message.content.environment.trusted_execution, "firmware")) == 64
         )
-        raise InvalidURL("Invalid URL host")
-    return url
+        info = dict(
+            payment="hold\t   " if hold else str(getattr(message.content.payment, "type").value),
+            confidential=confidential,
+            allocation_type="",
+            ipv6_logs="",
+            crn_url="",
+        )
+        try:
+            # Fetch from the scheduler API directly if no payment or no receiver (hold-tier non-confidential)
+            if hold and not confidential:
+                try:
+                    info["allocation_type"] = help_strings.ALLOCATION_AUTO
+                    allocation = await fetch_json(
+                        session,
+                        f"https://scheduler.api.aleph.cloud/api/v0/allocation/{message.item_hash}",
+                    )
+                    nodes = await fetch_json(
+                        session,
+                        "https://scheduler.api.aleph.cloud/api/v0/nodes",
+                    )
+                    info["ipv6_logs"] = allocation["vm_ipv6"]
+                    for node in nodes["nodes"]:
+                        if node["ipv6"].split("::")[0] == ":".join(str(info["ipv6_logs"]).split(":")[:4]):
+                            info["crn_url"] = node["url"].rstrip("/")
+                    return message.item_hash, info
+                except Exception:
+                    info["ipv6_logs"] = help_strings.VM_SCHEDULED
+                    info["crn_url"] = help_strings.CRN_PENDING
+            else:
+                # Fetch from the CRN API if PAYG-tier or confidential
+                info["allocation_type"] = help_strings.ALLOCATION_MANUAL
+                for node in node_list.nodes:
+                    if (
+                        has_nested_attr(message.content, "payment", "receiver")
+                        and node["stream_reward"] == getattr(message.content.payment, "receiver")
+                    ) or (
+                        has_nested_attr(message.content, "requirements", "node", "node_hash")
+                        and message.content.requirements is not None
+                        and node["hash"] == getattr(message.content.requirements.node, "node_hash")
+                    ):
+                        info["crn_url"] = node["address"].rstrip("/")
+                        path = f"{node['address'].rstrip('/')}/about/executions/list"
+                        executions = await fetch_json(session, path)
+                        if message.item_hash in executions:
+                            interface = IPv6Interface(executions[message.item_hash]["networking"]["ipv6"])
+                            info["ipv6_logs"] = str(interface.ip + 1)
+                            return message.item_hash, info
+                info["ipv6_logs"] = help_strings.VM_NOT_READY if confidential else help_strings.VM_NOT_AVAILABLE_YET
+        except (ClientResponseError, ClientConnectorError) as e:
+            info["ipv6_logs"] = f"Not available. Server error: {e}"
+        return message.item_hash, info
