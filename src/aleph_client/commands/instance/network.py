@@ -122,6 +122,7 @@ async def fetch_vm_info(message: InstanceMessage, node_list: NodeInfo) -> tuple[
         info = dict(
             crn_hash=str(crn_hash) if crn_hash else "",
             payment="hold\t   " if hold else str(safe_getattr(message, "content.payment.type.value")),
+            chain="Any" if hold else str(safe_getattr(message, "content.payment.chain.value")),
             confidential=confidential,
             allocation_type="",
             ipv6_logs="",
