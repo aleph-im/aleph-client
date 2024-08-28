@@ -222,12 +222,12 @@ def is_environment_interactive() -> bool:
     )
 
 
-def has_nested_attr(obj, *attr_chain) -> bool:
-    for attr in attr_chain:
-        if not hasattr(obj, attr) or getattr(obj, attr) is None:
-            return False
-        obj = getattr(obj, attr)
-    return True
+def safe_getattr(obj, attr, default=None):
+    for part in attr.split("."):
+        obj = getattr(obj, part, default)
+        if obj is default:
+            break
+    return obj
 
 
 async def wait_for_processed_instance(session: ClientSession, item_hash: ItemHash):
