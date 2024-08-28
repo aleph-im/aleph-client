@@ -552,10 +552,9 @@ async def _show_instances(messages: List[InstanceMessage], node_list: NodeInfo):
             ),
             style="orchid",
         )
-        item_hash_link = Text.from_markup(
-            f"[link={sdk_settings.API_HOST}/api/v0/messages/{message.item_hash}]{message.item_hash}[/link]",
-            style="bright_cyan",
-        )
+        link = f"https://explorer.aleph.im/address/ETH/{message.sender}/message/INSTANCE/{message.item_hash}"
+        # link = f"{sdk_settings.API_HOST}/api/v0/messages/{message.item_hash}"
+        item_hash_link = Text.from_markup(f"[link={link}]{message.item_hash}[/link]", style="bright_cyan")
         payment = Text.assemble(
             "Payment: ",
             Text(str(info["payment"]).capitalize(), style="red" if info["payment"] != PaymentType.hold else "orange3"),
@@ -565,14 +564,15 @@ async def _show_instances(messages: List[InstanceMessage], node_list: NodeInfo):
             if info["confidential"]
             else Text.assemble("Type: ", Text("Regular", style="grey50"))
         )
+        chain = Text.assemble("Chain: ", Text(info["chain"], style="cyan"))
         instance = Text.assemble(
-            "Item Hash ↓\t     Name: ", name, "\n", item_hash_link, "\n", payment, "  ", confidential
+            "Item Hash ↓\t     Name: ", name, "\n", item_hash_link, "\n", payment, "  ", confidential, "\n", chain
         )
         specifications = (
             f"vCPUs: {message.content.resources.vcpus}\n"
             f"RAM: {message.content.resources.memory / 1_024:.2f} GiB\n"
             f"Disk: {message.content.rootfs.size_mib / 1_024:.2f} GiB\n"
-            f"HyperV: {message.content.environment.hypervisor if safe_getattr(message, 'content.environment.hypervisor') else 'firecracker'}\n"
+            f"HyperV: {safe_getattr(message, 'content.environment.hypervisor.value').capitalize() if safe_getattr(message, 'content.environment.hypervisor') else 'Firecracker'}\n"
         )
         status_column = Text.assemble(
             Text.assemble(
