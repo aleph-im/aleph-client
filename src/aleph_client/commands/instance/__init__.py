@@ -5,14 +5,12 @@ import json
 import logging
 import shutil
 from decimal import Decimal
-from ipaddress import IPv6Interface
 from math import ceil
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Union, cast
+from typing import List, Optional, Tuple, Union, cast
 
 import aiohttp
 import typer
-from aiohttp import ClientConnectorError, ClientResponseError, ClientSession
 from aleph.sdk import AlephHttpClient, AuthenticatedAlephHttpClient
 from aleph.sdk.account import _load_account
 from aleph.sdk.chains.ethereum import ETHAccount
@@ -47,7 +45,11 @@ from rich.text import Text
 
 from aleph_client.commands import help_strings
 from aleph_client.commands.instance.display import CRNTable
-from aleph_client.commands.instance.network import fetch_crn_info, sanitize_url
+from aleph_client.commands.instance.network import (
+    fetch_crn_info,
+    fetch_vm_info,
+    sanitize_url,
+)
 from aleph_client.commands.node import NodeInfo, _fetch_nodes
 from aleph_client.commands.utils import (
     get_or_prompt_volumes,
@@ -59,7 +61,7 @@ from aleph_client.commands.utils import (
 )
 from aleph_client.conf import settings
 from aleph_client.models import CRNInfo
-from aleph_client.utils import AsyncTyper, fetch_json
+from aleph_client.utils import AsyncTyper
 
 from ..utils import has_nested_attr
 from .superfluid import FlowUpdate, update_flow
@@ -509,9 +511,9 @@ async def delete(
 
         # Check status of the instance and eventually erase associated VM
         node_list: NodeInfo = await _fetch_nodes()
-        _, details = await _get_instance_details(existing_message, node_list)
-        auto_scheduled = details["allocation_type"] == help_strings.ALLOCATION_AUTO
-        crn_url = str(details["crn_url"])
+        _, info = await fetch_vm_info(existing_message, node_list)
+        auto_scheduled = info["allocation_type"] == help_strings.ALLOCATION_AUTO
+        crn_url = str(info["crn_url"])
         if not auto_scheduled and crn_url:
             try:
                 status = await erase(item_hash, crn_url, private_key, private_key_file, True, debug)
@@ -528,80 +530,17 @@ async def delete(
         echo(f"Instance {item_hash} has been deleted.")
 
 
-async def _get_instance_details(message: InstanceMessage, node_list: NodeInfo) -> Tuple[str, Dict[str, object]]:
-    async with ClientSession() as session:
-        hold = not message.content.payment or message.content.payment.type == PaymentType["hold"]
-        confidential = (
-            has_nested_attr(message.content, "environment", "trusted_execution", "firmware")
-            and len(getattr(message.content.environment.trusted_execution, "firmware")) == 64
-        )
-        details = dict(
-            payment="hold\t   " if hold else str(getattr(message.content.payment, "type").value),
-            confidential=confidential,
-            allocation_type="",
-            ipv6_logs="",
-            crn_url="",
-        )
-        try:
-            # Fetch from the scheduler API directly if no payment or no receiver (hold-tier non-confidential)
-            if hold and not confidential:
-                try:
-                    details["allocation_type"] = help_strings.ALLOCATION_AUTO
-                    allocation = await fetch_json(
-                        session,
-                        f"https://scheduler.api.aleph.cloud/api/v0/allocation/{message.item_hash}",
-                    )
-                    nodes = await fetch_json(
-                        session,
-                        "https://scheduler.api.aleph.cloud/api/v0/nodes",
-                    )
-                    details["ipv6_logs"] = allocation["vm_ipv6"]
-                    for node in nodes["nodes"]:
-                        if node["ipv6"].split("::")[0] == ":".join(str(details["ipv6_logs"]).split(":")[:4]):
-                            details["crn_url"] = node["url"].rstrip("/")
-                    return message.item_hash, details
-                except:
-                    details["ipv6_logs"] = help_strings.VM_SCHEDULED
-                    details["crn_url"] = help_strings.CRN_PENDING
-            else:
-                # Fetch from the CRN API if PAYG-tier or confidential
-                details["allocation_type"] = help_strings.ALLOCATION_MANUAL
-                for node in node_list.nodes:
-                    if (
-                        has_nested_attr(message.content, "payment", "receiver")
-                        and node["stream_reward"] == getattr(message.content.payment, "receiver")
-                    ) or (
-                        has_nested_attr(message.content, "requirements", "node", "node_hash")
-                        and message.content.requirements is not None
-                        and node["hash"] == getattr(message.content.requirements.node, "node_hash")
-                    ):
-                        details["crn_url"] = node["address"].rstrip("/")
-                        path = f"{node['address'].rstrip('/')}/about/executions/list"
-
-                        executions = await fetch_json(session, path)
-                        if message.item_hash in executions:
-                            interface = IPv6Interface(executions[message.item_hash]["networking"]["ipv6"])
-                            details["ipv6_logs"] = str(interface.ip + 1)
-                            return message.item_hash, details
-                details["ipv6_logs"] = help_strings.VM_NOT_READY if confidential else help_strings.VM_NOT_AVAILABLE_YET
-        except (ClientResponseError, ClientConnectorError) as e:
-            details["ipv6_logs"] = f"Not available. Server error: {e}"
-        return message.item_hash, details
-
-
 async def _show_instances(messages: List[InstanceMessage], node_list: NodeInfo):
     table = Table(box=box.SIMPLE_HEAVY)
     table.add_column(f"Instances [{len(messages)}]", style="blue", overflow="fold")
     table.add_column("Specifications", style="magenta")
     table.add_column("Logs", style="blue", overflow="fold")
 
-    scheduler_responses = dict(
-        await asyncio.gather(*[_get_instance_details(message, node_list) for message in messages])
-    )
+    scheduler_responses = dict(await asyncio.gather(*[fetch_vm_info(message, node_list) for message in messages]))
     uninitialized_confidential_found = False
     for message in messages:
-        resp = scheduler_responses[message.item_hash]
-        if resp["ipv6_logs"] == help_strings.VM_NOT_READY:
+        info = scheduler_responses[message.item_hash]
+        if info["ipv6_logs"] == help_strings.VM_NOT_READY:
             uninitialized_confidential_found = True
         name = Text(
             (
@@ -619,11 +558,11 @@ async def _show_instances(messages: List[InstanceMessage], node_list: NodeInfo):
         )
         payment = Text.assemble(
             "Payment: ",
-            Text(str(resp["payment"]).capitalize(), style="red" if resp["payment"] != PaymentType.hold else "orange3"),
+            Text(str(info["payment"]).capitalize(), style="red" if info["payment"] != PaymentType.hold else "orange3"),
         )
         confidential = (
             Text.assemble("Type: ", Text("Confidential", style="green"))
-            if resp["confidential"]
+            if info["confidential"]
             else Text.assemble("Type: ", Text("Regular", style="grey50"))
         )
         instance = Text.assemble(
@@ -639,21 +578,21 @@ async def _show_instances(messages: List[InstanceMessage], node_list: NodeInfo):
             Text.assemble(
                 Text("Allocation: ", style="blue"),
                 Text(
-                    str(resp["allocation_type"]) + "\n",
-                    style="magenta3" if resp["allocation_type"] == help_strings.ALLOCATION_MANUAL else "deep_sky_blue1",
+                    str(info["allocation_type"]) + "\n",
+                    style="magenta3" if info["allocation_type"] == help_strings.ALLOCATION_MANUAL else "deep_sky_blue1",
                 ),
             ),
             Text.assemble(
                 Text("Target CRN: ", style="blue"),
                 Text(
-                    str(resp["crn_url"]) + "\n",
-                    style="green1" if str(resp["crn_url"]).startswith("http") else "dark_slate_gray1",
+                    str(info["crn_url"]) + "\n",
+                    style="green1" if str(info["crn_url"]).startswith("http") else "dark_slate_gray1",
                 ),
             ),
             Text.assemble(
                 Text("IPv6: ", style="blue"),
-                Text(str(resp["ipv6_logs"])),
-                style="bright_yellow" if len(str(resp["ipv6_logs"]).split(":")) == 8 else "dark_orange",
+                Text(str(info["ipv6_logs"])),
+                style="bright_yellow" if len(str(info["ipv6_logs"]).split(":")) == 8 else "dark_orange",
             ),
         )
         table.add_row(instance, specifications, status_column)
