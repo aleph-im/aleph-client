@@ -3,16 +3,20 @@ from __future__ import annotations
 import logging
 from ipaddress import IPv6Interface
 from json import JSONDecodeError
+from typing import Optional
 from urllib.parse import ParseResult, urlparse
 
 import aiohttp
 from aiohttp import ClientConnectorError, ClientResponseError, ClientSession, InvalidURL
+from aleph.sdk import AlephHttpClient
+from aleph.sdk.conf import settings as sdk_settings
 from aleph_message.models import InstanceMessage
 from aleph_message.models.execution.base import PaymentType
+from aleph_message.models.item_hash import ItemHash
 from pydantic import ValidationError
 
 from aleph_client.commands import help_strings
-from aleph_client.commands.node import NodeInfo
+from aleph_client.commands.node import NodeInfo, _fetch_nodes
 from aleph_client.commands.utils import safe_getattr
 from aleph_client.conf import settings
 from aleph_client.models import MachineUsage
@@ -165,3 +169,15 @@ async def fetch_vm_info(message: InstanceMessage, node_list: NodeInfo) -> tuple[
         except (ClientResponseError, ClientConnectorError) as e:
             info["ipv6_logs"] = f"Not available. Server error: {e}"
         return message.item_hash, info
+
+
+async def find_crn_of_vm(vm_id: str) -> Optional[str]:
+    async with AlephHttpClient(api_server=sdk_settings.API_HOST) as client:
+        try:
+            message: InstanceMessage = await client.get_message(item_hash=ItemHash(vm_id), message_type=InstanceMessage)
+            node_list: NodeInfo = await _fetch_nodes()
+            _, info = await fetch_vm_info(message, node_list)
+            return str(info["crn_url"])
+        except Exception:
+            pass
+    return None
