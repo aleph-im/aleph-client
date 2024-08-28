@@ -909,7 +909,9 @@ async def confidential_init_session(
 
         code, platform_file = await client.get_certificates()
         if code != 200:
-            echo("Failed to retrieve platform certificate from the CRN. This node might be temporary down, please try again later. If the problem persist, contact the node operator.")
+            echo(
+                "Failed to retrieve platform certificate from the CRN. This node might be temporary down, please try again later. If the problem persist, contact the node operator."
+            )
             return 1
 
         # pathlib.Path.rename raises "Invalid cross-device link" if the destination is not on the current filesystem.
