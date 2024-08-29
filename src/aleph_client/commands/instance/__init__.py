@@ -808,10 +808,13 @@ async def logs(
     account = _load_account(private_key, private_key_file)
 
     async with VmClient(account, domain) as manager:
-        async for log in manager.get_logs(vm_id=vm_id):
-            log_data = json.loads(log)
-            if "message" in log_data:
-                echo(log_data["message"])
+        try:
+            async for log in manager.get_logs(vm_id=vm_id):
+                log_data = json.loads(log)
+                if "message" in log_data:
+                    echo(log_data["message"])
+        except:
+            echo(f"No VM associated with {vm_id} are currently running on {domain}")
 
 
 @app.command()
