@@ -11,11 +11,10 @@ from zipfile import BadZipFile, ZipFile
 
 import typer
 from aiohttp import ClientSession
+from aleph.sdk.conf import settings
 from aleph.sdk.types import GenericMessage
 from aleph_message.models.base import MessageType
 from aleph_message.models.execution.base import Encoding
-
-from aleph_client.conf import settings
 
 logger = logging.getLogger(__name__)
 

@@ -46,9 +46,12 @@ cover/*
 MANIFEST
 
 # Per-project virtualenvs
-.env
 .venv*/
 venv/*
 **/device.key
+
+# Environment variables
+.env
+.env.local
 
 .gitsigners

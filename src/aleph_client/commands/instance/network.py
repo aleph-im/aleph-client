@@ -9,7 +9,7 @@ from urllib.parse import ParseResult, urlparse
 import aiohttp
 from aiohttp import ClientConnectorError, ClientResponseError, ClientSession, InvalidURL
 from aleph.sdk import AlephHttpClient
-from aleph.sdk.conf import settings as sdk_settings
+from aleph.sdk.conf import settings
 from aleph_message.models import InstanceMessage
 from aleph_message.models.execution.base import PaymentType
 from aleph_message.models.item_hash import ItemHash
@@ -18,7 +18,6 @@ from pydantic import ValidationError
 from aleph_client.commands import help_strings
 from aleph_client.commands.node import NodeInfo, _fetch_nodes
 from aleph_client.commands.utils import safe_getattr
-from aleph_client.conf import settings
 from aleph_client.models import MachineUsage
 from aleph_client.utils import fetch_json
 
@@ -172,7 +171,7 @@ async def fetch_vm_info(message: InstanceMessage, node_list: NodeInfo) -> tuple[
 
 
 async def find_crn_of_vm(vm_id: str) -> Optional[str]:
-    async with AlephHttpClient(api_server=sdk_settings.API_HOST) as client:
+    async with AlephHttpClient(api_server=settings.API_HOST) as client:
         try:
             message: InstanceMessage = await client.get_message(item_hash=ItemHash(vm_id), message_type=InstanceMessage)
             node_list: NodeInfo = await _fetch_nodes()

@@ -7,7 +7,7 @@ from typing import Dict, Optional, cast
 import typer
 from aleph.sdk.account import _load_account
 from aleph.sdk.client import AlephHttpClient, AuthenticatedAlephHttpClient
-from aleph.sdk.conf import settings as sdk_settings
+from aleph.sdk.conf import settings
 from aleph.sdk.domain import (
     DomainValidator,
     Hostname,
@@ -32,7 +32,7 @@ app = AsyncTyper(no_args_is_help=True)
 
 
 async def get_aggregate_domain_info(account, fqdn):
-    async with AlephHttpClient(api_server=sdk_settings.API_HOST) as client:
+    async with AlephHttpClient(api_server=settings.API_HOST) as client:
         aggregates = await client.get_messages(
             message_filter=MessageFilter(
                 addresses=[str(account.get_address())],
@@ -105,7 +105,7 @@ async def attach_resource(
     if (not interactive) or Confirm.ask("Continue"):
         """Create aggregate message"""
 
-        async with AuthenticatedAlephHttpClient(account=account, api_server=sdk_settings.API_HOST) as client:
+        async with AuthenticatedAlephHttpClient(account=account, api_server=settings.API_HOST) as client:
 
             options: Optional[Dict] = None
             if catch_all_path and catch_all_path.startswith("/"):
@@ -158,7 +158,7 @@ async def detach_resource(account: AccountFromPrivateKey, fqdn: Hostname, intera
     if (not interactive) or Confirm.ask("Continue"):
         """Update aggregate message"""
 
-        async with AuthenticatedAlephHttpClient(account=account, api_server=sdk_settings.API_HOST) as client:
+        async with AuthenticatedAlephHttpClient(account=account, api_server=settings.API_HOST) as client:
             aggregate_content = {str(fqdn): None}
 
             aggregate_message, message_status = await client.create_aggregate(
@@ -173,8 +173,8 @@ async def detach_resource(account: AccountFromPrivateKey, fqdn: Hostname, intera
 
 @app.command()
 async def add(
-    private_key: Optional[str] = typer.Option(sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
-    private_key_file: Optional[Path] = typer.Option(sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
+    private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
+    private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
     fqdn: str = typer.Argument(..., help=help_strings.CUSTOM_DOMAIN_NAME),
     target: Optional[TargetType] = typer.Option(None, help=help_strings.CUSTOM_DOMAIN_TARGET_TYPES),
     item_hash: Optional[str] = typer.Option(None, help=help_strings.CUSTOM_DOMAIN_ITEM_HASH),
@@ -257,8 +257,8 @@ async def add(
 
 @app.command()
 async def attach(
-    private_key: Optional[str] = typer.Option(sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
-    private_key_file: Optional[Path] = typer.Option(sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
+    private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
+    private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
     fqdn: str = typer.Argument(..., help=help_strings.CUSTOM_DOMAIN_NAME),
     item_hash: Optional[str] = typer.Option(None, help=help_strings.CUSTOM_DOMAIN_ITEM_HASH),
     catch_all_path: str = typer.Option(default=None, help=help_strings.IPFS_CATCH_ALL_PATH),
@@ -279,8 +279,8 @@ async def attach(
 
 @app.command()
 async def detach(
-    private_key: Optional[str] = typer.Option(sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
-    private_key_file: Optional[Path] = typer.Option(sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
+    private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
+    private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
     fqdn: str = typer.Argument(..., help=help_strings.CUSTOM_DOMAIN_NAME),
     ask: bool = typer.Option(default=True, help=help_strings.ASK_FOR_CONFIRMATION),
 ):
@@ -293,8 +293,8 @@ async def detach(
 
 @app.command()
 async def info(
-    private_key: Optional[str] = typer.Option(sdk_settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
-    private_key_file: Optional[Path] = typer.Option(sdk_settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
+    private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
+    private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
     fqdn: str = typer.Argument(..., help=help_strings.CUSTOM_DOMAIN_NAME),
 ):
     """Show Custom Domain Details."""
