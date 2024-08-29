@@ -10,7 +10,7 @@ from typing import Any, Callable, Dict, List, Optional, TypeVar, Union
 from aiohttp import ClientSession
 from aleph.sdk import AlephHttpClient
 from aleph.sdk.chains.ethereum import ETHAccount
-from aleph.sdk.conf import settings as sdk_settings
+from aleph.sdk.conf import settings
 from aleph.sdk.exceptions import ForgottenMessageError, MessageNotFoundError
 from aleph.sdk.types import GenericMessage
 from aleph_message.models import AlephMessage, ItemHash
@@ -234,7 +234,7 @@ def safe_getattr(obj, attr, default=None):
 async def wait_for_processed_instance(session: ClientSession, item_hash: ItemHash):
     """Wait for a message to be processed by CCN"""
     while True:
-        url = f"{sdk_settings.API_HOST.rstrip('/')}/api/v0/messages/{item_hash}"
+        url = f"{settings.API_HOST.rstrip('/')}/api/v0/messages/{item_hash}"
         message = await fetch_json(session, url)
         if message["status"] == "processed":
             return
@@ -260,7 +260,7 @@ async def filter_only_valid_messages(messages: List[AlephMessage]):
     messages whose status is processed.
     """
     filtered_messages = []
-    async with AlephHttpClient(api_server=sdk_settings.API_HOST) as client:
+    async with AlephHttpClient(api_server=settings.API_HOST) as client:
         for message in messages:
             item_hash: ItemHash = message.item_hash 
             try:
