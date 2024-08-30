@@ -13,6 +13,7 @@ from aleph.sdk.chains.ethereum import ETHAccount
 from aleph.sdk.conf import settings as sdk_settings
 from aleph.sdk.types import GenericMessage
 from aleph_message.models import ItemHash
+from aleph_message.status import MessageStatus
 from pygments import highlight
 from pygments.formatters.terminal256 import Terminal256Formatter
 from pygments.lexers import JsonLexer
@@ -31,6 +32,20 @@ def colorful_json(obj: str):
         lexer=JsonLexer(),
         formatter=Terminal256Formatter(),
     )
+
+
+
+
+def colorize_status(status: MessageStatus) -> str:
+    """Return a colored status string based on its value."""
+    status_colors = {
+        MessageStatus.REJECTED: typer.colors.RED,
+        MessageStatus.PROCESSED: typer.colors.GREEN,
+        MessageStatus.PENDING: typer.colors.YELLOW,
+        MessageStatus.FORGOTTEN: typer.colors.BRIGHT_BLACK,
+    }
+    color = status_colors.get(status, typer.colors.WHITE)
+    return typer.style(status, fg=color, bold=True)
 
 
 def colorful_message_json(message: GenericMessage):
