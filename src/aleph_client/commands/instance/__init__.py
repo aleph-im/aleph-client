@@ -73,14 +73,21 @@ app = AsyncTyper(no_args_is_help=True)
 
 @app.command()
 async def create(
-    payment_type: PaymentType = typer.Option(None, help=help_strings.PAYMENT_TYPE),
-    payment_chain: Chain = typer.Option(None, help=help_strings.PAYMENT_CHAIN),
-    hypervisor: HypervisorType = typer.Option(None, help=help_strings.HYPERVISOR),
+    payment_type: Optional[str] = typer.Option(
+        None,
+        help=help_strings.PAYMENT_TYPE,
+        callback=lambda pt: None if pt is None else PaymentType.hold if pt == "nft" else PaymentType(pt),
+        metavar=f"[{'|'.join(PaymentType)}|nft]",
+    ),
+    payment_chain: Optional[Chain] = typer.Option(
+        None, help=help_strings.PAYMENT_CHAIN, metavar=f"[{'|'.join([Chain.ETH, Chain.AVAX, Chain.BASE])}]"
+    ),
+    hypervisor: Optional[HypervisorType] = typer.Option(None, help=help_strings.HYPERVISOR),
     name: Optional[str] = typer.Option(None, help=help_strings.INSTANCE_NAME),
-    rootfs: str = typer.Option(None, help=help_strings.ROOTFS),
-    rootfs_size: int = typer.Option(None, help=help_strings.ROOTFS_SIZE),
-    vcpus: int = typer.Option(None, help=help_strings.VCPUS),
-    memory: int = typer.Option(None, help=help_strings.MEMORY),
+    rootfs: Optional[str] = typer.Option(None, help=help_strings.ROOTFS),
+    rootfs_size: Optional[int] = typer.Option(None, help=help_strings.ROOTFS_SIZE),
+    vcpus: Optional[int] = typer.Option(None, help=help_strings.VCPUS),
+    memory: Optional[int] = typer.Option(None, help=help_strings.MEMORY),
     timeout_seconds: float = typer.Option(
         settings.DEFAULT_VM_TIMEOUT,
         help=help_strings.TIMEOUT_SECONDS,
@@ -136,13 +143,12 @@ async def create(
     account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
 
     if payment_type is None:
-        payment_type = PaymentType(
-            Prompt.ask(
-                "Which payment type do you want to use?",
-                choices=[ptype.value for ptype in PaymentType],
-                default=PaymentType.superfluid.value,
-            )
+        payment_type = Prompt.ask(
+            "Which payment type do you want to use?",
+            choices=[ptype.value for ptype in PaymentType] + ["nft"],
+            default=PaymentType.superfluid.value,
         )
+    payment_type = PaymentType(payment_type) if payment_type != "nft" else PaymentType.hold
     is_stream = payment_type != PaymentType.hold
 
     super_token_chains = get_chains_with_super_token()
@@ -1011,16 +1017,23 @@ async def confidential(
     firmware_hash: str = typer.Option(
         settings.DEFAULT_CONFIDENTIAL_FIRMWARE_HASH, help=help_strings.CONFIDENTIAL_FIRMWARE_HASH
     ),
-    firmware_file: str = typer.Option(None, help=help_strings.PRIVATE_KEY),
-    keep_session: bool = typer.Option(None, help=help_strings.KEEP_SESSION),
-    vm_secret: str = typer.Option(None, help=help_strings.VM_SECRET),
-    payment_type: PaymentType = typer.Option(None, help=help_strings.PAYMENT_TYPE),
-    payment_chain: Optional[Chain] = typer.Option(None, help=help_strings.PAYMENT_CHAIN),
+    firmware_file: Optional[str] = typer.Option(None, help=help_strings.PRIVATE_KEY),
+    keep_session: Optional[bool] = typer.Option(None, help=help_strings.KEEP_SESSION),
+    vm_secret: Optional[str] = typer.Option(None, help=help_strings.VM_SECRET),
+    payment_type: Optional[str] = typer.Option(
+        None,
+        help=help_strings.PAYMENT_TYPE,
+        callback=lambda pt: None if pt is None else PaymentType.hold if pt == "nft" else PaymentType(pt),
+        metavar=f"[{'|'.join(PaymentType)}|nft]",
+    ),
+    payment_chain: Optional[Chain] = typer.Option(
+        None, help=help_strings.PAYMENT_CHAIN, metavar=f"[{'|'.join([Chain.ETH, Chain.AVAX, Chain.BASE])}]"
+    ),
     name: Optional[str] = typer.Option(None, help=help_strings.INSTANCE_NAME),
-    rootfs: str = typer.Option("ubuntu22", help=help_strings.ROOTFS),
-    rootfs_size: int = typer.Option(None, help=help_strings.ROOTFS_SIZE),
-    vcpus: int = typer.Option(None, help=help_strings.VCPUS),
-    memory: int = typer.Option(None, help=help_strings.MEMORY),
+    rootfs: Optional[str] = typer.Option(None, help=help_strings.ROOTFS),
+    rootfs_size: Optional[int] = typer.Option(None, help=help_strings.ROOTFS_SIZE),
+    vcpus: Optional[int] = typer.Option(None, help=help_strings.VCPUS),
+    memory: Optional[int] = typer.Option(None, help=help_strings.MEMORY),
     timeout_seconds: float = typer.Option(
         settings.DEFAULT_VM_TIMEOUT,
         help=help_strings.TIMEOUT_SECONDS,
