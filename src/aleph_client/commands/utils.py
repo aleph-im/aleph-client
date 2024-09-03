@@ -34,9 +34,7 @@ def colorful_json(obj: str):
     )
 
 
-
-
-def colorize_status(status: MessageStatus) -> str:
+def colorized_status(status: MessageStatus) -> str:
     """Return a colored status string based on its value."""
     status_colors = {
         MessageStatus.REJECTED: typer.colors.RED,

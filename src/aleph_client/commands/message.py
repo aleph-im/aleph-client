@@ -27,7 +27,7 @@ from aleph_client.commands import help_strings
 from aleph_client.commands.utils import (
     colorful_json,
     colorful_message_json,
-    colorize_status,
+    colorized_status,
     input_multiline,
     setup_logging,
     str_to_datetime,
@@ -38,14 +38,13 @@ from aleph_client.utils import AsyncTyper
 app = AsyncTyper(no_args_is_help=True)
 
 
-
 @app.command()
 async def get(
     item_hash: str = typer.Argument(..., help="Item hash of the message"),
 ):
     async with AlephHttpClient(api_server=sdk_settings.API_HOST) as client:
         message, status = await client.get_message(item_hash=ItemHash(item_hash), with_status=True)
-        typer.echo(f"Message Status: {colorize_status(status)}")
+        typer.echo(f"Message Status: {colorized_status(status)}")
         if status == MessageStatus.REJECTED:
             reason = await client.get_message_error(item_hash=ItemHash(item_hash))
             typer.echo(colorful_json(json.dumps(reason, indent=4)))
