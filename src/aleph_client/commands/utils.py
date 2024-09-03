@@ -256,13 +256,13 @@ async def wait_for_confirmed_flow(account: ETHAccount, receiver: str):
 
 
 async def filter_only_valid_messages(messages: List[AlephMessage]):
-    """Iteratively check the status of each message from the API and only return 
+    """Iteratively check the status of each message from the API and only return
     messages whose status is processed.
     """
     filtered_messages = []
     async with AlephHttpClient(api_server=settings.API_HOST) as client:
         for message in messages:
-            item_hash: ItemHash = message.item_hash 
+            item_hash: ItemHash = message.item_hash
             try:
                 msg = await client.get_message(ItemHash(item_hash))
                 filtered_messages.append(msg)
