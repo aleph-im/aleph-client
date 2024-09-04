@@ -19,7 +19,7 @@ from pygments import highlight
 from pygments.formatters.terminal256 import Terminal256Formatter
 from pygments.lexers import JsonLexer
 from rich.prompt import IntPrompt, Prompt, PromptError
-from typer import echo
+from typer import colors, echo, style
 
 from aleph_client.utils import fetch_json
 
@@ -38,13 +38,13 @@ def colorful_json(obj: str):
 def colorized_status(status: MessageStatus) -> str:
     """Return a colored status string based on its value."""
     status_colors = {
-        MessageStatus.REJECTED: typer.colors.RED,
-        MessageStatus.PROCESSED: typer.colors.GREEN,
-        MessageStatus.PENDING: typer.colors.YELLOW,
-        MessageStatus.FORGOTTEN: typer.colors.BRIGHT_BLACK,
+        MessageStatus.REJECTED: colors.RED,
+        MessageStatus.PROCESSED: colors.GREEN,
+        MessageStatus.PENDING: colors.YELLOW,
+        MessageStatus.FORGOTTEN: colors.BRIGHT_BLACK,
     }
-    color = status_colors.get(status, typer.colors.WHITE)
-    return typer.style(status, fg=color, bold=True)
+    color = status_colors.get(status, colors.WHITE)
+    return style(status, fg=color, bold=True)
 
 
 def colorful_message_json(message: GenericMessage):
