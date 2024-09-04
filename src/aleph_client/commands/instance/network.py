@@ -7,7 +7,6 @@ from typing import Optional
 from urllib.parse import ParseResult, urlparse
 
 import aiohttp
-from aiohttp import ClientConnectorError, ClientResponseError, ClientSession, InvalidURL
 from aleph.sdk import AlephHttpClient
 from aleph.sdk.conf import settings
 from aleph_message.models import InstanceMessage
@@ -52,16 +51,16 @@ def sanitize_url(url: str) -> str:
         Sanitized URL.
     """
     if not url:
-        raise InvalidURL("Empty URL")
+        raise aiohttp.InvalidURL("Empty URL")
     parsed_url: ParseResult = urlparse(url)
     if parsed_url.scheme not in ["http", "https"]:
-        raise InvalidURL(f"Invalid URL scheme: {parsed_url.scheme}")
+        raise aiohttp.InvalidURL(f"Invalid URL scheme: {parsed_url.scheme}")
     if parsed_url.hostname in FORBIDDEN_HOSTS:
         logger.debug(
             f"Invalid URL {url} hostname {parsed_url.hostname} is in the forbidden host list "
             f"({', '.join(FORBIDDEN_HOSTS)})"
         )
-        raise InvalidURL("Invalid URL host")
+        raise aiohttp.InvalidURL("Invalid URL host")
     return url
 
 
@@ -90,7 +89,7 @@ async def fetch_crn_info(node_url: str) -> dict | None:
                 system: dict = await resp.json()
                 info["machine_usage"] = MachineUsage.parse_obj(system)
             return info
-    except InvalidURL as e:
+    except aiohttp.InvalidURL as e:
         logger.debug(f"Invalid CRN URL: {url}: {e}")
     except TimeoutError as e:
         logger.debug(f"Timeout while fetching CRN: {url}: {e}")
@@ -117,7 +116,7 @@ async def fetch_vm_info(message: InstanceMessage, node_list: NodeInfo) -> tuple[
     Returns:
         VM information.
     """
-    async with ClientSession() as session:
+    async with aiohttp.ClientSession() as session:
         hold = not message.content.payment or message.content.payment.type == PaymentType["hold"]
         crn_hash = safe_getattr(message, "content.requirements.node.node_hash")
         firmware = safe_getattr(message, "content.environment.trusted_execution.firmware")
@@ -135,23 +134,20 @@ async def fetch_vm_info(message: InstanceMessage, node_list: NodeInfo) -> tuple[
             # Fetch from the scheduler API directly if no payment or no receiver (hold-tier non-confidential)
             if hold and not confidential:
                 try:
+                    url = f"https://scheduler.api.aleph.cloud/api/v0/allocation/{message.item_hash}"
                     info["allocation_type"] = help_strings.ALLOCATION_AUTO
-                    allocation = await fetch_json(
-                        session,
-                        f"https://scheduler.api.aleph.cloud/api/v0/allocation/{message.item_hash}",
-                    )
-                    nodes = await fetch_json(
-                        session,
-                        "https://scheduler.api.aleph.cloud/api/v0/nodes",
-                    )
+                    allocation = await fetch_json(session, url)
+                    url = "https://scheduler.api.aleph.cloud/api/v0/nodes"
+                    nodes = await fetch_json(session, url)
                     info["ipv6_logs"] = allocation["vm_ipv6"]
                     for node in nodes["nodes"]:
                         if node["ipv6"].split("::")[0] == ":".join(str(info["ipv6_logs"]).split(":")[:4]):
                             info["crn_url"] = node["url"].rstrip("/")
                     return message.item_hash, info
-                except Exception:
+                except (aiohttp.ClientResponseError, aiohttp.ClientConnectorError) as e:
                     info["ipv6_logs"] = help_strings.VM_SCHEDULED
                     info["crn_url"] = help_strings.CRN_PENDING
+                    logger.debug(f"Error while calling Scheduler API ({url}): {e}")
             else:
                 # Fetch from the CRN API if PAYG-tier or confidential
                 info["allocation_type"] = help_strings.ALLOCATION_MANUAL
@@ -165,18 +161,15 @@ async def fetch_vm_info(message: InstanceMessage, node_list: NodeInfo) -> tuple[
                             info["ipv6_logs"] = str(interface.ip + 1)
                             return message.item_hash, info
                 info["ipv6_logs"] = help_strings.VM_NOT_READY if confidential else help_strings.VM_NOT_AVAILABLE_YET
-        except (ClientResponseError, ClientConnectorError) as e:
+        except (aiohttp.ClientResponseError, aiohttp.ClientConnectorError) as e:
             info["ipv6_logs"] = f"Not available. Server error: {e}"
         return message.item_hash, info
 
 
 async def find_crn_of_vm(vm_id: str) -> Optional[str]:
     async with AlephHttpClient(api_server=settings.API_HOST) as client:
-        try:
-            message: InstanceMessage = await client.get_message(item_hash=ItemHash(vm_id), message_type=InstanceMessage)
-            node_list: NodeInfo = await _fetch_nodes()
-            _, info = await fetch_vm_info(message, node_list)
-            return str(info["crn_url"])
-        except Exception:
-            pass
-    return None
+        message: InstanceMessage = await client.get_message(item_hash=ItemHash(vm_id), message_type=InstanceMessage)
+        node_list: NodeInfo = await _fetch_nodes()
+        _, info = await fetch_vm_info(message, node_list)
+        is_valid = info["crn_url"] and info["crn_url"] != help_strings.CRN_PENDING
+        return str(info["crn_url"]) if is_valid else None

@@ -57,6 +57,7 @@ async def update_flow(account: ETHAccount, receiver: str, flow: Decimal, update_
             # Reduce the existing flow
             new_flow_rate_wei = current_flow_rate_wei - flow_rate_wei
             # Ensure to not leave infinitesimal flows
+            # Often, there were 1-10 wei remaining in the flow rate, which prevented the flow from being deleted
             if new_flow_rate_wei > 99:
                 new_flow_rate_ether = from_wei(new_flow_rate_wei)
                 return await account.update_flow(receiver, new_flow_rate_ether)

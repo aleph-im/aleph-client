@@ -148,7 +148,7 @@ async def create(
             choices=[ptype.value for ptype in PaymentType] + ["nft"],
             default=PaymentType.superfluid.value,
         )
-    payment_type = PaymentType(payment_type) if payment_type != "nft" else PaymentType.hold
+    payment_type = PaymentType.hold if payment_type == "nft" else PaymentType(payment_type)
     is_stream = payment_type != PaymentType.hold
 
     super_token_chains = get_chains_with_super_token()
@@ -568,7 +568,7 @@ async def _show_instances(messages: List[InstanceMessage], node_list: NodeInfo):
             if info["confidential"]
             else Text.assemble("Type: ", Text("Regular", style="grey50"))
         )
-        chain = Text.assemble("Chain: ", Text(info["chain"], style="cyan"))
+        chain = Text.assemble("Chain: ", Text(str(info["chain"]), style="cyan"))
         instance = Text.assemble(
             "Item Hash ↓\t     Name: ", name, "\n", item_hash_link, "\n", payment, "  ", confidential, "\n", chain
         )
@@ -819,7 +819,9 @@ async def logs(
                 log_data = json.loads(log)
                 if "message" in log_data:
                     echo(log_data["message"])
-        except:
+        except aiohttp.ClientConnectorError as e:
+            echo(f"Unable to connect to domain: {domain}\nError: {e}")
+        except aiohttp.ClientResponseError:
             echo(f"No VM associated with {vm_id} are currently running on {domain}")
 
 
