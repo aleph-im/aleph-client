@@ -148,9 +148,15 @@ async def balance(
             response = await session.get(uri)
             if response.status == 200:
                 balance_data = await response.json()
+                balance_data["available_amount"] = balance_data["balance"] - balance_data["locked_amount"]
                 typer.echo(
                     "\n"
-                    + "\n".join([f"{k.capitalize().replace('_', ' ')}: {v}" for k, v in balance_data.items()])
+                    + f"Address: {balance_data['address']}\n"
+                    + f"Balance: {balance_data['balance']:.2f}".rstrip("0").rstrip(".")
+                    + "\n"
+                    + f" - Locked: {balance_data['locked_amount']:.2f}".rstrip("0").rstrip(".")
+                    + "\n"
+                    + f" - Available: {balance_data['available_amount']:.2f}".rstrip("0").rstrip(".")
                     + "\n"
                 )
             else:

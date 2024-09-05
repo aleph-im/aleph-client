@@ -402,7 +402,7 @@ async def create(
                     await wait_for_confirmed_flow(account, message.content.payment.receiver)
                     if flow_hash:
                         echo(
-                            f"Flow {flow_hash} has been created:\n\t- price/sec: {price.required_tokens:.7f} ALEPH\n\t- receiver: {crn.stream_reward_address}"
+                            f"Flow {flow_hash} has been created:\n - Aleph cost summary:\n   {price.required_tokens:.7f}/sec | {3600*price.required_tokens:.2f}/hour | {86400*price.required_tokens:.2f}/day | {2592000*price.required_tokens:.2f}/month\n - CRN receiver address: {crn.stream_reward_address}"
                         )
 
             # Notify CRN
@@ -556,13 +556,23 @@ async def _show_instances(messages: List[InstanceMessage], node_list: NodeInfo):
         link = f"https://explorer.aleph.im/address/ETH/{message.sender}/message/INSTANCE/{message.item_hash}"
         # link = f"{settings.API_HOST}/api/v0/messages/{message.item_hash}"
         item_hash_link = Text.from_markup(f"[link={link}]{message.item_hash}[/link]", style="bright_cyan")
+        is_hold = str(info["payment"]).startswith("hold")
         payment = Text.assemble(
             "Payment: ",
             Text(
                 str(info["payment"]).capitalize(),
-                style="red" if str(info["payment"]).startswith("hold") else "orange3",
+                style="red" if is_hold else "orange3",
             ),
         )
+        cost: Text | str = ""
+        if not is_hold:
+            async with AlephHttpClient(api_server=settings.API_HOST) as client:
+                price: PriceResponse = await client.get_program_price(message.item_hash)
+                psec = Text(f"{price.required_tokens:.7f}/sec", style="bright_magenta")
+                phour = Text(f"{3600*price.required_tokens:.2f}/hour", style="bright_magenta")
+                pday = Text(f"{86400*price.required_tokens:.2f}/day", style="bright_magenta")
+                pmonth = Text(f"{2592000*price.required_tokens:.2f}/month", style="bright_magenta")
+                cost = Text.assemble("Aleph cost: ", psec, " | ", phour, " | ", pday, " | ", pmonth, "\n")
         confidential = (
             Text.assemble("Type: ", Text("Confidential", style="green"))
             if info["confidential"]
@@ -570,7 +580,17 @@ async def _show_instances(messages: List[InstanceMessage], node_list: NodeInfo):
         )
         chain = Text.assemble("Chain: ", Text(str(info["chain"]), style="cyan"))
         instance = Text.assemble(
-            "Item Hash ↓\t     Name: ", name, "\n", item_hash_link, "\n", payment, "  ", confidential, "\n", chain
+            "Item Hash ↓\t     Name: ",
+            name,
+            "\n",
+            item_hash_link,
+            "\n",
+            payment,
+            "  ",
+            confidential,
+            "\n",
+            cost,
+            chain,
         )
         specifications = (
             f"vCPUs: {message.content.resources.vcpus}\n"
