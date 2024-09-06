@@ -121,20 +121,20 @@ def volume_to_dict(volume: List[str]) -> Optional[Dict[str, Union[str, int]]]:
 def get_or_prompt_volumes(ephemeral_volume, immutable_volume, persistent_volume):
     volumes = []
     # Check if the volumes are empty
-    if persistent_volume is None or ephemeral_volume is None or immutable_volume is None:
+    if persistent_volume is None and ephemeral_volume is None and immutable_volume is None:
         for volume in prompt_for_volumes():
             volumes.append(volume)
             echo("\n")
 
     # else parse all the volumes that have passed as the cli parameters and put it into volume list
     else:
-        if len(persistent_volume) > 0:
+        if len(persistent_volume or []) > 0:
             persistent_volume_dict = volume_to_dict(volume=persistent_volume)
             volumes.append(persistent_volume_dict)
-        if len(ephemeral_volume) > 0:
+        if len(ephemeral_volume or []) > 0:
             ephemeral_volume_dict = volume_to_dict(volume=ephemeral_volume)
             volumes.append(ephemeral_volume_dict)
-        if len(immutable_volume) > 0:
+        if len(immutable_volume or []) > 0:
             immutable_volume_dict = volume_to_dict(volume=immutable_volume)
             volumes.append(immutable_volume_dict)
     return volumes
@@ -189,7 +189,8 @@ def validated_int_prompt(
     while True:
         try:
             value = IntPrompt.ask(
-                prompt + f" [min: {min_value or '-'}, max: {max_value or '-'}]",
+                prompt +
+                f" [min: {min_value or '-'}, max: {max_value or '-'}]",
                 default=default,
             )
         except PromptError:
