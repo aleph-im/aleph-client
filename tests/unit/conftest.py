@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
     Dummy conftest.py for aleph_client.
 
@@ -6,9 +5,10 @@
     Read more about conftest.py under:
     https://pytest.org/latest/plugins.html
 """
+
+from collections.abc import Generator
 from pathlib import Path
 from tempfile import NamedTemporaryFile
-from typing import Generator
 
 import pytest
 from aleph.sdk.chains.common import generate_key
