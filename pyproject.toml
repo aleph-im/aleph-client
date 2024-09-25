@@ -115,6 +115,7 @@ dependencies = [
   "mypy==1.10.0",
   "ruff==0.4.9",
   "isort==5.13.2",
+  "yamlfix==1.16.1",
 
   "types-requests==2.32.0.20240602",
   "types-setuptools==70.0.0.20240524",
@@ -126,11 +127,13 @@ style = [
   # "ruff {args:}",
   "black --check --diff {args:} ./src/ ./tests/",
   "isort --check-only --profile black {args:} ./src/ ./tests/",
+  "yamlfix --check .",
 ]
 fmt = [
   "black {args:} ./src/ ./tests/",
   # "ruff --fix {args:}",
   "isort --profile black {args:} ./src/ ./tests/",
+  "yamlfix .",
   "style",
 ]
 all = [
@@ -223,3 +226,9 @@ exclude_lines = [
 [tool.spinx]
 source-dir = "docs"
 build-dir = "docs/_build"
+
+[tool.yamlfix]
+sequence_style = "keep_style"
+preserve_quotes = true
+whitelines = 1
+section_whitelines = 2
