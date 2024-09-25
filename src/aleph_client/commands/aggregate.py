@@ -328,8 +328,9 @@ async def authorize(
                 try:
                     valid_types.append(MessageType(t.upper()).value)
                 except ValueError as e:
-                    print(
-                        f"Invalid value passed into `--types`: {t}\nValid values: {', '.join([e.value for e in MessageType])}"
+                    logger.error(
+                        f"Invalid value passed into `--types`: {t}\n"
+                        f"Valid values: {', '.join([e.value for e in MessageType])}"
                     )
                     raise typer.Exit(1) from e
             new_auth["types"] = valid_types

@@ -650,7 +650,10 @@ async def delete(
     print_message: bool = typer.Option(False),
     debug: bool = False,
 ):
-    """Delete an instance, unallocating all resources associated with it. Associated VM will be stopped and erased. Immutable volumes will not be deleted."""
+    """
+    Delete an instance, unallocating all resources associated with it. Associated VM will be stopped and erased.
+    Immutable volumes will not be deleted.
+    """
 
     setup_logging(debug)
 
@@ -1063,7 +1066,8 @@ async def confidential_init_session(
         code, platform_file = await client.get_certificates()
         if code != 200:
             echo(
-                "Failed to retrieve platform certificate from the CRN. This node might be temporary down, please try again later. If the problem persist, contact the node operator."
+                "Failed to retrieve platform certificate from the CRN. This node might be temporary down, please try "
+                "again later. If the problem persist, contact the node operator."
             )
             return 1
 
