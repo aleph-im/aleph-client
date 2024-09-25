@@ -129,7 +129,7 @@ dependencies = [
 [tool.hatch.envs.linting.scripts]
 typing = "mypy --config-file=pyproject.toml {args:} ./src/ ./tests/"
 style = [
-  # "ruff {args:}",
+  "ruff check {args:}",
   "black --check --diff {args:} ./src/ ./tests/",
   "isort --check-only --profile black {args:} ./src/ ./tests/",
   "yamlfix --check .",
@@ -137,7 +137,7 @@ style = [
 ]
 fmt = [
   "black {args:} ./src/ ./tests/",
-  # "ruff --fix {args:}",
+  "ruff check --fix {args:}",
   "isort --profile black {args:} ./src/ ./tests/",
   "yamlfix .",
   "pyproject-fmt pyproject.toml",
@@ -155,7 +155,9 @@ target-version = [ "py39" ]
 [tool.ruff]
 target-version = "py39"
 line-length = 120
-select = [
+exclude = [ "docs/", "scripts/gendoc.py" ]
+
+lint.select = [
   "A",
   "ARG",
   "B",
@@ -182,22 +184,44 @@ select = [
   "W",
   "YTT",
 ]
-ignore = [
-  #  # Allow non-abstract empty methods in abstract base classes
-  #  "B027",
-  #  # Allow boolean positional values in function calls, like `dict.get(... True)`
-  #  "FBT003",
-  #  # Ignore checks for possible passwords
-  #  "S105", "S106", "S107",
-  #  # Ignore complexity
-  #  "C901", "PLR0911", "PLR0912", "PLR0913", "PLR0915",
+lint.ignore = [
+  "A001",
+  "A002",
+  "ARG001",
+  "ARG002",
+  # Be compatible with typer
+  "B008",
+  # Ignore complexity
+  "C901",
+  # Allow boolean arguments in functions definitions
+  "FBT001",
+  "FBT002",
+  "FBT003",
+  # to avoid errors on variables like total_kB
+  "N815",
+  "PLR0911",
+  "PLR0912",
+  "PLR0913",
+  "PLR0915",
+  "PLR2004",
+  "RUF012",
   # Allow the use of assert statements
   "S101",
+  # Ignore checks for possible passwords
+  "S105", # "S106", "S107",
+  # ignore false positive
+  "S603",
+  # don't perform this modification:
+  # Union[a, b] -> a | b /Optional[type] -> type | None
+  # since python 3.9 doesn't support it
   "UP007",
 ]
-
 #[tool.ruff.isort]
 #known-first-party = ["aleph_client"]
+lint.per-file-ignores."src/aleph_client/commands/help_strings.py" = [ "E501" ]
+lint.per-file-ignores."tests/unit/*" = [ "T201" ]
+
+lint.per-file-ignores."tests/unit/test_instance.py" = [ "S106", "T201" ]
 
 [tool.pytest.ini_options]
 pythonpath = [
