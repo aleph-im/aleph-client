@@ -123,7 +123,8 @@ class CRNTable(App[CRNInfo]):
     async def fetch_node_info(self, node: CRNInfo):
         try:
             crn_info = await fetch_crn_info(node.url)
-        except:
+        except Exception as e:
+            logger.debug(e)
             return
         if crn_info:
             node.version = crn_info.get("version", "")
