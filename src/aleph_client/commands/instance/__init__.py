@@ -542,7 +542,7 @@ async def create(
                         account.superfluid_connector.can_start_flow(FLOW_INSTANCE_PRICE_PER_SECOND)  # Min for 0.11/h
                     except Exception as e:
                         echo(e)
-                        raise typer.Exit(code=1)
+                        raise typer.Exit(code=1) from e
                     flow_hash = await update_flow(
                         account=account,
                         receiver=crn.stream_reward_address,
@@ -666,10 +666,10 @@ async def delete(
 
         except MessageNotFoundError:
             echo("Instance does not exist")
-            raise typer.Exit(code=1)
+            raise typer.Exit(code=1) from None
         except ForgottenMessageError:
             echo("Instance already forgotten")
-            raise typer.Exit(code=1)
+            raise typer.Exit(code=1) from None
         if existing_message.sender != account.get_address():
             echo("You are not the owner of this instance")
             raise typer.Exit(code=1)

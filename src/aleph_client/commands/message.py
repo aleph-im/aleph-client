@@ -149,9 +149,9 @@ async def post(
         storage_engine = StorageEnum.ipfs if len(content_raw) > 4 * 1024 * 1024 else StorageEnum.storage
         try:
             content = json.loads(content_raw)
-        except json.decoder.JSONDecodeError:
+        except json.decoder.JSONDecodeError as e:
             typer.echo("Not valid JSON")
-            raise typer.Exit(code=2)
+            raise typer.Exit(code=2) from e
 
     async with AuthenticatedAlephHttpClient(account=account, api_server=settings.API_HOST) as client:
         result, status = await client.create_post(
