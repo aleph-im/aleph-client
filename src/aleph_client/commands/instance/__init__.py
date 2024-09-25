@@ -171,7 +171,7 @@ async def create(
                     account.superfluid_connector.can_start_flow(Decimal(0.000031))  # 0.11/h
                 except Exception as e:
                     echo(e)
-                    raise typer.Exit(code=1)
+                    raise typer.Exit(code=1) from e
     else:
         payment_chain = Chain.ETH  # Hold chain for all balances
 
@@ -306,7 +306,7 @@ async def create(
                 echo()
         except Exception as e:
             echo(f"Unable to fetch CRN config: {e}")
-            raise typer.Exit(1)
+            raise typer.Exit(1) from e
     if is_stream or confidential:
         while not crn:
             crn_table = CRNTable(only_reward_address=is_stream, only_qemu=is_qemu, only_confidentials=confidential)
@@ -394,7 +394,7 @@ async def create(
                         account.superfluid_connector.can_start_flow(Decimal(0.000031))  # Min for 0.11/h
                     except Exception as e:
                         echo(e)
-                        raise typer.Exit(code=1)
+                        raise typer.Exit(code=1) from e
                     flow_hash = await update_flow(
                         account=account,
                         receiver=crn.stream_reward_address,
@@ -495,10 +495,10 @@ async def delete(
 
         except MessageNotFoundError:
             echo("Instance does not exist")
-            raise typer.Exit(code=1)
+            raise typer.Exit(code=1) from None
         except ForgottenMessageError:
             echo("Instance already forgotten")
-            raise typer.Exit(code=1)
+            raise typer.Exit(code=1) from None
         if existing_message.sender != account.get_address():
             echo("You are not the owner of this instance")
             raise typer.Exit(code=1)

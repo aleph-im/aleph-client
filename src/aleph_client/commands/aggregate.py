@@ -67,9 +67,9 @@ async def post(
 
     try:
         content_dict = json.loads(content)
-    except json.JSONDecodeError:
+    except json.JSONDecodeError as e:
         typer.echo("Invalid JSON for content. Please provide valid JSON.")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from e
 
     async with AuthenticatedAlephHttpClient(account=account, api_server=settings.API_HOST) as client:
         message, _ = await client.create_aggregate(
