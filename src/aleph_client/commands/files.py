@@ -4,7 +4,6 @@ import json as json_lib
 import logging
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
 
 import aiohttp
 import typer
@@ -30,10 +29,10 @@ app = AsyncTyper(no_args_is_help=True)
 @app.command()
 async def pin(
     item_hash: str = typer.Argument(..., help="IPFS hash to pin on aleph.im"),
-    channel: Optional[str] = typer.Option(default=settings.DEFAULT_CHANNEL, help=help_strings.CHANNEL),
-    private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
-    private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
-    ref: Optional[str] = typer.Option(None, help=help_strings.REF),
+    channel: str | None = typer.Option(default=settings.DEFAULT_CHANNEL, help=help_strings.CHANNEL),
+    private_key: str | None = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
+    private_key_file: Path | None = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
+    ref: str | None = typer.Option(None, help=help_strings.REF),
     debug: bool = False,
 ):
     """Persist a file from IPFS on aleph.im."""
@@ -58,10 +57,10 @@ async def pin(
 @app.command()
 async def upload(
     path: Path = typer.Argument(..., help="Path of the file to upload"),
-    channel: Optional[str] = typer.Option(default=settings.DEFAULT_CHANNEL, help=help_strings.CHANNEL),
-    private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
-    private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
-    ref: Optional[str] = typer.Option(None, help=help_strings.REF),
+    channel: str | None = typer.Option(default=settings.DEFAULT_CHANNEL, help=help_strings.CHANNEL),
+    private_key: str | None = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
+    private_key_file: Path | None = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
+    ref: str | None = typer.Option(None, help=help_strings.REF),
     debug: bool = False,
 ):
     """Upload and store a file on aleph.im."""
@@ -129,9 +128,9 @@ async def download(
 async def forget(
     item_hash: str = typer.Argument(..., help="Hash to forget"),
     reason: str = typer.Argument("User deletion", help="reason to forget"),
-    channel: Optional[str] = typer.Option(default=settings.DEFAULT_CHANNEL, help=help_strings.CHANNEL),
-    private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
-    private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
+    channel: str | None = typer.Option(default=settings.DEFAULT_CHANNEL, help=help_strings.CHANNEL),
+    private_key: str | None = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
+    private_key_file: Path | None = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
     debug: bool = False,
 ):
     """forget a file and his message on aleph.im."""
@@ -206,9 +205,9 @@ def _show_files(files_data: dict) -> None:
 
 @app.command()
 async def list(
-    address: Optional[str] = typer.Option(None, help="Address"),
-    private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
-    private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
+    address: str | None = typer.Option(None, help="Address"),
+    private_key: str | None = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
+    private_key_file: Path | None = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
     pagination: int = typer.Option(100, help="Maximum number of files to return."),
     page: int = typer.Option(1, help="Offset in pages."),
     sort_order: int = typer.Option(
