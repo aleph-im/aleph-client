@@ -156,7 +156,7 @@ def display_active_chain():
         active_chain = config.chain
 
     compatible_chains = get_compatible_chains()
-    hold_chains = get_chains_with_holding() + [Chain.SOL.value]
+    hold_chains = [*get_chains_with_holding(), Chain.SOL.value]
     payg_chains = get_chains_with_super_token()
 
     chain = f"[bold green]{active_chain}[/bold green]" if active_chain else "[red]Not Selected[/red]"
@@ -334,7 +334,7 @@ async def list_accounts():
             if key_file.stem != "default":
                 table.add_row(key_file.stem, str(key_file), "[bold red]-[/bold red]")
 
-    hold_chains = get_chains_with_holding() + [Chain.SOL.value]
+    hold_chains = [*get_chains_with_holding(), Chain.SOL.value]
     payg_chains = get_chains_with_super_token()
 
     active_address = None

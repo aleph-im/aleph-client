@@ -48,7 +48,7 @@ def create_mock_load_account():
 
 
 async def mock_fetch_nodes() -> NodeInfo:
-    NODE_AGGREGATE = {
+    node_aggregate = {
         "address": "0xa1B3bb7d2332383D96b7796B908fB7f7F3c2Be10",
         "data": {
             "corechannel": {
@@ -124,4 +124,4 @@ async def mock_fetch_nodes() -> NodeInfo:
         },
         "info": {},
     }
-    return NodeInfo(**NODE_AGGREGATE)
+    return NodeInfo(**node_aggregate)

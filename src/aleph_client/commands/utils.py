@@ -7,7 +7,7 @@ import shutil
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, TypeVar, Union
+from typing import Any, Callable, Optional, TypeVar, Union
 
 from aiohttp import ClientSession
 from aleph.sdk import AlephHttpClient
@@ -106,10 +106,10 @@ def prompt_for_volumes():
             }
 
 
-def volume_to_dict(volume: List[str]) -> Optional[Dict[str, Union[str, int]]]:
+def volume_to_dict(volume: list[str]) -> Optional[dict[str, Union[str, int]]]:
     if not volume:
         return None
-    dict_store: Dict[str, Union[str, int]] = {}
+    dict_store: dict[str, Union[str, int]] = {}
     for word in volume:
         split_values = word.split(",")
         for param in split_values:
@@ -151,8 +151,8 @@ def get_or_prompt_volumes(ephemeral_volume, immutable_volume, persistent_volume)
     return volumes
 
 
-def env_vars_to_dict(env_vars: Optional[str]) -> Dict[str, str]:
-    dict_store: Dict[str, str] = {}
+def env_vars_to_dict(env_vars: Optional[str]) -> dict[str, str]:
+    dict_store: dict[str, str] = {}
     if env_vars:
         for env_var in env_vars.split(","):
             label, value = env_var.split("=", 1)
@@ -160,8 +160,8 @@ def env_vars_to_dict(env_vars: Optional[str]) -> Dict[str, str]:
     return dict_store
 
 
-def get_or_prompt_environment_variables(env_vars: Optional[str]) -> Optional[Dict[str, str]]:
-    environment_variables: Dict[str, str] = {}
+def get_or_prompt_environment_variables(env_vars: Optional[str]) -> Optional[dict[str, str]]:
+    environment_variables: dict[str, str] = {}
     if not env_vars:
         while yes_no_input("Add environment variable?", default=False):
             label = validated_prompt("Label: ", lambda text: len(text) > 0)
@@ -272,7 +272,8 @@ async def wait_for_processed_instance(session: ClientSession, item_hash: ItemHas
             echo(f"Message {item_hash} is still pending, waiting 10sec...")
             await asyncio.sleep(10)
         elif message["status"] == "rejected":
-            raise Exception(f"Message {item_hash} has been rejected")
+            msg = f"Message {item_hash} has been rejected"
+            raise Exception(msg)
 
 
 async def wait_for_confirmed_flow(account: ETHAccount, receiver: str):
@@ -285,7 +286,7 @@ async def wait_for_confirmed_flow(account: ETHAccount, receiver: str):
         await asyncio.sleep(10)
 
 
-async def filter_only_valid_messages(messages: List[AlephMessage]):
+async def filter_only_valid_messages(messages: list[AlephMessage]):
     """Iteratively check the status of each message from the API and only return
     messages whose status is processed.
     """
@@ -307,9 +308,11 @@ def validate_ssh_pubkey_file(file: Union[str, Path]) -> Path:
     if isinstance(file, str):
         file = Path(file).expanduser()
     if not file.exists():
-        raise ValueError(f"{file} does not exist")
+        msg = f"{file} does not exist"
+        raise ValueError(msg)
     if not file.is_file():
-        raise ValueError(f"{file} is not a file")
+        msg = f"{file} is not a file"
+        raise ValueError(msg)
     return file
 
 

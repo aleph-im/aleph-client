@@ -4,11 +4,10 @@ Copied from typer.cli.py to customise doc generation
 """
 
 import importlib.util
-import os
 import re
 import sys
 from pathlib import Path
-from typing import Any, List, Optional
+from typing import Any, Optional
 
 import click
 import typer
@@ -52,7 +51,7 @@ def maybe_update_state(ctx: click.Context) -> None:
 
 
 class TyperCLIGroup(typer.core.TyperGroup):
-    def list_commands(self, ctx: click.Context) -> List[str]:
+    def list_commands(self, ctx: click.Context) -> list[str]:
         self.maybe_add_run(ctx)
         return super().list_commands(ctx)
 
@@ -273,7 +272,7 @@ def docs(
     ),
     title: Optional[str] = typer.Option(
         None,
-        help="The title for the documentation page. If not provided, the name of " "the program is used.",
+        help="The title for the documentation page. If not provided, the name of the program is used.",
     ),
 ) -> None:
     """

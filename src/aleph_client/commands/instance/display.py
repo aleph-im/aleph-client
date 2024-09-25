@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import Dict, Optional, Set
+from typing import Optional
 
 from textual.app import App
 from textual.containers import Horizontal
@@ -21,8 +21,8 @@ logger = logging.getLogger(__name__)
 
 class CRNTable(App[CRNInfo]):
     table: DataTable
-    tasks: Set[asyncio.Task] = set()
-    crns: Dict[RowKey, CRNInfo] = {}
+    tasks: set[asyncio.Task] = set()
+    crns: dict[RowKey, CRNInfo] = {}
     total_crns: int
     active_crns: int = 0
     filtered_crns: int = 0
@@ -172,7 +172,7 @@ class CRNTable(App[CRNInfo]):
                 node.version,
                 node.stream_reward_address,
                 "✅" if node.confidential_computing else "✖",
-                ## "✅" if node.qemu_support else "✖", ## Qemu computing enabled by default on nodes
+                # "✅" if node.qemu_support else "✖", ## Qemu computing enabled by default on nodes
                 "✅" if node.gpu_support else "✖",
                 node.display_cpu,
                 node.display_ram,

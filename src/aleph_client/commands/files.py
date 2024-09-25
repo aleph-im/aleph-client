@@ -13,7 +13,7 @@ from aleph.sdk.account import _load_account
 from aleph.sdk.conf import settings
 from aleph.sdk.types import AccountFromPrivateKey, StorageEnum, StoredContent
 from aleph.sdk.utils import safe_getattr
-from aleph_message.models import ItemHash, ItemType, MessageType, StoreMessage
+from aleph_message.models import ItemHash, StoreMessage
 from aleph_message.status import MessageStatus
 from pydantic import BaseModel, Field
 from rich import box

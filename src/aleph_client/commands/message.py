@@ -4,11 +4,10 @@ import asyncio
 import json
 import os.path
 import subprocess
-import sys
 import tempfile
 import time
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Optional
 
 import typer
 from aleph.sdk import AlephHttpClient, AuthenticatedAlephHttpClient
@@ -132,7 +131,7 @@ async def post(
 
     account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
     storage_engine: StorageEnum
-    content: Dict
+    content: dict
 
     if path:
         if not path.is_file():
@@ -142,7 +141,7 @@ async def post(
         file_size = os.path.getsize(path)
         storage_engine = StorageEnum.ipfs if file_size > 4 * 1024 * 1024 else StorageEnum.storage
 
-        with open(path, "r", encoding="utf-8") as fd:
+        with open(path, encoding="utf-8") as fd:
             content = json.load(fd)
 
     else:
@@ -237,7 +236,7 @@ async def forget(
 
     setup_logging(debug)
 
-    hash_list: List[ItemHash] = [ItemHash(h) for h in hashes.split(",")]
+    hash_list: list[ItemHash] = [ItemHash(h) for h in hashes.split(",")]
 
     account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
     async with AuthenticatedAlephHttpClient(account=account, api_server=settings.API_HOST) as client:
@@ -287,7 +286,7 @@ def sign(
     try:
         data = json.loads(message)
     except json.JSONDecodeError:
-        typer.echo(f"Error: Message isn't a valid JSON")
+        typer.echo("Error: Message isn't a valid JSON")
         raise typer.Exit(code=1)
 
     coroutine = account.sign_message(data)

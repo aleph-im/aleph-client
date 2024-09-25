@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from time import sleep
-from typing import Dict, Optional, cast
+from typing import Optional, cast
 
 import typer
 from aleph.sdk.account import _load_account
@@ -107,7 +107,7 @@ async def attach_resource(
 
         async with AuthenticatedAlephHttpClient(account=account, api_server=settings.API_HOST) as client:
 
-            options: Optional[Dict] = None
+            options: Optional[dict] = None
             if catch_all_path and catch_all_path.startswith("/"):
                 options = {"catch_all_path": catch_all_path}
 

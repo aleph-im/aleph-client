@@ -4,7 +4,7 @@ import inspect
 import logging
 from json import JSONDecodeError, dumps, loads
 from pathlib import Path
-from typing import Optional
+from typing import Annotated, Optional
 
 import typer
 from aiohttp import ClientResponseError, ClientSession
@@ -18,7 +18,6 @@ from aleph_message.status import MessageStatus
 from rich.console import Console
 from rich.panel import Panel
 from rich.text import Text
-from typing_extensions import Annotated
 
 from aleph_client.commands import help_strings
 from aleph_client.commands.utils import setup_logging
@@ -109,7 +108,11 @@ async def post(
     content: Annotated[
         str,
         typer.Argument(
-            help='Aggregate content, in json format and between single quotes. E.g. \'{"a": 1, "b": 2}\'. If a subkey is provided, also allow to pass a string content between quotes',
+            help=(
+                'Aggregate content, in json format and between single quotes. E.g. \'{"a": 1, '
+                '"b": 2}\'. If a subkey is provided, also allow to pass a string content between '
+                "quotes"
+            ),
         ),
     ],
     subkey: Annotated[Optional[str], typer.Option(help="Specified subkey where the content will be replaced")] = None,
@@ -250,7 +253,7 @@ async def list_aggregates(
                     infos.append(
                         Text.from_markup(f"\n↳ [orange1]{key}[/orange1]:"),
                     )
-                    if type(value) == dict and any([v is None for _, v in value.items()]):
+                    if type(value) == dict and any(v is None for _, v in value.items()):
                         infos.append(
                             Text.from_markup("\n[gray50]x empty[/gray50]"),
                         )

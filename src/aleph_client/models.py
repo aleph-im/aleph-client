@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import List, Optional
+from typing import Optional
 
 from aleph.sdk.types import StoredContent
 from aleph_message.models import ItemHash
@@ -60,8 +60,8 @@ class GpuDevice(BaseModel):
 
 
 class GPUProperties(BaseModel):
-    devices: List[GpuDevice]
-    available_devices: List[GpuDevice]
+    devices: list[GpuDevice]
+    available_devices: list[GpuDevice]
 
 
 class MachineUsage(BaseModel):

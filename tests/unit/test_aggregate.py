@@ -19,18 +19,18 @@ from aleph_client.commands.aggregate import (
 
 from .mocks import FAKE_ADDRESS_EVM, create_mock_load_account
 
-FAKE_AGGREGATE_DATA = dict(
-    AI=dict(
-        subscription="premium",
-        models=dict(
-            chatgpt=True,
-            claude=False,
-            libertai=True,
-        ),
-        active=True,
-    ),
-    security=dict(authorizations=[dict(address=FAKE_ADDRESS_EVM, types=["POST"])]),
-)
+FAKE_AGGREGATE_DATA = {
+    "AI": {
+        "subscription": "premium",
+        "models": {
+            "chatgpt": True,
+            "claude": False,
+            "libertai": True,
+        },
+        "active": True,
+    },
+    "security": {"authorizations": [{"address": FAKE_ADDRESS_EVM, "types": ["POST"]}]},
+}
 
 
 @contextlib.asynccontextmanager
@@ -38,7 +38,7 @@ async def mock_client_session_get(self, aggr_link):
     yield AsyncMock(
         status=200,
         raise_for_status=MagicMock(),
-        json=AsyncMock(return_value=dict(data=FAKE_AGGREGATE_DATA)),
+        json=AsyncMock(return_value={"data": FAKE_AGGREGATE_DATA}),
     )
 
 
@@ -56,9 +56,9 @@ def create_mock_auth_client(return_fetch=FAKE_AGGREGATE_DATA):
     ids=["by_key_only", "by_key_and_subkey", "by_key_and_subkeys"],
     argnames="args",
     argvalues=[
-        dict(key="AI"),  # by key only
-        dict(key="AI", subkeys="models"),  # with subkey
-        dict(key="AI", subkeys="models,subscription"),  # with subkeys
+        {"key": "AI"},  # by key only
+        {"key": "AI", "subkeys": "models"},  # with subkey
+        {"key": "AI", "subkeys": "models,subscription"},  # with subkeys
     ],
 )
 @pytest.mark.asyncio
@@ -88,8 +88,8 @@ async def test_forget(capsys, args):
     ids=["by_key_only", "by_key_and_subkey"],
     argnames="args",
     argvalues=[
-        dict(key="AI", content='{"test": "ok"}'),  # by key only
-        dict(key="AI", subkey="models", content='{"chatgpt": true, "claude": true, "libertai": true}'),  # with subkey
+        {"key": "AI", "content": '{"test": "ok"}'},  # by key only
+        {"key": "AI", "subkey": "models", "content": '{"chatgpt": true, "claude": true, "libertai": true}'},  # with subkey
     ],
 )
 @pytest.mark.asyncio
@@ -115,14 +115,14 @@ async def test_post(capsys, args):
     ids=["by_key_only", "by_key_and_subkey", "by_key_and_subkeys"],
     argnames=["args", "expected"],
     argvalues=[
-        (dict(key="AI"), FAKE_AGGREGATE_DATA["AI"]),  # by key only
+        ({"key": "AI"}, FAKE_AGGREGATE_DATA["AI"]),  # by key only
         (  # with subkey
-            dict(key="AI", subkeys="subscription"),
-            dict(subscription=FAKE_AGGREGATE_DATA["AI"]["subscription"]),  # type: ignore
+            {"key": "AI", "subkeys": "subscription"},
+            {"subscription": FAKE_AGGREGATE_DATA["AI"]["subscription"]},  # type: ignore
         ),
         (  # with subkeys
-            dict(key="AI", subkeys="subscription,models"),
-            dict(subscription=FAKE_AGGREGATE_DATA["AI"]["subscription"], models=FAKE_AGGREGATE_DATA["AI"]["models"]),  # type: ignore
+            {"key": "AI", "subkeys": "subscription,models"},
+            {"subscription": FAKE_AGGREGATE_DATA["AI"]["subscription"], "models": FAKE_AGGREGATE_DATA["AI"]["models"]},  # type: ignore
         ),
     ],
 )

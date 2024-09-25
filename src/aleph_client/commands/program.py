@@ -6,7 +6,7 @@ import re
 from base64 import b16decode, b32encode
 from collections.abc import Mapping
 from pathlib import Path
-from typing import List, Optional, cast
+from typing import Optional, cast
 from zipfile import BadZipFile
 
 import aiohttp
@@ -75,9 +75,9 @@ async def upload(
     persistent: bool = False,
     updatable: bool = typer.Option(False, help=help_strings.PROGRAM_UPDATABLE),
     skip_volume: bool = typer.Option(False, help=help_strings.SKIP_VOLUME),
-    persistent_volume: Optional[List[str]] = typer.Option(None, help=help_strings.PERSISTENT_VOLUME),
-    ephemeral_volume: Optional[List[str]] = typer.Option(None, help=help_strings.EPHEMERAL_VOLUME),
-    immutable_volume: Optional[List[str]] = typer.Option(
+    persistent_volume: Optional[list[str]] = typer.Option(None, help=help_strings.PERSISTENT_VOLUME),
+    ephemeral_volume: Optional[list[str]] = typer.Option(None, help=help_strings.EPHEMERAL_VOLUME),
+    immutable_volume: Optional[list[str]] = typer.Option(
         None,
         help=help_strings.IMMUTABLE_VOLUME,
     ),
@@ -125,7 +125,7 @@ async def upload(
     if not skip_env_var:
         environment_variables = get_or_prompt_environment_variables(env_vars)
 
-    subscriptions: Optional[List[Mapping]] = None
+    subscriptions: Optional[list[Mapping]] = None
     if beta and yes_no_input("Subscribe to messages?", default=False):
         content_raw = input_multiline()
         try:
@@ -162,7 +162,7 @@ async def upload(
         message, status = await client.create_program(
             program_ref=program_ref,
             entrypoint=entrypoint,
-            metadata=dict(name=name),
+            metadata={"name": name},
             allow_amend=updatable,
             runtime=runtime,
             storage_engine=StorageEnum.storage,
@@ -416,7 +416,7 @@ async def list_programs(
                 typer.echo(message.json(indent=4))
         else:
             # Since we filtered on message type, we can safely cast as ProgramMessage.
-            messages = cast(List[ProgramMessage], messages)
+            messages = cast(list[ProgramMessage], messages)
 
             table = Table(box=box.ROUNDED, style="blue_violet")
             table.add_column(f"Programs [{len(messages)}]", style="blue", overflow="fold")
@@ -708,10 +708,10 @@ async def logs(
                 logger.debug(await response.text())
 
             if response.status == 404:
-                echo(f"Server didn't found any execution of this program")
+                echo("Server didn't found any execution of this program")
                 return 1
             elif response.status == 403:
-                echo(f"You are not the owner of this VM. Maybe try with another wallet?")
+                echo("You are not the owner of this VM. Maybe try with another wallet?")
                 return 1
             elif response.status != 200:
                 echo(f"Server error: {response.status}. Please try again later")
@@ -759,10 +759,11 @@ async def runtime_checker(
             debug=debug,
         )
         if not program_hash:
-            raise Exception("No program hash")
+            msg = "No program hash"
+            raise Exception(msg)
     except Exception as e:
         echo(f"Failed to deploy the runtime checker program: {e}")
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from e
 
     program_url = settings.VM_URL_PATH.format(hash=program_hash)
     versions: dict
@@ -775,7 +776,7 @@ async def runtime_checker(
                 versions = await resp.json()
     except Exception as e:
         logger.debug(f"Unexpected error when calling {program_url}: {e}")
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from e
 
     echo("Delete runtime checker...")
     try:
@@ -791,7 +792,7 @@ async def runtime_checker(
         )
     except Exception as e:
         echo(f"Failed to delete the runtime checker program: {e}")
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from e
 
     console = Console()
     infos = [Text.from_markup(f"[bold]Ref:[/bold] [bright_cyan]{item_hash}[/bright_cyan]")]
