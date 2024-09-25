@@ -405,7 +405,10 @@ async def create(
                     await wait_for_confirmed_flow(account, message.content.payment.receiver)
                     if flow_hash:
                         echo(
-                            f"Flow {flow_hash} has been created:\n - Aleph cost summary:\n   {price.required_tokens:.7f}/sec | {3600*price.required_tokens:.2f}/hour | {86400*price.required_tokens:.2f}/day | {2592000*price.required_tokens:.2f}/month\n - CRN receiver address: {crn.stream_reward_address}"
+                            f"Flow {flow_hash} has been created:\n - Aleph cost summary:\n   "
+                            f"{price.required_tokens:.7f}/sec | {3600*price.required_tokens:.2f}/hour | "
+                            f"{86400*price.required_tokens:.2f}/day | {2592000*price.required_tokens:.2f}/month\n - "
+                            f"CRN receiver address: {crn.stream_reward_address}"
                         )
 
             # Notify CRN
@@ -476,7 +479,10 @@ async def delete(
     print_message: bool = typer.Option(False),
     debug: bool = False,
 ):
-    """Delete an instance, unallocating all resources associated with it. Associated VM will be stopped and erased. Immutable volumes will not be deleted."""
+    """
+    Delete an instance, unallocating all resources associated with it. Associated VM will be stopped and erased.
+    Immutable volumes will not be deleted.
+    """
 
     setup_logging(debug)
 
@@ -595,11 +601,16 @@ async def _show_instances(messages: builtins.list[InstanceMessage], node_list: N
             cost,
             chain,
         )
+        hyperv_specifications = (
+            safe_getattr(message, "content.environment.hypervisor.value").capitalize()
+            if safe_getattr(message, "content.environment.hypervisor")
+            else "Firecracker"
+        )
         specifications = (
             f"vCPUs: {message.content.resources.vcpus}\n"
             f"RAM: {message.content.resources.memory / 1_024:.2f} GiB\n"
             f"Disk: {message.content.rootfs.size_mib / 1_024:.2f} GiB\n"
-            f"HyperV: {safe_getattr(message, 'content.environment.hypervisor.value').capitalize() if safe_getattr(message, 'content.environment.hypervisor') else 'Firecracker'}\n"
+            f"HyperV: {hyperv_specifications}\n"
         )
         status_column = Text.assemble(
             Text.assemble(
@@ -909,7 +920,8 @@ async def confidential_init_session(
 
     if godh_path.exists() and keep_session is None:
         keep_session = not Confirm.ask(
-            "Session already initiated for this instance, are you sure you want to override the previous one? You won't be able to communicate with already running VM"
+            "Session already initiated for this instance, are you sure you want to override the previous one? You "
+            "won't be able to communicate with already running VM"
         )
         if keep_session:
             echo("Keeping already initiated session")
@@ -920,7 +932,8 @@ async def confidential_init_session(
         code, platform_file = await client.get_certificates()
         if code != 200:
             echo(
-                "Failed to retrieve platform certificate from the CRN. This node might be temporary down, please try again later. If the problem persist, contact the node operator."
+                "Failed to retrieve platform certificate from the CRN. This node might be temporary down, please try "
+                "again later. If the problem persist, contact the node operator."
             )
             return 1
 
