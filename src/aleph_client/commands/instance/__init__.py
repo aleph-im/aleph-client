@@ -516,7 +516,7 @@ async def delete(
         crn_url = str(info["crn_url"])
         if not auto_scheduled and crn_url:
             try:
-                status = await erase(item_hash, crn_url, private_key, private_key_file, True, debug)
+                status = await erase(item_hash, crn_url, private_key, private_key_file, silent=True, debug=debug)
                 if status == 1:
                     echo(f"No associated VM on {crn_url}. Skipping...")
             except Exception:
