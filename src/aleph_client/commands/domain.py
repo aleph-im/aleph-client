@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from time import sleep
-from typing import Dict, Optional, cast
+from typing import cast
 
 import typer
 from aleph.sdk.account import _load_account
@@ -64,9 +64,9 @@ async def check_domain_records(fqdn, target, owner):
 async def attach_resource(
     account: AccountFromPrivateKey,
     fqdn: Hostname,
-    item_hash: Optional[str] = None,
-    catch_all_path: Optional[str] = None,
-    interactive: Optional[bool] = None,
+    item_hash: str | None = None,
+    catch_all_path: str | None = None,
+    interactive: bool | None = None,
 ):
     interactive = is_environment_interactive() if interactive is None else interactive
 
@@ -107,7 +107,7 @@ async def attach_resource(
 
         async with AuthenticatedAlephHttpClient(account=account, api_server=settings.API_HOST) as client:
 
-            options: Optional[Dict] = None
+            options: dict | None = None
             if catch_all_path and catch_all_path.startswith("/"):
                 options = {"catch_all_path": catch_all_path}
 
@@ -134,7 +134,7 @@ async def attach_resource(
             )
 
 
-async def detach_resource(account: AccountFromPrivateKey, fqdn: Hostname, interactive: Optional[bool] = None):
+async def detach_resource(account: AccountFromPrivateKey, fqdn: Hostname, interactive: bool | None = None):
     domain_info = await get_aggregate_domain_info(account, fqdn)
     interactive = is_environment_interactive() if interactive is None else interactive
 
@@ -173,12 +173,12 @@ async def detach_resource(account: AccountFromPrivateKey, fqdn: Hostname, intera
 
 @app.command()
 async def add(
-    private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
-    private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
+    private_key: str | None = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
+    private_key_file: Path | None = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
     fqdn: str = typer.Argument(..., help=help_strings.CUSTOM_DOMAIN_NAME),
-    target: Optional[TargetType] = typer.Option(None, help=help_strings.CUSTOM_DOMAIN_TARGET_TYPES),
-    item_hash: Optional[str] = typer.Option(None, help=help_strings.CUSTOM_DOMAIN_ITEM_HASH),
-    owner: Optional[str] = typer.Option(None, help=help_strings.CUSTOM_DOMAIN_OWNER_ADDRESS),
+    target: TargetType | None = typer.Option(None, help=help_strings.CUSTOM_DOMAIN_TARGET_TYPES),
+    item_hash: str | None = typer.Option(None, help=help_strings.CUSTOM_DOMAIN_ITEM_HASH),
+    owner: str | None = typer.Option(None, help=help_strings.CUSTOM_DOMAIN_OWNER_ADDRESS),
     ask: bool = typer.Option(default=True, help=help_strings.ASK_FOR_CONFIRMATION),
 ):
     """Add and link a Custom Domain."""
@@ -257,10 +257,10 @@ async def add(
 
 @app.command()
 async def attach(
-    private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
-    private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
+    private_key: str | None = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
+    private_key_file: Path | None = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
     fqdn: str = typer.Argument(..., help=help_strings.CUSTOM_DOMAIN_NAME),
-    item_hash: Optional[str] = typer.Option(None, help=help_strings.CUSTOM_DOMAIN_ITEM_HASH),
+    item_hash: str | None = typer.Option(None, help=help_strings.CUSTOM_DOMAIN_ITEM_HASH),
     catch_all_path: str = typer.Option(default=None, help=help_strings.IPFS_CATCH_ALL_PATH),
     ask: bool = typer.Option(default=True, help=help_strings.ASK_FOR_CONFIRMATION),
 ):
@@ -279,8 +279,8 @@ async def attach(
 
 @app.command()
 async def detach(
-    private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
-    private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
+    private_key: str | None = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
+    private_key_file: Path | None = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
     fqdn: str = typer.Argument(..., help=help_strings.CUSTOM_DOMAIN_NAME),
     ask: bool = typer.Option(default=True, help=help_strings.ASK_FOR_CONFIRMATION),
 ):
@@ -293,8 +293,8 @@ async def detach(
 
 @app.command()
 async def info(
-    private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
-    private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
+    private_key: str | None = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
+    private_key_file: Path | None = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
     fqdn: str = typer.Argument(..., help=help_strings.CUSTOM_DOMAIN_NAME),
 ):
     """Show Custom Domain Details."""

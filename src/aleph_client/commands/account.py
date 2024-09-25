@@ -5,7 +5,6 @@ import base64
 import logging
 import sys
 from pathlib import Path
-from typing import Optional
 
 import aiohttp
 import typer
@@ -26,8 +25,8 @@ app = AsyncTyper(no_args_is_help=True)
 
 @app.command()
 def create(
-    private_key: Optional[str] = typer.Option(None, help=help_strings.PRIVATE_KEY),
-    private_key_file: Optional[Path] = typer.Option(None, help=help_strings.PRIVATE_KEY_FILE),
+    private_key: str | None = typer.Option(None, help=help_strings.PRIVATE_KEY),
+    private_key_file: Path | None = typer.Option(None, help=help_strings.PRIVATE_KEY_FILE),
     replace: bool = False,
     debug: bool = False,
 ):
@@ -62,8 +61,8 @@ def create(
 
 @app.command()
 def address(
-    private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
-    private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
+    private_key: str | None = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
+    private_key_file: Path | None = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
 ):
     """
     Display your public address.
@@ -81,8 +80,8 @@ def address(
 
 @app.command()
 def export_private_key(
-    private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
-    private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
+    private_key: str | None = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
+    private_key_file: Path | None = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
 ):
     """
     Display your private key.
@@ -110,9 +109,9 @@ def path():
 
 @app.command("sign-bytes")
 def sign_bytes(
-    message: Optional[str] = typer.Option(None, help="Message to sign"),
-    private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
-    private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
+    message: str | None = typer.Option(None, help="Message to sign"),
+    private_key: str | None = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
+    private_key_file: Path | None = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
     debug: bool = False,
 ):
     """Sign a message using your private key."""
@@ -132,9 +131,9 @@ def sign_bytes(
 
 @app.command()
 async def balance(
-    address: Optional[str] = typer.Option(None, help="Address"),
-    private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
-    private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
+    address: str | None = typer.Option(None, help="Address"),
+    private_key: str | None = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
+    private_key_file: Path | None = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
 ):
     account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
 

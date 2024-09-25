@@ -5,7 +5,7 @@ import logging
 import os
 import sys
 from datetime import datetime
-from typing import Any, Callable, Dict, List, Optional, TypeVar, Union
+from typing import Any, Callable, TypeVar
 
 from aiohttp import ClientSession
 from aleph.sdk import AlephHttpClient
@@ -100,10 +100,10 @@ def prompt_for_volumes():
             }
 
 
-def volume_to_dict(volume: List[str]) -> Optional[Dict[str, Union[str, int]]]:
+def volume_to_dict(volume: list[str]) -> dict[str, str | int] | None:
     if not volume:
         return None
-    dict_store: Dict[str, Union[str, int]] = {}
+    dict_store: dict[str, str | int] = {}
     for word in volume:
         split_values = word.split(",")
         for param in split_values:
@@ -140,7 +140,7 @@ def get_or_prompt_volumes(ephemeral_volume, immutable_volume, persistent_volume)
     return volumes
 
 
-def str_to_datetime(date: Optional[str]) -> Optional[datetime]:
+def str_to_datetime(date: str | None) -> datetime | None:
     """
     Converts a string representation of a date/time to a datetime object.
 
@@ -162,7 +162,7 @@ T = TypeVar("T")
 def validated_prompt(
     prompt: str,
     validator: Callable[[str], Any],
-    default: Optional[str] = None,
+    default: str | None = None,
 ) -> str:
     while True:
         try:
@@ -182,9 +182,9 @@ def validated_prompt(
 
 def validated_int_prompt(
     prompt: str,
-    default: Optional[int] = None,
-    min_value: Optional[int] = None,
-    max_value: Optional[int] = None,
+    default: int | None = None,
+    min_value: int | None = None,
+    max_value: int | None = None,
 ) -> int:
     while True:
         try:
@@ -242,7 +242,8 @@ async def wait_for_processed_instance(session: ClientSession, item_hash: ItemHas
             echo(f"Message {item_hash} is still pending, waiting 10sec...")
             await asyncio.sleep(10)
         elif message["status"] == "rejected":
-            raise Exception(f"Message {item_hash} has been rejected")
+            msg = f"Message {item_hash} has been rejected"
+            raise Exception(msg)
 
 
 async def wait_for_confirmed_flow(account: ETHAccount, receiver: str):
@@ -255,7 +256,7 @@ async def wait_for_confirmed_flow(account: ETHAccount, receiver: str):
         await asyncio.sleep(10)
 
 
-async def filter_only_valid_messages(messages: List[AlephMessage]):
+async def filter_only_valid_messages(messages: list[AlephMessage]):
     """Iteratively check the status of each message from the API and only return
     messages whose status is processed.
     """

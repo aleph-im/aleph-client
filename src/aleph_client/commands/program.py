@@ -5,7 +5,6 @@ import logging
 from base64 import b16decode, b32encode
 from collections.abc import Mapping
 from pathlib import Path
-from typing import List, Optional
 from zipfile import BadZipFile
 
 import typer
@@ -35,15 +34,15 @@ app = AsyncTyper(no_args_is_help=True)
 async def upload(
     path: Path = typer.Argument(..., help="Path to your source code"),
     entrypoint: str = typer.Argument(..., help="Your program entrypoint"),
-    channel: Optional[str] = typer.Option(default=settings.DEFAULT_CHANNEL, help=help_strings.CHANNEL),
+    channel: str | None = typer.Option(default=settings.DEFAULT_CHANNEL, help=help_strings.CHANNEL),
     memory: int = typer.Option(settings.DEFAULT_VM_MEMORY, help="Maximum memory allocation on vm in MiB"),
     vcpus: int = typer.Option(settings.DEFAULT_VM_VCPUS, help="Number of virtual cpus to allocate."),
     timeout_seconds: float = typer.Option(
         settings.DEFAULT_VM_TIMEOUT,
         help="If vm is not called after [timeout_seconds] it will shutdown",
     ),
-    private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
-    private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
+    private_key: str | None = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
+    private_key_file: Path | None = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
     print_messages: bool = typer.Option(False),
     print_code_message: bool = typer.Option(False),
     print_program_message: bool = typer.Option(False),
@@ -57,9 +56,9 @@ async def upload(
     ),
     debug: bool = False,
     persistent: bool = False,
-    persistent_volume: Optional[List[str]] = typer.Option(None, help=help_strings.PERSISTENT_VOLUME),
-    ephemeral_volume: Optional[List[str]] = typer.Option(None, help=help_strings.EPHEMERAL_VOLUME),
-    immutable_volume: Optional[List[str]] = typer.Option(
+    persistent_volume: list[str] | None = typer.Option(None, help=help_strings.PERSISTENT_VOLUME),
+    ephemeral_volume: list[str] | None = typer.Option(None, help=help_strings.EPHEMERAL_VOLUME),
+    immutable_volume: list[str] | None = typer.Option(
         None,
         help=help_strings.IMMUTABLE_VOLUME,
     ),
@@ -89,7 +88,7 @@ async def upload(
         immutable_volume=immutable_volume,
     )
 
-    subscriptions: Optional[List[Mapping]] = None
+    subscriptions: list[Mapping] | None = None
     if beta and yes_no_input("Subscribe to messages ?", default=False):
         content_raw = input_multiline()
         try:
@@ -158,8 +157,8 @@ async def upload(
 async def update(
     item_hash: str = typer.Argument(..., help="Item hash to update"),
     path: Path = typer.Argument(..., help="Source path to upload"),
-    private_key: Optional[str] = settings.PRIVATE_KEY_STRING,
-    private_key_file: Optional[Path] = settings.PRIVATE_KEY_FILE,
+    private_key: str | None = settings.PRIVATE_KEY_STRING,
+    private_key_file: Path | None = settings.PRIVATE_KEY_FILE,
     print_message: bool = True,
     debug: bool = False,
 ):
@@ -213,8 +212,8 @@ async def update(
 @app.command()
 async def unpersist(
     item_hash: str = typer.Argument(..., help="Item hash to unpersist"),
-    private_key: Optional[str] = settings.PRIVATE_KEY_STRING,
-    private_key_file: Optional[Path] = settings.PRIVATE_KEY_FILE,
+    private_key: str | None = settings.PRIVATE_KEY_STRING,
+    private_key_file: Path | None = settings.PRIVATE_KEY_FILE,
     debug: bool = False,
 ):
     """Stop a persistent virtual machine by making it non-persistent"""

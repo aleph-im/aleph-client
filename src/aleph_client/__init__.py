@@ -12,6 +12,7 @@ moved_types = ["__version__", "AlephClient", "AuthenticatedAlephClient", "synchr
 
 def __getattr__(name):
     if name in moved_types:
+        msg = f"The 'aleph_client.{name}' type is deprecated and has been removed from aleph_client. Please use `aleph.sdk.{name}` instead."
         raise ImportError(
-            f"The 'aleph_client.{name}' type is deprecated and has been removed from aleph_client. Please use `aleph.sdk.{name}` instead."
+            msg
         )

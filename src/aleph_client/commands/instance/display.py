@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import Dict, Optional, Set
 
 from textual.app import App
 from textual.containers import Horizontal
@@ -21,8 +20,8 @@ logger = logging.getLogger(__name__)
 
 class CRNTable(App[CRNInfo]):
     table: DataTable
-    tasks: Set[asyncio.Task] = set()
-    crns: Dict[RowKey, CRNInfo] = {}
+    tasks: set[asyncio.Task] = set()
+    crns: dict[RowKey, CRNInfo] = {}
     total_crns: int
     active_crns: int = 0
     filtered_crns: int = 0
@@ -167,7 +166,7 @@ class CRNTable(App[CRNInfo]):
 
     def on_data_table_row_selected(self, message: DataTable.RowSelected):
         """Return the selected row"""
-        selected_crn: Optional[CRNInfo] = self.crns.get(message.row_key)
+        selected_crn: CRNInfo | None = self.crns.get(message.row_key)
         self.exit(selected_crn)
 
     def sort_reverse(self, sort_type: str) -> bool:
