@@ -56,7 +56,7 @@ async def create(
     setup_logging(debug)
 
     try:
-        if settings.CONFIG_FILE.exists() and settings.ONFIG_FILE.stat().st_size > 0:
+        if settings.CONFIG_FILE.exists() and settings.CONFIG_FILE.stat().st_size > 0:
             with open(settings.CONFIG_FILE, "r") as f:
                 chain_accounts = json.load(f)
         else:
