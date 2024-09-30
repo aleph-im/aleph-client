@@ -34,6 +34,8 @@ dependencies = [
   "rich==13.7.1",
   "aiodns==3.2.0",
   "textual==0.73.0",
+  "base58==2.1.1", # Needed now as default with _load_account changement
+  "pynacl==1.5.0" # Needed now as default with _load_account changement
 ]
 [project.optional-dependencies]
 nuls2 = ["nuls2-sdk==0.1.0"]

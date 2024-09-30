@@ -13,6 +13,7 @@ import typer
 from aiohttp import ClientSession
 from aleph.sdk.conf import settings
 from aleph.sdk.types import GenericMessage
+from aleph.sdk.utils import load_json
 from aleph_message.models.base import MessageType
 from aleph_message.models.execution.base import Encoding
 
@@ -100,3 +101,19 @@ def extract_valid_eth_address(address: str) -> str:
         if match:
             return match.group(0)
     return ""
+
+
+async def list_unlinked_keys():
+    """List private key files that are not linked to any chain type."""
+    config_home = settings.CONFIG_HOME if settings.CONFIG_HOME else str(Path.home())
+    private_key_dir = Path(config_home, "private-keys")
+    if not private_key_dir.exists():
+        return []
+
+    all_private_key_files = list(private_key_dir.glob("*.key"))
+
+    chain_accounts = await load_json(settings.CHAINS_CONFIG_FILE)
+
+    linked_key_paths = {Path(account["path"]) for account in chain_accounts}
+
+    return [key_file for key_file in all_private_key_files if key_file not in linked_key_paths]
