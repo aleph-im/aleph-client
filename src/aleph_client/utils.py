@@ -112,7 +112,7 @@ async def list_unlinked_keys():
 
     all_private_key_files = list(private_key_dir.glob("*.key"))
 
-    chain_accounts = await load_json(settings.CHAINS_CONFIG_FILE)
+    chain_accounts = await load_json(settings.CONFIG_FILE)
 
     linked_key_paths = {Path(account["path"]) for account in chain_accounts}
 

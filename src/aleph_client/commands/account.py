@@ -56,8 +56,8 @@ async def create(
     setup_logging(debug)
 
     try:
-        if settings.CHAINS_CONFIG_FILE.exists() and settings.CHAINS_CONFIG_FILE.stat().st_size > 0:
-            with open(settings.CHAINS_CONFIG_FILE, "r") as f:
+        if settings.CONFIG_FILE.exists() and settings.ONFIG_FILE.stat().st_size > 0:
+            with open(settings.CONFIG_FILE, "r") as f:
                 chain_accounts = json.load(f)
         else:
             chain_accounts = []
@@ -229,7 +229,7 @@ async def balance(
 async def list():
     """List all chain accounts from the config file."""
 
-    chain_accounts = await load_json(settings.CHAINS_CONFIG_FILE)
+    chain_accounts = await load_json(settings.CONFIG_FILE)
 
     table = Table(title="Chain Accounts", show_lines=True)
 
