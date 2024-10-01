@@ -6,15 +6,15 @@ import re
 from functools import partial, wraps
 from pathlib import Path
 from shutil import make_archive
-from typing import Tuple, Type
+from typing import List, Optional, Tuple, Type
 from zipfile import BadZipFile, ZipFile
 
 import typer
 from aiohttp import ClientSession
 from aleph.sdk.conf import settings
-from aleph.sdk.types import GenericMessage
-from aleph.sdk.utils import load_json
-from aleph_message.models.base import MessageType
+from aleph.sdk.types import ChainAccount, GenericMessage
+from aleph.sdk.utils import load_account_key_context
+from aleph_message.models.base import Chain, MessageType
 from aleph_message.models.execution.base import Encoding
 
 logger = logging.getLogger(__name__)
@@ -103,17 +103,31 @@ def extract_valid_eth_address(address: str) -> str:
     return ""
 
 
-async def list_unlinked_keys():
-    """List private key files that are not linked to any chain type."""
+async def list_unlinked_keys() -> Tuple[List[Path], Optional[ChainAccount]]:
+    """
+    List private key files that are not linked to any chain type and return the active ChainAccount.
+
+    Returns:
+        - A tuple containing:
+            - A list of unlinked private key files as Path objects.
+            - The active ChainAccount object (the single account in the config file).
+    """
     config_home = settings.CONFIG_HOME if settings.CONFIG_HOME else str(Path.home())
     private_key_dir = Path(config_home, "private-keys")
+
     if not private_key_dir.exists():
-        return []
+        return [], None
 
     all_private_key_files = list(private_key_dir.glob("*.key"))
 
-    chain_accounts = await load_json(settings.CONFIG_FILE)
+    account_data: Optional[ChainAccount] = load_account_key_context(Path(settings.CONFIG_FILE))
 
-    linked_key_paths = {Path(account["path"]) for account in chain_accounts}
+    if not account_data:
+        logger.warning("No account data found in the config file.")
+        return all_private_key_files, None
 
-    return [key_file for key_file in all_private_key_files if key_file not in linked_key_paths]
+    active_key_path = account_data.path
+
+    unlinked_keys: List[Path] = [key_file for key_file in all_private_key_files if key_file != active_key_path]
+
+    return unlinked_keys, account_data

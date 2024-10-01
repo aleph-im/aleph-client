@@ -26,7 +26,7 @@ from aleph.sdk.exceptions import (
 from aleph.sdk.query.filters import MessageFilter
 from aleph.sdk.query.responses import PriceResponse
 from aleph.sdk.types import AccountFromPrivateKey, StorageEnum
-from aleph.sdk.utils import calculate_firmware_hash, get_chain_account_from_path
+from aleph.sdk.utils import calculate_firmware_hash, load_account_key_context
 from aleph_message.models import InstanceMessage, StoreMessage
 from aleph_message.models.base import Chain, MessageType
 from aleph_message.models.execution.base import Payment, PaymentType
@@ -142,10 +142,14 @@ async def create(
 
     account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
 
+
     try:
         if payment_chain is None:
-            key_context = await get_chain_account_from_path(str(private_key_file))
-            payment_chain = key_context.chain
+            key_context = load_account_key_context(settings.CONFIG_FILE)
+
+            if key_context is not None:
+                payment_chain = key_context.chain
+
     except Exception as e:
         pass
 
