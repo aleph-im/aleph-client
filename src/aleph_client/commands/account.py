@@ -10,17 +10,16 @@ from typing import Optional
 
 import aiohttp
 import typer
-from aleph.sdk.account import (
-    CHAIN_TO_ACCOUNT_MAP,
-    _load_account,
-    detect_chain_from_private_key,
+from aleph.sdk.account import _load_account
+from aleph.sdk.chains.common import generate_key
+from aleph.sdk.chains.solana import parse_private_key as parse_solana_private_key
+from aleph.sdk.conf import (
+    MainConfiguration,
+    load_main_configuration,
+    save_main_configuration,
+    settings,
 )
-from aleph.sdk.chains.common import generate_key, generate_key_solana
-from aleph.sdk.chains.ethereum import ETHAccount
-from aleph.sdk.chains.solana import parse_solana_private_key
-from aleph.sdk.conf import settings
-from aleph.sdk.types import AccountFromPrivateKey, ChainAccount
-from aleph.sdk.utils import load_account_key_context, upsert_chain_account
+from aleph.sdk.types import AccountFromPrivateKey
 from aleph_message.models import Chain
 from rich.console import Console
 from rich.prompt import Prompt
@@ -50,7 +49,7 @@ async def create(
 
     try:
         if settings.CONFIG_FILE.exists() and settings.CONFIG_FILE.stat().st_size > 0:
-            with open(settings.CONFIG_FILE, "r") as f:
+            with open(settings.CONFIG_FILE, "r", encoding="utf-8") as f:
                 chain_accounts = json.load(f)
         else:
             chain_accounts = []
@@ -59,7 +58,12 @@ async def create(
         raise typer.Exit(1)
 
     if private_key_file is None:
-        private_key_file = Path(typer.prompt("Enter file in which to save the key", settings.PRIVATE_KEY_FILE))
+        private_key_file = Path(
+            typer.prompt("Enter a filename for your new private key", settings.PRIVATE_KEY_FILE.name)
+        )
+        if not private_key_file.name.endswith(".key"):
+            private_key_file = private_key_file.with_suffix(".key")
+        private_key_file = Path(settings.CONFIG_HOME, "private-keys", private_key_file)
 
     if private_key_file.exists() and not replace:
         typer.secho(f"Error: key already exists: '{private_key_file}'", fg=RED)
@@ -72,30 +76,25 @@ async def create(
 
     private_key_bytes: bytes
     if private_key is not None:
-
-        private_key_type: Chain = detect_chain_from_private_key(private_key)
-        account_class = CHAIN_TO_ACCOUNT_MAP.get(private_key_type, ETHAccount)
-
-        _load_account(private_key_str=private_key, account_type=account_class)
-        if private_key_type == Chain.ETH:
-            private_key_bytes = bytes.fromhex(private_key)
-        else:
+        if chain_type == Chain.SOL:
             private_key_bytes = parse_solana_private_key(private_key)
+        else:
+            private_key_bytes = bytes.fromhex(private_key)
 
     else:
         if not chain_type:
             chain_type = Chain(
                 Prompt.ask(
-                    "Which chain u want to be loaded as: ",
-                    choices=[Chain.ETH, Chain.SOL, Chain.AVAX, Chain.BASE],
+                    "Select the default chain to load: ",
+                    choices=[Chain.ETH, Chain.AVAX, Chain.BASE, Chain.SOL],
                     default=Chain.ETH.value,
                 )
             )
-
-        if chain_type.SOL:
+        private_key_bytes = generate_key()
+        """ if chain_type.SOL:
             private_key_bytes = generate_key_solana()
         else:
-            private_key_bytes = generate_key()
+            private_key_bytes = generate_key() """
 
     if not private_key_bytes:
         typer.secho("An unexpected error occurred!", fg=RED)
@@ -104,9 +103,9 @@ async def create(
     private_key_file.parent.mkdir(parents=True, exist_ok=True)
     private_key_file.write_bytes(private_key_bytes)
     typer.secho(f"Private key stored in {private_key_file}", fg=RED)
-    account = ChainAccount(path=private_key_file, chain=chain_type if chain_type else Chain.ETH)
+    account = MainConfiguration(path=private_key_file, chain=chain_type if chain_type else Chain.ETH)
     if replace:
-        await upsert_chain_account(account, private_key_file)
+        save_main_configuration(settings.CONFIG_FILE, account)
         typer.secho(f"Private : {account.path} on chain {account.chain} is now Default", fg=GREEN)
 
 
@@ -220,7 +219,7 @@ async def list():
     """List the current chain account and unlinked keys from the config file."""
 
     config_file_path = Path(settings.CONFIG_FILE)
-    active_account = load_account_key_context(config_file_path)
+    active_account = load_main_configuration(config_file_path)
 
     unlinked_keys, _ = await list_unlinked_keys()
 
@@ -238,7 +237,8 @@ async def list():
 
     if unlinked_keys:
         for key_file in unlinked_keys:
-            table.add_row(key_file.stem, str(key_file), "-")
+            if key_file.stem != "default":
+                table.add_row(key_file.stem, str(key_file), "-")
 
     console.print(table)
 
@@ -290,10 +290,10 @@ async def config(
     typer.secho(f"Private key file: {private_key_file}", fg=typer.colors.YELLOW)
     typer.secho(f"Chain type: {chain_type}", fg=typer.colors.YELLOW)
 
-    new_account = ChainAccount(path=private_key_file, chain=Chain(chain_type))
+    new_account = MainConfiguration(path=private_key_file, chain=Chain(chain_type))
 
     try:
-        await upsert_chain_account(new_account, settings.CONFIG_FILE)
+        save_main_configuration(settings.CONFIG_FILE, new_account)
         typer.secho(f"Key file {private_key_file} linked to {chain_type} successfully.", fg=typer.colors.GREEN)
     except ValueError as e:
         typer.secho(f"Error: {e}", fg=typer.colors.RED)
@@ -309,7 +309,7 @@ async def update(
     """
 
     try:
-        existing_account = load_account_key_context(settings.CONFIG_FILE)
+        existing_account = load_main_configuration(settings.CONFIG_FILE)
 
         if private_key_file:
             new_key_file = private_key_file
@@ -327,9 +327,9 @@ async def update(
             typer.secho("No chain type available", fg=typer.colors.RED)
             typer.Exit(1)
 
-        updated_account = ChainAccount(path=new_key_file, chain=Chain(new_chain_type))
+        updated_account = MainConfiguration(path=new_key_file, chain=Chain(new_chain_type))
 
-        await upsert_chain_account(updated_account, settings.CONFIG_FILE)
+        save_main_configuration(settings.CONFIG_FILE, updated_account)
 
         typer.secho(
             f"Account {updated_account.path} Chain : {updated_account.chain} updated successfully!",

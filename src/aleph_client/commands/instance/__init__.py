@@ -16,7 +16,7 @@ from aleph.sdk.account import _load_account
 from aleph.sdk.chains.ethereum import ETHAccount
 from aleph.sdk.client.vm_client import VmClient
 from aleph.sdk.client.vm_confidential_client import VmConfidentialClient
-from aleph.sdk.conf import settings
+from aleph.sdk.conf import load_main_configuration, settings
 from aleph.sdk.evm_utils import get_chains_with_super_token
 from aleph.sdk.exceptions import (
     ForgottenMessageError,
@@ -26,7 +26,7 @@ from aleph.sdk.exceptions import (
 from aleph.sdk.query.filters import MessageFilter
 from aleph.sdk.query.responses import PriceResponse
 from aleph.sdk.types import AccountFromPrivateKey, StorageEnum
-from aleph.sdk.utils import calculate_firmware_hash, load_account_key_context
+from aleph.sdk.utils import calculate_firmware_hash
 from aleph_message.models import InstanceMessage, StoreMessage
 from aleph_message.models.base import Chain, MessageType
 from aleph_message.models.execution.base import Payment, PaymentType
@@ -142,10 +142,9 @@ async def create(
 
     account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
 
-
     try:
         if payment_chain is None:
-            key_context = load_account_key_context(settings.CONFIG_FILE)
+            key_context = load_main_configuration(settings.CONFIG_FILE)
 
             if key_context is not None:
                 payment_chain = key_context.chain
