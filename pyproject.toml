@@ -198,7 +198,10 @@ ignore = [
 #  # Ignore complexity
 #  "C901", "PLR0911", "PLR0912", "PLR0913", "PLR0915",
   # Allow the use of assert statements
-  "S101"
+  "S101",
+  # this will try to use non supported yet type annotation like `tuple[stuff]`
+  # https://docs.astral.sh/ruff/rules/non-pep585-annotation/
+  "UP006",
 ]
 
 #[tool.ruff.isort]
