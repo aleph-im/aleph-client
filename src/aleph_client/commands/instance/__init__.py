@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 import asyncio
+import builtins
 import json
 import logging
 import shutil
 from decimal import Decimal
 from math import ceil
 from pathlib import Path
-from typing import List, Optional, Tuple, Union, cast
+from typing import cast
 
 import aiohttp
 import typer
@@ -73,21 +74,21 @@ app = AsyncTyper(no_args_is_help=True)
 
 @app.command()
 async def create(
-    payment_type: Optional[str] = typer.Option(
+    payment_type: str | None = typer.Option(
         None,
         help=help_strings.PAYMENT_TYPE,
         callback=lambda pt: None if pt is None else PaymentType.hold if pt == "nft" else PaymentType(pt),
         metavar=f"[{'|'.join(PaymentType)}|nft]",
     ),
-    payment_chain: Optional[Chain] = typer.Option(
+    payment_chain: Chain | None = typer.Option(
         None, help=help_strings.PAYMENT_CHAIN, metavar=f"[{'|'.join([Chain.ETH, Chain.AVAX, Chain.BASE])}]"
     ),
-    hypervisor: Optional[HypervisorType] = typer.Option(None, help=help_strings.HYPERVISOR),
-    name: Optional[str] = typer.Option(None, help=help_strings.INSTANCE_NAME),
-    rootfs: Optional[str] = typer.Option(None, help=help_strings.ROOTFS),
-    rootfs_size: Optional[int] = typer.Option(None, help=help_strings.ROOTFS_SIZE),
-    vcpus: Optional[int] = typer.Option(None, help=help_strings.VCPUS),
-    memory: Optional[int] = typer.Option(None, help=help_strings.MEMORY),
+    hypervisor: HypervisorType | None = typer.Option(None, help=help_strings.HYPERVISOR),
+    name: str | None = typer.Option(None, help=help_strings.INSTANCE_NAME),
+    rootfs: str | None = typer.Option(None, help=help_strings.ROOTFS),
+    rootfs_size: int | None = typer.Option(None, help=help_strings.ROOTFS_SIZE),
+    vcpus: int | None = typer.Option(None, help=help_strings.VCPUS),
+    memory: int | None = typer.Option(None, help=help_strings.MEMORY),
     timeout_seconds: float = typer.Option(
         settings.DEFAULT_VM_TIMEOUT,
         help=help_strings.TIMEOUT_SECONDS,
@@ -96,36 +97,38 @@ async def create(
         Path("~/.ssh/id_rsa.pub").expanduser(),
         help=help_strings.SSH_PUBKEY_FILE,
     ),
-    crn_hash: Optional[str] = typer.Option(None, help=help_strings.CRN_HASH),
-    crn_url: Optional[str] = typer.Option(None, help=help_strings.CRN_URL),
+    crn_hash: str | None = typer.Option(None, help=help_strings.CRN_HASH),
+    crn_url: str | None = typer.Option(None, help=help_strings.CRN_URL),
     confidential: bool = typer.Option(False, help=help_strings.CONFIDENTIAL_OPTION),
     confidential_firmware: str = typer.Option(
         default=settings.DEFAULT_CONFIDENTIAL_FIRMWARE, help=help_strings.CONFIDENTIAL_FIRMWARE
     ),
     skip_volume: bool = typer.Option(False, help=help_strings.SKIP_VOLUME),
-    persistent_volume: Optional[List[str]] = typer.Option(None, help=help_strings.PERSISTENT_VOLUME),
-    ephemeral_volume: Optional[List[str]] = typer.Option(None, help=help_strings.EPHEMERAL_VOLUME),
-    immutable_volume: Optional[List[str]] = typer.Option(
+    persistent_volume: builtins.list[str] | None = typer.Option(None, help=help_strings.PERSISTENT_VOLUME),
+    ephemeral_volume: builtins.list[str] | None = typer.Option(None, help=help_strings.EPHEMERAL_VOLUME),
+    immutable_volume: builtins.list[str] | None = typer.Option(
         None,
         help=help_strings.IMMUTABLE_VOLUME,
     ),
-    channel: Optional[str] = typer.Option(default=settings.DEFAULT_CHANNEL, help=help_strings.CHANNEL),
-    private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
-    private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
+    channel: str | None = typer.Option(default=settings.DEFAULT_CHANNEL, help=help_strings.CHANNEL),
+    private_key: str | None = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
+    private_key_file: Path | None = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
     print_messages: bool = typer.Option(False),
     verbose: bool = typer.Option(True),
     debug: bool = False,
-) -> Tuple[ItemHash, Optional[str]]:
+) -> tuple[ItemHash, str | None]:
     """Register a new instance on aleph.im"""
     setup_logging(debug)
 
-    def validate_ssh_pubkey_file(file: Union[str, Path]) -> Path:
+    def validate_ssh_pubkey_file(file: str | Path) -> Path:
         if isinstance(file, str):
             file = Path(file).expanduser()
         if not file.exists():
-            raise ValueError(f"{file} does not exist")
+            msg = f"{file} does not exist"
+            raise ValueError(msg)
         if not file.is_file():
-            raise ValueError(f"{file} is not a file")
+            msg = f"{file} is not a file"
+            raise ValueError(msg)
         return file
 
     try:
@@ -168,7 +171,7 @@ async def create(
                     account.superfluid_connector.can_start_flow(Decimal(0.000031))  # 0.11/h
                 except Exception as e:
                     echo(e)
-                    raise typer.Exit(code=1)
+                    raise typer.Exit(code=1) from e
     else:
         payment_chain = Chain.ETH  # Hold chain for all balances
 
@@ -303,7 +306,7 @@ async def create(
                 echo()
         except Exception as e:
             echo(f"Unable to fetch CRN config: {e}")
-            raise typer.Exit(1)
+            raise typer.Exit(1) from e
     if is_stream or confidential:
         while not crn:
             crn_table = CRNTable(only_reward_address=is_stream, only_qemu=is_qemu, only_confidentials=confidential)
@@ -391,7 +394,7 @@ async def create(
                         account.superfluid_connector.can_start_flow(Decimal(0.000031))  # Min for 0.11/h
                     except Exception as e:
                         echo(e)
-                        raise typer.Exit(code=1)
+                        raise typer.Exit(code=1) from e
                     flow_hash = await update_flow(
                         account=account,
                         receiver=crn.stream_reward_address,
@@ -402,7 +405,10 @@ async def create(
                     await wait_for_confirmed_flow(account, message.content.payment.receiver)
                     if flow_hash:
                         echo(
-                            f"Flow {flow_hash} has been created:\n - Aleph cost summary:\n   {price.required_tokens:.7f}/sec | {3600*price.required_tokens:.2f}/hour | {86400*price.required_tokens:.2f}/day | {2592000*price.required_tokens:.2f}/month\n - CRN receiver address: {crn.stream_reward_address}"
+                            f"Flow {flow_hash} has been created:\n - Aleph cost summary:\n   "
+                            f"{price.required_tokens:.7f}/sec | {3600*price.required_tokens:.2f}/hour | "
+                            f"{86400*price.required_tokens:.2f}/day | {2592000*price.required_tokens:.2f}/month\n - "
+                            f"CRN receiver address: {crn.stream_reward_address}"
                         )
 
             # Notify CRN
@@ -467,13 +473,16 @@ async def create(
 async def delete(
     item_hash: str = typer.Argument(..., help="Instance item hash to forget"),
     reason: str = typer.Option("User deletion", help="Reason for deleting the instance"),
-    crn_url: Optional[str] = typer.Option(None, help=help_strings.CRN_URL_VM_DELETION),
-    private_key: Optional[str] = settings.PRIVATE_KEY_STRING,
-    private_key_file: Optional[Path] = settings.PRIVATE_KEY_FILE,
+    crn_url: str | None = typer.Option(None, help=help_strings.CRN_URL_VM_DELETION),
+    private_key: str | None = settings.PRIVATE_KEY_STRING,
+    private_key_file: Path | None = settings.PRIVATE_KEY_FILE,
     print_message: bool = typer.Option(False),
     debug: bool = False,
 ):
-    """Delete an instance, unallocating all resources associated with it. Associated VM will be stopped and erased. Immutable volumes will not be deleted."""
+    """
+    Delete an instance, unallocating all resources associated with it. Associated VM will be stopped and erased.
+    Immutable volumes will not be deleted.
+    """
 
     setup_logging(debug)
 
@@ -486,17 +495,17 @@ async def delete(
 
         except MessageNotFoundError:
             echo("Instance does not exist")
-            raise typer.Exit(code=1)
+            raise typer.Exit(code=1) from None
         except ForgottenMessageError:
             echo("Instance already forgotten")
-            raise typer.Exit(code=1)
+            raise typer.Exit(code=1) from None
         if existing_message.sender != account.get_address():
             echo("You are not the owner of this instance")
             raise typer.Exit(code=1)
 
         # If PAYG, retrieve flow price
-        payment: Optional[Payment] = existing_message.content.payment
-        price: Optional[PriceResponse] = None
+        payment: Payment | None = existing_message.content.payment
+        price: PriceResponse | None = None
         if safe_getattr(payment, "type") == PaymentType.superfluid:
             price = await client.get_program_price(item_hash)
 
@@ -507,7 +516,7 @@ async def delete(
         crn_url = str(info["crn_url"])
         if not auto_scheduled and crn_url:
             try:
-                status = await erase(item_hash, crn_url, private_key, private_key_file, True, debug)
+                status = await erase(item_hash, crn_url, private_key, private_key_file, silent=True, debug=debug)
                 if status == 1:
                     echo(f"No associated VM on {crn_url}. Skipping...")
             except Exception:
@@ -531,7 +540,7 @@ async def delete(
         echo(f"Instance {item_hash} has been deleted.")
 
 
-async def _show_instances(messages: List[InstanceMessage], node_list: NodeInfo):
+async def _show_instances(messages: builtins.list[InstanceMessage], node_list: NodeInfo):
     table = Table(box=box.SIMPLE_HEAVY)
     table.add_column(f"Instances [{len(messages)}]", style="blue", overflow="fold")
     table.add_column("Specifications", style="magenta")
@@ -592,11 +601,16 @@ async def _show_instances(messages: List[InstanceMessage], node_list: NodeInfo):
             cost,
             chain,
         )
+        hyperv_specifications = (
+            safe_getattr(message, "content.environment.hypervisor.value").capitalize()
+            if safe_getattr(message, "content.environment.hypervisor")
+            else "Firecracker"
+        )
         specifications = (
             f"vCPUs: {message.content.resources.vcpus}\n"
             f"RAM: {message.content.resources.memory / 1_024:.2f} GiB\n"
             f"Disk: {message.content.rootfs.size_mib / 1_024:.2f} GiB\n"
-            f"HyperV: {safe_getattr(message, 'content.environment.hypervisor.value').capitalize() if safe_getattr(message, 'content.environment.hypervisor') else 'Firecracker'}\n"
+            f"HyperV: {hyperv_specifications}\n"
         )
         status_column = Text.assemble(
             Text.assemble(
@@ -628,7 +642,7 @@ async def _show_instances(messages: List[InstanceMessage], node_list: NodeInfo):
     console.print(table)
     if uninitialized_confidential_found:
         item_hash_field = Text("<vm-item-hash>", style="bright_cyan")
-        crn_url_field = Text("<crn-url>", style="blue")
+        Text("<crn-url>", style="blue")
         console.print(
             "To start uninitialized confidential instance(s), use:\n\n",
             Text.assemble(
@@ -665,9 +679,9 @@ async def _show_instances(messages: List[InstanceMessage], node_list: NodeInfo):
 
 @app.command()
 async def list(
-    address: Optional[str] = typer.Option(None, help="Owner address of the instance"),
-    private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
-    private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
+    address: str | None = typer.Option(None, help="Owner address of the instance"),
+    private_key: str | None = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
+    private_key_file: Path | None = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
     json: bool = typer.Option(default=False, help="Print as json instead of rich table"),
     debug: bool = False,
 ):
@@ -695,7 +709,7 @@ async def list(
             echo(messages.json(indent=4))
         else:
             # Since we filtered on message type, we can safely cast as InstanceMessage.
-            messages = cast(List[InstanceMessage], messages)
+            messages = cast(builtins.list[InstanceMessage], messages)
             resource_nodes: NodeInfo = await _fetch_nodes()
             await _show_instances(messages, resource_nodes)
 
@@ -703,9 +717,9 @@ async def list(
 @app.command()
 async def expire(
     vm_id: str = typer.Argument(..., help="VM item hash to expire"),
-    domain: Optional[str] = typer.Option(None, help="CRN domain on which the VM is running"),
-    private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
-    private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
+    domain: str | None = typer.Option(None, help="CRN domain on which the VM is running"),
+    private_key: str | None = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
+    private_key_file: Path | None = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
     debug: bool = False,
 ):
     """Expire an instance"""
@@ -731,9 +745,9 @@ async def expire(
 @app.command()
 async def erase(
     vm_id: str = typer.Argument(..., help="VM item hash to erase"),
-    domain: Optional[str] = typer.Option(None, help="CRN domain on which the VM is stored or running"),
-    private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
-    private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
+    domain: str | None = typer.Option(None, help="CRN domain on which the VM is stored or running"),
+    private_key: str | None = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
+    private_key_file: Path | None = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
     silent: bool = False,
     debug: bool = False,
 ):
@@ -761,9 +775,9 @@ async def erase(
 @app.command()
 async def reboot(
     vm_id: str = typer.Argument(..., help="VM item hash to reboot"),
-    domain: Optional[str] = typer.Option(None, help="CRN domain on which the VM is running"),
-    private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
-    private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
+    domain: str | None = typer.Option(None, help="CRN domain on which the VM is running"),
+    private_key: str | None = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
+    private_key_file: Path | None = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
     debug: bool = False,
 ):
     """Reboot an instance"""
@@ -789,9 +803,9 @@ async def reboot(
 @app.command()
 async def allocate(
     vm_id: str = typer.Argument(..., help="VM item hash to allocate"),
-    domain: Optional[str] = typer.Option(None, help="CRN domain on which the VM will be allocated"),
-    private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
-    private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
+    domain: str | None = typer.Option(None, help="CRN domain on which the VM will be allocated"),
+    private_key: str | None = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
+    private_key_file: Path | None = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
     debug: bool = False,
 ):
     """Notify a CRN to start an instance (for Pay-As-You-Go and confidential instances only)"""
@@ -817,9 +831,9 @@ async def allocate(
 @app.command()
 async def logs(
     vm_id: str = typer.Argument(..., help="VM item hash to retrieve the logs from"),
-    domain: Optional[str] = typer.Option(None, help="CRN domain on which the VM is running"),
-    private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
-    private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
+    domain: str | None = typer.Option(None, help="CRN domain on which the VM is running"),
+    private_key: str | None = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
+    private_key_file: Path | None = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
     debug: bool = False,
 ):
     """Retrieve the logs of an instance"""
@@ -848,9 +862,9 @@ async def logs(
 @app.command()
 async def stop(
     vm_id: str = typer.Argument(..., help="VM item hash to stop"),
-    domain: Optional[str] = typer.Option(None, help="CRN domain on which the VM is running"),
-    private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
-    private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
+    domain: str | None = typer.Option(None, help="CRN domain on which the VM is running"),
+    private_key: str | None = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
+    private_key_file: Path | None = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
     debug: bool = False,
 ):
     """Stop an instance"""
@@ -876,11 +890,11 @@ async def stop(
 @app.command()
 async def confidential_init_session(
     vm_id: str = typer.Argument(..., help="VM item hash to initialize the session for"),
-    domain: Optional[str] = typer.Option(None, help="CRN domain on which the session will be initialized"),
+    domain: str | None = typer.Option(None, help="CRN domain on which the session will be initialized"),
     policy: int = typer.Option(default=0x1),
     keep_session: bool = typer.Option(None, help=help_strings.KEEP_SESSION),
-    private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
-    private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
+    private_key: str | None = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
+    private_key_file: Path | None = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
     debug: bool = False,
 ):
     "Initialize a confidential communication session with the VM"
@@ -906,7 +920,8 @@ async def confidential_init_session(
 
     if godh_path.exists() and keep_session is None:
         keep_session = not Confirm.ask(
-            "Session already initiated for this instance, are you sure you want to override the previous one? You won't be able to communicate with already running VM"
+            "Session already initiated for this instance, are you sure you want to override the previous one? You "
+            "won't be able to communicate with already running VM"
         )
         if keep_session:
             echo("Keeping already initiated session")
@@ -917,7 +932,8 @@ async def confidential_init_session(
         code, platform_file = await client.get_certificates()
         if code != 200:
             echo(
-                "Failed to retrieve platform certificate from the CRN. This node might be temporary down, please try again later. If the problem persist, contact the node operator."
+                "Failed to retrieve platform certificate from the CRN. This node might be temporary down, please try "
+                "again later. If the problem persist, contact the node operator."
             )
             return 1
 
@@ -952,14 +968,14 @@ def find_sevctl_or_exit() -> Path:
 @app.command()
 async def confidential_start(
     vm_id: str = typer.Argument(..., help="VM item hash to start"),
-    domain: Optional[str] = typer.Option(None, help="CRN domain on which the VM will be started"),
+    domain: str | None = typer.Option(None, help="CRN domain on which the VM will be started"),
     firmware_hash: str = typer.Option(
         settings.DEFAULT_CONFIDENTIAL_FIRMWARE_HASH, help=help_strings.CONFIDENTIAL_FIRMWARE_HASH
     ),
     firmware_file: str = typer.Option(None, help=help_strings.PRIVATE_KEY),
     vm_secret: str = typer.Option(None, help=help_strings.VM_SECRET),
-    private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
-    private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
+    private_key: str | None = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
+    private_key_file: Path | None = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
     debug: bool = False,
 ):
     "Validate the authenticity of the VM and start it"
@@ -996,7 +1012,8 @@ async def confidential_start(
     if firmware_file:
         firmware_path = Path(firmware_file)
         if not firmware_path.exists():
-            raise Exception("Firmware path does not exist")
+            msg = "Firmware path does not exist"
+            raise Exception(msg)
         firmware_hash = calculate_firmware_hash(firmware_path)
         logger.info(f"Calculated Firmware hash: {firmware_hash}")
     logger.info(sev_data)
@@ -1029,9 +1046,9 @@ async def confidential_start(
 
 @app.command()
 async def confidential(
-    vm_id: Optional[str] = typer.Argument(default=None, help=help_strings.VM_ID),
-    crn_url: Optional[str] = typer.Option(default=None, help=help_strings.CRN_URL),
-    crn_hash: Optional[str] = typer.Option(default=None, help=help_strings.CRN_HASH),
+    vm_id: str | None = typer.Argument(default=None, help=help_strings.VM_ID),
+    crn_url: str | None = typer.Option(default=None, help=help_strings.CRN_URL),
+    crn_hash: str | None = typer.Option(default=None, help=help_strings.CRN_HASH),
     policy: int = typer.Option(default=0x1),
     confidential_firmware: str = typer.Option(
         default=settings.DEFAULT_CONFIDENTIAL_FIRMWARE, help=help_strings.CONFIDENTIAL_FIRMWARE
@@ -1039,23 +1056,23 @@ async def confidential(
     firmware_hash: str = typer.Option(
         settings.DEFAULT_CONFIDENTIAL_FIRMWARE_HASH, help=help_strings.CONFIDENTIAL_FIRMWARE_HASH
     ),
-    firmware_file: Optional[str] = typer.Option(None, help=help_strings.PRIVATE_KEY),
-    keep_session: Optional[bool] = typer.Option(None, help=help_strings.KEEP_SESSION),
-    vm_secret: Optional[str] = typer.Option(None, help=help_strings.VM_SECRET),
-    payment_type: Optional[str] = typer.Option(
+    firmware_file: str | None = typer.Option(None, help=help_strings.PRIVATE_KEY),
+    keep_session: bool | None = typer.Option(None, help=help_strings.KEEP_SESSION),
+    vm_secret: str | None = typer.Option(None, help=help_strings.VM_SECRET),
+    payment_type: str | None = typer.Option(
         None,
         help=help_strings.PAYMENT_TYPE,
         callback=lambda pt: None if pt is None else PaymentType.hold if pt == "nft" else PaymentType(pt),
         metavar=f"[{'|'.join(PaymentType)}|nft]",
     ),
-    payment_chain: Optional[Chain] = typer.Option(
+    payment_chain: Chain | None = typer.Option(
         None, help=help_strings.PAYMENT_CHAIN, metavar=f"[{'|'.join([Chain.ETH, Chain.AVAX, Chain.BASE])}]"
     ),
-    name: Optional[str] = typer.Option(None, help=help_strings.INSTANCE_NAME),
-    rootfs: Optional[str] = typer.Option(None, help=help_strings.ROOTFS),
-    rootfs_size: Optional[int] = typer.Option(None, help=help_strings.ROOTFS_SIZE),
-    vcpus: Optional[int] = typer.Option(None, help=help_strings.VCPUS),
-    memory: Optional[int] = typer.Option(None, help=help_strings.MEMORY),
+    name: str | None = typer.Option(None, help=help_strings.INSTANCE_NAME),
+    rootfs: str | None = typer.Option(None, help=help_strings.ROOTFS),
+    rootfs_size: int | None = typer.Option(None, help=help_strings.ROOTFS_SIZE),
+    vcpus: int | None = typer.Option(None, help=help_strings.VCPUS),
+    memory: int | None = typer.Option(None, help=help_strings.MEMORY),
     timeout_seconds: float = typer.Option(
         settings.DEFAULT_VM_TIMEOUT,
         help=help_strings.TIMEOUT_SECONDS,
@@ -1065,15 +1082,15 @@ async def confidential(
         help=help_strings.SSH_PUBKEY_FILE,
     ),
     skip_volume: bool = typer.Option(False, help=help_strings.SKIP_VOLUME),
-    persistent_volume: Optional[List[str]] = typer.Option(None, help=help_strings.PERSISTENT_VOLUME),
-    ephemeral_volume: Optional[List[str]] = typer.Option(None, help=help_strings.EPHEMERAL_VOLUME),
-    immutable_volume: Optional[List[str]] = typer.Option(
+    persistent_volume: builtins.list[str] | None = typer.Option(None, help=help_strings.PERSISTENT_VOLUME),
+    ephemeral_volume: builtins.list[str] | None = typer.Option(None, help=help_strings.EPHEMERAL_VOLUME),
+    immutable_volume: builtins.list[str] | None = typer.Option(
         None,
         help=help_strings.IMMUTABLE_VOLUME,
     ),
-    channel: Optional[str] = typer.Option(default=settings.DEFAULT_CHANNEL, help=help_strings.CHANNEL),
-    private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
-    private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
+    channel: str | None = typer.Option(default=settings.DEFAULT_CHANNEL, help=help_strings.CHANNEL),
+    private_key: str | None = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
+    private_key_file: Path | None = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
     debug: bool = False,
 ):
     """Create, start and unlock a confidential VM (all-in-one command)

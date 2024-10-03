@@ -31,7 +31,8 @@ def try_open_zip(path: Path) -> None:
     with open(path, "rb") as archive_file:
         with ZipFile(archive_file, "r") as archive:
             if not archive.namelist():
-                raise BadZipFile("No file in the archive.")
+                msg = "No file in the archive."
+                raise BadZipFile(msg)
 
 
 def create_archive(path: Path) -> Tuple[Path, Encoding]:
@@ -55,7 +56,8 @@ def create_archive(path: Path) -> Tuple[Path, Encoding]:
             try_open_zip(Path(path))
             return path, Encoding.zip
     else:
-        raise FileNotFoundError("No file or directory to create the archive from")
+        msg = "No file or directory to create the archive from"
+        raise FileNotFoundError(msg)
 
 
 def get_message_type_value(message_type: Type[GenericMessage]) -> MessageType:

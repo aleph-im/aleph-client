@@ -3,7 +3,6 @@ from __future__ import annotations
 import logging
 from ipaddress import IPv6Interface
 from json import JSONDecodeError
-from typing import Optional
 from urllib.parse import ParseResult, urlparse
 
 import aiohttp
@@ -51,16 +50,19 @@ def sanitize_url(url: str) -> str:
         Sanitized URL.
     """
     if not url:
-        raise aiohttp.InvalidURL("Empty URL")
+        msg = "Empty URL"
+        raise aiohttp.InvalidURL(msg)
     parsed_url: ParseResult = urlparse(url)
     if parsed_url.scheme not in ["http", "https"]:
-        raise aiohttp.InvalidURL(f"Invalid URL scheme: {parsed_url.scheme}")
+        msg = f"Invalid URL scheme: {parsed_url.scheme}"
+        raise aiohttp.InvalidURL(msg)
     if parsed_url.hostname in FORBIDDEN_HOSTS:
         logger.debug(
             f"Invalid URL {url} hostname {parsed_url.hostname} is in the forbidden host list "
             f"({', '.join(FORBIDDEN_HOSTS)})"
         )
-        raise aiohttp.InvalidURL("Invalid URL host")
+        msg = "Invalid URL host"
+        raise aiohttp.InvalidURL(msg)
     return url
 
 
@@ -121,15 +123,15 @@ async def fetch_vm_info(message: InstanceMessage, node_list: NodeInfo) -> tuple[
         crn_hash = safe_getattr(message, "content.requirements.node.node_hash")
         firmware = safe_getattr(message, "content.environment.trusted_execution.firmware")
         confidential = firmware and len(firmware) == 64
-        info = dict(
-            crn_hash=str(crn_hash) if crn_hash else "",
-            payment="hold\t   " if hold else str(safe_getattr(message, "content.payment.type.value")),
-            chain="Any" if hold else str(safe_getattr(message, "content.payment.chain.value")),
-            confidential=confidential,
-            allocation_type="",
-            ipv6_logs="",
-            crn_url="",
-        )
+        info = {
+            "crn_hash": str(crn_hash) if crn_hash else "",
+            "payment": "hold\t   " if hold else str(safe_getattr(message, "content.payment.type.value")),
+            "chain": "Any" if hold else str(safe_getattr(message, "content.payment.chain.value")),
+            "confidential": confidential,
+            "allocation_type": "",
+            "ipv6_logs": "",
+            "crn_url": "",
+        }
         try:
             # Fetch from the scheduler API directly if no payment or no receiver (hold-tier non-confidential)
             if hold and not confidential:
@@ -166,7 +168,7 @@ async def fetch_vm_info(message: InstanceMessage, node_list: NodeInfo) -> tuple[
         return message.item_hash, info
 
 
-async def find_crn_of_vm(vm_id: str) -> Optional[str]:
+async def find_crn_of_vm(vm_id: str) -> str | None:
     async with AlephHttpClient(api_server=settings.API_HOST) as client:
         message: InstanceMessage = await client.get_message(item_hash=ItemHash(vm_id), message_type=InstanceMessage)
         node_list: NodeInfo = await _fetch_nodes()

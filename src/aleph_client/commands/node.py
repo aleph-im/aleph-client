@@ -5,7 +5,6 @@ import json as json_lib
 import logging
 import re
 import unicodedata
-from typing import Optional
 
 import aiohttp
 import typer
@@ -104,7 +103,7 @@ def _show_compute(node_info):
     console.print(table)
 
 
-def _filter_node(active: bool, address: Optional[str], core_info):
+def _filter_node(active: bool, address: str | None, core_info):
     result = []
     for node in core_info:
         if active and node["status"] == "active" and node["score"] > 0:
@@ -153,7 +152,7 @@ def _show_core(node_info):
 async def compute(
     json: bool = typer.Option(default=False, help="Print as json instead of rich table"),
     active: bool = typer.Option(default=False, help="Only show active nodes"),
-    address: Optional[str] = typer.Option(default=None, help="Owner address to filter by"),
+    address: str | None = typer.Option(default=None, help="Owner address to filter by"),
     debug: bool = False,
 ):
     """Get all compute node on aleph network"""
@@ -173,7 +172,7 @@ async def compute(
 async def core(
     json: bool = typer.Option(default=False, help="Print as json instead of rich table"),
     active: bool = typer.Option(default=False, help="Only show active nodes"),
-    address: Optional[str] = typer.Option(default=None, help="Owner address to filter by"),
+    address: str | None = typer.Option(default=None, help="Owner address to filter by"),
     debug: bool = False,
 ):
     """Get all core node on aleph"""
