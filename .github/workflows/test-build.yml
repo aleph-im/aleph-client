@@ -1,4 +1,6 @@
+---
 name: Build source and wheel packages
+
 
 on:
   push:
@@ -7,6 +9,7 @@ on:
   pull_request:
     branches:
       - master
+
 
 jobs:
   build-install-wheel:
@@ -53,6 +56,6 @@ jobs:
           /tmp/venv/bin/hatch build
 
       - name: Install the Python wheel
-        run: |
+        run: |-
           python3 -m venv /tmp/install-venv
           /tmp/install-venv/bin/python3 -m pip install dist/aleph_client-*.whl

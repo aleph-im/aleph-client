@@ -1,4 +1,6 @@
+---
 name: Pytest and code Coverage
+
 
 on:
   push:
@@ -13,12 +15,13 @@ on:
     # break the use of the library.
     - cron: '4 0 * * *'
 
+
 jobs:
   pytest:
     strategy:
       fail-fast: false
       matrix:
-        os: [ macos-12, macos-13, macos-14, ubuntu-20.04, ubuntu-22.04, ubuntu-24.04 ]
+        os: [macos-12, macos-13, macos-14, ubuntu-20.04, ubuntu-22.04, ubuntu-24.04]
     runs-on: ${{matrix.os}}
 
     steps:
