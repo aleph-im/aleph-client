@@ -44,7 +44,7 @@ dependencies = [
   "typer==0.15.2",
 ]
 optional-dependencies.cosmos = [ "cosmospy==6" ]
-optional-dependencies.docs = [ "sphinxcontrib-plantuml==0.27" ]
+optional-dependencies.docs = [ "sphinxcontrib-plantuml==0.30" ]
 optional-dependencies.ethereum = [ "eth-account>=0.4" ]
 optional-dependencies.nuls2 = [ "nuls2-sdk==0.1" ]
 optional-dependencies.polkadot = [ "substrate-interface==1.7.11" ]
@@ -85,7 +85,7 @@ dependencies = [
   "types-requests==2.32.0.20240602",
   "types-setuptools==70.0.0.20240524",
   "typing_extensions==4.12.2",
-  "sphinxcontrib-plantuml==0.27",
+  "sphinxcontrib-plantuml==0.30",
 ]
 
 [tool.hatch.envs.testing]
