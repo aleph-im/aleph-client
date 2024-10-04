@@ -1,57 +1,60 @@
 [build-system]
-requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
+
+requires = [ "hatch-vcs", "hatchling" ]
 
 [project]
 name = "aleph-client"
-dynamic = ["version"]
 description = "Python Client library for the Aleph.im network"
 readme = "README.md"
-readme-content-type = "text/x-rst; charset=UTF-8"
-requires-python = ">=3.6"
+keywords = [ "Aleph.im", "Client", "Library", "Python" ]
 license = { file = "LICENSE.txt" }
 authors = [
   { name = "Aleph.im Team", email = "hello@aleph.im" },
 ]
-keywords = ["Aleph.im", "Client", "Library", "Python"]
+requires-python = ">=3.6"
 classifiers = [
   "Development Status :: 4 - Beta",
-  "Programming Language :: Python :: 3",
   "Environment :: Console",
   "Framework :: aiohttp",
   "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.6",
+  "Programming Language :: Python :: 3.7",
+  "Programming Language :: Python :: 3.8",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
   "Topic :: System :: Distributed Computing",
 ]
 
+dynamic = [ "version" ]
 dependencies = [
-  "aleph-sdk-python>=1.0.1,<2",
-  "setuptools>=65.5.0",
-  "aleph-message>=0.4.9",
+  "aiodns==3.2",
   "aiohttp==3.9.*",
-  "typer==0.12.5",
+  "aleph-message>=0.4.9",
+  "aleph-sdk-python>=1.0.1,<2",
+  "pygments==2.18",
   "python-magic==0.4.27",
-  "pygments==2.18.0",
   "rich==13.8.1",
-  "aiodns==3.2.0",
-  "textual==0.73.0",
+  "setuptools>=65.5",
+  "textual==0.73",
+  "typer==0.12.5",
 ]
-[project.optional-dependencies]
-nuls2 = ["nuls2-sdk==0.1.0"]
-ethereum = ["eth_account>=0.4.0"]
-polkadot = ["substrate-interface==1.3.4"]
-cosmos = ["cosmospy==6.0.0"]
-solana = ["pynacl==1.5.0", "base58==2.1.1"]
-tezos = ["pynacl==1.5.0", "aleph-pytezos==3.13.4"]
-docs = ["sphinxcontrib-plantuml==0.27"]
-
-[project.urls]
-Documentation = "https://docs.aleph.im/tools/aleph-client/"
-Issues = "https://github.com/aleph-im/aleph-client/issues"
-Source = "https://github.com/aleph-im/aleph-client"
-Discussions = "https://community.aleph.im/"
-
-[project.scripts]
-aleph = "aleph_client.__main__:app"
+optional-dependencies.cosmos = [ "cosmospy==6" ]
+optional-dependencies.docs = [ "sphinxcontrib-plantuml==0.27" ]
+optional-dependencies.ethereum = [ "eth-account>=0.4" ]
+optional-dependencies.nuls2 = [ "nuls2-sdk==0.1" ]
+optional-dependencies.polkadot = [ "substrate-interface==1.3.4" ]
+optional-dependencies.solana = [ "base58==2.1.1", "pynacl==1.5" ]
+optional-dependencies.tezos = [ "aleph-pytezos==3.13.4", "pynacl==1.5" ]
+urls.Discussions = "https://community.aleph.im/"
+urls.Documentation = "https://docs.aleph.im/tools/aleph-client/"
+urls.Issues = "https://github.com/aleph-im/aleph-client/issues"
+urls.Source = "https://github.com/aleph-im/aleph-client"
+scripts.aleph = "aleph_client.__main__:app"
+readme-content-type = "text/x-rst; charset=UTF-8"
 
 [tool.hatch.metadata]
 allow-direct-references = true
@@ -62,13 +65,13 @@ include = [
 ]
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/aleph_client"]
+packages = [ "src/aleph_client" ]
 
 [tool.hatch.version]
 source = "vcs"
 
 [tool.hatch.envs.default]
-platforms = ["linux", "macos"]
+platforms = [ "linux", "macos" ]
 dependencies = [
   "setuptools>=65.5.0",
   "pytest==8.2.2",
@@ -81,7 +84,7 @@ dependencies = [
   "types-requests==2.32.0.20240602",
   "types-setuptools==70.0.0.20240524",
   "typing_extensions==4.12.2",
-  "sphinxcontrib-plantuml==0.27"
+  "sphinxcontrib-plantuml==0.27",
 ]
 
 [tool.hatch.envs.testing]
@@ -107,7 +110,7 @@ cov = [
 ]
 
 [[tool.hatch.envs.all.matrix]]
-python = ["3.9", "3.10", "3.11", "3.12"]
+python = [ "3.9", "3.10", "3.11", "3.12" ]
 
 [tool.hatch.envs.linting]
 dependencies = [
@@ -144,25 +147,9 @@ all = [
   "typing",
 ]
 
-[tool.pytest.ini_options]
-pythonpath = [
-  "src"
-]
-testpaths = [
-  "tests"
-]
-
 [tool.black]
 line-length = 120
-target-version = ["py39"]
-
-[tool.mypy]
-python_version = "3.9"
-install_types = true
-non_interactive = true
-ignore_missing_imports = true
-explicit_package_bases = true
-check_untyped_defs = true
+target-version = [ "py39" ]
 
 [tool.ruff]
 target-version = "py39"
@@ -195,29 +182,37 @@ select = [
   "YTT",
 ]
 ignore = [
-#  # Allow non-abstract empty methods in abstract base classes
-#  "B027",
-#  # Allow boolean positional values in function calls, like `dict.get(... True)`
-#  "FBT003",
-#  # Ignore checks for possible passwords
-#  "S105", "S106", "S107",
-#  # Ignore complexity
-#  "C901", "PLR0911", "PLR0912", "PLR0913", "PLR0915",
+  #  # Allow non-abstract empty methods in abstract base classes
+  #  "B027",
+  #  # Allow boolean positional values in function calls, like `dict.get(... True)`
+  #  "FBT003",
+  #  # Ignore checks for possible passwords
+  #  "S105", "S106", "S107",
+  #  # Ignore complexity
+  #  "C901", "PLR0911", "PLR0912", "PLR0913", "PLR0915",
   # Allow the use of assert statements
-  "S101"
+  "S101",
 ]
 
 #[tool.ruff.isort]
 #known-first-party = ["aleph_client"]
 
+[tool.pytest.ini_options]
+pythonpath = [
+  "src",
+]
+testpaths = [
+  "tests",
+]
+
 [tool.coverage.run]
 branch = true
 parallel = true
-source_pkgs = ["aleph_client", "tests"]
+source_pkgs = [ "aleph_client", "tests" ]
 
 [tool.coverage.paths]
-aleph_client = ["src/aleph_client"]
-tests = ["tests"]
+aleph_client = [ "src/aleph_client" ]
+tests = [ "tests" ]
 
 [tool.coverage.report]
 exclude_lines = [
@@ -225,6 +220,14 @@ exclude_lines = [
   "if __name__ == .__main__.:",
   "if TYPE_CHECKING:",
 ]
+
+[tool.mypy]
+python_version = "3.9"
+install_types = true
+non_interactive = true
+ignore_missing_imports = true
+explicit_package_bases = true
+check_untyped_defs = true
 
 [tool.spinx]
 source-dir = "docs"
