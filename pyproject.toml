@@ -46,7 +46,7 @@ optional-dependencies.cosmos = [ "cosmospy==6" ]
 optional-dependencies.docs = [ "sphinxcontrib-plantuml==0.27" ]
 optional-dependencies.ethereum = [ "eth-account>=0.4" ]
 optional-dependencies.nuls2 = [ "nuls2-sdk==0.1" ]
-optional-dependencies.polkadot = [ "substrate-interface==1.3.4" ]
+optional-dependencies.polkadot = [ "substrate-interface==1.7.10" ]
 optional-dependencies.solana = [ "base58==2.1.1", "pynacl==1.5" ]
 optional-dependencies.tezos = [ "aleph-pytezos==3.13.4", "pynacl==1.5" ]
 urls.Discussions = "https://community.aleph.im/"
