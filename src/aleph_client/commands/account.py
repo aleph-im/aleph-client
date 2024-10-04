@@ -4,7 +4,6 @@ import asyncio
 import base64
 import json
 import logging
-import sys
 from pathlib import Path
 from typing import Optional
 
@@ -50,9 +49,9 @@ async def create(
     try:
         if settings.CONFIG_FILE.exists() and settings.CONFIG_FILE.stat().st_size > 0:
             with open(settings.CONFIG_FILE, "r", encoding="utf-8") as f:
-                chain_accounts = json.load(f)
+                current_account = json.load(f)
         else:
-            chain_accounts = []
+            current_account = {}
     except (FileNotFoundError, json.JSONDecodeError) as e:
         typer.secho(f"Error loading config file: {e}", fg=RED)
         raise typer.Exit(1)
@@ -61,17 +60,18 @@ async def create(
         private_key_file = Path(
             typer.prompt("Enter a filename for your new private key", settings.PRIVATE_KEY_FILE.name)
         )
-        if not private_key_file.name.endswith(".key"):
-            private_key_file = private_key_file.with_suffix(".key")
+    if not private_key_file.name.endswith(".key"):
+        private_key_file = private_key_file.with_suffix(".key")
+    if private_key_file.parent.as_posix() == ".":
         private_key_file = Path(settings.CONFIG_HOME, "private-keys", private_key_file)
 
     if private_key_file.exists() and not replace:
-        typer.secho(f"Error: key already exists: '{private_key_file}'", fg=RED)
+        typer.secho(f"Error: private key file already exists: '{private_key_file}'", fg=RED)
         raise typer.Exit(1)
 
-    existing_account = next((acc for acc in chain_accounts if acc["path"] == str(private_key_file)), None)
+    existing_account = "path" in current_account and current_account["path"] == private_key_file.as_posix()
     if existing_account and not replace:
-        typer.secho(f"Error: key already exists: '{private_key_file}'", fg=RED)
+        typer.secho(f"Error: private key account already loaded: '{private_key_file}'", fg=RED)
         raise typer.Exit(1)
 
     private_key_bytes: bytes
@@ -82,7 +82,7 @@ async def create(
             private_key_bytes = bytes.fromhex(private_key)
 
     else:
-        if not chain_type:
+        if replace and not chain_type:
             chain_type = Chain(
                 Prompt.ask(
                     "Select the default chain to load: ",
@@ -91,10 +91,6 @@ async def create(
                 )
             )
         private_key_bytes = generate_key()
-        """ if chain_type.SOL:
-            private_key_bytes = generate_key_solana()
-        else:
-            private_key_bytes = generate_key() """
 
     if not private_key_bytes:
         typer.secho("An unexpected error occurred!", fg=RED)
@@ -106,7 +102,7 @@ async def create(
     account = MainConfiguration(path=private_key_file, chain=chain_type if chain_type else Chain.ETH)
     if replace:
         save_main_configuration(settings.CONFIG_FILE, account)
-        typer.secho(f"Private : {account.path} on chain {account.chain} is now Default", fg=GREEN)
+        typer.secho(f"Private key {account.path} on chain {account.chain} is now your default configuration", fg=GREEN)
 
 
 @app.command()
@@ -171,8 +167,8 @@ def sign_bytes(
     account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
 
     if message is None:
-        # take from stdin
-        message = "\n".join(sys.stdin.readlines())
+        message = typer.prompt("Enter the message to sign")
+        # message = "\n".join(sys.stdin.readlines())
 
     coroutine = account.sign_raw(message.encode())
     signature = asyncio.run(coroutine)
@@ -214,8 +210,8 @@ async def balance(
         typer.echo("Error: Please provide either a private key, private key file, or an address.")
 
 
-@app.command()
-async def list():
+@app.command(name="list")
+async def list_accounts():
     """List the current chain account and unlinked keys from the config file."""
 
     config_file_path = Path(settings.CONFIG_FILE)
@@ -254,6 +250,7 @@ async def config(
 
     if private_key_file is None:
         unlinked_keys, _ = await list_unlinked_keys()
+        unlinked_keys = list(filter(lambda key_file: key_file.stem != "default", unlinked_keys))
 
         if not unlinked_keys:
             typer.secho("No unlinked private keys found.", fg=typer.colors.GREEN)
@@ -263,7 +260,7 @@ async def config(
         for idx, key in enumerate(unlinked_keys, start=1):
             console.print(f"[{idx}] {key}")
 
-        key_choice = Prompt.ask("Choose a private key by entering the number")
+        key_choice = Prompt.ask("Choose a private key by index or filename")
 
         if key_choice.isdigit():
             key_index = int(key_choice) - 1

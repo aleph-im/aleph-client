@@ -164,6 +164,7 @@ def validated_prompt(
     validator: Callable[[str], Any],
     default: Optional[str] = None,
 ) -> str:
+    value = ""
     while True:
         try:
             value = Prompt.ask(
@@ -186,6 +187,7 @@ def validated_int_prompt(
     min_value: Optional[int] = None,
     max_value: Optional[int] = None,
 ) -> int:
+    value = ""
     while True:
         try:
             value = IntPrompt.ask(
