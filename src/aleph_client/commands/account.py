@@ -4,6 +4,7 @@ import asyncio
 import base64
 import json
 import logging
+import sys
 from pathlib import Path
 from typing import Optional
 
@@ -167,8 +168,14 @@ def sign_bytes(
     account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
 
     if message is None:
-        message = typer.prompt("Enter the message to sign")
-        # message = "\n".join(sys.stdin.readlines())
+        typer.echo("Enter the message to sign (type 'EOF' to stop):")
+        lines = []
+        while True:
+            line = sys.stdin.readline().strip()
+            if line == "EOF":
+                break
+            lines.append(line)
+        message = "\n".join(lines)
 
     coroutine = account.sign_raw(message.encode())
     signature = asyncio.run(coroutine)
