@@ -6,7 +6,6 @@ import re
 from functools import partial, wraps
 from pathlib import Path
 from shutil import make_archive
-from typing import Tuple, Type
 from zipfile import BadZipFile, ZipFile
 
 import typer
@@ -35,7 +34,7 @@ def try_open_zip(path: Path) -> None:
                 raise BadZipFile(msg)
 
 
-def create_archive(path: Path) -> Tuple[Path, Encoding]:
+def create_archive(path: Path) -> tuple[Path, Encoding]:
     """Create a zip archive from a directory"""
     if os.path.isdir(path):
         if settings.CODE_USES_SQUASHFS:
@@ -60,7 +59,7 @@ def create_archive(path: Path) -> Tuple[Path, Encoding]:
         raise FileNotFoundError(msg)
 
 
-def get_message_type_value(message_type: Type[GenericMessage]) -> MessageType:
+def get_message_type_value(message_type: type[GenericMessage]) -> MessageType:
     """Returns the value of the 'type' field of a message type class."""
     type_literal = message_type.__annotations__["type"]
     return type_literal.__args__[0]  # Get the value from a Literal

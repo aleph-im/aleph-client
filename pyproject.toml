@@ -123,13 +123,13 @@ dependencies = [
 [tool.hatch.envs.linting.scripts]
 typing = "mypy {args:} ./src/ ./tests/"
 style = [
-  # "ruff {args:}",
+  "ruff check {args:} ./src/ ./tests/",
   "black --check --diff {args:} ./src/ ./tests/",
   "isort --check-only --profile black {args:} ./src/ ./tests/",
 ]
 fmt = [
   "black {args:} ./src/ ./tests/",
-  # "ruff --fix {args:}",
+  "ruff --fix {args:}",
   "isort --profile black {args:} ./src/ ./tests/",
   "style",
 ]
