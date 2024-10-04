@@ -262,9 +262,21 @@ def sign(
     account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
 
     if message is None:
-        # take from stdin
-        message = "\n".join(sys.stdin.readlines())
+        typer.echo("Enter the message to sign (type 'EOF' to stop):")
+        lines = []
+        while True:
+            line = sys.stdin.readline().strip()
+            if line == "EOF":
+                break
+            lines.append(line)
+        message = "\n".join(lines)
 
-    coroutine = account.sign_message(json.loads(message))
+    try:
+        data = json.loads(message)
+    except json.JSONDecodeError:
+        typer.echo(f"Error: Message isn't a valid JSON")
+        raise typer.Exit(code=1)
+
+    coroutine = account.sign_message(data)
     signed_message = asyncio.run(coroutine)
     typer.echo(json.dumps(signed_message, indent=4, default=extended_json_encoder))

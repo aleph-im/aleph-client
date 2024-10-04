@@ -16,7 +16,7 @@ from aleph.sdk.account import _load_account
 from aleph.sdk.chains.ethereum import ETHAccount
 from aleph.sdk.client.vm_client import VmClient
 from aleph.sdk.client.vm_confidential_client import VmConfidentialClient
-from aleph.sdk.conf import settings
+from aleph.sdk.conf import load_main_configuration, settings
 from aleph.sdk.evm_utils import get_chains_with_super_token
 from aleph.sdk.exceptions import (
     ForgottenMessageError,
@@ -142,6 +142,16 @@ async def create(
 
     account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
 
+    try:
+        if payment_chain is None:
+            key_context = load_main_configuration(settings.CONFIG_FILE)
+
+            if key_context is not None:
+                payment_chain = key_context.chain
+
+    except Exception as e:
+        pass
+
     if payment_type is None:
         payment_type = Prompt.ask(
             "Which payment type do you want to use?",
@@ -161,6 +171,7 @@ async def create(
                     default=Chain.AVAX.value,
                 )
             )
+
         if isinstance(account, ETHAccount):
             account.switch_chain(payment_chain)
             if account.superfluid_connector:  # Quick check with theoretical min price
