@@ -32,7 +32,7 @@ classifiers = [
 dynamic = [ "version" ]
 dependencies = [
   "aiodns==3.2",
-  "aiohttp==3.9.*",
+  "aiohttp>=3.9,<3.11",
   "aleph-message>=0.4.9",
   "aleph-sdk-python>=1.0.1,<2",
   "pygments==2.18",
