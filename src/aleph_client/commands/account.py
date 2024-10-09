@@ -4,23 +4,24 @@ import asyncio
 import base64
 import json
 import logging
-import sys
 from pathlib import Path
 from typing import Optional
 
 import aiohttp
 import typer
-from aleph.sdk.account import (
-    CHAIN_TO_ACCOUNT_MAP,
-    _load_account,
-    detect_chain_from_private_key,
-)
-from aleph.sdk.chains.common import generate_key, generate_key_solana
+from aleph.sdk.account import _load_account, load_chain_account_type
+from aleph.sdk.chains.common import generate_key
 from aleph.sdk.chains.ethereum import ETHAccount
-from aleph.sdk.chains.solana import parse_solana_private_key
-from aleph.sdk.conf import settings
-from aleph.sdk.types import AccountFromPrivateKey, ChainAccount
-from aleph.sdk.utils import load_account_key_context, upsert_chain_account
+from aleph.sdk.chains.solana import SOLAccount
+from aleph.sdk.chains.solana import parse_private_key as parse_solana_private_key
+from aleph.sdk.conf import (
+    MainConfiguration,
+    load_main_configuration,
+    save_main_configuration,
+    settings,
+)
+from aleph.sdk.evm_utils import get_chains_with_holding, get_chains_with_super_token
+from aleph.sdk.types import AccountFromPrivateKey
 from aleph_message.models import Chain
 from rich.console import Console
 from rich.prompt import Prompt
@@ -28,7 +29,12 @@ from rich.table import Table
 from typer.colors import GREEN, RED
 
 from aleph_client.commands import help_strings
-from aleph_client.commands.utils import setup_logging
+from aleph_client.commands.utils import (
+    input_multiline,
+    setup_logging,
+    validated_prompt,
+    yes_no_input,
+)
 from aleph_client.utils import AsyncTyper, list_unlinked_keys
 
 logger = logging.getLogger(__name__)
@@ -40,83 +46,75 @@ console = Console()
 async def create(
     private_key: Optional[str] = typer.Option(None, help=help_strings.PRIVATE_KEY),
     private_key_file: Optional[Path] = typer.Option(None, help=help_strings.PRIVATE_KEY_FILE),
-    chain_type: Optional[Chain] = typer.Option(default=None, help=help_strings.ACCOUNT_CHAIN),
-    replace: bool = False,
+    chain: Optional[Chain] = typer.Option(default=None, help=help_strings.ORIGIN_CHAIN),
+    replace: bool = typer.Option(default=False, help=help_strings.CREATE_REPLACE),
+    active: bool = typer.Option(default=True, help=help_strings.CREATE_ACTIVE),
     debug: bool = False,
 ):
     """Create or import a private key."""
 
     setup_logging(debug)
 
-    try:
-        if settings.CONFIG_FILE.exists() and settings.CONFIG_FILE.stat().st_size > 0:
-            with open(settings.CONFIG_FILE, "r") as f:
-                chain_accounts = json.load(f)
-        else:
-            chain_accounts = []
-    except (FileNotFoundError, json.JSONDecodeError) as e:
-        typer.secho(f"Error loading config file: {e}", fg=RED)
-        raise typer.Exit(1)
-
-    if private_key_file is None:
-        private_key_file = Path(typer.prompt("Enter file in which to save the key", settings.PRIVATE_KEY_FILE))
-
+    # Prepares new private key file
+    if not private_key_file:
+        private_key_file = Path(
+            validated_prompt("Enter a name or path for your new private key", lambda path: len(path) > 0)
+        )
+    if not private_key_file.name.endswith(".key"):
+        private_key_file = private_key_file.with_suffix(".key")
+    if private_key_file.parent.as_posix() == ".":
+        private_key_file = Path(settings.CONFIG_HOME or ".", "private-keys", private_key_file)
     if private_key_file.exists() and not replace:
-        typer.secho(f"Error: key already exists: '{private_key_file}'", fg=RED)
+        typer.secho(f"Error: private key file already exists: '{private_key_file}'", fg=RED)
         raise typer.Exit(1)
 
-    existing_account = next((acc for acc in chain_accounts if acc["path"] == str(private_key_file)), None)
-    if existing_account and not replace:
-        typer.secho(f"Error: key already exists: '{private_key_file}'", fg=RED)
-        raise typer.Exit(1)
-
+    # Prepares new private key
     private_key_bytes: bytes
-    if private_key is not None:
-
-        private_key_type: Chain = detect_chain_from_private_key(private_key)
-        account_class = CHAIN_TO_ACCOUNT_MAP.get(private_key_type, ETHAccount)
-
-        _load_account(private_key_str=private_key, account_type=account_class)
-        if private_key_type == Chain.ETH:
-            private_key_bytes = bytes.fromhex(private_key)
-        else:
+    if private_key:
+        if chain == Chain.SOL:
             private_key_bytes = parse_solana_private_key(private_key)
-
-    else:
-        if not chain_type:
-            chain_type = Chain(
-                Prompt.ask(
-                    "Which chain u want to be loaded as: ",
-                    choices=[Chain.ETH, Chain.SOL, Chain.AVAX, Chain.BASE],
-                    default=Chain.ETH.value,
-                )
-            )
-
-        if chain_type.SOL:
-            private_key_bytes = generate_key_solana()
         else:
-            private_key_bytes = generate_key()
-
+            private_key_bytes = bytes.fromhex(private_key)
+    else:
+        private_key_bytes = generate_key()
     if not private_key_bytes:
         typer.secho("An unexpected error occurred!", fg=RED)
         raise typer.Exit(2)
 
+    # Saves new private key
     private_key_file.parent.mkdir(parents=True, exist_ok=True)
     private_key_file.write_bytes(private_key_bytes)
-    typer.secho(f"Private key stored in {private_key_file}", fg=RED)
-    account = ChainAccount(path=private_key_file, chain=chain_type if chain_type else Chain.ETH)
-    if replace:
-        await upsert_chain_account(account, private_key_file)
-        typer.secho(f"Private : {account.path} on chain {account.chain} is now Default", fg=GREEN)
+    typer.secho(f"Private key stored in {private_key_file}", fg=GREEN)
+
+    # Changes default configuration
+    if active:
+        if not chain:
+            chain = Chain(
+                Prompt.ask(
+                    "Select the active chain: ",
+                    choices=list(Chain),
+                    default=Chain.ETH.value,
+                )
+            )
+
+        try:
+            new_config = MainConfiguration(path=private_key_file, chain=chain)
+            save_main_configuration(settings.CONFIG_FILE, new_config)
+            typer.secho(
+                f"Private key {new_config.path} on chain {new_config.chain} is now your default configuration.",
+                fg=GREEN,
+            )
+        except ValueError as e:
+            typer.secho(f"Error: {e}", fg=typer.colors.RED)
 
 
-@app.command()
-def address(
+@app.command(name="address")
+def display_active_address(
     private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
     private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
 ):
     """
-    Display your public address.
+    Display your public address(es).
     """
 
     if private_key is not None:
@@ -125,37 +123,90 @@ def address(
         typer.secho("No private key available", fg=RED)
         raise typer.Exit(code=1)
 
-    account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
-    typer.echo(account.get_address())
+    evm_address = _load_account(private_key, private_key_file, ETHAccount).get_address()
+    sol_address = _load_account(private_key, private_key_file, SOLAccount).get_address()
+
+    console.print(
+        "\t[bold italic]Addresses for Active Account[/bold italic]\n"
+        + f"[italic]EVM[/italic]: [cyan]{evm_address}[/cyan]\n"
+        + f"[italic]SOL[/italic]: [magenta]{sol_address}[/magenta]"
+    )
+
+
+@app.command(name="chain")
+def display_active_chain():
+    """
+    Display the currently active chain.
+    """
+
+    config_file_path = Path(settings.CONFIG_FILE)
+    config = load_main_configuration(config_file_path)
+    active_chain = None
+    if config and config.chain:
+        active_chain = config.chain
+
+    hold_chains = get_chains_with_holding() + ["SOL"]
+    payg_chains = get_chains_with_super_token()
+
+    chain = f"[bold green]{active_chain}[/bold green]" if active_chain else "[red]Not Selected[/red]"
+    active_chain_compatibility, compatibility = [], ""
+    if active_chain in hold_chains:
+        active_chain_compatibility.append("HOLD")
+    if active_chain in payg_chains:
+        active_chain_compatibility.append("PAYG")
+    if active_chain_compatibility:
+        compatibility = f"[magenta]{' / '.join(active_chain_compatibility)}[/magenta]"
+    else:
+        compatibility = "[red]Only Signing[/red]"
+
+    console.print(f"[italic]Active Chain[/italic]: {chain}\t" + f"[italic]Compatibility[/italic]: {compatibility}")
+
+
+@app.command(name="path")
+def path_directory():
+    """Display the directory path where your private keys, config file, and other settings are stored."""
+    console.print(f"Aleph Home directory: [yellow]{settings.CONFIG_HOME}[/yellow]")
+
+
+@app.command()
+def show(
+    private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
+    private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
+):
+    """Display current configuration."""
+
+    display_active_address(private_key=private_key, private_key_file=private_key_file)
+    typer.echo()
+    display_active_chain()
+    typer.echo()
+    path_directory()
 
 
 @app.command()
 def export_private_key(
-    private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
-    private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
+    private_key: Optional[str] = typer.Option(None, help=help_strings.PRIVATE_KEY),
+    private_key_file: Optional[Path] = typer.Option(None, help=help_strings.PRIVATE_KEY_FILE),
 ):
     """
     Display your private key.
     """
 
-    if private_key is not None:
+    if private_key:
         private_key_file = None
     elif private_key_file and not private_key_file.exists():
         typer.secho("No private key available", fg=RED)
         raise typer.Exit(code=1)
 
     account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
+
     if hasattr(account, "private_key"):
-        private_key_hex: str = base64.b16encode(account.private_key).decode().lower()
-        typer.echo(f"0x{private_key_hex}")
+        if isinstance(account, ETHAccount):
+            private_key_hex: str = base64.b16encode(account.private_key).decode().lower()
+            typer.echo(f"0x{private_key_hex}")
+        else:
+            typer.secho(f"Private key cannot be exported for {account}", fg=RED)
     else:
         typer.secho(f"Private key cannot be read for {account}", fg=RED)
-
-
-@app.command()
-def path():
-    if settings.PRIVATE_KEY_FILE:
-        typer.echo(settings.PRIVATE_KEY_FILE)
 
 
 @app.command("sign-bytes")
@@ -171,13 +222,12 @@ def sign_bytes(
 
     account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
 
-    if message is None:
-        # take from stdin
-        message = "\n".join(sys.stdin.readlines())
+    if not message:
+        message = input_multiline()
 
     coroutine = account.sign_raw(message.encode())
     signature = asyncio.run(coroutine)
-    typer.echo(signature.hex())
+    typer.echo("\nSignature: " + signature.hex())
 
 
 @app.command()
@@ -186,6 +236,7 @@ async def balance(
     private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
     private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
 ):
+    """Display your ALEPH balance."""
     account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
 
     if account and not address:
@@ -215,46 +266,72 @@ async def balance(
         typer.echo("Error: Please provide either a private key, private key file, or an address.")
 
 
-@app.command()
-async def list():
-    """List the current chain account and unlinked keys from the config file."""
+@app.command(name="list")
+async def list_accounts():
+    """Display available private keys, along with currenlty active chain and account (from config file)."""
 
     config_file_path = Path(settings.CONFIG_FILE)
-    active_account = load_account_key_context(config_file_path)
-
+    config = load_main_configuration(config_file_path)
     unlinked_keys, _ = await list_unlinked_keys()
 
-    table = Table(title="Chain Accounts", show_lines=True)
-    table.add_column("Name", justify="left", style="cyan", no_wrap=True)
-    table.add_column("Path", justify="left", style="green")
-    table.add_column("Chain", justify="left", style="magenta", no_wrap=True)
+    table = Table(title="Found Private Keys", show_lines=True)
+    table.add_column("Name", style="cyan", no_wrap=True)
+    table.add_column("Path", style="green")
+    table.add_column("Active", no_wrap=True)
 
-    if active_account:
-        table.add_row(
-            active_account.path.stem, str(active_account.path), f"[bold green]{active_account.chain}[/bold green]"
-        )
+    active_chain = None
+    if config:
+        active_chain = config.chain
+        table.add_row(config.path.stem, str(config.path), "[bold green]*[/bold green]")
     else:
-        console.print("[bold red]No active account found in the config file.[/bold red]")
+        console.print(
+            "[red]No private key path selected in the config file.[/red]\nTo set it up, use: [bold italic cyan]aleph account config[/bold italic cyan]"
+        )
 
     if unlinked_keys:
         for key_file in unlinked_keys:
-            table.add_row(key_file.stem, str(key_file), "-")
+            if key_file.stem != "default":
+                table.add_row(key_file.stem, str(key_file), "[bold red]-[/bold red]")
 
+    hold_chains = get_chains_with_holding() + ["SOL"]
+    payg_chains = get_chains_with_super_token()
+
+    active_address = None
+    if config and config.path and active_chain:
+        account_type = load_chain_account_type(active_chain)
+        account: AccountFromPrivateKey = _load_account(private_key_path=config.path, account_type=account_type)
+        active_address = account.get_address()
+
+    console.print(
+        "\n"
+        + f"[italic]Chains with Signing[/italic]: [blue]{', '.join(list(Chain))}[/blue]\n"
+        + f"[italic]Chains with Hold-tier[/italic]: [blue]{', '.join(hold_chains)}[/blue]\n"
+        + f"[italic]Chains with Pay-As-You-Go[/italic]: [blue]{', '.join(payg_chains)}[/blue]\n"
+    )
+    display_active_chain()
+    console.print(f"[italic]Active Address[/italic]: [cyan]{active_address}[/cyan]\n" if active_address else "")
     console.print(table)
 
 
-@app.command()
-async def config(
-    private_key_file: Optional[Path] = typer.Option(None, help="Path to the private key file"),
-    chain_type: Optional[str] = typer.Option(None, help="Type of blockchain (ETH, SOL, etc.)"),
+@app.command(name="config")
+async def configure(
+    private_key_file: Optional[Path] = typer.Option(None, help="New path to the private key file"),
+    chain: Optional[Chain] = typer.Option(None, help="New active chain"),
 ):
-    """
-    Async command to link private keys to a blockchain, interactively or non-interactively.
-    """
+    """Configure current private key file and active chain (default selection)"""
 
-    if private_key_file is None:
-        unlinked_keys, _ = await list_unlinked_keys()
+    unlinked_keys, config = await list_unlinked_keys()
 
+    # Configure active private key file
+    if not private_key_file and (
+        not config
+        or not Path(config.path).exists()
+        or not yes_no_input(
+            f"Active private key file: [bright_cyan]{config.path}[/bright_cyan]\n[yellow]Keep current active private key?[/yellow]",
+            default="y",
+        )
+    ):
+        unlinked_keys = list(filter(lambda key_file: key_file.stem != "default", unlinked_keys))
         if not unlinked_keys:
             typer.secho("No unlinked private keys found.", fg=typer.colors.GREEN)
             raise typer.Exit()
@@ -263,78 +340,49 @@ async def config(
         for idx, key in enumerate(unlinked_keys, start=1):
             console.print(f"[{idx}] {key}")
 
-        key_choice = Prompt.ask("Choose a private key by entering the number")
+        key_choice = Prompt.ask("Choose a private key by index")
 
         if key_choice.isdigit():
             key_index = int(key_choice) - 1
             if 0 <= key_index < len(unlinked_keys):
                 private_key_file = unlinked_keys[key_index]
-            else:
-                typer.secho("Invalid key index selected.", fg=typer.colors.RED)
-                raise typer.Exit()
-        else:
-            matching_keys = [key for key in unlinked_keys if key.name == key_choice]
-            if matching_keys:
-                private_key_file = matching_keys[0]
-            else:
-                typer.secho("No matching key found with the provided name.", fg=typer.colors.RED)
-                raise typer.Exit()
+        if not private_key_file:
+            typer.secho("Invalid file index.", fg=typer.colors.RED)
+            raise typer.Exit()
+    elif not private_key_file and config and hasattr(config, "path") and Path(config.path).exists():
+        private_key_file = Path(config.path)
+    else:
+        typer.secho("No private key file provided.", fg=typer.colors.RED)
+        raise typer.Exit()
 
-    if chain_type is None:
-        chain_type = Prompt.ask(
-            "Which chain type do you want to link the key to?",
-            choices=["ETH", "SOL", "AVAX", "BASE", "BSC"],
-            default="ETH",
+    # Configure active chain
+    if not chain and (
+        not config
+        or not yes_no_input(
+            f"Active chain: [bright_cyan]{config.chain}[/bright_cyan]\n[yellow]Keep current active chain?[/yellow]",
+            default="y",
         )
-
-    typer.secho(f"Private key file: {private_key_file}", fg=typer.colors.YELLOW)
-    typer.secho(f"Chain type: {chain_type}", fg=typer.colors.YELLOW)
-
-    new_account = ChainAccount(path=private_key_file, chain=Chain(chain_type))
+    ):
+        chain = Chain(
+            Prompt.ask(
+                "Select the active chain: ",
+                choices=list(Chain),
+                default=Chain.ETH.value,
+            )
+        )
+    elif not chain and config and hasattr(config, "chain") and config.chain in list(Chain):
+        chain = Chain(config.chain)
+    else:
+        typer.secho("No chain provided.", fg=typer.colors.RED)
+        raise typer.Exit()
 
     try:
-        await upsert_chain_account(new_account, settings.CONFIG_FILE)
-        typer.secho(f"Key file {private_key_file} linked to {chain_type} successfully.", fg=typer.colors.GREEN)
-    except ValueError as e:
-        typer.secho(f"Error: {e}", fg=typer.colors.RED)
-
-
-@app.command()
-async def update(
-    private_key_file: Optional[Path] = typer.Option(None, help="The new path to the private key file"),
-    chain_type: Optional[str] = typer.Option(None, help="The new blockchain type (ETH, SOL, etc.)"),
-):
-    """
-    Command to update an existing chain account.
-    """
-
-    try:
-        existing_account = load_account_key_context(settings.CONFIG_FILE)
-
-        if private_key_file:
-            new_key_file = private_key_file
-        elif existing_account and existing_account.path:
-            new_key_file = existing_account.path
-        else:
-            typer.secho("No private key file or account path available", fg=typer.colors.RED)
-            typer.Exit(1)
-
-        if chain_type:
-            new_chain_type = chain_type
-        elif existing_account and existing_account.chain:
-            new_chain_type = existing_account.chain
-        else:
-            typer.secho("No chain type available", fg=typer.colors.RED)
-            typer.Exit(1)
-
-        updated_account = ChainAccount(path=new_key_file, chain=Chain(new_chain_type))
-
-        await upsert_chain_account(updated_account, settings.CONFIG_FILE)
-
-        typer.secho(
-            f"Account {updated_account.path} Chain : {updated_account.chain} updated successfully!",
-            fg=typer.colors.GREEN,
+        config = MainConfiguration(path=private_key_file, chain=chain)
+        save_main_configuration(settings.CONFIG_FILE, config)
+        console.print(
+            f"Private key [italic bright_cyan]{config.path}[/italic bright_cyan] on chain [italic bright_cyan]{config.chain}[/italic bright_cyan] is now your default configuration.",
+            style=typer.colors.GREEN,
         )
-
     except ValueError as e:
         typer.secho(f"Error: {e}", fg=typer.colors.RED)
+        raise typer.Exit(1)
