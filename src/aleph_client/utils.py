@@ -6,15 +6,14 @@ import re
 from functools import partial, wraps
 from pathlib import Path
 from shutil import make_archive
-from typing import List, Optional, Tuple, Type
+from typing import List, Optional, Tuple, Type, Union
 from zipfile import BadZipFile, ZipFile
 
 import typer
 from aiohttp import ClientSession
-from aleph.sdk.conf import settings
-from aleph.sdk.types import ChainAccount, GenericMessage
-from aleph.sdk.utils import load_account_key_context
-from aleph_message.models.base import Chain, MessageType
+from aleph.sdk.conf import MainConfiguration, load_main_configuration, settings
+from aleph.sdk.types import GenericMessage
+from aleph_message.models.base import MessageType
 from aleph_message.models.execution.base import Encoding
 
 logger = logging.getLogger(__name__)
@@ -103,16 +102,16 @@ def extract_valid_eth_address(address: str) -> str:
     return ""
 
 
-async def list_unlinked_keys() -> Tuple[List[Path], Optional[ChainAccount]]:
+async def list_unlinked_keys() -> Tuple[List[Path], Optional[MainConfiguration]]:
     """
-    List private key files that are not linked to any chain type and return the active ChainAccount.
+    List private key files that are not linked to any chain type and return the active MainConfiguration.
 
     Returns:
         - A tuple containing:
             - A list of unlinked private key files as Path objects.
-            - The active ChainAccount object (the single account in the config file).
+            - The active MainConfiguration object (the single account in the config file).
     """
-    config_home = settings.CONFIG_HOME if settings.CONFIG_HOME else str(Path.home())
+    config_home: Union[str, Path] = settings.CONFIG_HOME if settings.CONFIG_HOME else Path.home()
     private_key_dir = Path(config_home, "private-keys")
 
     if not private_key_dir.exists():
@@ -120,14 +119,14 @@ async def list_unlinked_keys() -> Tuple[List[Path], Optional[ChainAccount]]:
 
     all_private_key_files = list(private_key_dir.glob("*.key"))
 
-    account_data: Optional[ChainAccount] = load_account_key_context(Path(settings.CONFIG_FILE))
+    config: Optional[MainConfiguration] = load_main_configuration(Path(settings.CONFIG_FILE))
 
-    if not account_data:
-        logger.warning("No account data found in the config file.")
+    if not config:
+        logger.warning("No config file found.")
         return all_private_key_files, None
 
-    active_key_path = account_data.path
+    active_key_path = config.path
 
     unlinked_keys: List[Path] = [key_file for key_file in all_private_key_files if key_file != active_key_path]
 
-    return unlinked_keys, account_data
+    return unlinked_keys, config

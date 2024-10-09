@@ -5,6 +5,7 @@ import logging
 import os
 import sys
 from datetime import datetime
+from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, TypeVar, Union
 
 from aiohttp import ClientSession
@@ -70,8 +71,11 @@ def setup_logging(debug: bool = False):
     logging.basicConfig(level=level)
 
 
-def yes_no_input(text: str, default: bool) -> bool:
-    return Prompt.ask(text, choices=["y", "n"], default=default) == "y"
+def yes_no_input(text: str, default: str | bool) -> bool:
+    return (
+        Prompt.ask(text, choices=["y", "n"], default=default if isinstance(default, str) else ("y" if default else "n"))
+        == "y"
+    )
 
 
 def prompt_for_volumes():
@@ -164,11 +168,16 @@ def validated_prompt(
     validator: Callable[[str], Any],
     default: Optional[str] = None,
 ) -> str:
+    value = ""
     while True:
         try:
-            value = Prompt.ask(
-                prompt,
-                default=default,
+            value = (
+                Prompt.ask(
+                    prompt,
+                    default=default,
+                )
+                if default is not None
+                else Prompt.ask(prompt)
             )
         except PromptError:
             echo(f"Invalid input: {value}\nTry again.")
@@ -186,6 +195,7 @@ def validated_int_prompt(
     min_value: Optional[int] = None,
     max_value: Optional[int] = None,
 ) -> int:
+    value = None
     while True:
         try:
             value = IntPrompt.ask(
@@ -271,3 +281,13 @@ async def filter_only_valid_messages(messages: List[AlephMessage]):
             except ForgottenMessageError:
                 logger.debug("Message not found %s", item_hash)
         return filtered_messages
+
+
+def validate_ssh_pubkey_file(file: Union[str, Path]) -> Path:
+    if isinstance(file, str):
+        file = Path(file).expanduser()
+    if not file.exists():
+        raise ValueError(f"{file} does not exist")
+    if not file.is_file():
+        raise ValueError(f"{file} is not a file")
+    return file
