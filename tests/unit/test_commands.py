@@ -27,7 +27,9 @@ def get_test_message(account: ETHAccount):
 
 def test_account_create(account_file: Path):
     old_key = account_file.read_bytes()
-    result = runner.invoke(app, ["account", "create", "--replace", "--private-key-file", str(account_file)])
+    result = runner.invoke(
+        app, ["account", "create", "--no-active", "--replace", "--private-key-file", str(account_file)]
+    )
     assert result.exit_code == 0, result.stdout
     new_key = account_file.read_bytes()
     assert new_key != old_key
@@ -35,9 +37,28 @@ def test_account_create(account_file: Path):
 
 def test_account_address(account_file: Path):
     result = runner.invoke(app, ["account", "address", "--private-key-file", str(account_file)])
+    stripped = result.stdout.strip()
     assert result.exit_code == 0
-    assert result.stdout.startswith("0x")
-    assert len(result.stdout.strip()) == 42
+    assert stripped.startswith("Addresses for Active Account\nEVM: 0x")
+    assert len(stripped) >= 114 and len(stripped) <= 126  # SOL addresses are between 32 to 44 characters.
+
+
+def test_account_chain(account_file: Path):
+    result = runner.invoke(app, ["account", "chain"])
+    assert result.exit_code == 0
+    assert result.stdout.strip().startswith("Active Chain:")
+
+
+def test_account_path():
+    result = runner.invoke(app, ["account", "path"])
+    assert result.exit_code == 0
+    assert result.stdout.startswith("Aleph Home directory:")
+
+
+def test_account_show(account_file: Path):
+    result = runner.invoke(app, ["account", "show", "--private-key-file", str(account_file)])
+    assert result.exit_code == 0
+    assert result.stdout.strip().startswith("Addresses for Active Account\nEVM: 0x")
 
 
 def test_account_export_private_key(account_file: Path):
@@ -45,11 +66,6 @@ def test_account_export_private_key(account_file: Path):
     assert result.exit_code == 0
     assert result.stdout.startswith("0x")
     assert len(result.stdout.strip()) == 66
-
-
-def test_account_path():
-    result = runner.invoke(app, ["account", "path"])
-    assert result.stdout.startswith("/")
 
 
 def test_message_get():
