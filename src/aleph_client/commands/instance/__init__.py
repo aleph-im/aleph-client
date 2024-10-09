@@ -12,12 +12,12 @@ from typing import List, Optional, Tuple, Union, cast
 import aiohttp
 import typer
 from aleph.sdk import AlephHttpClient, AuthenticatedAlephHttpClient
-from aleph.sdk.account import _load_account
+from aleph.sdk.account import _load_account, load_chain_account_type
 from aleph.sdk.chains.ethereum import ETHAccount
 from aleph.sdk.client.vm_client import VmClient
 from aleph.sdk.client.vm_confidential_client import VmConfidentialClient
-from aleph.sdk.conf import settings
-from aleph.sdk.evm_utils import get_chains_with_super_token
+from aleph.sdk.conf import load_main_configuration, settings
+from aleph.sdk.evm_utils import get_chains_with_holding, get_chains_with_super_token
 from aleph.sdk.exceptions import (
     ForgottenMessageError,
     InsufficientFundsError,
@@ -25,8 +25,8 @@ from aleph.sdk.exceptions import (
 )
 from aleph.sdk.query.filters import MessageFilter
 from aleph.sdk.query.responses import PriceResponse
-from aleph.sdk.types import AccountFromPrivateKey, StorageEnum
-from aleph.sdk.utils import calculate_firmware_hash, load_account_key_context
+from aleph.sdk.types import StorageEnum
+from aleph.sdk.utils import calculate_firmware_hash
 from aleph_message.models import InstanceMessage, StoreMessage
 from aleph_message.models.base import Chain, MessageType
 from aleph_message.models.execution.base import Payment, PaymentType
@@ -59,6 +59,8 @@ from aleph_client.commands.utils import (
     get_or_prompt_volumes,
     safe_getattr,
     setup_logging,
+    str_to_datetime,
+    validate_ssh_pubkey_file,
     validated_int_prompt,
     validated_prompt,
     wait_for_confirmed_flow,
@@ -76,11 +78,12 @@ async def create(
     payment_type: Optional[str] = typer.Option(
         None,
         help=help_strings.PAYMENT_TYPE,
-        callback=lambda pt: None if pt is None else PaymentType.hold if pt == "nft" else PaymentType(pt),
+        callback=lambda pt: None if pt is None else pt.lower(),
+        # callback=lambda pt: None if pt is None else PaymentType.hold if pt == "nft" else PaymentType(pt),
         metavar=f"[{'|'.join(PaymentType)}|nft]",
     ),
     payment_chain: Optional[Chain] = typer.Option(
-        None, help=help_strings.PAYMENT_CHAIN, metavar=f"[{'|'.join([Chain.ETH, Chain.AVAX, Chain.BASE])}]"
+        None, help=help_strings.PAYMENT_CHAIN, metavar=f"[{'|'.join([Chain.ETH, Chain.AVAX, Chain.BASE, Chain.SOL])}]"
     ),
     hypervisor: Optional[HypervisorType] = typer.Option(None, help=help_strings.HYPERVISOR),
     name: Optional[str] = typer.Option(None, help=help_strings.INSTANCE_NAME),
@@ -116,55 +119,62 @@ async def create(
     verbose: bool = typer.Option(True),
     debug: bool = False,
 ) -> Tuple[ItemHash, Optional[str]]:
-    """Register a new instance on aleph.im"""
+    """Create and register a new instance on aleph.im"""
     setup_logging(debug)
+    console = Console()
 
-    def validate_ssh_pubkey_file(file: Union[str, Path]) -> Path:
-        if isinstance(file, str):
-            file = Path(file).expanduser()
-        if not file.exists():
-            raise ValueError(f"{file} does not exist")
-        if not file.is_file():
-            raise ValueError(f"{file} is not a file")
-        return file
-
+    # Loads ssh pubkey
     try:
         ssh_pubkey_file = validate_ssh_pubkey_file(ssh_pubkey_file)
     except ValueError:
         ssh_pubkey_file = Path(
             validated_prompt(
-                f"{ssh_pubkey_file} does not exist. Please enter a path to a public ssh key to be added to the instance.",
+                f"{ssh_pubkey_file} does not exist.\nPlease enter the path to a ssh pubkey to access your instance",
                 validate_ssh_pubkey_file,
             )
         )
+    ssh_pubkey: str = ssh_pubkey_file.read_text(encoding="utf-8").strip()
 
-    ssh_pubkey: str = ssh_pubkey_file.read_text().strip()
+    # Loads default configuration if no chain is set
+    if payment_chain is None:
+        config = load_main_configuration(settings.CONFIG_FILE)
+        if config is not None:
+            payment_chain = config.chain
+        else:
+            console.print("No active chain selected in configuration.")
 
-    account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
-
-
-    try:
-        if payment_chain is None:
-            key_context = load_account_key_context(settings.CONFIG_FILE)
-
-            if key_context is not None:
-                payment_chain = key_context.chain
-
-    except Exception as e:
-        pass
-
-    if payment_type is None:
+    # Populates payment type if not set
+    if not payment_type:
         payment_type = Prompt.ask(
             "Which payment type do you want to use?",
             choices=[ptype.value for ptype in PaymentType] + ["nft"],
             default=PaymentType.superfluid.value,
         )
-    payment_type = PaymentType.hold if payment_type == "nft" else PaymentType(payment_type)
-    is_stream = payment_type != PaymentType.hold
 
+    # Force-switches if NFT payment-type
+    if payment_type == "nft":
+        payment_chain = Chain.AVAX
+        payment_type = PaymentType.hold
+        console.print(
+            "[yellow]NFT[/yellow] payment-type selected: Auto-switch to [cyan]AVAX[/cyan] with [red]HOLD[/red]"
+        )
+    elif payment_type in [ptype.value for ptype in PaymentType]:
+        payment_type = PaymentType(payment_type)
+    else:
+        raise ValueError(f"Invalid payment-type: {payment_type}")
+
+    is_stream = payment_type != PaymentType.hold
+    hold_chains = get_chains_with_holding() + [Chain.SOL]
     super_token_chains = get_chains_with_super_token()
+
+    # Checks if payment-chain is compatible with PAYG
     if is_stream:
-        if payment_chain is None or payment_chain not in super_token_chains:
+        if payment_chain == Chain.SOL:
+            console.print(
+                "[yellow]SOL[/yellow] chain selected: [red]Not compatible yet with Pay-As-You-Go.[/red]\nChange your configuration or provide another chain using arguments (but EVM address will be used)."
+            )
+            raise typer.Exit(code=1)
+        elif payment_chain is None or payment_chain not in super_token_chains:
             payment_chain = Chain(
                 Prompt.ask(
                     "Which chain do you want to use for Pay-As-You-Go?",
@@ -172,18 +182,29 @@ async def create(
                     default=Chain.AVAX.value,
                 )
             )
+    # Fallback for Hold-tier if no config / no chain is set
+    elif payment_chain is None:
+        payment_chain = Chain(
+            Prompt.ask(
+                "Which chain do you want to use for Hold-tier?",
+                choices=hold_chains,
+                default=Chain.ETH.value,
+            )
+        )
 
-        if isinstance(account, ETHAccount):
-            account.switch_chain(payment_chain)
-            if account.superfluid_connector:  # Quick check with theoretical min price
-                try:
-                    account.superfluid_connector.can_start_flow(Decimal(0.000031))  # 0.11/h
-                except Exception as e:
-                    echo(e)
-                    raise typer.Exit(code=1)
-    else:
-        payment_chain = Chain.ETH  # Hold chain for all balances
+    # Populates account
+    account_type = load_chain_account_type(payment_chain)
+    account = _load_account(private_key, private_key_file, account_type)
 
+    # Checks required balances (Gas + Aleph ERC20) for superfluid payment
+    if is_stream and hasattr(account, "superfluid_connector"):  # Quick check with theoretical min price
+        try:
+            account.superfluid_connector.can_start_flow(Decimal(0.000031))  # 0.11/h
+        except Exception as e:
+            echo(e)
+            raise typer.Exit(code=1)
+
+    # Checks if Hypervisor is compatible with confidential
     if confidential:
         if hypervisor and hypervisor != HypervisorType.qemu:
             echo("Only QEMU is supported as an hypervisor for confidential")
@@ -378,8 +399,6 @@ async def create(
 
         item_hash: ItemHash = message.item_hash
         item_hash_text = Text(item_hash, style="bright_cyan")
-
-        console = Console()
 
         # Instances that need to be started by notifying a specific CRN
         crn_url = crn.url if crn and crn.url else None
@@ -590,7 +609,18 @@ async def _show_instances(messages: List[InstanceMessage], node_list: NodeInfo):
             if info["confidential"]
             else Text.assemble("Type: ", Text("Regular", style="grey50"))
         )
-        chain = Text.assemble("Chain: ", Text(str(info["chain"]), style="cyan"))
+        chain_label, chain_color = str(info["chain"]), "steel_blue"
+        if chain_label == "AVAX":
+            chain_label, chain_color = "AVAX", "bright_red"
+        elif chain_label == "BASE":
+            chain_label, chain_color = "BASE", "blue3"
+        elif chain_label == "SOL":
+            chain_label, chain_color = "SOL ", "medium_spring_green"
+        else:  # ETH
+            chain_label += " "
+        chain = Text.assemble("Chain: ", Text(chain_label, style=chain_color))
+        created_at_parsed = str(str_to_datetime(str(info["created_at"]))).split(".")[0]
+        created_at = Text.assemble("\t     Created at: ", Text(created_at_parsed, style="magenta"))
         instance = Text.assemble(
             "Item Hash ↓\t     Name: ",
             name,
@@ -603,6 +633,7 @@ async def _show_instances(messages: List[InstanceMessage], node_list: NodeInfo):
             "\n",
             cost,
             chain,
+            created_at,
         )
         specifications = (
             f"vCPUs: {message.content.resources.vcpus}\n"
@@ -1008,7 +1039,7 @@ async def confidential_start(
     if firmware_file:
         firmware_path = Path(firmware_file)
         if not firmware_path.exists():
-            raise Exception("Firmware path does not exist")
+            raise FileNotFoundError("Firmware path does not exist")
         firmware_hash = calculate_firmware_hash(firmware_path)
         logger.info(f"Calculated Firmware hash: {firmware_hash}")
     logger.info(sev_data)
@@ -1039,8 +1070,8 @@ async def confidential_start(
     )
 
 
-@app.command()
-async def confidential(
+@app.command(name="confidential")
+async def confidential_create(
     vm_id: Optional[str] = typer.Argument(default=None, help=help_strings.VM_ID),
     crn_url: Optional[str] = typer.Option(default=None, help=help_strings.CRN_URL),
     crn_hash: Optional[str] = typer.Option(default=None, help=help_strings.CRN_HASH),
@@ -1057,11 +1088,12 @@ async def confidential(
     payment_type: Optional[str] = typer.Option(
         None,
         help=help_strings.PAYMENT_TYPE,
-        callback=lambda pt: None if pt is None else PaymentType.hold if pt == "nft" else PaymentType(pt),
+        callback=lambda pt: None if pt is None else pt.lower(),
+        # callback=lambda pt: None if pt is None else PaymentType.hold if pt == "nft" else PaymentType(pt),
         metavar=f"[{'|'.join(PaymentType)}|nft]",
     ),
     payment_chain: Optional[Chain] = typer.Option(
-        None, help=help_strings.PAYMENT_CHAIN, metavar=f"[{'|'.join([Chain.ETH, Chain.AVAX, Chain.BASE])}]"
+        None, help=help_strings.PAYMENT_CHAIN, metavar=f"[{'|'.join([Chain.ETH, Chain.AVAX, Chain.BASE, Chain.SOL])}]"
     ),
     name: Optional[str] = typer.Option(None, help=help_strings.INSTANCE_NAME),
     rootfs: Optional[str] = typer.Option(None, help=help_strings.ROOTFS),
