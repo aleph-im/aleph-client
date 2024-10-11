@@ -308,41 +308,42 @@ async def create(
 
     stream_reward_address = None
     crn = None
-    if crn_url and crn_hash:
-        crn_url = sanitize_url(crn_url)
-        try:
-            crn_name, score, reward_addr = "?", 0, ""
-            nodes: NodeInfo = await _fetch_nodes()
-            for node in nodes.nodes:
-                if node["address"].rstrip("/") == crn_url:
-                    crn_name = node["name"]
-                    score = node["score"]
-                    reward_addr = node["stream_reward"]
-                    break
-            crn_info = await fetch_crn_info(crn_url)
-            if crn_info:
-                crn = CRNInfo(
-                    hash=ItemHash(crn_hash),
-                    name=crn_name or "?",
-                    url=crn_url,
-                    version=crn_info.get("version", ""),
-                    score=score,
-                    stream_reward_address=str(crn_info.get("payment", {}).get("PAYMENT_RECEIVER_ADDRESS"))
-                    or reward_addr
-                    or "",
-                    machine_usage=crn_info.get("machine_usage"),
-                    qemu_support=bool(crn_info.get("computing", {}).get("ENABLE_QEMU_SUPPORT", False)),
-                    confidential_computing=bool(
-                        crn_info.get("computing", {}).get("ENABLE_CONFIDENTIAL_COMPUTING", False)
-                    ),
-                )
-                echo("\n* Selected CRN *")
-                crn.display_crn_specs()
-                echo()
-        except Exception as e:
-            echo(f"Unable to fetch CRN config: {e}")
-            raise typer.Exit(1)
     if is_stream or confidential:
+        if crn_url and crn_hash:
+            crn_url = sanitize_url(crn_url)
+            try:
+                crn_name, score, reward_addr = "?", 0, ""
+                nodes: NodeInfo = await _fetch_nodes()
+                for node in nodes.nodes:
+                    if node["address"].rstrip("/") == crn_url:
+                        crn_name = node["name"]
+                        score = node["score"]
+                        reward_addr = node["stream_reward"]
+                        break
+                crn_info = await fetch_crn_info(crn_url)
+                if crn_info:
+                    crn = CRNInfo(
+                        hash=ItemHash(crn_hash),
+                        name=crn_name or "?",
+                        url=crn_url,
+                        version=crn_info.get("version", ""),
+                        score=score,
+                        stream_reward_address=str(crn_info.get("payment", {}).get("PAYMENT_RECEIVER_ADDRESS"))
+                        or reward_addr
+                        or "",
+                        machine_usage=crn_info.get("machine_usage"),
+                        qemu_support=bool(crn_info.get("computing", {}).get("ENABLE_QEMU_SUPPORT", False)),
+                        confidential_computing=bool(
+                            crn_info.get("computing", {}).get("ENABLE_CONFIDENTIAL_COMPUTING", False)
+                        ),
+                    )
+                    echo("\n* Selected CRN *")
+                    crn.display_crn_specs()
+                    echo()
+            except Exception as e:
+                echo(f"Unable to fetch CRN config: {e}")
+                raise typer.Exit(1)
+
         while not crn:
             crn_table = CRNTable(only_reward_address=is_stream, only_qemu=is_qemu, only_confidentials=confidential)
             crn = await crn_table.run_async()
