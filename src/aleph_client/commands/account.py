@@ -1,18 +1,14 @@
 from __future__ import annotations
 
 import asyncio
-import base64
-import json
 import logging
 from pathlib import Path
 from typing import Optional
 
 import aiohttp
 import typer
-from aleph.sdk.account import _load_account, load_chain_account_type
+from aleph.sdk.account import _load_account
 from aleph.sdk.chains.common import generate_key
-from aleph.sdk.chains.ethereum import ETHAccount
-from aleph.sdk.chains.solana import SOLAccount
 from aleph.sdk.chains.solana import parse_private_key as parse_solana_private_key
 from aleph.sdk.conf import (
     MainConfiguration,
@@ -21,7 +17,6 @@ from aleph.sdk.conf import (
     settings,
 )
 from aleph.sdk.evm_utils import get_chains_with_holding, get_chains_with_super_token
-from aleph.sdk.types import AccountFromPrivateKey
 from aleph_message.models import Chain
 from rich.console import Console
 from rich.prompt import Prompt
@@ -131,8 +126,8 @@ def display_active_address(
         typer.secho("No private key available", fg=RED)
         raise typer.Exit(code=1)
 
-    evm_address = _load_account(private_key, private_key_file, ETHAccount).get_address()
-    sol_address = _load_account(private_key, private_key_file, SOLAccount).get_address()
+    evm_address = _load_account(private_key, private_key_file, chain=Chain.ETH).get_address()
+    sol_address = _load_account(private_key, private_key_file, chain=Chain.SOL).get_address()
 
     console.print(
         "✉  [bold italic blue]Addresses for Active Account[/bold italic blue] ✉\n\n"
@@ -202,8 +197,8 @@ def export_private_key(
         typer.secho("No private key available", fg=RED)
         raise typer.Exit(code=1)
 
-    evm_pk = _load_account(private_key, private_key_file, ETHAccount).export_private_key()
-    sol_pk = _load_account(private_key, private_key_file, SOLAccount).export_private_key()
+    evm_pk = _load_account(private_key, private_key_file, chain=Chain.ETH).export_private_key()
+    sol_pk = _load_account(private_key, private_key_file, chain=Chain.SOL).export_private_key()
 
     console.print(
         "⚠️  [bold italic red]Private Keys for Active Account[/bold italic red] ⚠️\n\n"
@@ -218,13 +213,14 @@ def sign_bytes(
     message: Optional[str] = typer.Option(None, help="Message to sign"),
     private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
     private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
+    chain: Optional[Chain] = typer.Option(None, help=help_strings.ADDRESS_CHAIN),
     debug: bool = False,
 ):
     """Sign a message using your private key."""
 
     setup_logging(debug)
 
-    account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
+    account = _load_account(private_key, private_key_file, chain=chain)
 
     if not message:
         message = input_multiline()
@@ -239,9 +235,10 @@ async def balance(
     address: Optional[str] = typer.Option(None, help="Address"),
     private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
     private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
+    chain: Optional[Chain] = typer.Option(None, help=help_strings.ADDRESS_CHAIN),
 ):
     """Display your ALEPH balance."""
-    account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
+    account = _load_account(private_key, private_key_file, chain=chain)
 
     if account and not address:
         address = account.get_address()
@@ -302,8 +299,7 @@ async def list_accounts():
 
     active_address = None
     if config and config.path and active_chain:
-        account_type = load_chain_account_type(active_chain)
-        account: AccountFromPrivateKey = _load_account(private_key_path=config.path, account_type=account_type)
+        account = _load_account(private_key_path=config.path, chain=active_chain)
         active_address = account.get_address()
 
     console.print(
