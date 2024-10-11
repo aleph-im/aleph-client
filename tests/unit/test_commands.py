@@ -28,7 +28,8 @@ def get_test_message(account: ETHAccount):
 def test_account_create(account_file: Path):
     old_key = account_file.read_bytes()
     result = runner.invoke(
-        app, ["account", "create", "--no-active", "--replace", "--private-key-file", str(account_file)]
+        app,
+        ["account", "create", "--no-active", "--replace", "--private-key-file", str(account_file), "--chain", "ETH"],
     )
     assert result.exit_code == 0, result.stdout
     new_key = account_file.read_bytes()
@@ -74,13 +75,15 @@ def test_account_list(account_file: Path):  # TODO: fix config file mock issues
 
 
 def test_account_sign_bytes(account_file: Path):
-    result = runner.invoke(app, ["account", "sign-bytes", "--message", "test"])
+    result = runner.invoke(app, ["account", "sign-bytes", "--message", "test", "--chain", "ETH"])
     assert result.exit_code == 0
     assert result.stdout.startswith("\nSignature:")
 
 
 def test_account_balance(account_file: Path):
-    result = runner.invoke(app, ["account", "balance", "--address", "0xCAfEcAfeCAfECaFeCaFecaFecaFECafECafeCaFe"])
+    result = runner.invoke(
+        app, ["account", "balance", "--address", "0xCAfEcAfeCAfECaFeCaFecaFecaFECafECafeCaFe", "--chain", "ETH"]
+    )
     assert result.exit_code == 0
     assert result.stdout.startswith(
         "Failed to retrieve balance for address 0xCAfEcAfeCAfECaFeCaFecaFecaFECafECafeCaFe. Status code: 404"
