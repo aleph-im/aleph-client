@@ -355,6 +355,10 @@ async def create(
             if not Confirm.ask("\nDeploy on this node ?"):
                 crn = None
                 continue
+    elif crn_url or crn_hash:
+        logger.debug(
+            f"`--crn-url` and/or `--crn-hash` arguments have been ignored.\nHold-tier regular instances are scheduled automatically on available CRNs by the Aleph.im network."
+        )
 
     if crn:
         stream_reward_address = crn.stream_reward_address if hasattr(crn, "stream_reward_address") else ""
