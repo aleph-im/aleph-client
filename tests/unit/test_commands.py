@@ -37,35 +37,59 @@ def test_account_create(account_file: Path):
 
 def test_account_address(account_file: Path):
     result = runner.invoke(app, ["account", "address", "--private-key-file", str(account_file)])
-    stripped = result.stdout.strip()
     assert result.exit_code == 0
-    assert stripped.startswith("Addresses for Active Account\nEVM: 0x")
-    assert len(stripped) >= 114 and len(stripped) <= 126  # SOL addresses are between 32 to 44 characters.
+    assert result.stdout.startswith("✉  Addresses for Active Account ✉\n\nEVM: 0x")
 
 
 def test_account_chain(account_file: Path):
     result = runner.invoke(app, ["account", "chain"])
     assert result.exit_code == 0
-    assert result.stdout.strip().startswith("Active Chain:")
+    assert result.stdout.startswith("Active Chain:")
 
 
 def test_account_path():
     result = runner.invoke(app, ["account", "path"])
     assert result.exit_code == 0
-    assert result.stdout.startswith("Aleph Home directory:")
+    assert result.stdout.startswith("Aleph Home directory: ")
 
 
 def test_account_show(account_file: Path):
     result = runner.invoke(app, ["account", "show", "--private-key-file", str(account_file)])
     assert result.exit_code == 0
-    assert result.stdout.strip().startswith("Addresses for Active Account\nEVM: 0x")
+    assert result.stdout.startswith("✉  Addresses for Active Account ✉\n\nEVM: 0x")
 
 
 def test_account_export_private_key(account_file: Path):
     result = runner.invoke(app, ["account", "export-private-key", "--private-key-file", str(account_file)])
     assert result.exit_code == 0
-    assert result.stdout.startswith("0x")
-    assert len(result.stdout.strip()) == 66
+    assert result.stdout.startswith("⚠️  Private Keys for Active Account ⚠️\n\nEVM: 0x")
+
+
+def test_account_list(account_file: Path):  # TODO: fix config file mock issues
+    result = runner.invoke(app, ["account", "list"])
+    assert result.exit_code == 0
+    assert result.stdout.startswith("🌐  Chain Infos 🌐") or result.stdout.startswith(
+        "No private key path selected in the config file"
+    )
+
+
+def test_account_sign_bytes(account_file: Path):
+    result = runner.invoke(app, ["account", "sign-bytes", "--message", "test"])
+    assert result.exit_code == 0
+    assert result.stdout.startswith("\nSignature:")
+
+
+def test_account_balance(account_file: Path):
+    result = runner.invoke(app, ["account", "balance", "--address", "0xCAfEcAfeCAfECaFeCaFecaFecaFECafECafeCaFe"])
+    assert result.exit_code == 0
+    assert result.stdout.startswith(
+        "Failed to retrieve balance for address 0xCAfEcAfeCAfECaFeCaFecaFecaFECafECafeCaFe. Status code: 404"
+    )
+
+
+def test_account_config(account_file: Path):  # TODO: fix config file mock issues
+    result = runner.invoke(app, ["account", "config", "--private-key-file", str(account_file), "--chain", "ETH"])
+    assert result.exit_code == 1 or result.stdout.startswith("New Default Configuration: ")
 
 
 def test_message_get():

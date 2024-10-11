@@ -24,7 +24,7 @@ classifiers = [
 ]
 
 dependencies = [
-  "aleph-sdk-python>=1.0.1,<2",
+  "aleph-sdk-python@git+https://github.com/aleph-im/aleph-sdk-python@post-sol-fixes",
   "setuptools>=65.5.0",
   "aleph-message>=0.4.9",
   "aiohttp==3.10.6",

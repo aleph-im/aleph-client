@@ -458,18 +458,18 @@ async def create(
                 else:
                     console.print(
                         "\n\nInitialize a confidential session using:\n\n",
-                        Text.assemble(
-                            "  aleph instance confidential-init-session ",
-                            item_hash_text,
-                            style="italic",
-                        ),
-                        "\n\nThen start it using:\n\n",
-                        Text.assemble(
-                            "  aleph instance confidential-start ",
-                            item_hash_text,
-                            style="italic",
-                        ),
-                        "\n\nOr just use the all-in-one command:\n\n",
+                        # Text.assemble(
+                        #    "  aleph instance confidential-init-session ",
+                        #    item_hash_text,
+                        #    style="italic",
+                        # ),
+                        # "\n\nThen start it using:\n\n",
+                        # Text.assemble(
+                        #    "  aleph instance confidential-start ",
+                        #    item_hash_text,
+                        #    style="italic",
+                        # ),
+                        # "\n\nOr just use the all-in-one command:\n\n",
                         Text.assemble(
                             "  aleph instance confidential ",
                             item_hash_text,
@@ -674,18 +674,18 @@ async def _show_instances(messages: List[InstanceMessage], node_list: NodeInfo):
         crn_url_field = Text("<crn-url>", style="blue")
         console.print(
             "To start uninitialized confidential instance(s), use:\n\n",
-            Text.assemble(
-                "  aleph instance confidential-init-session ",
-                item_hash_field,
-                "\n",
-                style="italic",
-            ),
-            Text.assemble(
-                "  aleph instance confidential-start ",
-                item_hash_field,
-                style="italic",
-            ),
-            "\n\nOr just use the all-in-one command:\n\n",
+            # Text.assemble(
+            #    "  aleph instance confidential-init-session ",
+            #    item_hash_field,
+            #    "\n",
+            #    style="italic",
+            # ),
+            # Text.assemble(
+            #    "  aleph instance confidential-start ",
+            #    item_hash_field,
+            #    style="italic",
+            # ),
+            # "\n\nOr just use the all-in-one command:\n\n",
             Text.assemble(
                 "  aleph instance confidential ",
                 item_hash_field,
@@ -852,7 +852,7 @@ async def allocate(
     async with VmClient(account, domain) as manager:
         status, result = await manager.start_instance(vm_id=vm_id)
         if status != 200:
-            echo(f"Status: {status}")
+            echo(f"Status: {status}\n{result}")
             return 1
         echo(f"VM allocated on CRN: {domain}")
 
@@ -1120,7 +1120,7 @@ async def confidential_create(
     private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
     debug: bool = False,
 ):
-    """Create, start and unlock a confidential VM (all-in-one command)
+    """Create (optional), start and unlock a confidential VM (all-in-one command)
 
     This command combines the following commands:
     \n\t- create (unless vm_id is passed)

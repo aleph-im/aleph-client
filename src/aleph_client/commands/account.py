@@ -58,7 +58,7 @@ async def create(
     # Prepares new private key file
     if not private_key_file:
         private_key_file = Path(
-            validated_prompt("Enter a name or path for your new private key", lambda path: len(path) > 0)
+            validated_prompt("Enter a name or path for your private key", lambda path: len(path) > 0)
         )
     if not private_key_file.name.endswith(".key"):
         private_key_file = private_key_file.with_suffix(".key")
@@ -71,6 +71,14 @@ async def create(
     # Prepares new private key
     private_key_bytes: bytes
     if private_key:
+        if not chain:
+            chain = Chain(
+                Prompt.ask(
+                    "Select the origin chain of your new private key: ",
+                    choices=list(Chain),
+                    default=Chain.ETH.value,
+                )
+            )
         if chain == Chain.SOL:
             private_key_bytes = parse_solana_private_key(private_key)
         else:
@@ -127,9 +135,9 @@ def display_active_address(
     sol_address = _load_account(private_key, private_key_file, SOLAccount).get_address()
 
     console.print(
-        "\t[bold italic]Addresses for Active Account[/bold italic]\n"
+        "✉  [bold italic blue]Addresses for Active Account[/bold italic blue] ✉\n\n"
         + f"[italic]EVM[/italic]: [cyan]{evm_address}[/cyan]\n"
-        + f"[italic]SOL[/italic]: [magenta]{sol_address}[/magenta]"
+        + f"[italic]SOL[/italic]: [magenta]{sol_address}[/magenta]\n"
     )
 
 
@@ -176,10 +184,7 @@ def show(
     """Display current configuration."""
 
     display_active_address(private_key=private_key, private_key_file=private_key_file)
-    typer.echo()
     display_active_chain()
-    typer.echo()
-    path_directory()
 
 
 @app.command()
@@ -197,16 +202,15 @@ def export_private_key(
         typer.secho("No private key available", fg=RED)
         raise typer.Exit(code=1)
 
-    account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
+    evm_pk = _load_account(private_key, private_key_file, ETHAccount).export_private_key()
+    sol_pk = _load_account(private_key, private_key_file, SOLAccount).export_private_key()
 
-    if hasattr(account, "private_key"):
-        if isinstance(account, ETHAccount):
-            private_key_hex: str = base64.b16encode(account.private_key).decode().lower()
-            typer.echo(f"0x{private_key_hex}")
-        else:
-            typer.secho(f"Private key cannot be exported for {account}", fg=RED)
-    else:
-        typer.secho(f"Private key cannot be read for {account}", fg=RED)
+    console.print(
+        "⚠️  [bold italic red]Private Keys for Active Account[/bold italic red] ⚠️\n\n"
+        + f"[italic]EVM[/italic]: [cyan]{evm_pk}[/cyan]\n"
+        + f"[italic]SOL[/italic]: [magenta]{sol_pk}[/magenta]\n\n"
+        + "[bold italic red]Note: Aleph.im team will NEVER ask for them.[/bold italic red]"
+    )
 
 
 @app.command("sign-bytes")
@@ -274,7 +278,7 @@ async def list_accounts():
     config = load_main_configuration(config_file_path)
     unlinked_keys, _ = await list_unlinked_keys()
 
-    table = Table(title="Found Private Keys", show_lines=True)
+    table = Table(title="\n🔑  Found Private Keys 🔑", title_justify="left", show_lines=True)
     table.add_column("Name", style="cyan", no_wrap=True)
     table.add_column("Path", style="green")
     table.add_column("Active", no_wrap=True)
@@ -285,7 +289,7 @@ async def list_accounts():
         table.add_row(config.path.stem, str(config.path), "[bold green]*[/bold green]")
     else:
         console.print(
-            "[red]No private key path selected in the config file.[/red]\nTo set it up, use: [bold italic cyan]aleph account config[/bold italic cyan]"
+            "[red]No private key path selected in the config file.[/red]\nTo set it up, use: [bold italic cyan]aleph account config[/bold italic cyan]\n"
         )
 
     if unlinked_keys:
@@ -303,13 +307,14 @@ async def list_accounts():
         active_address = account.get_address()
 
     console.print(
-        "\n"
+        "🌐  [bold italic blue]Chain Infos[/bold italic blue] 🌐\n"
         + f"[italic]Chains with Signing[/italic]: [blue]{', '.join(list(Chain))}[/blue]\n"
         + f"[italic]Chains with Hold-tier[/italic]: [blue]{', '.join(hold_chains)}[/blue]\n"
-        + f"[italic]Chains with Pay-As-You-Go[/italic]: [blue]{', '.join(payg_chains)}[/blue]\n"
+        + f"[italic]Chains with Pay-As-You-Go[/italic]: [blue]{', '.join(payg_chains)}[/blue]\n\n"
+        + "🗃️  [bold italic green]Current Configuration[/bold italic green] 🗃️\n"
+        + (f"[italic]Active Address[/italic]: [bright_cyan]{active_address}[/bright_cyan]" if active_address else "")
     )
     display_active_chain()
-    console.print(f"[italic]Active Address[/italic]: [cyan]{active_address}[/cyan]\n" if active_address else "")
     console.print(table)
 
 
@@ -322,57 +327,65 @@ async def configure(
 
     unlinked_keys, config = await list_unlinked_keys()
 
-    # Configure active private key file
-    if not private_key_file and (
-        not config
-        or not Path(config.path).exists()
-        or not yes_no_input(
+    # Fixes private key file path
+    if private_key_file:
+        if not private_key_file.name.endswith(".key"):
+            private_key_file = private_key_file.with_suffix(".key")
+        if private_key_file.parent.as_posix() == ".":
+            private_key_file = Path(settings.CONFIG_HOME or ".", "private-keys", private_key_file)
+
+    # Checks if private key file exists
+    if private_key_file and not private_key_file.exists():
+        typer.secho(f"Private key file not found: {private_key_file}", fg=typer.colors.RED)
+        raise typer.Exit()
+
+    # Configures active private key file
+    if not private_key_file and config and hasattr(config, "path") and Path(config.path).exists():
+        if not yes_no_input(
             f"Active private key file: [bright_cyan]{config.path}[/bright_cyan]\n[yellow]Keep current active private key?[/yellow]",
             default="y",
-        )
-    ):
-        unlinked_keys = list(filter(lambda key_file: key_file.stem != "default", unlinked_keys))
-        if not unlinked_keys:
-            typer.secho("No unlinked private keys found.", fg=typer.colors.GREEN)
-            raise typer.Exit()
+        ):
+            unlinked_keys = list(filter(lambda key_file: key_file.stem != "default", unlinked_keys))
+            if not unlinked_keys:
+                typer.secho("No unlinked private keys found.", fg=typer.colors.GREEN)
+                raise typer.Exit()
 
-        console.print("[bold cyan]Available unlinked private keys:[/bold cyan]")
-        for idx, key in enumerate(unlinked_keys, start=1):
-            console.print(f"[{idx}] {key}")
+            console.print("[bold cyan]Available unlinked private keys:[/bold cyan]")
+            for idx, key in enumerate(unlinked_keys, start=1):
+                console.print(f"[{idx}] {key}")
 
-        key_choice = Prompt.ask("Choose a private key by index")
+            key_choice = Prompt.ask("Choose a private key by index")
+            if key_choice.isdigit():
+                key_index = int(key_choice) - 1
+                if 0 <= key_index < len(unlinked_keys):
+                    private_key_file = unlinked_keys[key_index]
+            if not private_key_file:
+                typer.secho("Invalid file index.", fg=typer.colors.RED)
+                raise typer.Exit()
+        else:  # No change
+            private_key_file = Path(config.path)
 
-        if key_choice.isdigit():
-            key_index = int(key_choice) - 1
-            if 0 <= key_index < len(unlinked_keys):
-                private_key_file = unlinked_keys[key_index]
-        if not private_key_file:
-            typer.secho("Invalid file index.", fg=typer.colors.RED)
-            raise typer.Exit()
-    elif not private_key_file and config and hasattr(config, "path") and Path(config.path).exists():
-        private_key_file = Path(config.path)
-    else:
-        typer.secho("No private key file provided.", fg=typer.colors.RED)
+    if not private_key_file:
+        typer.secho("No private key file provided or found.", fg=typer.colors.RED)
         raise typer.Exit()
 
     # Configure active chain
-    if not chain and (
-        not config
-        or not yes_no_input(
+    if not chain and config and hasattr(config, "chain"):
+        if not yes_no_input(
             f"Active chain: [bright_cyan]{config.chain}[/bright_cyan]\n[yellow]Keep current active chain?[/yellow]",
             default="y",
-        )
-    ):
-        chain = Chain(
-            Prompt.ask(
-                "Select the active chain: ",
-                choices=list(Chain),
-                default=Chain.ETH.value,
+        ):
+            chain = Chain(
+                Prompt.ask(
+                    "Select the active chain: ",
+                    choices=list(Chain),
+                    default=Chain.ETH.value,
+                )
             )
-        )
-    elif not chain and config and hasattr(config, "chain") and config.chain in list(Chain):
-        chain = Chain(config.chain)
-    else:
+        else:  # No change
+            chain = Chain(config.chain)
+
+    if not chain:
         typer.secho("No chain provided.", fg=typer.colors.RED)
         raise typer.Exit()
 
@@ -380,7 +393,7 @@ async def configure(
         config = MainConfiguration(path=private_key_file, chain=chain)
         save_main_configuration(settings.CONFIG_FILE, config)
         console.print(
-            f"Private key [italic bright_cyan]{config.path}[/italic bright_cyan] on chain [italic bright_cyan]{config.chain}[/italic bright_cyan] is now your default configuration.",
+            f"New Default Configuration: [italic bright_cyan]{config.path}[/italic bright_cyan] with [italic bright_cyan]{config.chain}[/italic bright_cyan]",
             style=typer.colors.GREEN,
         )
     except ValueError as e:
