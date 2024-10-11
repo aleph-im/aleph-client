@@ -3,6 +3,7 @@ from pathlib import Path
 from tempfile import NamedTemporaryFile
 
 from aleph.sdk.chains.ethereum import ETHAccount
+from aleph.sdk.conf import settings
 from typer.testing import CliRunner
 
 from aleph_client.__main__ import app
@@ -25,24 +26,71 @@ def get_test_message(account: ETHAccount):
     }
 
 
-def test_account_create(account_file: Path):
-    old_key = account_file.read_bytes()
+def test_account_create(env_files):
+    settings.CONFIG_FILE = env_files[1]
+    old_key = env_files[0].read_bytes()
     result = runner.invoke(
         app,
-        ["account", "create", "--no-active", "--replace", "--private-key-file", str(account_file), "--chain", "ETH"],
+        ["account", "create", "--replace", "--private-key-file", str(env_files[0]), "--chain", "ETH"],
     )
     assert result.exit_code == 0, result.stdout
-    new_key = account_file.read_bytes()
+    new_key = env_files[0].read_bytes()
     assert new_key != old_key
 
 
-def test_account_address(account_file: Path):
-    result = runner.invoke(app, ["account", "address", "--private-key-file", str(account_file)])
+def test_account_import_evm(env_files):
+    settings.CONFIG_FILE = env_files[1]
+    old_key = env_files[0].read_bytes()
+    result = runner.invoke(
+        app,
+        [
+            "account",
+            "create",
+            "--replace",
+            "--private-key-file",
+            str(env_files[0]),
+            "--chain",
+            "ETH",
+            "--private-key",
+            "0x5f5da4cee72286b9aec06fffe130e04e4b35583c1bf28b4d1992f6d69df1e076",
+        ],
+    )
+    assert result.exit_code == 0, result.stdout
+    new_key = env_files[0].read_bytes()
+    assert new_key != old_key
+
+
+def test_account_import_sol(env_files):
+    settings.CONFIG_FILE = env_files[1]
+    old_key = env_files[0].read_bytes()
+    result = runner.invoke(
+        app,
+        [
+            "account",
+            "create",
+            "--replace",
+            "--private-key-file",
+            str(env_files[0]),
+            "--chain",
+            "SOL",
+            "--private-key",
+            "2ub2ka8FFjDtfz5m9i2N6HvurgHaHDPD1nwVdmWy7ZhvMvGWbxaAMaPn8RECCerzo9Au2AToPXHzE6jsjjWscnHt",
+        ],
+    )
+    assert result.exit_code == 0, result.stdout
+    new_key = env_files[0].read_bytes()
+    assert new_key != old_key
+
+
+def test_account_address(env_files):
+    settings.CONFIG_FILE = env_files[1]
+    result = runner.invoke(app, ["account", "address", "--private-key-file", str(env_files[0])])
     assert result.exit_code == 0
     assert result.stdout.startswith("✉  Addresses for Active Account ✉\n\nEVM: 0x")
 
 
-def test_account_chain(account_file: Path):
+def test_account_chain(env_files):
+    settings.CONFIG_FILE = env_files[1]
     result = runner.invoke(app, ["account", "chain"])
     assert result.exit_code == 0
     assert result.stdout.startswith("Active Chain:")
@@ -54,33 +102,36 @@ def test_account_path():
     assert result.stdout.startswith("Aleph Home directory: ")
 
 
-def test_account_show(account_file: Path):
-    result = runner.invoke(app, ["account", "show", "--private-key-file", str(account_file)])
+def test_account_show(env_files):
+    settings.CONFIG_FILE = env_files[1]
+    result = runner.invoke(app, ["account", "show", "--private-key-file", str(env_files[0])])
     assert result.exit_code == 0
     assert result.stdout.startswith("✉  Addresses for Active Account ✉\n\nEVM: 0x")
 
 
-def test_account_export_private_key(account_file: Path):
-    result = runner.invoke(app, ["account", "export-private-key", "--private-key-file", str(account_file)])
+def test_account_export_private_key(env_files):
+    settings.CONFIG_FILE = env_files[1]
+    result = runner.invoke(app, ["account", "export-private-key", "--private-key-file", str(env_files[0])])
     assert result.exit_code == 0
     assert result.stdout.startswith("⚠️  Private Keys for Active Account ⚠️\n\nEVM: 0x")
 
 
-def test_account_list(account_file: Path):  # TODO: fix config file mock issues
+def test_account_list(env_files):
+    settings.CONFIG_FILE = env_files[1]
     result = runner.invoke(app, ["account", "list"])
     assert result.exit_code == 0
-    assert result.stdout.startswith("🌐  Chain Infos 🌐") or result.stdout.startswith(
-        "No private key path selected in the config file"
-    )
+    assert result.stdout.startswith("🌐  Chain Infos 🌐")
 
 
-def test_account_sign_bytes(account_file: Path):
+def test_account_sign_bytes(env_files):
+    settings.CONFIG_FILE = env_files[1]
     result = runner.invoke(app, ["account", "sign-bytes", "--message", "test", "--chain", "ETH"])
     assert result.exit_code == 0
     assert result.stdout.startswith("\nSignature:")
 
 
-def test_account_balance(account_file: Path):
+def test_account_balance(env_files):
+    settings.CONFIG_FILE = env_files[1]
     result = runner.invoke(
         app, ["account", "balance", "--address", "0xCAfEcAfeCAfECaFeCaFecaFecaFECafECafeCaFe", "--chain", "ETH"]
     )
@@ -90,9 +141,11 @@ def test_account_balance(account_file: Path):
     )
 
 
-def test_account_config(account_file: Path):  # TODO: fix config file mock issues
-    result = runner.invoke(app, ["account", "config", "--private-key-file", str(account_file), "--chain", "ETH"])
-    assert result.exit_code == 1 or result.stdout.startswith("New Default Configuration: ")
+def test_account_config(env_files):
+    settings.CONFIG_FILE = env_files[1]
+    result = runner.invoke(app, ["account", "config", "--private-key-file", str(env_files[0]), "--chain", "ETH"])
+    assert result.exit_code == 0
+    assert result.stdout.startswith("New Default Configuration: ")
 
 
 def test_message_get():
@@ -129,7 +182,8 @@ def test_message_find():
     assert "bd79839bf96e595a06da5ac0b6ba51dea6f7e2591bb913deccded04d831d29f4" in result.stdout
 
 
-def test_post_message(account_file):
+def test_post_message(env_files):
+    settings.CONFIG_FILE = env_files[1]
     test_file_path = Path(__file__).parent.parent / "test_post.json"
     result = runner.invoke(
         app,
@@ -137,7 +191,7 @@ def test_post_message(account_file):
             "message",
             "post",
             "--private-key-file",
-            str(account_file),
+            str(env_files[0]),
             "--path",
             str(test_file_path),
         ],
@@ -146,8 +200,9 @@ def test_post_message(account_file):
     assert "item_hash" in result.stdout
 
 
-def test_sign_message(account_file):
-    account = get_account(account_file)
+def test_sign_message(env_files):
+    settings.CONFIG_FILE = env_files[1]
+    account = get_account(env_files[0])
     message = get_test_message(account)
     result = runner.invoke(
         app,
@@ -155,7 +210,7 @@ def test_sign_message(account_file):
             "message",
             "sign",
             "--private-key-file",
-            str(account_file),
+            str(env_files[0]),
             "--message",
             json.dumps(message),
         ],
@@ -165,8 +220,9 @@ def test_sign_message(account_file):
     assert "signature" in result.stdout
 
 
-def test_sign_message_stdin(account_file):
-    account = get_account(account_file)
+def test_sign_message_stdin(env_files):
+    settings.CONFIG_FILE = env_files[1]
+    account = get_account(env_files[0])
     message = get_test_message(account)
     result = runner.invoke(
         app,
@@ -174,7 +230,7 @@ def test_sign_message_stdin(account_file):
             "message",
             "sign",
             "--private-key-file",
-            str(account_file),
+            str(env_files[0]),
         ],
         input=json.dumps(message),
     )

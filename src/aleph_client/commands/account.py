@@ -77,6 +77,8 @@ async def create(
         if chain == Chain.SOL:
             private_key_bytes = parse_solana_private_key(private_key)
         else:
+            if private_key.startswith("0x"):
+                private_key = private_key[2:]
             private_key_bytes = bytes.fromhex(private_key)
     else:
         private_key_bytes = generate_key()
