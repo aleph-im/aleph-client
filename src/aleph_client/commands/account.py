@@ -17,6 +17,7 @@ from aleph.sdk.conf import (
     settings,
 )
 from aleph.sdk.evm_utils import get_chains_with_holding, get_chains_with_super_token
+from aleph.sdk.utils import bytes_from_hex
 from aleph_message.models import Chain
 from rich.console import Console
 from rich.prompt import Prompt
@@ -77,9 +78,7 @@ async def create(
         if chain == Chain.SOL:
             private_key_bytes = parse_solana_private_key(private_key)
         else:
-            if private_key.startswith("0x"):
-                private_key = private_key[2:]
-            private_key_bytes = bytes.fromhex(private_key)
+            private_key_bytes = bytes_from_hex(private_key)
     else:
         private_key_bytes = generate_key()
     if not private_key_bytes:

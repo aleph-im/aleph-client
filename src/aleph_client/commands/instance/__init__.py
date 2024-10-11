@@ -542,6 +542,9 @@ async def delete(
         if safe_getattr(payment, "type") == PaymentType.superfluid:
             price = await client.get_program_price(item_hash)
 
+        # Ensure correct chain
+        chain = existing_message.content.payment.chain  # type: ignore
+
         # Check status of the instance and eventually erase associated VM
         node_list: NodeInfo = await _fetch_nodes()
         _, info = await fetch_vm_info(existing_message, node_list)
@@ -549,10 +552,19 @@ async def delete(
         crn_url = str(info["crn_url"])
         if not auto_scheduled and crn_url:
             try:
-                status = await erase(item_hash, crn_url, private_key, private_key_file, True, debug)
+                status = await erase(
+                    vm_id=item_hash,
+                    domain=crn_url,
+                    chain=chain,
+                    private_key=private_key,
+                    private_key_file=private_key_file,
+                    silent=True,
+                    debug=debug,
+                )
                 if status == 1:
                     echo(f"No associated VM on {crn_url}. Skipping...")
-            except Exception:
+            except Exception as e:
+                logger.debug(f"Error while deleting associated VM on {crn_url}: {str(e)}")
                 echo(f"Failed to erase associated VM on {crn_url}. Skipping...")
         else:
             echo(f"Instance {item_hash} was auto-scheduled, VM will be erased automatically.")
