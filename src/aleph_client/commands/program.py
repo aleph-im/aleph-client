@@ -150,7 +150,7 @@ async def upload(
             f"  {settings.VM_URL_PATH.format(hash=item_hash)}\n"
             f"  {settings.VM_URL_HOST.format(hash_base32=hash_base32)}\n"
             "Visualise on:\n  https://explorer.aleph.im/address/"
-            f"{message.chain}/{message.sender}/message/PROGRAM/{item_hash}\n"
+            f"{message.chain.value}/{message.sender}/message/PROGRAM/{item_hash}\n"
         )
 
 

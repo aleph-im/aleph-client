@@ -15,13 +15,19 @@ from aleph.sdk.chains.common import generate_key
 
 
 @pytest.fixture
+def new_config_file() -> Generator[Path, None, None]:
+    with NamedTemporaryFile(suffix=".json") as config_file:
+        yield Path(config_file.name)
+
+
+@pytest.fixture
 def empty_account_file() -> Generator[Path, None, None]:
-    with NamedTemporaryFile() as key_file:
+    with NamedTemporaryFile(suffix=".key") as key_file:
         yield Path(key_file.name)
 
 
 @pytest.fixture
-def account_file(empty_account_file: Path) -> Path:
-    private_key = generate_key()
-    empty_account_file.write_bytes(private_key)
-    return empty_account_file
+def env_files(new_config_file: Path, empty_account_file: Path) -> Generator[Path, None, None]:
+    new_config_file.write_text(f'{{"path": "{empty_account_file}", "chain": "ETH"}}')
+    empty_account_file.write_bytes(generate_key())
+    yield empty_account_file, new_config_file

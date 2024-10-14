@@ -119,12 +119,14 @@ async def fetch_vm_info(message: InstanceMessage, node_list: NodeInfo) -> tuple[
     async with aiohttp.ClientSession() as session:
         hold = not message.content.payment or message.content.payment.type == PaymentType["hold"]
         crn_hash = safe_getattr(message, "content.requirements.node.node_hash")
+        created_at = safe_getattr(message, "content.time")
         firmware = safe_getattr(message, "content.environment.trusted_execution.firmware")
         confidential = firmware and len(firmware) == 64
         info = dict(
             crn_hash=str(crn_hash) if crn_hash else "",
+            created_at=str(created_at),
             payment="hold\t   " if hold else str(safe_getattr(message, "content.payment.type.value")),
-            chain="Any" if hold else str(safe_getattr(message, "content.payment.chain.value")),
+            chain=str(safe_getattr(message, "content.payment.chain.value")),
             confidential=confidential,
             allocation_type="",
             ipv6_logs="",

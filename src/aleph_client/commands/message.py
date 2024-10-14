@@ -134,7 +134,7 @@ async def post(
         file_size = os.path.getsize(path)
         storage_engine = StorageEnum.ipfs if file_size > 4 * 1024 * 1024 else StorageEnum.storage
 
-        with open(path) as fd:
+        with open(path, "r", encoding="utf-8") as fd:
             content = json.load(fd)
 
     else:
@@ -262,9 +262,13 @@ def sign(
     account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
 
     if message is None:
-        # take from stdin
-        message = "\n".join(sys.stdin.readlines())
+        message = input_multiline()
+    try:
+        data = json.loads(message)
+    except json.JSONDecodeError:
+        typer.echo(f"Error: Message isn't a valid JSON")
+        raise typer.Exit(code=1)
 
-    coroutine = account.sign_message(json.loads(message))
+    coroutine = account.sign_message(data)
     signed_message = asyncio.run(coroutine)
     typer.echo(json.dumps(signed_message, indent=4, default=extended_json_encoder))

@@ -6,12 +6,12 @@ import re
 from functools import partial, wraps
 from pathlib import Path
 from shutil import make_archive
-from typing import Tuple, Type
+from typing import List, Optional, Tuple, Type, Union
 from zipfile import BadZipFile, ZipFile
 
 import typer
 from aiohttp import ClientSession
-from aleph.sdk.conf import settings
+from aleph.sdk.conf import MainConfiguration, load_main_configuration, settings
 from aleph.sdk.types import GenericMessage
 from aleph_message.models.base import MessageType
 from aleph_message.models.execution.base import Encoding
@@ -100,3 +100,33 @@ def extract_valid_eth_address(address: str) -> str:
         if match:
             return match.group(0)
     return ""
+
+
+async def list_unlinked_keys() -> Tuple[List[Path], Optional[MainConfiguration]]:
+    """
+    List private key files that are not linked to any chain type and return the active MainConfiguration.
+
+    Returns:
+        - A tuple containing:
+            - A list of unlinked private key files as Path objects.
+            - The active MainConfiguration object (the single account in the config file).
+    """
+    config_home: Union[str, Path] = settings.CONFIG_HOME if settings.CONFIG_HOME else Path.home()
+    private_key_dir = Path(config_home, "private-keys")
+
+    if not private_key_dir.exists():
+        return [], None
+
+    all_private_key_files = list(private_key_dir.glob("*.key"))
+
+    config: Optional[MainConfiguration] = load_main_configuration(Path(settings.CONFIG_FILE))
+
+    if not config:
+        logger.warning("No config file found.")
+        return all_private_key_files, None
+
+    active_key_path = config.path
+
+    unlinked_keys: List[Path] = [key_file for key_file in all_private_key_files if key_file != active_key_path]
+
+    return unlinked_keys, config

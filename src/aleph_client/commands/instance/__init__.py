@@ -16,8 +16,8 @@ from aleph.sdk.account import _load_account
 from aleph.sdk.chains.ethereum import ETHAccount
 from aleph.sdk.client.vm_client import VmClient
 from aleph.sdk.client.vm_confidential_client import VmConfidentialClient
-from aleph.sdk.conf import settings
-from aleph.sdk.evm_utils import get_chains_with_super_token
+from aleph.sdk.conf import load_main_configuration, settings
+from aleph.sdk.evm_utils import get_chains_with_holding, get_chains_with_super_token
 from aleph.sdk.exceptions import (
     ForgottenMessageError,
     InsufficientFundsError,
@@ -25,7 +25,7 @@ from aleph.sdk.exceptions import (
 )
 from aleph.sdk.query.filters import MessageFilter
 from aleph.sdk.query.responses import PriceResponse
-from aleph.sdk.types import AccountFromPrivateKey, StorageEnum
+from aleph.sdk.types import StorageEnum
 from aleph.sdk.utils import calculate_firmware_hash
 from aleph_message.models import InstanceMessage, StoreMessage
 from aleph_message.models.base import Chain, MessageType
@@ -59,6 +59,8 @@ from aleph_client.commands.utils import (
     get_or_prompt_volumes,
     safe_getattr,
     setup_logging,
+    str_to_datetime,
+    validate_ssh_pubkey_file,
     validated_int_prompt,
     validated_prompt,
     wait_for_confirmed_flow,
@@ -76,11 +78,12 @@ async def create(
     payment_type: Optional[str] = typer.Option(
         None,
         help=help_strings.PAYMENT_TYPE,
-        callback=lambda pt: None if pt is None else PaymentType.hold if pt == "nft" else PaymentType(pt),
+        callback=lambda pt: None if pt is None else pt.lower(),
+        # callback=lambda pt: None if pt is None else PaymentType.hold if pt == "nft" else PaymentType(pt),
         metavar=f"[{'|'.join(PaymentType)}|nft]",
     ),
     payment_chain: Optional[Chain] = typer.Option(
-        None, help=help_strings.PAYMENT_CHAIN, metavar=f"[{'|'.join([Chain.ETH, Chain.AVAX, Chain.BASE])}]"
+        None, help=help_strings.PAYMENT_CHAIN, metavar=f"[{'|'.join([Chain.ETH, Chain.AVAX, Chain.BASE, Chain.SOL])}]"
     ),
     hypervisor: Optional[HypervisorType] = typer.Option(None, help=help_strings.HYPERVISOR),
     name: Optional[str] = typer.Option(None, help=help_strings.INSTANCE_NAME),
@@ -115,45 +118,63 @@ async def create(
     print_messages: bool = typer.Option(False),
     verbose: bool = typer.Option(True),
     debug: bool = False,
-) -> Tuple[ItemHash, Optional[str]]:
-    """Register a new instance on aleph.im"""
+) -> Tuple[ItemHash, Optional[str], Chain]:
+    """Create and register a new instance on aleph.im"""
     setup_logging(debug)
+    console = Console()
 
-    def validate_ssh_pubkey_file(file: Union[str, Path]) -> Path:
-        if isinstance(file, str):
-            file = Path(file).expanduser()
-        if not file.exists():
-            raise ValueError(f"{file} does not exist")
-        if not file.is_file():
-            raise ValueError(f"{file} is not a file")
-        return file
-
+    # Loads ssh pubkey
     try:
         ssh_pubkey_file = validate_ssh_pubkey_file(ssh_pubkey_file)
     except ValueError:
         ssh_pubkey_file = Path(
             validated_prompt(
-                f"{ssh_pubkey_file} does not exist. Please enter a path to a public ssh key to be added to the instance.",
+                f"{ssh_pubkey_file} does not exist.\nPlease enter the path to a ssh pubkey to access your instance",
                 validate_ssh_pubkey_file,
             )
         )
+    ssh_pubkey: str = ssh_pubkey_file.read_text(encoding="utf-8").strip()
 
-    ssh_pubkey: str = ssh_pubkey_file.read_text().strip()
+    # Loads default configuration if no chain is set
+    if payment_chain is None:
+        config = load_main_configuration(settings.CONFIG_FILE)
+        if config is not None:
+            payment_chain = config.chain
+        else:
+            console.print("No active chain selected in configuration.")
 
-    account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
-
-    if payment_type is None:
+    # Populates payment type if not set
+    if not payment_type:
         payment_type = Prompt.ask(
             "Which payment type do you want to use?",
             choices=[ptype.value for ptype in PaymentType] + ["nft"],
             default=PaymentType.superfluid.value,
         )
-    payment_type = PaymentType.hold if payment_type == "nft" else PaymentType(payment_type)
-    is_stream = payment_type != PaymentType.hold
 
+    # Force-switches if NFT payment-type
+    if payment_type == "nft":
+        payment_chain = Chain.AVAX
+        payment_type = PaymentType.hold
+        console.print(
+            "[yellow]NFT[/yellow] payment-type selected: Auto-switch to [cyan]AVAX[/cyan] with [red]HOLD[/red]"
+        )
+    elif payment_type in [ptype.value for ptype in PaymentType]:
+        payment_type = PaymentType(payment_type)
+    else:
+        raise ValueError(f"Invalid payment-type: {payment_type}")
+
+    is_stream = payment_type != PaymentType.hold
+    hold_chains = get_chains_with_holding() + [Chain.SOL]
     super_token_chains = get_chains_with_super_token()
+
+    # Checks if payment-chain is compatible with PAYG
     if is_stream:
-        if payment_chain is None or payment_chain not in super_token_chains:
+        if payment_chain == Chain.SOL:
+            console.print(
+                "[yellow]SOL[/yellow] chain selected: [red]Not compatible yet with Pay-As-You-Go.[/red]\nChange your configuration or provide another chain using arguments (but EVM address will be used)."
+            )
+            raise typer.Exit(code=1)
+        elif payment_chain is None or payment_chain not in super_token_chains:
             payment_chain = Chain(
                 Prompt.ask(
                     "Which chain do you want to use for Pay-As-You-Go?",
@@ -161,17 +182,34 @@ async def create(
                     default=Chain.AVAX.value,
                 )
             )
-        if isinstance(account, ETHAccount):
-            account.switch_chain(payment_chain)
-            if account.superfluid_connector:  # Quick check with theoretical min price
-                try:
-                    account.superfluid_connector.can_start_flow(Decimal(0.000031))  # 0.11/h
-                except Exception as e:
-                    echo(e)
-                    raise typer.Exit(code=1)
-    else:
-        payment_chain = Chain.ETH  # Hold chain for all balances
+    # Fallback for Hold-tier if no config / no chain is set
+    elif payment_chain is None:
+        payment_chain = Chain(
+            Prompt.ask(
+                "Which chain do you want to use for Hold-tier?",
+                choices=hold_chains,
+                default=Chain.ETH.value,
+            )
+        )
 
+    # Populates account
+    account = _load_account(private_key, private_key_file, chain=payment_chain)
+
+    # Checks required balances (Gas + Aleph ERC20) for superfluid payment
+    if is_stream and isinstance(account, ETHAccount):
+        if account.CHAIN != payment_chain:
+            account.switch_chain(payment_chain)
+        if account.superfluid_connector and hasattr(account.superfluid_connector, "can_start_flow"):
+            try:  # Quick check with theoretical min price
+                account.superfluid_connector.can_start_flow(Decimal(0.000031))  # 0.11/h
+            except Exception as e:
+                echo(e)
+                raise typer.Exit(code=1)
+        else:
+            echo("Superfluid connector not available on this chain.")
+            raise typer.Exit(code=1)
+
+    # Checks if Hypervisor is compatible with confidential
     if confidential:
         if hypervisor and hypervisor != HypervisorType.qemu:
             echo("Only QEMU is supported as an hypervisor for confidential")
@@ -270,41 +308,42 @@ async def create(
 
     stream_reward_address = None
     crn = None
-    if crn_url and crn_hash:
-        crn_url = sanitize_url(crn_url)
-        try:
-            crn_name, score, reward_addr = "?", 0, ""
-            nodes: NodeInfo = await _fetch_nodes()
-            for node in nodes.nodes:
-                if node["address"].rstrip("/") == crn_url:
-                    crn_name = node["name"]
-                    score = node["score"]
-                    reward_addr = node["stream_reward"]
-                    break
-            crn_info = await fetch_crn_info(crn_url)
-            if crn_info:
-                crn = CRNInfo(
-                    hash=ItemHash(crn_hash),
-                    name=crn_name or "?",
-                    url=crn_url,
-                    version=crn_info.get("version", ""),
-                    score=score,
-                    stream_reward_address=str(crn_info.get("payment", {}).get("PAYMENT_RECEIVER_ADDRESS"))
-                    or reward_addr
-                    or "",
-                    machine_usage=crn_info.get("machine_usage"),
-                    qemu_support=bool(crn_info.get("computing", {}).get("ENABLE_QEMU_SUPPORT", False)),
-                    confidential_computing=bool(
-                        crn_info.get("computing", {}).get("ENABLE_CONFIDENTIAL_COMPUTING", False)
-                    ),
-                )
-                echo("\n* Selected CRN *")
-                crn.display_crn_specs()
-                echo()
-        except Exception as e:
-            echo(f"Unable to fetch CRN config: {e}")
-            raise typer.Exit(1)
     if is_stream or confidential:
+        if crn_url and crn_hash:
+            crn_url = sanitize_url(crn_url)
+            try:
+                crn_name, score, reward_addr = "?", 0, ""
+                nodes: NodeInfo = await _fetch_nodes()
+                for node in nodes.nodes:
+                    if node["address"].rstrip("/") == crn_url:
+                        crn_name = node["name"]
+                        score = node["score"]
+                        reward_addr = node["stream_reward"]
+                        break
+                crn_info = await fetch_crn_info(crn_url)
+                if crn_info:
+                    crn = CRNInfo(
+                        hash=ItemHash(crn_hash),
+                        name=crn_name or "?",
+                        url=crn_url,
+                        version=crn_info.get("version", ""),
+                        score=score,
+                        stream_reward_address=str(crn_info.get("payment", {}).get("PAYMENT_RECEIVER_ADDRESS"))
+                        or reward_addr
+                        or "",
+                        machine_usage=crn_info.get("machine_usage"),
+                        qemu_support=bool(crn_info.get("computing", {}).get("ENABLE_QEMU_SUPPORT", False)),
+                        confidential_computing=bool(
+                            crn_info.get("computing", {}).get("ENABLE_CONFIDENTIAL_COMPUTING", False)
+                        ),
+                    )
+                    echo("\n* Selected CRN *")
+                    crn.display_crn_specs()
+                    echo()
+            except Exception as e:
+                echo(f"Unable to fetch CRN config: {e}")
+                raise typer.Exit(1)
+
         while not crn:
             crn_table = CRNTable(only_reward_address=is_stream, only_qemu=is_qemu, only_confidentials=confidential)
             crn = await crn_table.run_async()
@@ -316,6 +355,10 @@ async def create(
             if not Confirm.ask("\nDeploy on this node ?"):
                 crn = None
                 continue
+    elif crn_url or crn_hash:
+        logger.debug(
+            f"`--crn-url` and/or `--crn-hash` arguments have been ignored.\nHold-tier regular instances are scheduled automatically on available CRNs by the Aleph.im network."
+        )
 
     if crn:
         stream_reward_address = crn.stream_reward_address if hasattr(crn, "stream_reward_address") else ""
@@ -367,15 +410,13 @@ async def create(
         item_hash: ItemHash = message.item_hash
         item_hash_text = Text(item_hash, style="bright_cyan")
 
-        console = Console()
-
         # Instances that need to be started by notifying a specific CRN
         crn_url = crn.url if crn and crn.url else None
         if crn and (is_stream or confidential):
             if not crn_url:
                 # Not the ideal solution
                 logger.debug(f"Cannot allocate {item_hash}: no CRN url")
-                return item_hash, crn_url
+                return item_hash, crn_url, payment_chain
 
             # Wait for the instance message to be processed
             async with aiohttp.ClientSession() as session:
@@ -411,7 +452,7 @@ async def create(
                 logger.debug(status, result)
                 if int(status) != 200:
                     echo(f"Could not allocate instance {item_hash} on CRN.")
-                    return item_hash, crn_url
+                    return item_hash, crn_url, payment_chain
             console.print(f"Your instance {item_hash_text} has been deployed on aleph.im.")
             if verbose:
                 # PAYG-tier non-confidential instances
@@ -427,18 +468,18 @@ async def create(
                 else:
                     console.print(
                         "\n\nInitialize a confidential session using:\n\n",
-                        Text.assemble(
-                            "  aleph instance confidential-init-session ",
-                            item_hash_text,
-                            style="italic",
-                        ),
-                        "\n\nThen start it using:\n\n",
-                        Text.assemble(
-                            "  aleph instance confidential-start ",
-                            item_hash_text,
-                            style="italic",
-                        ),
-                        "\n\nOr just use the all-in-one command:\n\n",
+                        # Text.assemble(
+                        #    "  aleph instance confidential-init-session ",
+                        #    item_hash_text,
+                        #    style="italic",
+                        # ),
+                        # "\n\nThen start it using:\n\n",
+                        # Text.assemble(
+                        #    "  aleph instance confidential-start ",
+                        #    item_hash_text,
+                        #    style="italic",
+                        # ),
+                        # "\n\nOr just use the all-in-one command:\n\n",
                         Text.assemble(
                             "  aleph instance confidential ",
                             item_hash_text,
@@ -460,13 +501,14 @@ async def create(
                         style="italic",
                     ),
                 )
-        return item_hash, crn_url
+        return item_hash, crn_url, payment_chain
 
 
 @app.command()
 async def delete(
     item_hash: str = typer.Argument(..., help="Instance item hash to forget"),
     reason: str = typer.Option("User deletion", help="Reason for deleting the instance"),
+    chain: Optional[Chain] = typer.Option(None, help=help_strings.ADDRESS_CHAIN),
     crn_url: Optional[str] = typer.Option(None, help=help_strings.CRN_URL_VM_DELETION),
     private_key: Optional[str] = settings.PRIVATE_KEY_STRING,
     private_key_file: Optional[Path] = settings.PRIVATE_KEY_FILE,
@@ -477,7 +519,7 @@ async def delete(
 
     setup_logging(debug)
 
-    account = _load_account(private_key, private_key_file)
+    account = _load_account(private_key, private_key_file, chain=chain)
     async with AuthenticatedAlephHttpClient(account=account, api_server=settings.API_HOST) as client:
         try:
             existing_message: InstanceMessage = await client.get_message(
@@ -500,6 +542,9 @@ async def delete(
         if safe_getattr(payment, "type") == PaymentType.superfluid:
             price = await client.get_program_price(item_hash)
 
+        # Ensure correct chain
+        chain = existing_message.content.payment.chain  # type: ignore
+
         # Check status of the instance and eventually erase associated VM
         node_list: NodeInfo = await _fetch_nodes()
         _, info = await fetch_vm_info(existing_message, node_list)
@@ -507,17 +552,27 @@ async def delete(
         crn_url = str(info["crn_url"])
         if not auto_scheduled and crn_url:
             try:
-                status = await erase(item_hash, crn_url, private_key, private_key_file, True, debug)
+                status = await erase(
+                    vm_id=item_hash,
+                    domain=crn_url,
+                    chain=chain,
+                    private_key=private_key,
+                    private_key_file=private_key_file,
+                    silent=True,
+                    debug=debug,
+                )
                 if status == 1:
                     echo(f"No associated VM on {crn_url}. Skipping...")
-            except Exception:
+            except Exception as e:
+                logger.debug(f"Error while deleting associated VM on {crn_url}: {str(e)}")
                 echo(f"Failed to erase associated VM on {crn_url}. Skipping...")
         else:
             echo(f"Instance {item_hash} was auto-scheduled, VM will be erased automatically.")
 
         # Check for streaming payment and eventually stop it
         if payment and payment.type == PaymentType.superfluid and payment.receiver and isinstance(account, ETHAccount):
-            account.switch_chain(payment.chain)
+            if account.CHAIN != payment.chain:
+                account.switch_chain(payment.chain)
             if account.superfluid_connector and price:
                 flow_hash = await update_flow(
                     account, payment.receiver, Decimal(price.required_tokens), FlowUpdate.REDUCE
@@ -578,7 +633,18 @@ async def _show_instances(messages: List[InstanceMessage], node_list: NodeInfo):
             if info["confidential"]
             else Text.assemble("Type: ", Text("Regular", style="grey50"))
         )
-        chain = Text.assemble("Chain: ", Text(str(info["chain"]), style="cyan"))
+        chain_label, chain_color = str(info["chain"]), "steel_blue"
+        if chain_label == "AVAX":
+            chain_label, chain_color = "AVAX", "bright_red"
+        elif chain_label == "BASE":
+            chain_label, chain_color = "BASE", "blue3"
+        elif chain_label == "SOL":
+            chain_label, chain_color = "SOL ", "medium_spring_green"
+        else:  # ETH
+            chain_label += " "
+        chain = Text.assemble("Chain: ", Text(chain_label, style=chain_color))
+        created_at_parsed = str(str_to_datetime(str(info["created_at"]))).split(".")[0]
+        created_at = Text.assemble("\t     Created at: ", Text(created_at_parsed, style="magenta"))
         instance = Text.assemble(
             "Item Hash ↓\t     Name: ",
             name,
@@ -591,6 +657,7 @@ async def _show_instances(messages: List[InstanceMessage], node_list: NodeInfo):
             "\n",
             cost,
             chain,
+            created_at,
         )
         specifications = (
             f"vCPUs: {message.content.resources.vcpus}\n"
@@ -628,21 +695,20 @@ async def _show_instances(messages: List[InstanceMessage], node_list: NodeInfo):
     console.print(table)
     if uninitialized_confidential_found:
         item_hash_field = Text("<vm-item-hash>", style="bright_cyan")
-        crn_url_field = Text("<crn-url>", style="blue")
         console.print(
             "To start uninitialized confidential instance(s), use:\n\n",
-            Text.assemble(
-                "  aleph instance confidential-init-session ",
-                item_hash_field,
-                "\n",
-                style="italic",
-            ),
-            Text.assemble(
-                "  aleph instance confidential-start ",
-                item_hash_field,
-                style="italic",
-            ),
-            "\n\nOr just use the all-in-one command:\n\n",
+            # Text.assemble(
+            #    "  aleph instance confidential-init-session ",
+            #    item_hash_field,
+            #    "\n",
+            #    style="italic",
+            # ),
+            # Text.assemble(
+            #    "  aleph instance confidential-start ",
+            #    item_hash_field,
+            #    style="italic",
+            # ),
+            # "\n\nOr just use the all-in-one command:\n\n",
             Text.assemble(
                 "  aleph instance confidential ",
                 item_hash_field,
@@ -668,6 +734,7 @@ async def list(
     address: Optional[str] = typer.Option(None, help="Owner address of the instance"),
     private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
     private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
+    chain: Optional[Chain] = typer.Option(None, help=help_strings.ADDRESS_CHAIN),
     json: bool = typer.Option(default=False, help="Print as json instead of rich table"),
     debug: bool = False,
 ):
@@ -676,7 +743,7 @@ async def list(
     setup_logging(debug)
 
     if address is None:
-        account = _load_account(private_key, private_key_file)
+        account = _load_account(private_key, private_key_file, chain=chain)
         address = account.get_address()
 
     async with AlephHttpClient(api_server=settings.API_HOST) as client:
@@ -704,6 +771,7 @@ async def list(
 async def expire(
     vm_id: str = typer.Argument(..., help="VM item hash to expire"),
     domain: Optional[str] = typer.Option(None, help="CRN domain on which the VM is running"),
+    chain: Optional[Chain] = typer.Option(None, help=help_strings.PAYMENT_CHAIN_USED),
     private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
     private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
     debug: bool = False,
@@ -718,7 +786,7 @@ async def expire(
         or Prompt.ask("URL of the CRN (Compute node) on which the VM is running")
     )
 
-    account = _load_account(private_key, private_key_file)
+    account = _load_account(private_key, private_key_file, chain=chain)
 
     async with VmClient(account, domain) as manager:
         status, result = await manager.expire_instance(vm_id=vm_id)
@@ -732,6 +800,7 @@ async def expire(
 async def erase(
     vm_id: str = typer.Argument(..., help="VM item hash to erase"),
     domain: Optional[str] = typer.Option(None, help="CRN domain on which the VM is stored or running"),
+    chain: Optional[Chain] = typer.Option(None, help=help_strings.PAYMENT_CHAIN_USED),
     private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
     private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
     silent: bool = False,
@@ -747,7 +816,7 @@ async def erase(
         or Prompt.ask("URL of the CRN (Compute node) on which the VM is stored or running")
     )
 
-    account = _load_account(private_key, private_key_file)
+    account = _load_account(private_key, private_key_file, chain=chain)
 
     async with VmClient(account, domain) as manager:
         status, result = await manager.erase_instance(vm_id=vm_id)
@@ -762,6 +831,7 @@ async def erase(
 async def reboot(
     vm_id: str = typer.Argument(..., help="VM item hash to reboot"),
     domain: Optional[str] = typer.Option(None, help="CRN domain on which the VM is running"),
+    chain: Optional[Chain] = typer.Option(None, help=help_strings.PAYMENT_CHAIN_USED),
     private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
     private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
     debug: bool = False,
@@ -776,7 +846,7 @@ async def reboot(
         or Prompt.ask("URL of the CRN (Compute node) on which the VM is running")
     )
 
-    account = _load_account(private_key, private_key_file)
+    account = _load_account(private_key, private_key_file, chain=chain)
 
     async with VmClient(account, domain) as manager:
         status, result = await manager.reboot_instance(vm_id=vm_id)
@@ -790,6 +860,7 @@ async def reboot(
 async def allocate(
     vm_id: str = typer.Argument(..., help="VM item hash to allocate"),
     domain: Optional[str] = typer.Option(None, help="CRN domain on which the VM will be allocated"),
+    chain: Optional[Chain] = typer.Option(None, help=help_strings.PAYMENT_CHAIN_USED),
     private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
     private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
     debug: bool = False,
@@ -804,12 +875,12 @@ async def allocate(
         or Prompt.ask("URL of the CRN (Compute node) on which the VM will be allocated")
     )
 
-    account = _load_account(private_key, private_key_file)
+    account = _load_account(private_key, private_key_file, chain=chain)
 
     async with VmClient(account, domain) as manager:
         status, result = await manager.start_instance(vm_id=vm_id)
         if status != 200:
-            echo(f"Status: {status}")
+            echo(f"Status: {status}\n{result}")
             return 1
         echo(f"VM allocated on CRN: {domain}")
 
@@ -818,6 +889,7 @@ async def allocate(
 async def logs(
     vm_id: str = typer.Argument(..., help="VM item hash to retrieve the logs from"),
     domain: Optional[str] = typer.Option(None, help="CRN domain on which the VM is running"),
+    chain: Optional[Chain] = typer.Option(None, help=help_strings.PAYMENT_CHAIN_USED),
     private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
     private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
     debug: bool = False,
@@ -831,7 +903,7 @@ async def logs(
         or Prompt.ask("URL of the CRN (Compute node) on which the instance is running")
     )
 
-    account = _load_account(private_key, private_key_file)
+    account = _load_account(private_key, private_key_file, chain=chain)
 
     async with VmClient(account, domain) as manager:
         try:
@@ -849,6 +921,7 @@ async def logs(
 async def stop(
     vm_id: str = typer.Argument(..., help="VM item hash to stop"),
     domain: Optional[str] = typer.Option(None, help="CRN domain on which the VM is running"),
+    chain: Optional[Chain] = typer.Option(None, help=help_strings.PAYMENT_CHAIN_USED),
     private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
     private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
     debug: bool = False,
@@ -863,7 +936,7 @@ async def stop(
         or Prompt.ask("URL of the CRN (Compute node) on which the instance is running")
     )
 
-    account = _load_account(private_key, private_key_file)
+    account = _load_account(private_key, private_key_file, chain=chain)
 
     async with VmClient(account, domain) as manager:
         status, result = await manager.stop_instance(vm_id=vm_id)
@@ -877,6 +950,7 @@ async def stop(
 async def confidential_init_session(
     vm_id: str = typer.Argument(..., help="VM item hash to initialize the session for"),
     domain: Optional[str] = typer.Option(None, help="CRN domain on which the session will be initialized"),
+    chain: Optional[Chain] = typer.Option(None, help=help_strings.PAYMENT_CHAIN_USED),
     policy: int = typer.Option(default=0x1),
     keep_session: bool = typer.Option(None, help=help_strings.KEEP_SESSION),
     private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
@@ -897,7 +971,7 @@ async def confidential_init_session(
         or Prompt.ask("URL of the CRN (Compute node) on which the session will be initialized")
     )
 
-    account = _load_account(private_key, private_key_file)
+    account = _load_account(private_key, private_key_file, chain=chain)
 
     sevctl_path = find_sevctl_or_exit()
 
@@ -953,6 +1027,7 @@ def find_sevctl_or_exit() -> Path:
 async def confidential_start(
     vm_id: str = typer.Argument(..., help="VM item hash to start"),
     domain: Optional[str] = typer.Option(None, help="CRN domain on which the VM will be started"),
+    chain: Optional[Chain] = typer.Option(None, help=help_strings.PAYMENT_CHAIN_USED),
     firmware_hash: str = typer.Option(
         settings.DEFAULT_CONFIDENTIAL_FIRMWARE_HASH, help=help_strings.CONFIDENTIAL_FIRMWARE_HASH
     ),
@@ -968,7 +1043,7 @@ async def confidential_start(
     session_dir.mkdir(exist_ok=True, parents=True)
 
     setup_logging(debug)
-    account = _load_account(private_key, private_key_file)
+    account = _load_account(private_key, private_key_file, chain=chain)
     sevctl_path = find_sevctl_or_exit()
 
     domain = (
@@ -996,7 +1071,7 @@ async def confidential_start(
     if firmware_file:
         firmware_path = Path(firmware_file)
         if not firmware_path.exists():
-            raise Exception("Firmware path does not exist")
+            raise FileNotFoundError("Firmware path does not exist")
         firmware_hash = calculate_firmware_hash(firmware_path)
         logger.info(f"Calculated Firmware hash: {firmware_hash}")
     logger.info(sev_data)
@@ -1027,8 +1102,8 @@ async def confidential_start(
     )
 
 
-@app.command()
-async def confidential(
+@app.command(name="confidential")
+async def confidential_create(
     vm_id: Optional[str] = typer.Argument(default=None, help=help_strings.VM_ID),
     crn_url: Optional[str] = typer.Option(default=None, help=help_strings.CRN_URL),
     crn_hash: Optional[str] = typer.Option(default=None, help=help_strings.CRN_HASH),
@@ -1045,11 +1120,12 @@ async def confidential(
     payment_type: Optional[str] = typer.Option(
         None,
         help=help_strings.PAYMENT_TYPE,
-        callback=lambda pt: None if pt is None else PaymentType.hold if pt == "nft" else PaymentType(pt),
+        callback=lambda pt: None if pt is None else pt.lower(),
+        # callback=lambda pt: None if pt is None else PaymentType.hold if pt == "nft" else PaymentType(pt),
         metavar=f"[{'|'.join(PaymentType)}|nft]",
     ),
     payment_chain: Optional[Chain] = typer.Option(
-        None, help=help_strings.PAYMENT_CHAIN, metavar=f"[{'|'.join([Chain.ETH, Chain.AVAX, Chain.BASE])}]"
+        None, help=help_strings.PAYMENT_CHAIN, metavar=f"[{'|'.join([Chain.ETH, Chain.AVAX, Chain.BASE, Chain.SOL])}]"
     ),
     name: Optional[str] = typer.Option(None, help=help_strings.INSTANCE_NAME),
     rootfs: Optional[str] = typer.Option(None, help=help_strings.ROOTFS),
@@ -1076,7 +1152,7 @@ async def confidential(
     private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
     debug: bool = False,
 ):
-    """Create, start and unlock a confidential VM (all-in-one command)
+    """Create (optional), start and unlock a confidential VM (all-in-one command)
 
     This command combines the following commands:
     \n\t- create (unless vm_id is passed)
@@ -1089,7 +1165,7 @@ async def confidential(
     find_sevctl_or_exit()
     allocated = False
     if not vm_id or len(vm_id) != 64:
-        vm_id, crn_url = await create(
+        vm_id, crn_url, payment_chain = await create(
             payment_type=payment_type,
             payment_chain=payment_chain,
             hypervisor=HypervisorType.qemu,
@@ -1119,6 +1195,19 @@ async def confidential(
             echo("Could not create the VM")
             return 1
         allocated = vm_id is not None
+    elif vm_id and not payment_chain:
+        async with AlephHttpClient(api_server=settings.API_HOST) as client:
+            try:
+                existing_message: InstanceMessage = await client.get_message(
+                    item_hash=ItemHash(vm_id), message_type=InstanceMessage
+                )
+                payment_chain = existing_message.content.payment.chain  # type: ignore
+            except MessageNotFoundError:
+                echo("Instance does not exist")
+                raise typer.Exit(code=1)
+            except ForgottenMessageError:
+                echo("Instance already forgotten")
+                raise typer.Exit(code=1)
 
     crn_url = (
         (crn_url and sanitize_url(crn_url))
@@ -1140,6 +1229,7 @@ async def confidential(
         await confidential_init_session(
             vm_id=vm_id,
             domain=crn_url,
+            chain=payment_chain,
             policy=policy,
             keep_session=keep_session,
             private_key=private_key,
@@ -1154,6 +1244,7 @@ async def confidential(
     await confidential_start(
         vm_id=vm_id,
         domain=crn_url,
+        chain=payment_chain,
         firmware_hash=firmware_hash,
         firmware_file=firmware_file,
         vm_secret=vm_secret,
