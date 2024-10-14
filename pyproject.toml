@@ -39,7 +39,7 @@ dependencies = [
   "pygments==2.18",
   "pynacl==1.5",              # Needed now as default with _load_account changement
   "python-magic==0.4.27",
-  "rich==13.8.1",
+  "rich==13.9.2",
   "setuptools>=65.5",
   "textual==0.73",
   "typer==0.12.5",
