@@ -81,7 +81,7 @@ async def post(
             inline=inline,
             address=address,
         )
-        log_message = json.dumps(message.dict(), indent=4, default=extended_json_encoder)
+        log_message = json.dumps(message.model_dump(), indent=4, default=extended_json_encoder)
         typer.echo(log_message)
 
 

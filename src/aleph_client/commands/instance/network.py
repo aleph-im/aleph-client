@@ -11,7 +11,7 @@ from aleph.sdk.conf import settings
 from aleph_message.models import InstanceMessage
 from aleph_message.models.execution.base import PaymentType
 from aleph_message.models.item_hash import ItemHash
-from pydantic import ValidationError
+from pydantic import ValidationError, field_validator
 
 from aleph_client.commands import help_strings
 from aleph_client.commands.node import NodeInfo, _fetch_nodes
@@ -49,7 +49,7 @@ async def fetch_crn_info(node_url: str) -> dict | None:
             async with session.get(url) as resp:
                 resp.raise_for_status()
                 system: dict = await resp.json()
-                info["machine_usage"] = MachineUsage.parse_obj(system)
+                info["machine_usage"] = MachineUsage.model_validate(system)
             return info
     except aiohttp.InvalidURL as e:
         logger.debug(f"Invalid CRN URL: {url}: {e}")
