@@ -229,7 +229,8 @@ def get_docs_for_click(
             for command in commands:
                 command_obj = group.get_command(ctx, command)
                 assert command_obj
-                docs += f"* `{command_obj.name}`"
+                anchor_name = f"{command_name.replace(' ', '-')}-{command_obj.name}"
+                docs += f"* [`{command_obj.name}`](#{anchor_name})"
                 command_help = command_obj.get_short_help_str(limit=1000)
                 if command_help:
                     docs += f": {command_help}"
