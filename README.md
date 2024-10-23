@@ -96,7 +96,7 @@ If you have the `aleph-docs` repository cloned as a sibling folder to your curre
 command to generate updated documentation:
 
 ```shell
-typer src/aleph_client/__main__.py utils docs --name aleph --title 'Aleph CLI Documentation' --output ../aleph-docs/docs/tools/aleph-client/usage.md
+./scripts/gendoc.py   src/aleph_client/__main__.py docs --name aleph --title 'Aleph CLI Documentation' --output ../aleph-docs/docs/tools/aleph-client/usage.md
 ```
 
 After generating the documentation, you may need to update the path for the private key, as this depends on the user
