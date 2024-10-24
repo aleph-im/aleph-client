@@ -119,7 +119,7 @@ async def upload(
             )
             logger.debug("Upload finished")
             if print_messages or print_code_message:
-                typer.echo(f"{user_code.json(indent=4)}")
+                typer.echo(f"{user_code.model_dump_json(indent=4)}")
             program_ref = user_code.item_hash
 
         # Register the program
@@ -139,7 +139,7 @@ async def upload(
         )
         logger.debug("Upload finished")
         if print_messages or print_program_message:
-            typer.echo(f"{message.json(indent=4)}")
+            typer.echo(f"{message.model_dump_json(indent=4)}")
 
         item_hash: ItemHash = message.item_hash
         hash_base32 = b32encode(b16decode(item_hash.upper())).strip(b"=").lower().decode()
@@ -207,7 +207,7 @@ async def update(
             )
             logger.debug("Upload finished")
             if print_message:
-                typer.echo(f"{message.json(indent=4)}")
+                typer.echo(f"{message.model_dump_json(indent=4)}")
 
 
 @app.command()
@@ -235,4 +235,4 @@ async def unpersist(
             message_type=message.type,
             channel=message.channel,
         )
-        typer.echo(f"{message.json(indent=4)}")
+        typer.echo(f"{message.model_dump_json(indent=4)}")

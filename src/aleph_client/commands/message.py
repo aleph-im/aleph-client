@@ -7,6 +7,7 @@ import subprocess
 import sys
 import tempfile
 import time
+from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional
 
@@ -18,7 +19,7 @@ from aleph.sdk.query.filters import MessageFilter
 from aleph.sdk.query.responses import MessagesResponse
 from aleph.sdk.types import AccountFromPrivateKey, StorageEnum
 from aleph.sdk.utils import extended_json_encoder
-from aleph_message.models import AlephMessage, ProgramMessage
+from aleph_message.models import AlephMessage, ProgramMessage, StoreMessage
 from aleph_message.models.base import MessageType
 from aleph_message.models.item_hash import ItemHash
 from aleph_message.status import MessageStatus
@@ -46,9 +47,9 @@ async def get(
         typer.echo(f"Message Status: {colorized_status(status)}")
         if status == MessageStatus.REJECTED:
             reason = await client.get_message_error(item_hash=ItemHash(item_hash))
-            typer.echo(colorful_json(json.dumps(reason, indent=4)))
+            typer.echo(colorful_json(json.dumps(reason, indent=4, default=extended_json_encoder)))
         else:
-            typer.echo(colorful_message_json(message))
+            typer.echo(colorful_json(json.dumps(message, indent=4, default=extended_json_encoder)))
 
 
 @app.command()
@@ -102,7 +103,7 @@ async def find(
             ),
             ignore_invalid_messages=ignore_invalid_messages,
         )
-    typer.echo(colorful_json(response.json(sort_keys=True, indent=4)))
+    typer.echo(colorful_json(json.dumps(response.model_dump(), sort_keys=True, indent=4, default=extended_json_encoder)))
 
 
 @app.command()
@@ -156,7 +157,7 @@ async def post(
             storage_engine=storage_engine,
         )
 
-        typer.echo(json.dumps(result.dict(), indent=4, default=extended_json_encoder))
+        typer.echo(json.dumps(result.model_dump(), indent=4, default=extended_json_encoder))
 
 
 @app.command()
@@ -178,7 +179,7 @@ async def amend(
     editor: str = os.getenv("EDITOR", default="nano")
     with tempfile.NamedTemporaryFile(suffix="json") as fd:
         # Fill in message template
-        fd.write(existing_message.content.json(indent=4).encode())
+        fd.write(existing_message.content.model_dump_json(indent=4).encode())
         fd.seek(0)
 
         # Launch editor
@@ -203,11 +204,11 @@ async def amend(
     typer.echo(new_content)
     async with AuthenticatedAlephHttpClient(account=account, api_server=settings.API_HOST) as client:
         message, status, response = await client.submit(
-            content=new_content.dict(),
+            content=new_content.model_dump(),
             message_type=existing_message.type,
             channel=existing_message.channel,
         )
-    typer.echo(f"{message.json(indent=4)}")
+    typer.echo(f"{message.model_dump_json(indent=4)}")
 
 
 @app.command()
@@ -245,7 +246,7 @@ async def watch(
         async for message in client.watch_messages(
             message_filter=MessageFilter(refs=[ref], addresses=[original.content.address])
         ):
-            typer.echo(f"{message.json(indent=indent)}")
+            typer.echo(f"{message.model_dump_json(indent=indent)}")
 
 
 @app.command()
