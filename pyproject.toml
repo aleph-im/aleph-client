@@ -38,7 +38,7 @@ dependencies = [
   "base58==2.1.1",                                                                                                          # Needed now as default with _load_account changement
   "py-sr25519-bindings==0.2",                                                                                               # Needed for DOT signatures
   "pygments==2.18",
-  "pynacl==1.5",                                                                                                            # Needed now as default with _load_account changement
+  "pynacl==1.5",                                                                                                           # Needed now as default with _load_account changement
   "python-magic==0.4.27",
   "rich==13.9.3",
   "setuptools>=65.5",
@@ -122,7 +122,7 @@ dependencies = [
   "mypy==1.10.0",
   "ruff==0.4.9",
   "isort==5.13.2",
-  "yamlfix==1.16.1",
+  "yamlfix==1.17.0",
   "pyproject-fmt==2.2.1",
 
   "types-requests==2.32.0.20240602",

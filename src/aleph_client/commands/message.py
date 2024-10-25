@@ -103,7 +103,9 @@ async def find(
             ),
             ignore_invalid_messages=ignore_invalid_messages,
         )
-    typer.echo(colorful_json(json.dumps(response.model_dump(), sort_keys=True, indent=4, default=extended_json_encoder)))
+    typer.echo(
+        colorful_json(json.dumps(response.model_dump(), sort_keys=True, indent=4, default=extended_json_encoder))
+    )
 
 
 @app.command()
