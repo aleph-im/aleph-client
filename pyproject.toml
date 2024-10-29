@@ -41,7 +41,7 @@ dependencies = [
   "python-magic==0.4.27",
   "rich==13.9.3",
   "setuptools>=65.5",
-  "textual==0.73",
+  "textual==0.85.1",
   "typer==0.12.5",
 ]
 optional-dependencies.cosmos = [ "cosmospy==6" ]
