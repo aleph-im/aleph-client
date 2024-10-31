@@ -164,7 +164,7 @@ async def create(
         raise ValueError(f"Invalid payment-type: {payment_type}")
 
     is_stream = payment_type != PaymentType.hold
-    hold_chains = get_chains_with_holding() + [Chain.SOL]
+    hold_chains = get_chains_with_holding() + [Chain.SOL.value]
     super_token_chains = get_chains_with_super_token()
 
     # Checks if payment-chain is compatible with PAYG
