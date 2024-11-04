@@ -33,16 +33,16 @@ dynamic = [ "version" ]
 dependencies = [
   "aiodns==3.2",
   "aiohttp==3.10.6",
-  "aleph-message @ git+https://github.com/aleph-im/aleph-message.git@andres-feature-add_new_evm_chains",
-  "aleph-sdk-python @ git+https://github.com/aleph-im/aleph-sdk-python@andres-feature-implement_new_evm_chains",
-  "base58==2.1.1",                                                                                               # Needed now as default with _load_account changement
-  "py-sr25519-bindings==0.2",                                                                                    # Needed for DOT signatures
+  "aleph-message>=0.5",
+  "aleph-sdk-python>=1.2,<2",
+  "base58==2.1.1",               # Needed now as default with _load_account changement
+  "py-sr25519-bindings==0.2",    # Needed for DOT signatures
   "pygments==2.18",
-  "pynacl==1.5",                                                                                                 # Needed now as default with _load_account changement
+  "pynacl==1.5",                 # Needed now as default with _load_account changement
   "python-magic==0.4.27",
   "rich==13.8.1",
   "setuptools>=65.5",
-  "substrate-interface==1.7.11",                                                                                 # Needed for DOT signatures
+  "substrate-interface==1.7.11", # Needed for DOT signatures
   "textual==0.73",
   "typer==0.12.5",
 ]
