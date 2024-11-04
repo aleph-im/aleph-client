@@ -16,7 +16,11 @@ from aleph.sdk.conf import (
     save_main_configuration,
     settings,
 )
-from aleph.sdk.evm_utils import get_chains_with_holding, get_chains_with_super_token
+from aleph.sdk.evm_utils import (
+    get_chains_with_holding,
+    get_chains_with_super_token,
+    get_compatible_chains,
+)
 from aleph.sdk.utils import bytes_from_hex
 from aleph_message.models import Chain
 from rich.console import Console
@@ -149,11 +153,14 @@ def display_active_chain():
     if config and config.chain:
         active_chain = config.chain
 
-    hold_chains = get_chains_with_holding() + ["SOL"]
+    compatible_chains = get_compatible_chains()
+    hold_chains = get_chains_with_holding() + [Chain.SOL.value]
     payg_chains = get_chains_with_super_token()
 
     chain = f"[bold green]{active_chain}[/bold green]" if active_chain else "[red]Not Selected[/red]"
     active_chain_compatibility, compatibility = [], ""
+    if active_chain in compatible_chains:
+        active_chain_compatibility.append("SIGN")
     if active_chain in hold_chains:
         active_chain_compatibility.append("HOLD")
     if active_chain in payg_chains:
@@ -295,7 +302,7 @@ async def list_accounts():
             if key_file.stem != "default":
                 table.add_row(key_file.stem, str(key_file), "[bold red]-[/bold red]")
 
-    hold_chains = get_chains_with_holding() + ["SOL"]
+    hold_chains = get_chains_with_holding() + [Chain.SOL.value]
     payg_chains = get_chains_with_super_token()
 
     active_address = None
