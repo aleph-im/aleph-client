@@ -43,7 +43,7 @@ dependencies = [
   "rich==13.9.3",
   "setuptools>=65.5",
   "substrate-interface==1.7.11", # Needed for DOT signatures
-  "textual==0.73",
+  "textual==0.85.2",
   "typer==0.12.5",
 ]
 optional-dependencies.cosmos = [ "cosmospy==6" ]
