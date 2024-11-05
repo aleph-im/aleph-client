@@ -22,9 +22,9 @@ from aleph_message.models.execution.program import ProgramContent
 from aleph_message.models.item_hash import ItemHash
 from aleph_message.status import MessageStatus
 from click import echo
+from utils import sanitize_url
 
 from aleph_client.commands import help_strings
-from aleph_client.commands.instance import sanitize_url
 from aleph_client.commands.utils import (
     get_or_prompt_volumes,
     input_multiline,

@@ -4,7 +4,6 @@ import logging
 from ipaddress import IPv6Interface
 from json import JSONDecodeError
 from typing import Optional
-from urllib.parse import ParseResult, urlparse
 
 import aiohttp
 from aleph.sdk import AlephHttpClient
@@ -13,6 +12,7 @@ from aleph_message.models import InstanceMessage
 from aleph_message.models.execution.base import PaymentType
 from aleph_message.models.item_hash import ItemHash
 from pydantic import ValidationError
+from utils import sanitize_url
 
 from aleph_client.commands import help_strings
 from aleph_client.commands.node import NodeInfo, _fetch_nodes
@@ -40,28 +40,6 @@ FORBIDDEN_HOSTS = [
 
 PATH_STATUS_CONFIG = "/status/config"
 PATH_ABOUT_USAGE_SYSTEM = "/about/usage/system"
-
-
-def sanitize_url(url: str) -> str:
-    """Ensure that the URL is valid and not obviously irrelevant.
-
-    Args:
-        url: URL to sanitize.
-    Returns:
-        Sanitized URL.
-    """
-    if not url:
-        raise aiohttp.InvalidURL("Empty URL")
-    parsed_url: ParseResult = urlparse(url)
-    if parsed_url.scheme not in ["http", "https"]:
-        raise aiohttp.InvalidURL(f"Invalid URL scheme: {parsed_url.scheme}")
-    if parsed_url.hostname in FORBIDDEN_HOSTS:
-        logger.debug(
-            f"Invalid URL {url} hostname {parsed_url.hostname} is in the forbidden host list "
-            f"({', '.join(FORBIDDEN_HOSTS)})"
-        )
-        raise aiohttp.InvalidURL("Invalid URL host")
-    return url
 
 
 async def fetch_crn_info(node_url: str) -> dict | None:

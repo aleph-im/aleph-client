@@ -43,6 +43,7 @@ from rich.console import Console
 from rich.prompt import Confirm, Prompt
 from rich.table import Table
 from rich.text import Text
+from utils import sanitize_url
 
 from aleph_client.commands import help_strings
 from aleph_client.commands.instance.display import CRNTable
@@ -50,7 +51,6 @@ from aleph_client.commands.instance.network import (
     fetch_crn_info,
     fetch_vm_info,
     find_crn_of_vm,
-    sanitize_url,
 )
 from aleph_client.commands.instance.superfluid import FlowUpdate, update_flow
 from aleph_client.commands.node import NodeInfo, _fetch_nodes

@@ -13,13 +13,10 @@ from aleph_message.models.execution.base import Payment, PaymentType
 from aleph_message.models.execution.environment import CpuProperties
 from eth_utils.currency import to_wei
 from multidict import CIMultiDict, CIMultiDictProxy
+from utils import sanitize_url
 
 from aleph_client.commands.instance import delete
-from aleph_client.commands.instance.network import (
-    FORBIDDEN_HOSTS,
-    fetch_crn_info,
-    sanitize_url,
-)
+from aleph_client.commands.instance.network import FORBIDDEN_HOSTS, fetch_crn_info
 from aleph_client.models import (
     CoreFrequencies,
     CpuUsage,
