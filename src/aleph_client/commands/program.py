@@ -2,23 +2,29 @@ from __future__ import annotations
 
 import json
 import logging
+import sys
 from base64 import b16decode, b32encode
 from collections.abc import Mapping
 from pathlib import Path
-from typing import List, Optional
+from typing import Any, List, Optional, Tuple
 from zipfile import BadZipFile
 
 import typer
+from aiohttp import ClientResponse
+from aiohttp.client import _RequestContextManager
 from aleph.sdk import AuthenticatedAlephHttpClient
 from aleph.sdk.account import _load_account
+from aleph.sdk.client.vm_client import VmClient
 from aleph.sdk.conf import settings
 from aleph.sdk.types import AccountFromPrivateKey, StorageEnum
-from aleph_message.models import ProgramMessage, StoreMessage
+from aleph_message.models import Chain, ProgramMessage, StoreMessage
 from aleph_message.models.execution.program import ProgramContent
 from aleph_message.models.item_hash import ItemHash
 from aleph_message.status import MessageStatus
+from click import echo
 
 from aleph_client.commands import help_strings
+from aleph_client.commands.instance import sanitize_url
 from aleph_client.commands.utils import (
     get_or_prompt_volumes,
     input_multiline,
@@ -236,3 +242,56 @@ async def unpersist(
             channel=message.channel,
         )
         typer.echo(f"{message.json(indent=4)}")
+
+
+@app.command()
+async def logs(
+    item_hash: str = typer.Argument(..., help="Item hash of program"),
+    private_key: Optional[str] = settings.PRIVATE_KEY_STRING,
+    private_key_file: Optional[Path] = settings.PRIVATE_KEY_FILE,
+    domain: str = typer.Option(None, help="CRN domain on which the VM is stored or running"),
+    chain: Chain = typer.Option(None, help=help_strings.ADDRESS_CHAIN),
+    debug: bool = False,
+):
+    """Display logs for the program.
+
+    Will only show logs frp, one select CRN"""
+
+    setup_logging(debug)
+
+    account = _load_account(private_key, private_key_file, chain=chain)
+    domain = sanitize_url(domain)
+
+    async with VmClient2(account, domain) as client:
+        async with await client.operate(vm_id=item_hash, operation="logs.json", method="GET") as response:
+
+            logger.debug("Request %s %s", response.url, response.status)
+            if response.status != 200:
+                logger.debug(response)
+                logger.debug(await response.text())
+
+            if response.status == 404:
+                echo(f"Execution not found on this server")
+                return 1
+            elif response.status == 403:
+
+                echo(f"You are not the owner of this VM. Maybe try with another wallet?")
+
+                return 1
+            elif response.status != 200:
+                echo(f"Server error: {response.status}. Please try again latter")
+                return 1
+            echo("Received logs")
+            log_entries = await response.json()
+            for log in log_entries:
+                echo(f'{log["__REALTIME_TIMESTAMP"]}>  {log["MESSAGE"]}')
+
+
+class VmClient2(VmClient):
+    async def operate(self, vm_id: ItemHash, operation: str, method: str = "POST") -> _RequestContextManager:
+        if not self.pubkey_signature_header:
+            self.pubkey_signature_header = await self._generate_pubkey_signature_header()
+
+        url, header = await self._generate_header(vm_id=vm_id, operation=operation, method=method)
+
+        return self.session.request(method=method, url=url, headers=header)
