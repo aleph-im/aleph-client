@@ -22,7 +22,6 @@ from aleph_message.models.execution.program import ProgramContent
 from aleph_message.models.item_hash import ItemHash
 from aleph_message.status import MessageStatus
 from click import echo
-from utils import sanitize_url
 
 from aleph_client.commands import help_strings
 from aleph_client.commands.utils import (
@@ -31,7 +30,7 @@ from aleph_client.commands.utils import (
     setup_logging,
     yes_no_input,
 )
-from aleph_client.utils import AsyncTyper, create_archive
+from aleph_client.utils import AsyncTyper, create_archive, sanitize_url
 
 logger = logging.getLogger(__name__)
 app = AsyncTyper(no_args_is_help=True)

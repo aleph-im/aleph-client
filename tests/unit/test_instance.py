@@ -1,8 +1,6 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from decimal import Decimal
-from typing import cast
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -13,10 +11,9 @@ from aleph_message.models.execution.base import Payment, PaymentType
 from aleph_message.models.execution.environment import CpuProperties
 from eth_utils.currency import to_wei
 from multidict import CIMultiDict, CIMultiDictProxy
-from utils import sanitize_url
 
 from aleph_client.commands.instance import delete
-from aleph_client.commands.instance.network import FORBIDDEN_HOSTS, fetch_crn_info
+from aleph_client.commands.instance.network import fetch_crn_info
 from aleph_client.models import (
     CoreFrequencies,
     CpuUsage,
@@ -28,6 +25,7 @@ from aleph_client.models import (
     MemoryUsage,
     UsagePeriod,
 )
+from aleph_client.utils import FORBIDDEN_HOSTS, sanitize_url
 
 
 def dummy_machine_info() -> MachineInfo:

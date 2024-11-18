@@ -19,7 +19,6 @@ from aleph.sdk.conf import MainConfiguration, load_main_configuration, settings
 from aleph.sdk.types import GenericMessage
 from aleph_message.models.base import MessageType
 from aleph_message.models.execution.base import Encoding
-from commands.instance.network import FORBIDDEN_HOSTS, logger
 
 logger = logging.getLogger(__name__)
 
@@ -135,6 +134,23 @@ async def list_unlinked_keys() -> Tuple[List[Path], Optional[MainConfiguration]]
     unlinked_keys: List[Path] = [key_file for key_file in all_private_key_files if key_file != active_key_path]
 
     return unlinked_keys, config
+
+
+# Some users had fun adding URLs that are obviously not CRNs.
+# If you work for one of these companies, please send a large check to the Aleph team,
+# and we may consider removing your domain from the blacklist. Or just use a subdomain.
+FORBIDDEN_HOSTS = [
+    "amazon.com",
+    "apple.com",
+    "facebook.com",
+    "google.com",
+    "google.es",
+    "microsoft.com",
+    "openai.com",
+    "twitter.com",
+    "x.com",
+    "youtube.com",
+]
 
 
 def sanitize_url(url: str) -> str:

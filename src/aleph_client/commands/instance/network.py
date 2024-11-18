@@ -12,31 +12,15 @@ from aleph_message.models import InstanceMessage
 from aleph_message.models.execution.base import PaymentType
 from aleph_message.models.item_hash import ItemHash
 from pydantic import ValidationError
-from utils import sanitize_url
 
 from aleph_client.commands import help_strings
 from aleph_client.commands.node import NodeInfo, _fetch_nodes
 from aleph_client.commands.utils import safe_getattr
 from aleph_client.models import MachineUsage
-from aleph_client.utils import fetch_json
+from aleph_client.utils import AsyncTyper, fetch_json, sanitize_url
 
 logger = logging.getLogger(__name__)
 
-# Some users had fun adding URLs that are obviously not CRNs.
-# If you work for one of these companies, please send a large check to the Aleph team,
-# and we may consider removing your domain from the blacklist. Or just use a subdomain.
-FORBIDDEN_HOSTS = [
-    "amazon.com",
-    "apple.com",
-    "facebook.com",
-    "google.com",
-    "google.es",
-    "microsoft.com",
-    "openai.com",
-    "twitter.com",
-    "x.com",
-    "youtube.com",
-]
 
 PATH_STATUS_CONFIG = "/status/config"
 PATH_ABOUT_USAGE_SYSTEM = "/about/usage/system"

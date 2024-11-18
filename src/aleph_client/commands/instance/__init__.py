@@ -43,7 +43,6 @@ from rich.console import Console
 from rich.prompt import Confirm, Prompt
 from rich.table import Table
 from rich.text import Text
-from utils import sanitize_url
 
 from aleph_client.commands import help_strings
 from aleph_client.commands.instance.display import CRNTable
@@ -67,7 +66,7 @@ from aleph_client.commands.utils import (
     wait_for_processed_instance,
 )
 from aleph_client.models import CRNInfo
-from aleph_client.utils import AsyncTyper
+from aleph_client.utils import AsyncTyper, sanitize_url
 
 logger = logging.getLogger(__name__)
 app = AsyncTyper(no_args_is_help=True)
