@@ -10,13 +10,14 @@ CUSTOM_DOMAIN_NAME = "Domain name. ex: aleph.im"
 CUSTOM_DOMAIN_ITEM_HASH = "Item hash"
 SKIP_VOLUME = "Skip prompt to attach more volumes"
 PERSISTENT_VOLUME = """Persistent volumes are allocated on the host machine and are not deleted when the VM is stopped.\n
-Requires at least a "mount" and "size_mib". For more info, see the docs: https://docs.aleph.im/computing/volumes/persistent/\n
-Example: --persistent_volume persistence=host,size_mib=100,mount=/opt/data"""
+Requires at least "name", "persistence", "mount" and "size_mib". For more info, see the docs: https://docs.aleph.im/computing/volumes/persistent/\n
+Example: --persistent_volume name=data,persistence=host,size_mib=100,mount=/opt/data"""
 EPHEMERAL_VOLUME = """Ephemeral volumes are allocated on the host machine when the VM is started and deleted when the VM is stopped.\n
-Example: --ephemeral-volume size_mib=100,mount=/tmp/data"""
+Requires at least "name", "mount" and "size_mib".\n
+Example: --ephemeral-volume name=temp,size_mib=100,mount=/tmp/data"""
 IMMUTABLE_VOLUME = """Immutable volumes are pinned on the network and can be used by multiple VMs at the same time. They are read-only and useful for setting up libraries or other dependencies.\n
-Requires at least a "ref" (message hash) and "mount" path. "use_latest" is True by default, to use the latest version of the volume, if it has been amended. See the docs for more info: https://docs.aleph.im/computing/volumes/immutable/\n
-Example: --immutable-volume ref=25a393222692c2f73489dc6710ae87605a96742ceef7b91de4d7ec34bb688d94,mount=/lib/python3.8/site-packages"""
+Requires at least "name", "ref" (message hash) and "mount" path. "use_latest" is True by default, to use the latest version of the volume, if it has been amended. See the docs for more info: https://docs.aleph.im/computing/volumes/immutable/\n
+Example: --immutable-volume name=libs,ref=25a393222692c2f73489dc6710ae87605a96742ceef7b91de4d7ec34bb688d94,mount=/lib/python3.8/site-packages"""
 ASK_FOR_CONFIRMATION = "Prompt user for confirmation"
 IPFS_CATCH_ALL_PATH = "Choose a relative path to catch all unmatched route or a 404 error"
 PAYMENT_TYPE = "Payment method, either holding tokens, NFTs, or Pay-As-You-Go via token streaming"
