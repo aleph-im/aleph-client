@@ -80,11 +80,11 @@ def yes_no_input(text: str, default: str | bool) -> bool:
 
 def prompt_for_volumes():
     while yes_no_input("Add volume ?", default=False):
-        mount = Prompt.ask("Mount path: ")
+        mount = validated_prompt("Mount path (ex: /opt/data): ", lambda text: len(text) > 0)
+        name = validated_prompt("Name: ", lambda text: len(text) > 0)
         comment = Prompt.ask("Comment: ")
         persistent = yes_no_input("Persist on VM host?", default=False)
         if persistent:
-            name = Prompt.ask("Name: ")
             size_mib = validated_int_prompt("Size (MiB): ", min_value=1)
             yield {
                 "comment": comment,
@@ -94,11 +94,12 @@ def prompt_for_volumes():
                 "size_mib": size_mib,
             }
         else:
-            ref = Prompt.ask("Item hash: ")
+            ref = validated_prompt("Item hash: ", lambda text: len(text) == 64)
             use_latest = yes_no_input("Use latest version ?", default=True)
             yield {
                 "comment": comment,
                 "mount": mount,
+                "name": name,
                 "ref": ref,
                 "use_latest": use_latest,
             }
@@ -114,11 +115,16 @@ def volume_to_dict(volume: List[str]) -> Optional[Dict[str, Union[str, int]]]:
             p = param.split("=")
             if p[1].isdigit():
                 dict_store[p[0]] = int(p[1])
-            elif p[1] in ["True", "true", "False", "false"]:
+            elif p[1].lower() in ["true", "false"]:
                 dict_store[p[0]] = bool(p[1].capitalize())
             else:
                 dict_store[p[0]] = p[1]
-
+    if "mount" not in dict_store:
+        echo(f"Missing 'mount' in volume: {volume}")
+        dict_store["mount"] = validated_prompt("Mount path (ex: /opt/data): ", lambda text: len(text) > 0)
+    if "name" not in dict_store:
+        echo(f"Missing 'name' in volume: {volume}")
+        dict_store["name"] = validated_prompt("Name: ", lambda text: len(text) > 0)
     return dict_store
 
 

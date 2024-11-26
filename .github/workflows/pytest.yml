@@ -13,7 +13,7 @@ on:
     # Run every night at 04:00 (GitHub Actions timezone)
     # in order to catch when unfrozen dependency updates
     # break the use of the library.
-    - cron: '4 0 * * *'
+    - cron: "4 0 * * *"
 
 
 jobs:
@@ -38,6 +38,12 @@ jobs:
           brew tap cuber/homebrew-libsecp256k1
           brew install libsecp256k1
           brew install automake
+
+      - name: Set up Python for macOS
+        if: startsWith(matrix.os, 'macos')
+        uses: actions/setup-python@v2
+        with:
+          python-version: 3.11
 
       - run: python3 -m venv /tmp/venv
       - run: /tmp/venv/bin/python -m pip install --upgrade pip hatch coverage
