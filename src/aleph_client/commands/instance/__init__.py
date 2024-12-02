@@ -50,7 +50,6 @@ from aleph_client.commands.instance.network import (
     fetch_crn_info,
     fetch_vm_info,
     find_crn_of_vm,
-    sanitize_url,
 )
 from aleph_client.commands.instance.superfluid import FlowUpdate, update_flow
 from aleph_client.commands.node import NodeInfo, _fetch_nodes
@@ -67,7 +66,7 @@ from aleph_client.commands.utils import (
     wait_for_processed_instance,
 )
 from aleph_client.models import CRNInfo
-from aleph_client.utils import AsyncTyper
+from aleph_client.utils import AsyncTyper, sanitize_url
 
 logger = logging.getLogger(__name__)
 app = AsyncTyper(no_args_is_help=True)
