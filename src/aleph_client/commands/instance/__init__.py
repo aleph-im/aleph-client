@@ -724,7 +724,7 @@ async def _show_instances(messages: List[InstanceMessage], node_list: NodeInfo):
             "  ssh root@",
             Text("<ipv6-address>", style="yellow"),
             " -i ",
-            Text("<ssh-pubkey-file>", style="orange3"),
+            Text("<ssh-private-key-file>", style="orange3"),
             "\n",
             style="italic",
         ),
