@@ -72,6 +72,9 @@ from aleph_client.utils import AsyncTyper
 logger = logging.getLogger(__name__)
 app = AsyncTyper(no_args_is_help=True)
 
+# TODO: This should be put on the API to get always from there
+FLOW_INSTANCE_PRICE_PER_SECOND = Decimal(0.0000155)  # 0.055/h
+
 
 @app.command()
 async def create(
@@ -201,7 +204,7 @@ async def create(
             account.switch_chain(payment_chain)
         if account.superfluid_connector and hasattr(account.superfluid_connector, "can_start_flow"):
             try:  # Quick check with theoretical min price
-                account.superfluid_connector.can_start_flow(Decimal(0.000031))  # 0.11/h
+                account.superfluid_connector.can_start_flow(FLOW_INSTANCE_PRICE_PER_SECOND)  # 0.055/h
             except Exception as e:
                 echo(e)
                 raise typer.Exit(code=1)
@@ -286,7 +289,7 @@ async def create(
 
     name = name or validated_prompt("Instance name", lambda x: len(x) < 65)
     rootfs_size = rootfs_size or validated_int_prompt(
-        "Disk size in MiB", default=settings.DEFAULT_ROOTFS_SIZE, min_value=10_240, max_value=102_400
+        "Disk size in MiB", default=settings.DEFAULT_ROOTFS_SIZE, min_value=10_240, max_value=542_288
     )
     vcpus = vcpus or validated_int_prompt(
         "Number of virtual cpus to allocate", default=settings.DEFAULT_VM_VCPUS, min_value=1, max_value=4
@@ -295,7 +298,7 @@ async def create(
         "Maximum memory allocation on vm in MiB",
         default=settings.DEFAULT_INSTANCE_MEMORY,
         min_value=2_048,
-        max_value=8_192,
+        max_value=12_288,
     )
 
     volumes = []
@@ -429,7 +432,7 @@ async def create(
                 required_tokens = ceil(Decimal(price.required_tokens) * ceil_factor) / ceil_factor
                 if isinstance(account, ETHAccount) and account.superfluid_connector:
                     try:  # Double check with effective price
-                        account.superfluid_connector.can_start_flow(Decimal(0.000031))  # Min for 0.11/h
+                        account.superfluid_connector.can_start_flow(FLOW_INSTANCE_PRICE_PER_SECOND)  # Min for 0.11/h
                     except Exception as e:
                         echo(e)
                         raise typer.Exit(code=1)
