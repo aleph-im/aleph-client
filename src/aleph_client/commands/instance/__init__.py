@@ -407,7 +407,7 @@ async def create(
             )
             raise typer.Exit(code=1)
         if print_messages:
-            echo(f"{message.json(indent=4)}")
+            echo(f"{message.model_dump_json(indent=4)}")
 
         item_hash: ItemHash = message.item_hash
         item_hash_text = Text(item_hash, style="bright_cyan")
@@ -584,7 +584,7 @@ async def delete(
 
         message, status = await client.forget(hashes=[ItemHash(item_hash)], reason=reason)
         if print_message:
-            echo(f"{message.json(indent=4)}")
+            echo(f"{message.model_dump_json(indent=4)}")
         echo(f"Instance {item_hash} has been deleted.")
 
 
@@ -761,7 +761,7 @@ async def list(
             echo(f"Address: {address}\n\nNo instance found\n")
             raise typer.Exit(code=1)
         if json:
-            echo(messages.json(indent=4))
+            echo(messages.model_dump_json(indent=4))
         else:
             # Since we filtered on message type, we can safely cast as InstanceMessage.
             messages = cast(List[InstanceMessage], messages)

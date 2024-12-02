@@ -235,7 +235,7 @@ def sign_bytes(
 
     coroutine = account.sign_raw(message.encode())
     signature = asyncio.run(coroutine)
-    typer.echo("\nSignature: " + signature.hex())
+    typer.echo("\nSignature: " + f"0x{signature.hex()}")
 
 
 @app.command()
