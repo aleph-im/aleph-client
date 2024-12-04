@@ -4,8 +4,10 @@ from typing import Optional
 from aleph_message.models import ItemHash
 from aleph_message.models.execution.environment import CpuProperties
 from pydantic import BaseModel
+from rich.prompt import Prompt
 from typer import echo
 
+from aleph_client.commands.files import IpfsContent, ipfs_content
 from aleph_client.commands.node import _escape_and_normalize, _remove_ansi_escape
 
 
@@ -114,6 +116,7 @@ class CRNInfo(BaseModel):
     machine_usage: Optional[MachineUsage]
     qemu_support: Optional[bool]
     confidential_computing: Optional[bool]
+    terms_and_conditions: Optional[str]
 
     @property
     def display_cpu(self) -> str:
@@ -133,6 +136,27 @@ class CRNInfo(BaseModel):
             return f"{self.machine_usage.disk.available_kB / 1_000_000:>4.0f} / {self.machine_usage.disk.total_kB / 1_000_000:>4.0f} GB"
         return ""
 
+    @property
+    async def terms_and_conditions_content(self) -> Optional[IpfsContent]:
+        if self.terms_and_conditions:
+            return await ipfs_content(self.terms_and_conditions, verbose=False)
+        return None
+
+    async def display_terms_and_conditions(self, auto_accept: bool = False) -> Optional[bool]:
+        if self.terms_and_conditions:
+            tac = await self.terms_and_conditions_content
+            echo("* Terms & Conditions *")
+            if tac:
+                echo("The selected CRN requires you to accept the following conditions and terms of use:\n")
+                if tac.filename:
+                    echo(f"Filename: {tac.filename}")
+                echo(f"↳ {tac.url}\n")
+                if auto_accept:
+                    echo("To proceed, enter “Yes I read and accept”: Yes I read and accept")
+                    return True
+                return Prompt.ask("To proceed, enter “Yes I read and accept”").lower() == "yes i read and accept"
+        return None
+
     def display_crn_specs(self):
         echo(f"Hash: {self.hash}")
         echo(f"Name: {self.name}")
@@ -146,3 +170,5 @@ class CRNInfo(BaseModel):
             echo(f"Available Disk: {self.display_hdd}")
         echo(f"Support Qemu: {self.qemu_support}")
         echo(f"Support Confidential: {self.confidential_computing}")
+        if self.terms_and_conditions:
+            echo(f"Terms & Conditions: {self.terms_and_conditions}")
