@@ -62,6 +62,7 @@ class CRNTable(App[CRNInfo]):
         self.table.add_column("Free RAM 🌡", key="ram")
         self.table.add_column("Free Disk 💿", key="hdd")
         self.table.add_column("URL", key="url")
+        self.table.add_column("Terms & Conditions 📝", key="tac")
         yield Label("Choose a Compute Resource Node (CRN) to run your instance")
         with Horizontal():
             self.loader_label_start = Label(self.label_start)
@@ -92,6 +93,7 @@ class CRNTable(App[CRNInfo]):
                 machine_usage=None,
                 qemu_support=None,
                 confidential_computing=None,
+                terms_and_conditions=node.get("terms_and_conditions"),
             )
 
         # Initialize the progress bar
@@ -141,6 +143,9 @@ class CRNTable(App[CRNInfo]):
                 return
             self.filtered_crns += 1
 
+            # Fetch terms and conditions
+            tac = await node.terms_and_conditions_content
+
             self.table.add_row(
                 _format_score(node.score),
                 node.name,
@@ -152,6 +157,7 @@ class CRNTable(App[CRNInfo]):
                 node.display_ram,
                 node.display_hdd,
                 node.url,
+                tac.url if tac else "✖",
                 key=node.hash,
             )
 

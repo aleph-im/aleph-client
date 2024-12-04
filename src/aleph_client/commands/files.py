@@ -11,8 +11,9 @@ import typer
 from aleph.sdk import AlephHttpClient, AuthenticatedAlephHttpClient
 from aleph.sdk.account import _load_account
 from aleph.sdk.conf import settings
+from aleph.sdk.exceptions import ForgottenMessageError, MessageNotFoundError
 from aleph.sdk.types import AccountFromPrivateKey, StorageEnum
-from aleph_message.models import ItemHash, StoreMessage
+from aleph_message.models import ItemHash, ItemType, MessageType, StoreMessage
 from aleph_message.status import MessageStatus
 from pydantic import BaseModel, Field
 from rich import box
@@ -20,11 +21,13 @@ from rich.console import Console
 from rich.table import Table
 
 from aleph_client.commands import help_strings
-from aleph_client.commands.utils import setup_logging
+from aleph_client.commands.utils import safe_getattr, setup_logging
 from aleph_client.utils import AsyncTyper
 
 logger = logging.getLogger(__name__)
 app = AsyncTyper(no_args_is_help=True)
+
+IPFS_GATEWAY = "https://ipfs.aleph.cloud/ipfs/"
 
 
 @app.command()
@@ -241,3 +244,43 @@ async def list(
                 typer.echo(f"Failed to retrieve files for address {address}. Status code: {response.status}")
     else:
         typer.echo("Error: Please provide either a private key, private key file, or an address.")
+
+
+class IpfsContent(BaseModel):
+    filename: Optional[str]
+    cid: str
+    url: str
+
+
+@app.command()
+async def ipfs_content(
+    item_hash: str = typer.Argument(..., help="Item hash of the store message"),
+    verbose: bool = True,
+) -> Optional[IpfsContent]:
+    """Return the underlying ipfs content for a given store message item hash"""
+
+    result, resp = None, None
+    async with AlephHttpClient(api_server=settings.API_HOST) as client:
+        try:
+            message, status = await client.get_message(item_hash=ItemHash(item_hash), with_status=True)
+            if status != MessageStatus.PROCESSED:
+                resp = f"Invalid message status: {status}"
+            elif message.type != MessageType.store:
+                resp = f"Invalid message type: {message.type}"
+            elif message.content.item_type != ItemType.ipfs:
+                resp = f"Invalid item type: {message.content.item_type}"
+            elif not message.content.item_hash:
+                resp = f"Invalid CID: {message.content.item_hash}"
+            else:
+                filename = message.content.metadata.name if safe_getattr(message.content, "metadata.name") else ""
+                cid = message.content.item_hash
+                url = f"{IPFS_GATEWAY}{cid}"
+                result = IpfsContent(filename=filename, cid=cid, url=url)
+                resp = f"Filename: {filename or 'None'}\nCID: {cid}\nURL: {url}"
+        except MessageNotFoundError:
+            resp = f"Message not found: {item_hash}"
+        except ForgottenMessageError:
+            resp = f"Message forgotten: {item_hash}"
+    if verbose:
+        typer.echo(resp)
+    return result
