@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 from ipaddress import IPv6Interface
 from json import JSONDecodeError
-from typing import Optional
+from typing import Any, Optional
 
 import aiohttp
 from aleph.sdk import AlephHttpClient
@@ -14,10 +14,11 @@ from aleph_message.models.item_hash import ItemHash
 from pydantic import ValidationError
 
 from aleph_client.commands import help_strings
+from aleph_client.commands.files import ipfs_content
 from aleph_client.commands.node import NodeInfo, _fetch_nodes
 from aleph_client.commands.utils import safe_getattr
 from aleph_client.models import MachineUsage
-from aleph_client.utils import AsyncTyper, fetch_json, sanitize_url
+from aleph_client.utils import fetch_json, sanitize_url
 
 logger = logging.getLogger(__name__)
 
@@ -68,7 +69,7 @@ async def fetch_crn_info(node_url: str) -> dict | None:
     return None
 
 
-async def fetch_vm_info(message: InstanceMessage, node_list: NodeInfo) -> tuple[str, dict[str, object]]:
+async def fetch_vm_info(message: InstanceMessage, node_list: NodeInfo) -> tuple[str, dict[str, Any]]:
     """
     Fetches VM information given an instance message and the node list.
 
@@ -93,6 +94,7 @@ async def fetch_vm_info(message: InstanceMessage, node_list: NodeInfo) -> tuple[
             allocation_type="",
             ipv6_logs="",
             crn_url="",
+            terms_and_conditions=dict(hash=None, url=None, accepted=False),
         )
         try:
             # Fetch from the scheduler API directly if no payment or no receiver (hold-tier non-confidential)
@@ -118,6 +120,14 @@ async def fetch_vm_info(message: InstanceMessage, node_list: NodeInfo) -> tuple[
                 for node in node_list.nodes:
                     if node["hash"] == safe_getattr(message, "content.requirements.node.node_hash"):
                         info["crn_url"] = node["address"].rstrip("/")
+
+                        # Terms and conditions
+                        tac_item_hash = safe_getattr(message, "content.requirements.node.terms_and_conditions")
+                        if tac_item_hash:
+                            tac = await ipfs_content(tac_item_hash, verbose=False)
+                            tac_url = (tac and tac.url) or f"missing → {tac_item_hash}"
+                            info["terms_and_conditions"] = dict(hash=tac_item_hash, url=tac_url, accepted=True)
+
                         path = f"{node['address'].rstrip('/')}/about/executions/list"
                         executions = await fetch_json(session, path)
                         if message.item_hash in executions:

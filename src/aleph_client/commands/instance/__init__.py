@@ -114,6 +114,7 @@ async def create(
         None,
         help=help_strings.IMMUTABLE_VOLUME,
     ),
+    crn_auto_tac: bool = typer.Option(False, help=help_strings.CRN_AUTO_TAC),
     channel: Optional[str] = typer.Option(default=settings.DEFAULT_CHANNEL, help=help_strings.CHANNEL),
     private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
     private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
@@ -338,6 +339,7 @@ async def create(
                         confidential_computing=bool(
                             crn_info.get("computing", {}).get("ENABLE_CONFIDENTIAL_COMPUTING", False)
                         ),
+                        terms_and_conditions=crn_info.get("terms_and_conditions"),
                     )
                     echo("\n* Selected CRN *")
                     crn.display_crn_specs()
@@ -374,6 +376,16 @@ async def create(
             echo("Selected CRN does not support confidential computing.")
             raise typer.Exit(1)
 
+        if crn.terms_and_conditions:
+            accepted = await crn.display_terms_and_conditions(auto_accept=crn_auto_tac)
+            if accepted is None:
+                echo("Failed to fetch terms and conditions.\nContact support or use a different CRN.")
+                raise typer.Exit(1)
+            elif not accepted:
+                echo("Terms & Conditions rejected: instance creation aborted.")
+                raise typer.Exit(1)
+            echo("Terms & Conditions accepted.")
+
     async with AuthenticatedAlephHttpClient(account=account, api_server=settings.API_HOST) as client:
         payment = Payment(
             chain=payment_chain,
@@ -395,7 +407,18 @@ async def create(
                 ssh_keys=[ssh_pubkey],
                 hypervisor=hypervisor,
                 payment=payment,
-                requirements=HostRequirements(node=NodeRequirements(node_hash=crn.hash)) if crn else None,
+                requirements=(
+                    HostRequirements(
+                        node=NodeRequirements(
+                            node_hash=crn.hash,
+                            terms_and_conditions=(
+                                ItemHash(crn.terms_and_conditions) if crn.terms_and_conditions else None
+                            ),
+                        )
+                    )
+                    if crn
+                    else None
+                ),
                 trusted_execution=(
                     TrustedExecutionEnvironment(firmware=confidential_firmware_as_hash) if confidential else None
                 ),
@@ -642,7 +665,7 @@ async def _show_instances(messages: List[InstanceMessage], node_list: NodeInfo):
             chain_label, chain_color = "BASE", "blue3"
         elif chain_label == "SOL":
             chain_label, chain_color = "SOL ", "medium_spring_green"
-        else:  # ETH
+        elif len(chain_label) == 3:  # ETH
             chain_label += " "
         chain = Text.assemble("Chain: ", Text(chain_label, style=chain_color))
         created_at_parsed = str(str_to_datetime(str(info["created_at"]))).split(".")[0]
@@ -686,6 +709,19 @@ async def _show_instances(messages: List[InstanceMessage], node_list: NodeInfo):
                 Text("IPv6: ", style="blue"),
                 Text(str(info["ipv6_logs"])),
                 style="bright_yellow" if len(str(info["ipv6_logs"]).split(":")) == 8 else "dark_orange",
+            ),
+            (
+                Text.assemble(
+                    Text(
+                        f"\n[{'✅' if info['terms_and_conditions']['accepted'] else '❌'}] Accepted Terms & Conditions:\n"
+                    ),
+                    Text(
+                        f"{info['terms_and_conditions']['url']}",
+                        style="orange1",
+                    ),
+                )
+                if info["terms_and_conditions"]["hash"]
+                else ""
             ),
         )
         table.add_row(instance, specifications, status_column)
@@ -1149,6 +1185,7 @@ async def confidential_create(
         None,
         help=help_strings.IMMUTABLE_VOLUME,
     ),
+    crn_auto_tac: bool = typer.Option(False, help=help_strings.CRN_AUTO_TAC),
     channel: Optional[str] = typer.Option(default=settings.DEFAULT_CHANNEL, help=help_strings.CHANNEL),
     private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
     private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
@@ -1180,6 +1217,7 @@ async def confidential_create(
             ssh_pubkey_file=ssh_pubkey_file,
             crn_hash=crn_hash,
             crn_url=crn_url,
+            crn_auto_tac=crn_auto_tac,
             confidential=True,
             confidential_firmware=confidential_firmware,
             skip_volume=skip_volume,
