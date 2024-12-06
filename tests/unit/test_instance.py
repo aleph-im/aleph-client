@@ -56,6 +56,7 @@ def dummy_machine_info() -> MachineInfo:
                     vendor="AuthenticAMD",
                 ),
             ),
+            gpu=None,
         ),
         score=0.5,
         name="CRN",
