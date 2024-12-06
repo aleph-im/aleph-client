@@ -31,6 +31,7 @@ from aleph_message.models import InstanceMessage, StoreMessage
 from aleph_message.models.base import Chain, MessageType
 from aleph_message.models.execution.base import Payment, PaymentType
 from aleph_message.models.execution.environment import (
+    GpuDeviceClass,
     GpuProperties,
     HostRequirements,
     HypervisorType,
@@ -404,7 +405,7 @@ async def create(
                     GpuProperties(
                         vendor=selected_gpu.vendor,
                         device_name=selected_gpu.device_name,
-                        device_class=selected_gpu.device_class,
+                        device_class=GpuDeviceClass(selected_gpu.device_class),
                         device_id=selected_gpu.device_id,
                     )
                 ]
