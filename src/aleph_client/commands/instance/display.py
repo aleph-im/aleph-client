@@ -43,11 +43,18 @@ class CRNTable(App[CRNInfo]):
         ("x", "quit", "Exit"),
     ]
 
-    def __init__(self, only_reward_address: bool = False, only_qemu: bool = False, only_confidentials: bool = False):
+    def __init__(
+        self,
+        only_reward_address: bool = False,
+        only_qemu: bool = False,
+        only_confidentials: bool = False,
+        only_gpu: bool = False,
+    ):
         super().__init__()
         self.only_reward_address = only_reward_address
         self.only_qemu = only_qemu
         self.only_confidentials = only_confidentials
+        self.only_gpu = only_gpu
 
     def compose(self):
         """Create child widgets for the app."""
@@ -57,7 +64,8 @@ class CRNTable(App[CRNInfo]):
         self.table.add_column("Version", key="version")
         self.table.add_column("Reward Address", key="stream_reward_address")
         self.table.add_column("🔒", key="confidential_computing")
-        self.table.add_column("Qemu", key="qemu_support")
+        self.table.add_column("GPU", key="gpu_support")
+        ## self.table.add_column("Qemu", key="qemu_support") ## Qemu computing enabled by default on nodes
         self.table.add_column("Cores", key="cpu")
         self.table.add_column("Free RAM 🌡", key="ram")
         self.table.add_column("Free Disk 💿", key="hdd")
@@ -92,6 +100,7 @@ class CRNTable(App[CRNInfo]):
                 machine_usage=None,
                 qemu_support=None,
                 confidential_computing=None,
+                gpu_support=None,
             )
 
         # Initialize the progress bar
@@ -139,6 +148,10 @@ class CRNTable(App[CRNInfo]):
             if self.only_confidentials and not node.confidential_computing:
                 logger.debug(f"Skipping node {node.hash}, no confidential support")
                 return
+            # Skip non-gpu nodes if only-gpu is set
+            if self.only_gpu and not node.gpu_support and len(node.machine_usage.gpu.available_devices) < 1:
+                logger.debug(f"Skipping node {node.hash}, no GPU support or without GPU available")
+                return
             self.filtered_crns += 1
 
             self.table.add_row(
@@ -147,7 +160,8 @@ class CRNTable(App[CRNInfo]):
                 node.version,
                 node.stream_reward_address,
                 "✅" if node.confidential_computing else "✖",
-                "✅" if node.qemu_support else "✖",
+                ## "✅" if node.qemu_support else "✖", ## Qemu computing enabled by default on nodes
+                "✅" if node.gpu_support else "✖",
                 node.display_cpu,
                 node.display_ram,
                 node.display_hdd,
