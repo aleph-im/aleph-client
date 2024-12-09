@@ -39,6 +39,7 @@ CONFIDENTIAL_OPTION = "Launch a confidential instance (requires creating an encr
 CONFIDENTIAL_FIRMWARE = "Hash to UEFI Firmware to launch confidential instance"
 CONFIDENTIAL_FIRMWARE_HASH = "Hash of the UEFI Firmware content, to validate measure (ignored if path is provided)"
 CONFIDENTIAL_FIRMWARE_PATH = "Path to the UEFI Firmware content, to validate measure (instead of the hash)"
+GPU_OPTION = "Launch an instance attaching a GPU to it"
 KEEP_SESSION = "Keeping the already initiated session"
 VM_SECRET = "Secret password to start the VM"
 CRN_URL_VM_DELETION = "Domain of the CRN where an associated VM is running. It ensures your VM will be stopped and erased on the CRN before the instance message is actually deleted"

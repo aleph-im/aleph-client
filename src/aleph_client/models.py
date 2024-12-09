@@ -1,5 +1,6 @@
 from datetime import datetime
-from typing import Optional
+from enum import Enum
+from typing import List, Optional
 
 from aleph_message.models import ItemHash
 from aleph_message.models.execution.environment import CpuProperties
@@ -45,12 +46,26 @@ class MachineProperties(BaseModel):
     cpu: CpuProperties
 
 
+class GpuDevice(BaseModel):
+    vendor: str
+    device_name: str
+    device_class: str
+    pci_host: str
+    device_id: str
+
+
+class GPUProperties(BaseModel):
+    devices: List[GpuDevice]
+    available_devices: List[GpuDevice]
+
+
 class MachineUsage(BaseModel):
     cpu: CpuUsage
     mem: MemoryUsage
     disk: DiskUsage
     period: UsagePeriod
     properties: MachineProperties
+    gpu: Optional[GPUProperties]
     active: bool = True
 
 
@@ -114,6 +129,7 @@ class CRNInfo(BaseModel):
     machine_usage: Optional[MachineUsage]
     qemu_support: Optional[bool]
     confidential_computing: Optional[bool]
+    gpu_support: Optional[bool]
 
     @property
     def display_cpu(self) -> str:
@@ -146,3 +162,4 @@ class CRNInfo(BaseModel):
             echo(f"Available Disk: {self.display_hdd}")
         echo(f"Support Qemu: {self.qemu_support}")
         echo(f"Support Confidential: {self.confidential_computing}")
+        echo(f"Support GPU: {self.gpu_support}")
