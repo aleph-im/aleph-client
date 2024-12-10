@@ -31,6 +31,7 @@ class CRNTable(App[CRNInfo]):
     only_reward_address: bool = False
     only_qemu: bool = False
     only_confidentials: bool = False
+    only_gpu: bool = False
     current_sorts: set = set()
     BINDINGS = [
         ("s", "sort_by_score", "Sort By Score"),
@@ -38,7 +39,8 @@ class CRNTable(App[CRNInfo]):
         ("v", "sort_by_version", "Sort By Version"),
         ("a", "sort_by_address", "Sort By Address"),
         ("c", "sort_by_confidential", "Sort By 🔒 Confidential"),
-        ("q", "sort_by_qemu", "Sort By Qemu"),
+        ## ("q", "sort_by_qemu", "Sort By Qemu"),
+        ("g", "sort_by_gpu", "Sort By GPU"),
         ("u", "sort_by_url", "Sort By URL"),
         ("x", "quit", "Exit"),
     ]
@@ -128,6 +130,7 @@ class CRNTable(App[CRNInfo]):
             )
             node.qemu_support = crn_info.get("computing", {}).get("ENABLE_QEMU_SUPPORT", False)
             node.confidential_computing = crn_info.get("computing", {}).get("ENABLE_CONFIDENTIAL_COMPUTING", False)
+            node.gpu_support = crn_info.get("computing", {}).get("ENABLE_GPU_SUPPORT", False)
             node.machine_usage = crn_info.get("machine_usage")
 
             # Skip nodes without machine usage
@@ -149,7 +152,11 @@ class CRNTable(App[CRNInfo]):
                 logger.debug(f"Skipping node {node.hash}, no confidential support")
                 return
             # Skip non-gpu nodes if only-gpu is set
-            if self.only_gpu and not node.gpu_support and len(node.machine_usage.gpu.available_devices) < 1:
+            if (
+                self.only_gpu
+                and not node.gpu_support
+                and not (node.machine_usage.gpu and len(node.machine_usage.gpu.available_devices) < 1)
+            ):
                 logger.debug(f"Skipping node {node.hash}, no GPU support or without GPU available")
                 return
             self.filtered_crns += 1
@@ -219,6 +226,9 @@ class CRNTable(App[CRNInfo]):
 
     def action_sort_by_qemu(self):
         self.sort_by("qemu_support")
+
+    def action_sort_by_gpu(self):
+        self.sort_by("gpu_support")
 
     def action_sort_by_url(self):
         self.sort_by("url")
