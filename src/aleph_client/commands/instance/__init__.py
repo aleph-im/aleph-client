@@ -384,10 +384,11 @@ async def create(
             echo("Selected CRN does not support GPU computing.")
             raise typer.Exit(1)
         if gpu:
-            if len(crn.machine_usage.gpu.available_devices) < 1:
-                echo("Selected CRN does not have any GPUs available.")
-                raise typer.Exit(1)
             if crn.machine_usage and crn.machine_usage.gpu:
+                if len(crn.machine_usage.gpu.available_devices) < 1:
+                    echo("Selected CRN does not have any GPUs available.")
+                    raise typer.Exit(1)
+
                 echo("Select GPU to use:")
                 table = Table(box=box.SIMPLE_HEAVY)
                 table.add_column("Number", style="white", overflow="fold")
