@@ -385,6 +385,10 @@ async def create(
             raise typer.Exit(1)
         if gpu:
             if crn.machine_usage and crn.machine_usage.gpu:
+                if len(crn.machine_usage.gpu.available_devices) < 1:
+                    echo("Selected CRN does not have any GPUs available.")
+                    raise typer.Exit(1)
+
                 echo("Select GPU to use:")
                 table = Table(box=box.SIMPLE_HEAVY)
                 table.add_column("Number", style="white", overflow="fold")
@@ -457,7 +461,7 @@ async def create(
 
         # Instances that need to be started by notifying a specific CRN
         crn_url = crn.url if crn and crn.url else None
-        if crn and (is_stream or confidential):
+        if crn and (is_stream or confidential or gpu):
             if not crn_url:
                 # Not the ideal solution
                 logger.debug(f"Cannot allocate {item_hash}: no CRN url")
