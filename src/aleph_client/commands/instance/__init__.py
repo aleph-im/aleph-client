@@ -158,10 +158,13 @@ async def create(
 
     # Force-switches if NFT payment-type
     if payment_type == "nft":
-        payment_chain = Chain.AVAX
         payment_type = PaymentType.hold
-        console.print(
-            "[yellow]NFT[/yellow] payment-type selected: Auto-switch to [cyan]AVAX[/cyan] with [red]HOLD[/red]"
+        payment_chain = Chain(
+            Prompt.ask(
+                "On which chain did you claim your NFT voucher?",
+                choices=[Chain.AVAX.value, Chain.BASE.value, Chain.SOL.value],
+                default=Chain.AVAX.value,
+            )
         )
     elif payment_type in [ptype.value for ptype in PaymentType]:
         payment_type = PaymentType(payment_type)
@@ -174,12 +177,9 @@ async def create(
 
     # Checks if payment-chain is compatible with PAYG
     if is_stream:
-        if payment_chain == Chain.SOL:
-            console.print(
-                "[yellow]SOL[/yellow] chain selected: [red]Not compatible yet with Pay-As-You-Go.[/red]\nChange your configuration or provide another chain using arguments (but EVM address will be used)."
-            )
-            raise typer.Exit(code=1)
-        elif payment_chain is None or payment_chain not in super_token_chains:
+        if payment_chain is None or payment_chain not in super_token_chains:
+            if payment_chain:
+                console.print(f"[red]{payment_chain.value}[/red] incompatible with Pay-As-You-Go.")
             payment_chain = Chain(
                 Prompt.ask(
                     "Which chain do you want to use for Pay-As-You-Go?",
@@ -187,8 +187,10 @@ async def create(
                     default=Chain.AVAX.value,
                 )
             )
-    # Fallback for Hold-tier if no config / no chain is set
-    elif payment_chain is None:
+    # Fallback for Hold-tier if no config / no chain is set / chain not in hold_chains
+    elif payment_chain is None or payment_chain not in hold_chains:
+        if payment_chain:
+            console.print(f"[red]{payment_chain.value}[/red] incompatible with Hold-tier.")
         payment_chain = Chain(
             Prompt.ask(
                 "Which chain do you want to use for Hold-tier?",
@@ -660,7 +662,7 @@ async def _show_instances(messages: List[InstanceMessage], node_list: NodeInfo):
         payment = Text.assemble(
             "Payment: ",
             Text(
-                str(info["payment"]).capitalize(),
+                str(info["payment"]).capitalize().ljust(10),
                 style="red" if is_hold else "orange3",
             ),
         )
@@ -678,18 +680,9 @@ async def _show_instances(messages: List[InstanceMessage], node_list: NodeInfo):
             if info["confidential"]
             else Text.assemble("Type: ", Text("Regular", style="grey50"))
         )
-        chain_label, chain_color = str(info["chain"]), "steel_blue"
-        if chain_label == "AVAX":
-            chain_label, chain_color = "AVAX", "bright_red"
-        elif chain_label == "BASE":
-            chain_label, chain_color = "BASE", "blue3"
-        elif chain_label == "SOL":
-            chain_label, chain_color = "SOL ", "medium_spring_green"
-        else:  # ETH
-            chain_label += " "
-        chain = Text.assemble("Chain: ", Text(chain_label, style=chain_color))
+        chain = Text.assemble("Chain: ", Text(str(info["chain"]).ljust(14), style="white"))
         created_at_parsed = str(str_to_datetime(str(info["created_at"]))).split(".")[0]
-        created_at = Text.assemble("\t     Created at: ", Text(created_at_parsed, style="magenta"))
+        created_at = Text.assemble("Created at: ", Text(created_at_parsed, style="magenta"))
         instance = Text.assemble(
             "Item Hash ↓\t     Name: ",
             name,
@@ -697,7 +690,6 @@ async def _show_instances(messages: List[InstanceMessage], node_list: NodeInfo):
             item_hash_link,
             "\n",
             payment,
-            "  ",
             confidential,
             "\n",
             cost,
@@ -710,6 +702,9 @@ async def _show_instances(messages: List[InstanceMessage], node_list: NodeInfo):
             f"Disk: {message.content.rootfs.size_mib / 1_024:.2f} GiB\n"
             f"HyperV: {safe_getattr(message, 'content.environment.hypervisor.value').capitalize() if safe_getattr(message, 'content.environment.hypervisor') else 'Firecracker'}\n"
         )
+        gpu = safe_getattr(message, "content.requirements.gpu.device_name")
+        if gpu:
+            specifications += f"GPU: {gpu}\n"
         status_column = Text.assemble(
             Text.assemble(
                 Text("Allocation: ", style="blue"),
@@ -1287,6 +1282,9 @@ async def confidential_create(
     if not initialized:
         echo("Could not initialize the session")
         return 1
+
+    # Safe delay to ensure instance is starting and is ready
+    await asyncio.sleep(3)
 
     await confidential_start(
         vm_id=vm_id,
