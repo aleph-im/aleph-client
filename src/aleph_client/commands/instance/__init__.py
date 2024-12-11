@@ -158,10 +158,13 @@ async def create(
 
     # Force-switches if NFT payment-type
     if payment_type == "nft":
-        payment_chain = Chain.AVAX
         payment_type = PaymentType.hold
-        console.print(
-            "[yellow]NFT[/yellow] payment-type selected: Auto-switch to [cyan]AVAX[/cyan] with [red]HOLD[/red]"
+        payment_chain = Chain(
+            Prompt.ask(
+                "On which chain did you claim your NFT voucher?",
+                choices=[Chain.AVAX.value, Chain.BASE.value, Chain.SOL.value],
+                default=Chain.AVAX.value,
+            )
         )
     elif payment_type in [ptype.value for ptype in PaymentType]:
         payment_type = PaymentType(payment_type)
