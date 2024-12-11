@@ -701,7 +701,7 @@ async def _show_instances(messages: List[InstanceMessage], node_list: NodeInfo):
             chain_label, chain_color = "BASE", "blue3"
         elif chain_label == "SOL":
             chain_label, chain_color = "SOL ", "medium_spring_green"
-        elif len(chain_label) == 3:  # ETH
+        else:  # ETH
             chain_label += " "
         chain = Text.assemble("Chain: ", Text(chain_label, style=chain_color))
         created_at_parsed = str(str_to_datetime(str(info["created_at"]))).split(".")[0]
