@@ -461,7 +461,7 @@ async def create(
 
         # Instances that need to be started by notifying a specific CRN
         crn_url = crn.url if crn and crn.url else None
-        if crn and (is_stream or confidential):
+        if crn and (is_stream or confidential or gpu):
             if not crn_url:
                 # Not the ideal solution
                 logger.debug(f"Cannot allocate {item_hash}: no CRN url")
