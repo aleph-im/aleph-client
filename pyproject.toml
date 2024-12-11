@@ -33,8 +33,8 @@ dynamic = [ "version" ]
 dependencies = [
   "aiodns==3.2",
   "aiohttp==3.10.6",
-  "aleph-message>=0.5",
-  "aleph-sdk-python>=1.2,<2",
+  "aleph-message>=0.6",
+  "aleph-sdk-python>=1.2.1,<2",
   "base58==2.1.1",               # Needed now as default with _load_account changement
   "py-sr25519-bindings==0.2",    # Needed for DOT signatures
   "pygments==2.18",
@@ -50,7 +50,7 @@ optional-dependencies.cosmos = [ "cosmospy==6" ]
 optional-dependencies.docs = [ "sphinxcontrib-plantuml==0.27" ]
 optional-dependencies.ethereum = [ "eth-account>=0.4" ]
 optional-dependencies.nuls2 = [ "nuls2-sdk==0.1" ]
-optional-dependencies.polkadot = [ "substrate-interface==1.3.4" ]
+optional-dependencies.polkadot = [ "substrate-interface==1.7.11" ]
 optional-dependencies.solana = [ "base58==2.1.1", "pynacl==1.5" ]
 optional-dependencies.tezos = [ "aleph-pytezos==3.13.4", "pynacl==1.5" ]
 urls.Discussions = "https://community.aleph.im/"

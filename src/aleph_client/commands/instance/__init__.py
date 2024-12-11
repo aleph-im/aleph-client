@@ -7,7 +7,7 @@ import shutil
 from decimal import Decimal
 from math import ceil
 from pathlib import Path
-from typing import List, Optional, Tuple, Union, cast
+from typing import List, Optional, Tuple, cast
 
 import aiohttp
 import typer
@@ -31,6 +31,8 @@ from aleph_message.models import InstanceMessage, StoreMessage
 from aleph_message.models.base import Chain, MessageType
 from aleph_message.models.execution.base import Payment, PaymentType
 from aleph_message.models.execution.environment import (
+    GpuDeviceClass,
+    GpuProperties,
     HostRequirements,
     HypervisorType,
     NodeRequirements,
@@ -87,7 +89,7 @@ async def create(
     payment_chain: Optional[Chain] = typer.Option(
         None, help=help_strings.PAYMENT_CHAIN, metavar=f"[{'|'.join([Chain.ETH, Chain.AVAX, Chain.BASE, Chain.SOL])}]"
     ),
-    hypervisor: Optional[HypervisorType] = typer.Option(None, help=help_strings.HYPERVISOR),
+    hypervisor: Optional[HypervisorType] = typer.Option(HypervisorType.qemu, help=help_strings.HYPERVISOR),
     name: Optional[str] = typer.Option(None, help=help_strings.INSTANCE_NAME),
     rootfs: Optional[str] = typer.Option(None, help=help_strings.ROOTFS),
     rootfs_size: Optional[int] = typer.Option(None, help=help_strings.ROOTFS_SIZE),
@@ -107,6 +109,7 @@ async def create(
     confidential_firmware: str = typer.Option(
         default=settings.DEFAULT_CONFIDENTIAL_FIRMWARE, help=help_strings.CONFIDENTIAL_FIRMWARE
     ),
+    gpu: bool = typer.Option(False, help=help_strings.GPU_OPTION),
     skip_volume: bool = typer.Option(False, help=help_strings.SKIP_VOLUME),
     persistent_volume: Optional[List[str]] = typer.Option(None, help=help_strings.PERSISTENT_VOLUME),
     ephemeral_volume: Optional[List[str]] = typer.Option(None, help=help_strings.EPHEMERAL_VOLUME),
@@ -114,6 +117,7 @@ async def create(
         None,
         help=help_strings.IMMUTABLE_VOLUME,
     ),
+    crn_auto_tac: bool = typer.Option(False, help=help_strings.CRN_AUTO_TAC),
     channel: Optional[str] = typer.Option(default=settings.DEFAULT_CHANNEL, help=help_strings.CHANNEL),
     private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
     private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
@@ -211,13 +215,13 @@ async def create(
             echo("Superfluid connector not available on this chain.")
             raise typer.Exit(code=1)
 
-    # Checks if Hypervisor is compatible with confidential
-    if confidential:
+    # Checks if Hypervisor is compatible with confidential or with GPU support
+    if confidential or gpu:
         if hypervisor and hypervisor != HypervisorType.qemu:
             echo("Only QEMU is supported as an hypervisor for confidential")
             raise typer.Exit(code=1)
         elif not hypervisor:
-            echo("Using QEMU as hypervisor for confidential")
+            echo("Using QEMU as hypervisor for confidential or GPU support")
             hypervisor = HypervisorType.qemu
 
     available_hypervisors = {
@@ -291,13 +295,13 @@ async def create(
         "Disk size in MiB", default=settings.DEFAULT_ROOTFS_SIZE, min_value=10_240, max_value=542_288
     )
     vcpus = vcpus or validated_int_prompt(
-        "Number of virtual cpus to allocate", default=settings.DEFAULT_VM_VCPUS, min_value=1, max_value=4
+        "Number of virtual cpus to allocate", default=settings.DEFAULT_VM_VCPUS, min_value=1, max_value=12
     )
     memory = memory or validated_int_prompt(
         "Maximum memory allocation on vm in MiB",
         default=settings.DEFAULT_INSTANCE_MEMORY,
         min_value=2_048,
-        max_value=12_288,
+        max_value=24_576,
     )
 
     volumes = []
@@ -310,7 +314,7 @@ async def create(
 
     stream_reward_address = None
     crn = None
-    if is_stream or confidential:
+    if is_stream or confidential or gpu:
         if crn_url and crn_hash:
             crn_url = sanitize_url(crn_url)
             try:
@@ -338,6 +342,8 @@ async def create(
                         confidential_computing=bool(
                             crn_info.get("computing", {}).get("ENABLE_CONFIDENTIAL_COMPUTING", False)
                         ),
+                        gpu_support=bool(crn_info.get("computing", {}).get("ENABLE_GPU_SUPPORT", False)),
+                        terms_and_conditions=crn_info.get("terms_and_conditions"),
                     )
                     echo("\n* Selected CRN *")
                     crn.display_crn_specs()
@@ -347,7 +353,9 @@ async def create(
                 raise typer.Exit(1)
 
         while not crn:
-            crn_table = CRNTable(only_reward_address=is_stream, only_qemu=is_qemu, only_confidentials=confidential)
+            crn_table = CRNTable(
+                only_reward_address=is_stream, only_qemu=is_qemu, only_confidentials=confidential, only_gpu=gpu
+            )
             crn = await crn_table.run_async()
             if not crn:
                 # User has ctrl-c
@@ -362,6 +370,7 @@ async def create(
             f"`--crn-url` and/or `--crn-hash` arguments have been ignored.\nHold-tier regular instances are scheduled automatically on available CRNs by the Aleph.im network."
         )
 
+    gpu_requirement = None
     if crn:
         stream_reward_address = crn.stream_reward_address if hasattr(crn, "stream_reward_address") else ""
         if is_stream and not stream_reward_address:
@@ -373,6 +382,44 @@ async def create(
         if confidential and (not hasattr(crn, "confidential_computing") or not crn.confidential_computing):
             echo("Selected CRN does not support confidential computing.")
             raise typer.Exit(1)
+        if gpu and (not hasattr(crn, "gpu_support") or not crn.gpu_support):
+            echo("Selected CRN does not support GPU computing.")
+            raise typer.Exit(1)
+        if gpu:
+            if crn.machine_usage and crn.machine_usage.gpu:
+                echo("Select GPU to use:")
+                table = Table(box=box.SIMPLE_HEAVY)
+                table.add_column("Number", style="white", overflow="fold")
+                table.add_column("Vendor", style="blue")
+                table.add_column("Model", style="magenta")
+                available_gpus = crn.machine_usage.gpu.available_devices
+                for index, available_gpu in enumerate(available_gpus):
+                    table.add_row(str(index), available_gpu.vendor, available_gpu.device_name)
+                table.add_section()
+                console.print(table)
+
+                selected_gpu_number = validated_int_prompt(
+                    "GPU number to use", min_value=0, max_value=len(available_gpus) - 1
+                )
+                selected_gpu = available_gpus[selected_gpu_number]
+                console.print(f"Selected GPU from vendor {selected_gpu.vendor} model {selected_gpu.device_name}")
+                gpu_requirement = [
+                    GpuProperties(
+                        vendor=selected_gpu.vendor,
+                        device_name=selected_gpu.device_name,
+                        device_class=GpuDeviceClass(selected_gpu.device_class),
+                        device_id=selected_gpu.device_id,
+                    )
+                ]
+        if crn.terms_and_conditions:
+            accepted = await crn.display_terms_and_conditions(auto_accept=crn_auto_tac)
+            if accepted is None:
+                echo("Failed to fetch terms and conditions.\nContact support or use a different CRN.")
+                raise typer.Exit(1)
+            elif not accepted:
+                echo("Terms & Conditions rejected: instance creation aborted.")
+                raise typer.Exit(1)
+            echo("Terms & Conditions accepted.")
 
     async with AuthenticatedAlephHttpClient(account=account, api_server=settings.API_HOST) as client:
         payment = Payment(
@@ -395,7 +442,19 @@ async def create(
                 ssh_keys=[ssh_pubkey],
                 hypervisor=hypervisor,
                 payment=payment,
-                requirements=HostRequirements(node=NodeRequirements(node_hash=crn.hash)) if crn else None,
+                requirements=(
+                    HostRequirements(
+                        node=NodeRequirements(
+                            node_hash=crn.hash,
+                            terms_and_conditions=(
+                                ItemHash(crn.terms_and_conditions) if crn.terms_and_conditions else None
+                            ),
+                        ),
+                        gpu=gpu_requirement,
+                    )
+                    if crn
+                    else None
+                ),
                 trusted_execution=(
                     TrustedExecutionEnvironment(firmware=confidential_firmware_as_hash) if confidential else None
                 ),
@@ -642,7 +701,7 @@ async def _show_instances(messages: List[InstanceMessage], node_list: NodeInfo):
             chain_label, chain_color = "BASE", "blue3"
         elif chain_label == "SOL":
             chain_label, chain_color = "SOL ", "medium_spring_green"
-        else:  # ETH
+        elif len(chain_label) == 3:  # ETH
             chain_label += " "
         chain = Text.assemble("Chain: ", Text(chain_label, style=chain_color))
         created_at_parsed = str(str_to_datetime(str(info["created_at"]))).split(".")[0]
@@ -686,6 +745,19 @@ async def _show_instances(messages: List[InstanceMessage], node_list: NodeInfo):
                 Text("IPv6: ", style="blue"),
                 Text(str(info["ipv6_logs"])),
                 style="bright_yellow" if len(str(info["ipv6_logs"]).split(":")) == 8 else "dark_orange",
+            ),
+            (
+                Text.assemble(
+                    Text(
+                        f"\n[{'✅' if info['terms_and_conditions']['accepted'] else '❌'}] Accepted Terms & Conditions:\n"
+                    ),
+                    Text(
+                        f"{info['terms_and_conditions']['url']}",
+                        style="orange1",
+                    ),
+                )
+                if info["terms_and_conditions"]["hash"]
+                else ""
             ),
         )
         table.add_row(instance, specifications, status_column)
@@ -1149,6 +1221,7 @@ async def confidential_create(
         None,
         help=help_strings.IMMUTABLE_VOLUME,
     ),
+    crn_auto_tac: bool = typer.Option(False, help=help_strings.CRN_AUTO_TAC),
     channel: Optional[str] = typer.Option(default=settings.DEFAULT_CHANNEL, help=help_strings.CHANNEL),
     private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
     private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
@@ -1180,6 +1253,7 @@ async def confidential_create(
             ssh_pubkey_file=ssh_pubkey_file,
             crn_hash=crn_hash,
             crn_url=crn_url,
+            crn_auto_tac=crn_auto_tac,
             confidential=True,
             confidential_firmware=confidential_firmware,
             skip_volume=skip_volume,
