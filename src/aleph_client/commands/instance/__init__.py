@@ -702,6 +702,9 @@ async def _show_instances(messages: List[InstanceMessage], node_list: NodeInfo):
             f"Disk: {message.content.rootfs.size_mib / 1_024:.2f} GiB\n"
             f"HyperV: {safe_getattr(message, 'content.environment.hypervisor.value').capitalize() if safe_getattr(message, 'content.environment.hypervisor') else 'Firecracker'}\n"
         )
+        gpu = safe_getattr(message, "content.requirements.gpu.device_name")
+        if gpu:
+            specifications += f"GPU: {gpu}\n"
         status_column = Text.assemble(
             Text.assemble(
                 Text("Allocation: ", style="blue"),
