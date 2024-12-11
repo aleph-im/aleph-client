@@ -662,7 +662,7 @@ async def _show_instances(messages: List[InstanceMessage], node_list: NodeInfo):
         payment = Text.assemble(
             "Payment: ",
             Text(
-                str(info["payment"]).capitalize(),
+                str(info["payment"]).capitalize().ljust(10),
                 style="red" if is_hold else "orange3",
             ),
         )
@@ -680,18 +680,9 @@ async def _show_instances(messages: List[InstanceMessage], node_list: NodeInfo):
             if info["confidential"]
             else Text.assemble("Type: ", Text("Regular", style="grey50"))
         )
-        chain_label, chain_color = str(info["chain"]), "steel_blue"
-        if chain_label == "AVAX":
-            chain_label, chain_color = "AVAX", "bright_red"
-        elif chain_label == "BASE":
-            chain_label, chain_color = "BASE", "blue3"
-        elif chain_label == "SOL":
-            chain_label, chain_color = "SOL ", "medium_spring_green"
-        else:  # ETH
-            chain_label += " "
-        chain = Text.assemble("Chain: ", Text(chain_label, style=chain_color))
+        chain = Text.assemble("Chain: ", Text(str(info["chain"]).ljust(14), style="white"))
         created_at_parsed = str(str_to_datetime(str(info["created_at"]))).split(".")[0]
-        created_at = Text.assemble("\t     Created at: ", Text(created_at_parsed, style="magenta"))
+        created_at = Text.assemble("Created at: ", Text(created_at_parsed, style="magenta"))
         instance = Text.assemble(
             "Item Hash ↓\t     Name: ",
             name,
@@ -699,7 +690,6 @@ async def _show_instances(messages: List[InstanceMessage], node_list: NodeInfo):
             item_hash_link,
             "\n",
             payment,
-            "  ",
             confidential,
             "\n",
             cost,
