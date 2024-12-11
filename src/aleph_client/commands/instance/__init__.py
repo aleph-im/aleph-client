@@ -177,12 +177,9 @@ async def create(
 
     # Checks if payment-chain is compatible with PAYG
     if is_stream:
-        if payment_chain == Chain.SOL:
-            console.print(
-                "[yellow]SOL[/yellow] chain selected: [red]Not compatible yet with Pay-As-You-Go.[/red]\nChange your configuration or provide another chain using arguments (but EVM address will be used)."
-            )
-            raise typer.Exit(code=1)
-        elif payment_chain is None or payment_chain not in super_token_chains:
+        if payment_chain is None or payment_chain not in super_token_chains:
+            if payment_chain:
+                console.print(f"[red]{payment_chain.value}[/red] incompatible with Pay-As-You-Go.")
             payment_chain = Chain(
                 Prompt.ask(
                     "Which chain do you want to use for Pay-As-You-Go?",
@@ -190,8 +187,10 @@ async def create(
                     default=Chain.AVAX.value,
                 )
             )
-    # Fallback for Hold-tier if no config / no chain is set
-    elif payment_chain is None:
+    # Fallback for Hold-tier if no config / no chain is set / chain not in hold_chains
+    elif payment_chain is None or payment_chain not in hold_chains:
+        if payment_chain:
+            console.print(f"[red]{payment_chain.value}[/red] incompatible with Hold-tier.")
         payment_chain = Chain(
             Prompt.ask(
                 "Which chain do you want to use for Hold-tier?",
