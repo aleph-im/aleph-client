@@ -4,7 +4,6 @@ import logging
 from ipaddress import IPv6Interface
 from json import JSONDecodeError
 from typing import Optional
-from urllib.parse import ParseResult, urlparse
 
 import aiohttp
 from aleph.sdk import AlephHttpClient
@@ -18,50 +17,13 @@ from aleph_client.commands import help_strings
 from aleph_client.commands.node import NodeInfo, _fetch_nodes
 from aleph_client.commands.utils import safe_getattr
 from aleph_client.models import MachineUsage
-from aleph_client.utils import fetch_json
+from aleph_client.utils import AsyncTyper, fetch_json, sanitize_url
 
 logger = logging.getLogger(__name__)
 
-# Some users had fun adding URLs that are obviously not CRNs.
-# If you work for one of these companies, please send a large check to the Aleph team,
-# and we may consider removing your domain from the blacklist. Or just use a subdomain.
-FORBIDDEN_HOSTS = [
-    "amazon.com",
-    "apple.com",
-    "facebook.com",
-    "google.com",
-    "google.es",
-    "microsoft.com",
-    "openai.com",
-    "twitter.com",
-    "x.com",
-    "youtube.com",
-]
 
 PATH_STATUS_CONFIG = "/status/config"
 PATH_ABOUT_USAGE_SYSTEM = "/about/usage/system"
-
-
-def sanitize_url(url: str) -> str:
-    """Ensure that the URL is valid and not obviously irrelevant.
-
-    Args:
-        url: URL to sanitize.
-    Returns:
-        Sanitized URL.
-    """
-    if not url:
-        raise aiohttp.InvalidURL("Empty URL")
-    parsed_url: ParseResult = urlparse(url)
-    if parsed_url.scheme not in ["http", "https"]:
-        raise aiohttp.InvalidURL(f"Invalid URL scheme: {parsed_url.scheme}")
-    if parsed_url.hostname in FORBIDDEN_HOSTS:
-        logger.debug(
-            f"Invalid URL {url} hostname {parsed_url.hostname} is in the forbidden host list "
-            f"({', '.join(FORBIDDEN_HOSTS)})"
-        )
-        raise aiohttp.InvalidURL("Invalid URL host")
-    return url
 
 
 async def fetch_crn_info(node_url: str) -> dict | None:
