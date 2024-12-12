@@ -27,8 +27,6 @@ from aleph_client.utils import AsyncTyper
 logger = logging.getLogger(__name__)
 app = AsyncTyper(no_args_is_help=True)
 
-IPFS_GATEWAY = "https://ipfs.aleph.cloud/ipfs/"
-
 
 @app.command()
 async def pin(
@@ -274,7 +272,7 @@ async def ipfs_content(
             else:
                 filename = message.content.metadata.name if safe_getattr(message.content, "metadata.name") else ""
                 cid = message.content.item_hash
-                url = f"{IPFS_GATEWAY}{cid}"
+                url = f"{settings.IPFS_GATEWAY}{cid}"
                 result = IpfsContent(filename=filename, cid=cid, url=url)
                 resp = f"Filename: {filename or 'None'}\nCID: {cid}\nURL: {url}"
         except MessageNotFoundError:
