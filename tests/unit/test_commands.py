@@ -293,3 +293,23 @@ def test_file_download():
     )
     assert result.exit_code == 0
     assert result.stdout is not None
+
+
+def test_ipfs_content():
+    # Test retrieve the underlying ipfs content url
+    test_filename, test_cid = "", "QmYJr5P4CeJBfVETuSn62gbzFZpSiTYkTegdGuQFu7QsVn"
+    result = runner.invoke(
+        app,
+        [
+            "file",
+            "ipfs-content",
+            "2f50b6d078005074801260bac1f8860b10d2a92cf00c91459800ea6042a02cc9",
+        ],
+        standalone_mode=False,
+    )
+    assert result.exit_code == 0
+    assert result.return_value.dict() == dict(
+        filename=test_filename,
+        cid=test_cid,
+        url=f"{settings.IPFS_GATEWAY}{test_cid}",
+    )
