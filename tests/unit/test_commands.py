@@ -293,3 +293,20 @@ def test_file_download():
     )
     assert result.exit_code == 0
     assert result.stdout is not None
+
+
+def test_file_download_only_info():
+    # Test retrieve the underlying ipfs content url
+    test_hash = "QmYJr5P4CeJBfVETuSn62gbzFZpSiTYkTegdGuQFu7QsVn"
+    result = runner.invoke(
+        app,
+        [
+            "file",
+            "download",
+            "2f50b6d078005074801260bac1f8860b10d2a92cf00c91459800ea6042a02cc9",
+            "--only-info",
+        ],
+        standalone_mode=False,
+    )
+    assert result.exit_code == 0
+    assert result.return_value.dict()["hash"] == test_hash
