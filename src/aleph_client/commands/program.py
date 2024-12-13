@@ -261,7 +261,7 @@ async def logs(
     account = _load_account(private_key, private_key_file, chain=chain)
     domain = sanitize_url(domain)
 
-    async with VmClient2(account, domain) as client:
+    async with VmClient(account, domain) as client:
         async with client.operate(vm_id=item_hash, operation="logs", method="GET") as response:
             logger.debug("Request %s %s", response.url, response.status)
             if response.status != 200:
@@ -283,23 +283,3 @@ async def logs(
             log_entries = await response.json()
             for log in log_entries:
                 echo(f'{log["__REALTIME_TIMESTAMP"]}>  {log["MESSAGE"]}')
-
-
-class VmClient2(VmClient):
-    def operate(self, vm_id: ItemHash, operation: str, method: str = "POST") -> _RequestContextManager:
-        """Request a CRN an operation for a VM (eg reboot, logs)
-
-        This operation is authenticated via the user wallet.
-        Use as an async context manager.
-        e.g  `async with client.operate(vm_id=item_hash, operation="logs", method="GET") as response:`
-        """
-
-        async def authenticated_request():
-            if not self.pubkey_signature_header:
-                self.pubkey_signature_header = await self._generate_pubkey_signature_header()
-
-            url, header = await self._generate_header(vm_id=vm_id, operation=operation, method=method)
-            resp = await self.session._request(method=method, str_or_url=url, headers=header)
-            return resp
-
-        return _RequestContextManager(authenticated_request())
