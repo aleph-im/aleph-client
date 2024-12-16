@@ -44,7 +44,7 @@ dependencies = [
   "setuptools>=65.5",
   "substrate-interface==1.7.11", # Needed for DOT signatures
   "textual==0.73",
-  "typer==0.12.5",
+  "typer==0.15.1",
 ]
 optional-dependencies.cosmos = [ "cosmospy==6" ]
 optional-dependencies.docs = [ "sphinxcontrib-plantuml==0.27" ]
