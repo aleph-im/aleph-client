@@ -9,6 +9,7 @@ from typer.testing import CliRunner
 from aleph_client.__main__ import app
 
 runner = CliRunner()
+settings.API_HOST = "https://api.twentysix.testnet.network"
 
 
 def get_account(my_account_file: Path) -> ETHAccount:
@@ -157,11 +158,11 @@ def test_message_get():
         [
             "message",
             "get",
-            "bd79839bf96e595a06da5ac0b6ba51dea6f7e2591bb913deccded04d831d29f4",
+            "102682ea8bcc0cec9c42f32fbd2660286b4eb31003108440988343726304607a",
         ],
     )
     assert result.exit_code == 0
-    assert "0x101d8D16372dBf5f1614adaE95Ee5CCE61998Fc9" in result.stdout
+    assert "0x74F82AC22C1EB20dDb9799284FD8D60eaf48A8fb" in result.stdout
 
 
 def test_message_find():
@@ -174,12 +175,12 @@ def test_message_find():
             "--page=1",
             "--start-date=1234",
             "--chains=ETH",
-            "--hashes=bd79839bf96e595a06da5ac0b6ba51dea6f7e2591bb913deccded04d831d29f4",
+            "--hashes=102682ea8bcc0cec9c42f32fbd2660286b4eb31003108440988343726304607a",
         ],
     )
     assert result.exit_code == 0
-    assert "0x101d8D16372dBf5f1614adaE95Ee5CCE61998Fc9" in result.stdout
-    assert "bd79839bf96e595a06da5ac0b6ba51dea6f7e2591bb913deccded04d831d29f4" in result.stdout
+    assert "0x74F82AC22C1EB20dDb9799284FD8D60eaf48A8fb" in result.stdout
+    assert "102682ea8bcc0cec9c42f32fbd2660286b4eb31003108440988343726304607a" in result.stdout
 
 
 def test_post_message(env_files):
