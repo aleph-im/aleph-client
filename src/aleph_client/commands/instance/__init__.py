@@ -26,7 +26,7 @@ from aleph.sdk.exceptions import (
 from aleph.sdk.query.filters import MessageFilter
 from aleph.sdk.query.responses import PriceResponse
 from aleph.sdk.types import StorageEnum
-from aleph.sdk.utils import calculate_firmware_hash
+from aleph.sdk.utils import calculate_firmware_hash, safe_getattr
 from aleph_message.models import InstanceMessage, StoreMessage
 from aleph_message.models.base import Chain, MessageType
 from aleph_message.models.execution.base import Payment, PaymentType
@@ -58,7 +58,6 @@ from aleph_client.commands.node import NodeInfo, _fetch_nodes
 from aleph_client.commands.utils import (
     filter_only_valid_messages,
     get_or_prompt_volumes,
-    safe_getattr,
     setup_logging,
     str_to_datetime,
     validate_ssh_pubkey_file,
@@ -117,6 +116,7 @@ async def create(
         None,
         help=help_strings.IMMUTABLE_VOLUME,
     ),
+    crn_auto_tac: bool = typer.Option(False, help=help_strings.CRN_AUTO_TAC),
     channel: Optional[str] = typer.Option(default=settings.DEFAULT_CHANNEL, help=help_strings.CHANNEL),
     private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
     private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
@@ -342,6 +342,7 @@ async def create(
                             crn_info.get("computing", {}).get("ENABLE_CONFIDENTIAL_COMPUTING", False)
                         ),
                         gpu_support=bool(crn_info.get("computing", {}).get("ENABLE_GPU_SUPPORT", False)),
+                        terms_and_conditions=crn_info.get("terms_and_conditions"),
                     )
                     echo("\n* Selected CRN *")
                     crn.display_crn_specs()
@@ -413,6 +414,15 @@ async def create(
                         device_id=selected_gpu.device_id,
                     )
                 ]
+        if crn.terms_and_conditions:
+            accepted = await crn.display_terms_and_conditions(auto_accept=crn_auto_tac)
+            if accepted is None:
+                echo("Failed to fetch terms and conditions.\nContact support or use a different CRN.")
+                raise typer.Exit(1)
+            elif not accepted:
+                echo("Terms & Conditions rejected: instance creation aborted.")
+                raise typer.Exit(1)
+            echo("Terms & Conditions accepted.")
 
     async with AuthenticatedAlephHttpClient(account=account, api_server=settings.API_HOST) as client:
         payment = Payment(
@@ -437,7 +447,12 @@ async def create(
                 payment=payment,
                 requirements=(
                     HostRequirements(
-                        node=NodeRequirements(node_hash=crn.hash),
+                        node=NodeRequirements(
+                            node_hash=crn.hash,
+                            terms_and_conditions=(
+                                ItemHash(crn.terms_and_conditions) if crn.terms_and_conditions else None
+                            ),
+                        ),
                         gpu=gpu_requirement,
                     )
                     if crn
@@ -733,6 +748,19 @@ async def _show_instances(messages: List[InstanceMessage], node_list: NodeInfo):
                 Text("IPv6: ", style="blue"),
                 Text(str(info["ipv6_logs"])),
                 style="bright_yellow" if len(str(info["ipv6_logs"]).split(":")) == 8 else "dark_orange",
+            ),
+            (
+                Text.assemble(
+                    Text(
+                        f"\n[{'✅' if info['terms_and_conditions']['accepted'] else '❌'}] Accepted Terms & Conditions:\n"
+                    ),
+                    Text(
+                        f"{info['terms_and_conditions']['url']}",
+                        style="orange1",
+                    ),
+                )
+                if info["terms_and_conditions"]["hash"]
+                else ""
             ),
         )
         table.add_row(instance, specifications, status_column)
@@ -1197,6 +1225,7 @@ async def confidential_create(
         None,
         help=help_strings.IMMUTABLE_VOLUME,
     ),
+    crn_auto_tac: bool = typer.Option(False, help=help_strings.CRN_AUTO_TAC),
     channel: Optional[str] = typer.Option(default=settings.DEFAULT_CHANNEL, help=help_strings.CHANNEL),
     private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
     private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
@@ -1228,6 +1257,7 @@ async def confidential_create(
             ssh_pubkey_file=ssh_pubkey_file,
             crn_hash=crn_hash,
             crn_url=crn_url,
+            crn_auto_tac=crn_auto_tac,
             confidential=True,
             confidential_firmware=confidential_firmware,
             gpu=gpu,
