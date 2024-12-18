@@ -27,11 +27,9 @@ from aleph.sdk.query.filters import MessageFilter
 from aleph.sdk.query.responses import PriceResponse
 from aleph.sdk.types import StorageEnum
 from aleph.sdk.utils import calculate_firmware_hash
-from aleph_message.models import InstanceMessage, StoreMessage
-from aleph_message.models.base import Chain, MessageType
+from aleph_message.models import Chain, InstanceMessage, MessageType, StoreMessage
 from aleph_message.models.execution.base import Payment, PaymentType
 from aleph_message.models.execution.environment import (
-    GpuDeviceClass,
     GpuProperties,
     HostRequirements,
     HypervisorType,
@@ -370,22 +368,24 @@ async def create(
             f"`--crn-url` and/or `--crn-hash` arguments have been ignored.\nHold-tier regular instances are scheduled automatically on available CRNs by the Aleph.im network."
         )
 
-    gpu_requirement = None
+    requirements, trusted_execution, gpu_requirement = None, None, None
     if crn:
-        stream_reward_address = crn.stream_reward_address if hasattr(crn, "stream_reward_address") else ""
+        stream_reward_address = safe_getattr(crn, "stream_reward_address") or ""
         if is_stream and not stream_reward_address:
             echo("Selected CRN does not have a defined receiver address.")
             raise typer.Exit(1)
-        if is_qemu and (not hasattr(crn, "qemu_support") or not crn.qemu_support):
+        if is_qemu and not safe_getattr(crn, "qemu_support"):
             echo("Selected CRN does not support QEMU hypervisor.")
             raise typer.Exit(1)
-        if confidential and (not hasattr(crn, "confidential_computing") or not crn.confidential_computing):
+        if confidential:
+            if not safe_getattr(crn, "confidential_computing"):
             echo("Selected CRN does not support confidential computing.")
             raise typer.Exit(1)
-        if gpu and (not hasattr(crn, "gpu_support") or not crn.gpu_support):
+            trusted_execution = TrustedExecutionEnvironment(firmware=confidential_firmware_as_hash)
+        if gpu:
+            if not safe_getattr(crn, "gpu_support"):
             echo("Selected CRN does not support GPU computing.")
             raise typer.Exit(1)
-        if gpu:
             if crn.machine_usage and crn.machine_usage.gpu:
                 if len(crn.machine_usage.gpu.available_devices) < 1:
                     echo("Selected CRN does not have any GPUs available.")
@@ -411,10 +411,14 @@ async def create(
                     GpuProperties(
                         vendor=selected_gpu.vendor,
                         device_name=selected_gpu.device_name,
-                        device_class=GpuDeviceClass(selected_gpu.device_class),
+                        device_class=selected_gpu.device_class,
                         device_id=selected_gpu.device_id,
                     )
                 ]
+        requirements = HostRequirements(
+            node=NodeRequirements(node_hash=crn.hash),
+            gpu=gpu_requirement,
+        )
 
     async with AuthenticatedAlephHttpClient(account=account, api_server=settings.API_HOST) as client:
         payment = Payment(
@@ -437,17 +441,8 @@ async def create(
                 ssh_keys=[ssh_pubkey],
                 hypervisor=hypervisor,
                 payment=payment,
-                requirements=(
-                    HostRequirements(
-                        node=NodeRequirements(node_hash=crn.hash),
-                        gpu=gpu_requirement,
-                    )
-                    if crn
-                    else None
-                ),
-                trusted_execution=(
-                    TrustedExecutionEnvironment(firmware=confidential_firmware_as_hash) if confidential else None
-                ),
+                requirements=requirements,
+                trusted_execution=trusted_execution,
             )
         except InsufficientFundsError as e:
             echo(
