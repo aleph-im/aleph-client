@@ -313,7 +313,7 @@ async def list(
 
             table = Table(box=box.ROUNDED, style="blue_violet")
             table.add_column(f"Programs [{len(messages)}]", style="blue", overflow="fold")
-            table.add_column("Specifications", style="magenta")
+            table.add_column("Specifications", style="blue")
             table.add_column("Configurations", style="blue", overflow="fold")
 
             for message in messages:
@@ -325,7 +325,7 @@ async def list(
                         and "name" in message.content.metadata
                         else "-"
                     ),
-                    style="orchid",
+                    style="magenta3",
                 )
                 msg_link = f"https://explorer.aleph.im/address/ETH/{message.sender}/message/PROGRAM/{message.item_hash}"
                 item_hash_link = Text.from_markup(f"[link={msg_link}]{message.item_hash}[/link]", style="bright_cyan")
@@ -333,7 +333,7 @@ async def list(
                     "URLs ↓\t     Created at: ",
                     Text(
                         str(str_to_datetime(str(safe_getattr(message, "content.time")))).split(".", maxsplit=1)[0],
-                        style="magenta",
+                        style="orchid",
                     ),
                 )
                 hash_base32 = b32encode(b16decode(message.item_hash.upper())).strip(b"=").lower().decode()
@@ -345,12 +345,13 @@ async def list(
                 program = Text.assemble(
                     "Item Hash ↓\t     Name: ", name, "\n", item_hash_link, "\n", created_at, "\n", urls
                 )
-                specifications = (
-                    f"vCPUs: {message.content.resources.vcpus}\n"
-                    f"RAM: {message.content.resources.memory / 1_024:.2f} GiB\n"
-                    "HyperV: Firecracker\n"
-                    f"Timeout: {message.content.resources.seconds}s"
-                )
+                specs = [
+                    f"vCPU: [magenta3]{message.content.resources.vcpus}[/magenta3]\n",
+                    f"RAM: [magenta3]{message.content.resources.memory / 1_024:.2f} GiB[/magenta3]\n",
+                    "HyperV: [magenta3]Firecracker[/magenta3]\n",
+                    f"Timeout: [magenta3]{message.content.resources.seconds}s[/magenta3]",
+                ]
+                specifications = Text.from_markup("".join(specs))
                 volumes = ""
                 for volume in message.content.volumes:
                     if safe_getattr(volume, "ref"):
