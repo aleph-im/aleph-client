@@ -55,6 +55,7 @@ from aleph_client.commands.instance.superfluid import FlowUpdate, update_flow
 from aleph_client.commands.node import NodeInfo, _fetch_nodes
 from aleph_client.commands.utils import (
     filter_only_valid_messages,
+    find_sevctl_or_exit,
     get_or_prompt_volumes,
     safe_getattr,
     setup_logging,
@@ -81,7 +82,6 @@ async def create(
         None,
         help=help_strings.PAYMENT_TYPE,
         callback=lambda pt: None if pt is None else pt.lower(),
-        # callback=lambda pt: None if pt is None else PaymentType.hold if pt == "nft" else PaymentType(pt),
         metavar=f"[{'|'.join(PaymentType)}|nft]",
     ),
     payment_chain: Optional[Chain] = typer.Option(
@@ -118,7 +118,7 @@ async def create(
     channel: Optional[str] = typer.Option(default=settings.DEFAULT_CHANNEL, help=help_strings.CHANNEL),
     private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
     private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
-    print_messages: bool = typer.Option(False),
+    print_message: bool = typer.Option(False),
     verbose: bool = typer.Option(True),
     debug: bool = False,
 ) -> Tuple[ItemHash, Optional[str], Chain]:
@@ -450,7 +450,7 @@ async def create(
                 f"{account.get_address()} on {account.CHAIN} has {e.available_funds} ALEPH but needs {e.required_funds} ALEPH."
             )
             raise typer.Exit(code=1)
-        if print_messages:
+        if print_message:
             echo(f"{message.json(indent=4)}")
 
         item_hash: ItemHash = message.item_hash
@@ -555,7 +555,7 @@ async def delete(
     item_hash: str = typer.Argument(..., help="Instance item hash to forget"),
     reason: str = typer.Option("User deletion", help="Reason for deleting the instance"),
     chain: Optional[Chain] = typer.Option(None, help=help_strings.ADDRESS_CHAIN),
-    crn_url: Optional[str] = typer.Option(None, help=help_strings.CRN_URL_VM_DELETION),
+    domain: Optional[str] = typer.Option(None, help=help_strings.CRN_URL_VM_DELETION),
     private_key: Optional[str] = settings.PRIVATE_KEY_STRING,
     private_key_file: Optional[Path] = settings.PRIVATE_KEY_FILE,
     print_message: bool = typer.Option(False),
@@ -595,8 +595,13 @@ async def delete(
         node_list: NodeInfo = await _fetch_nodes()
         _, info = await fetch_vm_info(existing_message, node_list)
         auto_scheduled = info["allocation_type"] == help_strings.ALLOCATION_AUTO
-        crn_url = info["crn_url"] or (crn_url and sanitize_url(crn_url))
-        if not auto_scheduled and crn_url:
+        crn_url = (info["crn_url"] not in [help_strings.CRN_PENDING, help_strings.CRN_UNKNOWN] and info["crn_url"]) or (
+            domain and sanitize_url(domain)
+        )
+        if not auto_scheduled:
+            if not crn_url:
+                echo("CRN domain not found or invalid. Skipping...")
+            else:
             try:
                 async with VmClient(account, crn_url) as manager:
                     status, _ = await manager.erase_instance(vm_id=item_hash)
@@ -762,8 +767,8 @@ async def _show_instances(messages: List[InstanceMessage], node_list: NodeInfo):
     )
 
 
-@app.command()
-async def list(
+@app.command(name="list")
+async def list_instances(
     address: Optional[str] = typer.Option(None, help="Owner address of the instances"),
     private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
     private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
@@ -931,13 +936,13 @@ async def confidential_init_session(
     private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
     debug: bool = False,
 ):
-    "Initialize a confidential communication session with the VM"
-    assert settings.CONFIG_HOME
-
-    session_dir = Path(settings.CONFIG_HOME) / "confidential_sessions" / vm_id
-    session_dir.mkdir(exist_ok=True, parents=True)
+    """Initialize a confidential communication session with the VM"""
 
     setup_logging(debug)
+
+    assert settings.CONFIG_HOME
+    session_dir = Path(settings.CONFIG_HOME) / "confidential_sessions" / vm_id
+    session_dir.mkdir(exist_ok=True, parents=True)
 
     domain = (
         (domain and sanitize_url(domain))
@@ -987,16 +992,6 @@ async def confidential_init_session(
     await client.close()
 
 
-def find_sevctl_or_exit() -> Path:
-    "Find sevctl in path, exit with message if not available"
-    sevctl_path = shutil.which("sevctl")
-    if sevctl_path is None:
-        echo("sevctl binary is not available. Please install sevctl, ensure it is in the PATH and try again.")
-        echo("Instructions for setup https://docs.aleph.im/computing/confidential/requirements/")
-        raise typer.Exit(code=1)
-    return Path(sevctl_path)
-
-
 @app.command()
 async def confidential_start(
     vm_id: str = typer.Argument(..., help="VM item hash to start"),
@@ -1011,12 +1006,15 @@ async def confidential_start(
     private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
     debug: bool = False,
 ):
-    "Validate the authenticity of the VM and start it"
+    """Validate the authenticity of the VM and start it"""
+
+    setup_logging(debug)
+
     assert settings.CONFIG_HOME
     session_dir = Path(settings.CONFIG_HOME) / "confidential_sessions" / vm_id
     session_dir.mkdir(exist_ok=True, parents=True)
 
-    setup_logging(debug)
+    vm_hash = ItemHash(vm_id)
     account = _load_account(private_key, private_key_file, chain=chain)
     sevctl_path = find_sevctl_or_exit()
 
@@ -1027,10 +1025,6 @@ async def confidential_start(
     )
 
     client = VmConfidentialClient(account, sevctl_path, domain)
-
-    bytes.fromhex(firmware_hash)
-
-    vm_hash = ItemHash(vm_id)
 
     if not session_dir.exists():
         echo("Please run confidential-init-session first ")
@@ -1095,7 +1089,6 @@ async def confidential_create(
         None,
         help=help_strings.PAYMENT_TYPE,
         callback=lambda pt: None if pt is None else pt.lower(),
-        # callback=lambda pt: None if pt is None else PaymentType.hold if pt == "nft" else PaymentType(pt),
         metavar=f"[{'|'.join(PaymentType)}|nft]",
     ),
     payment_chain: Optional[Chain] = typer.Option(
@@ -1138,6 +1131,7 @@ async def confidential_create(
 
     # Ensure sevctl is accessible before we start process with user
     find_sevctl_or_exit()
+
     allocated = False
     if not vm_id or len(vm_id) != 64:
         vm_id, crn_url, payment_chain = await create(
@@ -1163,7 +1157,7 @@ async def confidential_create(
             channel=channel,
             private_key=private_key,
             private_key_file=private_key_file,
-            print_messages=False,
+            print_message=False,
             verbose=False,
             debug=debug,
         )

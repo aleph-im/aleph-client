@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import shutil
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -20,7 +21,7 @@ from pygments import highlight
 from pygments.formatters.terminal256 import Terminal256Formatter
 from pygments.lexers import JsonLexer
 from rich.prompt import IntPrompt, Prompt, PromptError
-from typer import colors, echo, style
+from typer import Exit, colors, echo, style
 
 from aleph_client.utils import fetch_json
 
@@ -297,3 +298,13 @@ def validate_ssh_pubkey_file(file: Union[str, Path]) -> Path:
     if not file.is_file():
         raise ValueError(f"{file} is not a file")
     return file
+
+
+def find_sevctl_or_exit() -> Path:
+    "Find sevctl in path, exit with message if not available"
+    sevctl_path = shutil.which("sevctl")
+    if sevctl_path is None:
+        echo("sevctl binary is not available. Please install sevctl, ensure it is in the PATH and try again.")
+        echo("Instructions for setup https://docs.aleph.im/computing/confidential/requirements/")
+        raise Exit(code=1)
+    return Path(sevctl_path)
