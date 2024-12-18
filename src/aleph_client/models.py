@@ -3,7 +3,7 @@ from enum import Enum
 from typing import List, Optional
 
 from aleph_message.models import ItemHash
-from aleph_message.models.execution.environment import CpuProperties
+from aleph_message.models.execution.environment import CpuProperties, GpuDeviceClass
 from pydantic import BaseModel
 from typer import echo
 
@@ -49,7 +49,7 @@ class MachineProperties(BaseModel):
 class GpuDevice(BaseModel):
     vendor: str
     device_name: str
-    device_class: str
+    device_class: GpuDeviceClass
     pci_host: str
     device_id: str
 
