@@ -5,6 +5,8 @@ from typing import List, Optional
 from aleph_message.models import ItemHash
 from aleph_message.models.execution.environment import CpuProperties, GpuDeviceClass
 from pydantic import BaseModel
+from rich.console import Console
+from rich.panel import Panel
 from typer import echo
 
 from aleph_client.commands.node import _escape_and_normalize, _remove_ansi_escape
@@ -150,16 +152,28 @@ class CRNInfo(BaseModel):
         return ""
 
     def display_crn_specs(self):
-        echo(f"Hash: {self.hash}")
-        echo(f"Name: {self.name}")
-        echo(f"URL: {self.url}")
-        echo(f"Version: {self.version}")
-        echo(f"Score: {self.score}")
-        echo(f"Stream receiver: {self.stream_reward_address}")
-        if isinstance(self.machine_usage, MachineUsage):
-            echo(f"Available Cores: {self.display_cpu}")
-            echo(f"Available RAM: {self.display_ram}")
-            echo(f"Available Disk: {self.display_hdd}")
-        echo(f"Support Qemu: {self.qemu_support}")
-        echo(f"Support Confidential: {self.confidential_computing}")
-        echo(f"Support GPU: {self.gpu_support}")
+        console = Console()
+
+        data = {
+            "Hash": self.hash,
+            "Name": self.name,
+            "URL": self.url,
+            "Version": self.version,
+            "Score": self.score,
+            "Stream Receiver": self.stream_reward_address,
+            **(
+                {
+                    "Available Cores": self.display_cpu,
+                    "Available RAM": self.display_ram,
+                    "Available Disk": self.display_hdd,
+                }
+                if isinstance(self.machine_usage, MachineUsage)
+                else {}
+            ),
+            "Support Qemu": self.qemu_support,
+            "Support Confidential": self.confidential_computing,
+            "Support GPU": self.gpu_support,
+        }
+        text = "\n".join(f"[orange3]{key}[/orange3]: {value}" for key, value in data.items())
+
+        console.print(Panel(text, title="Selected CRN", border_style="bright_cyan", expand=False, title_align="left"))

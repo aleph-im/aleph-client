@@ -40,6 +40,7 @@ from aleph_message.models.item_hash import ItemHash
 from click import echo
 from rich import box
 from rich.console import Console
+from rich.panel import Panel
 from rich.prompt import Confirm, Prompt
 from rich.table import Table
 from rich.text import Text
@@ -343,9 +344,7 @@ async def create(
                         ),
                         gpu_support=bool(crn_info.get("computing", {}).get("ENABLE_GPU_SUPPORT", False)),
                     )
-                    echo("\n* Selected CRN *")
                     crn.display_crn_specs()
-                    echo()
             except Exception as e:
                 echo(f"Unable to fetch CRN config: {e}")
                 raise typer.Exit(1)
@@ -358,7 +357,6 @@ async def create(
             if not crn:
                 # User has ctrl-c
                 raise typer.Exit(1)
-            echo("\n* Selected CRN *")
             crn.display_crn_specs()
             if not Confirm.ask("\nDeploy on this node ?"):
                 crn = None
@@ -391,22 +389,32 @@ async def create(
                     echo("Selected CRN does not have any GPUs available.")
                     raise typer.Exit(1)
 
-                echo("Select GPU to use:")
-                table = Table(box=box.SIMPLE_HEAVY)
-                table.add_column("Number", style="white", overflow="fold")
+                table = Table(box=box.ROUNDED)
+                table.add_column("Id", style="white", overflow="fold")
                 table.add_column("Vendor", style="blue")
-                table.add_column("Model", style="magenta")
+                table.add_column("Model GPU", style="magenta")
                 available_gpus = crn.machine_usage.gpu.available_devices
                 for index, available_gpu in enumerate(available_gpus):
-                    table.add_row(str(index), available_gpu.vendor, available_gpu.device_name)
+                    table.add_row(str(index + 1), available_gpu.vendor, available_gpu.device_name)
                 table.add_section()
                 console.print(table)
 
-                selected_gpu_number = validated_int_prompt(
-                    "GPU number to use", min_value=0, max_value=len(available_gpus) - 1
+                selected_gpu_number = (
+                    validated_int_prompt("GPU Id to use", min_value=1, max_value=len(available_gpus)) - 1
                 )
                 selected_gpu = available_gpus[selected_gpu_number]
-                console.print(f"Selected GPU from vendor {selected_gpu.vendor} model {selected_gpu.device_name}")
+                gpu_selection = Text.from_markup(
+                    f"[orange3]Vendor[/orange3]: {selected_gpu.vendor}\n[orange3]Model[/orange3]: {selected_gpu.device_name}"
+                )
+                console.print(
+                    Panel(
+                        gpu_selection,
+                        title="Selected GPU",
+                        border_style="bright_cyan",
+                        expand=False,
+                        title_align="left",
+                    )
+                )
                 gpu_requirement = [
                     GpuProperties(
                         vendor=selected_gpu.vendor,
@@ -454,7 +462,7 @@ async def create(
             echo(f"{message.json(indent=4)}")
 
         item_hash: ItemHash = message.item_hash
-        item_hash_text = Text(item_hash, style="bright_cyan")
+        infos = []
 
         # Instances that need to be started by notifying a specific CRN
         crn_url = crn.url if crn and crn.url else None
@@ -488,8 +496,22 @@ async def create(
                     # Wait for the flow transaction to be confirmed
                     await wait_for_confirmed_flow(account, message.content.payment.receiver)
                     if flow_hash:
-                        echo(
-                            f"Flow {flow_hash} has been created:\n - Aleph cost summary:\n   {price.required_tokens:.7f}/sec | {3600*price.required_tokens:.2f}/hour | {86400*price.required_tokens:.2f}/day | {2592000*price.required_tokens:.2f}/month\n - CRN receiver address: {crn.stream_reward_address}"
+                        flow_info = "\n".join(
+                            f"[orange3]{key}[/orange3]: {value}"
+                            for key, value in {
+                                "Hash": flow_hash,
+                                "Aleph cost": f"{price.required_tokens:.7f}/sec | {3600*price.required_tokens:.2f}/hour | {86400*price.required_tokens:.2f}/day | {2592000*price.required_tokens:.2f}/month",
+                                "CRN receiver address": crn.stream_reward_address,
+                            }.items()
+                        )
+                        console.print(
+                            Panel(
+                                flow_info,
+                                title="Flow Created",
+                                border_style="violet",
+                                expand=False,
+                                title_align="left",
+                            )
                         )
 
             # Notify CRN
@@ -499,54 +521,57 @@ async def create(
                 if int(status) != 200:
                     echo(f"Could not allocate instance {item_hash} on CRN.")
                     return item_hash, crn_url, payment_chain
-            console.print(f"Your instance {item_hash_text} has been deployed on aleph.im.")
+
+            infos += [
+                Text.from_markup(f"Your instance [bright_cyan]{item_hash}[/bright_cyan] has been deployed on aleph.im.")
+            ]
             if verbose:
                 # PAYG-tier non-confidential instances
                 if not confidential:
-                    console.print(
-                        "\n\nTo get the IPv6 address of the instance, check out:\n\n",
+                    infos += [
                         Text.assemble(
-                            "  aleph instance list\n",
-                            style="italic",
-                        ),
-                    )
+                            "\n\nTo get the logs or IPv6 address of the instance, check out:\n",
+                            Text.assemble(
+                                "↳ aleph instance list",
+                                style="italic",
+                            ),
+                        )
+                    ]
                 # All confidential instances
                 else:
-                    console.print(
-                        "\n\nInitialize a confidential session using:\n\n",
-                        # Text.assemble(
-                        #    "  aleph instance confidential-init-session ",
-                        #    item_hash_text,
-                        #    style="italic",
-                        # ),
-                        # "\n\nThen start it using:\n\n",
-                        # Text.assemble(
-                        #    "  aleph instance confidential-start ",
-                        #    item_hash_text,
-                        #    style="italic",
-                        # ),
-                        # "\n\nOr just use the all-in-one command:\n\n",
+                    infos += [
                         Text.assemble(
-                            "  aleph instance confidential ",
-                            item_hash_text,
-                            "\n",
-                            style="italic",
-                        ),
-                    )
+                            "\n\nInitialize/start your confidential instance with:\n",
+                            Text.from_markup(
+                                f"↳ aleph instance confidential [bright_cyan]{item_hash}[/bright_cyan]",
+                                style="italic",
+                            ),
+                        )
+                    ]
         # Instances started automatically by the scheduler (hold-tier non-confidential)
         else:
-            console.print(
-                f"Your instance {item_hash_text} is registered to be deployed on aleph.im.",
-                "\nThe scheduler usually takes a few minutes to set it up and start it.",
-            )
-            if verbose:
-                console.print(
-                    "\n\nTo get the IPv6 address of the instance, check out:\n\n",
-                    Text.assemble(
-                        "  aleph instance list\n",
-                        style="italic",
-                    ),
+            infos += [
+                Text.from_markup(
+                    f"Your instance [bright_cyan]{item_hash}[/bright_cyan] is registered to be deployed on aleph.im.\nThe scheduler usually takes a few minutes to set it up and start it."
                 )
+            ]
+            if verbose:
+                infos += [
+                    Text.assemble(
+                        Text.assemble(
+                            "\n\nTo get the logs or IPv6 address of the instance, check out:\n",
+                            Text(
+                                "↳ aleph instance list",
+                                style="italic",
+                            ),
+                        )
+                    )
+                ]
+        console.print(
+            Panel(
+                Text.assemble(*infos), title="Instance Created", border_style="green", expand=False, title_align="left"
+            )
+        )
         return item_hash, crn_url, payment_chain
 
 
@@ -602,16 +627,16 @@ async def delete(
             if not crn_url:
                 echo("CRN domain not found or invalid. Skipping...")
             else:
-            try:
-                async with VmClient(account, crn_url) as manager:
-                    status, _ = await manager.erase_instance(vm_id=item_hash)
-                    if status == 200:
-                        echo(f"VM erased on CRN: {crn_url}")
-                    else:
-                        echo(f"No associated VM on {crn_url}. Skipping...")
-            except Exception as e:
-                logger.debug(f"Error while deleting associated VM on {crn_url}: {str(e)}")
-                echo(f"Failed to erase associated VM on {crn_url}. Skipping...")
+                try:
+                    async with VmClient(account, crn_url) as manager:
+                        status, _ = await manager.erase_instance(vm_id=item_hash)
+                        if status == 200:
+                            echo(f"VM erased on CRN: {crn_url}")
+                        else:
+                            echo(f"No associated VM on {crn_url}. Skipping...")
+                except Exception as e:
+                    logger.debug(f"Error while deleting associated VM on {crn_url}: {str(e)}")
+                    echo(f"Failed to erase associated VM on {crn_url}. Skipping...")
         else:
             echo(f"Instance {item_hash} was auto-scheduled, VM will be erased automatically.")
 
@@ -633,9 +658,9 @@ async def delete(
 
 
 async def _show_instances(messages: List[InstanceMessage], node_list: NodeInfo):
-    table = Table(box=box.SIMPLE_HEAVY)
+    table = Table(box=box.ROUNDED, style="blue_violet")
     table.add_column(f"Instances [{len(messages)}]", style="blue", overflow="fold")
-    table.add_column("Specifications", style="magenta")
+    table.add_column("Specifications", style="blue")
     table.add_column("Logs", style="blue", overflow="fold")
 
     scheduler_responses = dict(await asyncio.gather(*[fetch_vm_info(message, node_list) for message in messages]))
@@ -652,7 +677,7 @@ async def _show_instances(messages: List[InstanceMessage], node_list: NodeInfo):
                 and "name" in message.content.metadata
                 else "-"
             ),
-            style="orchid",
+            style="magenta3",
         )
         link = f"https://explorer.aleph.im/address/ETH/{message.sender}/message/INSTANCE/{message.item_hash}"
         # link = f"{settings.API_HOST}/api/v0/messages/{message.item_hash}"
@@ -670,16 +695,16 @@ async def _show_instances(messages: List[InstanceMessage], node_list: NodeInfo):
         )
         chain = Text.assemble("Chain: ", Text(info["chain"].ljust(14), style="white"))
         created_at = Text.assemble(
-            "Created at: ", Text(str(str_to_datetime(info["created_at"])).split(".", maxsplit=1)[0], style="magenta")
+            "Created at: ", Text(str(str_to_datetime(info["created_at"])).split(".", maxsplit=1)[0], style="orchid")
         )
         cost: Text | str = ""
         if not is_hold:
             async with AlephHttpClient(api_server=settings.API_HOST) as client:
                 price: PriceResponse = await client.get_program_price(message.item_hash)
-                psec = Text(f"{price.required_tokens:.7f}/sec", style="bright_magenta")
-                phour = Text(f"{3600*price.required_tokens:.2f}/hour", style="bright_magenta")
-                pday = Text(f"{86400*price.required_tokens:.2f}/day", style="bright_magenta")
-                pmonth = Text(f"{2592000*price.required_tokens:.2f}/month", style="bright_magenta")
+                psec = Text(f"{price.required_tokens:.7f}/sec", style="magenta3")
+                phour = Text(f"{3600*price.required_tokens:.2f}/hour", style="magenta3")
+                pday = Text(f"{86400*price.required_tokens:.2f}/day", style="magenta3")
+                pmonth = Text(f"{2592000*price.required_tokens:.2f}/month", style="magenta3")
                 cost = Text.assemble("\nAleph cost: ", psec, " | ", phour, " | ", pday, " | ", pmonth)
         instance = Text.assemble(
             "Item Hash ↓\t     Name: ",
@@ -694,15 +719,20 @@ async def _show_instances(messages: List[InstanceMessage], node_list: NodeInfo):
             created_at,
             cost,
         )
-        specifications = (
-            f"vCPUs: {message.content.resources.vcpus}\n"
-            f"RAM: {message.content.resources.memory / 1_024:.2f} GiB\n"
-            f"Disk: {message.content.rootfs.size_mib / 1_024:.2f} GiB\n"
-            f"HyperV: {safe_getattr(message, 'content.environment.hypervisor.value').capitalize() if safe_getattr(message, 'content.environment.hypervisor') else 'Firecracker'}\n"
-        )
-        gpu = safe_getattr(message, "content.requirements.gpu.device_name")
-        if gpu:
-            specifications += f"GPU: {gpu}\n"
+        hypervisor = safe_getattr(message, "content.environment.hypervisor")
+        specs = [
+            f"vCPU: [magenta3]{message.content.resources.vcpus}[/magenta3]\n",
+            f"RAM: [magenta3]{message.content.resources.memory / 1_024:.2f} GiB[/magenta3]\n",
+            f"Disk: [magenta3]{message.content.rootfs.size_mib / 1_024:.2f} GiB[/magenta3]\n",
+            f"HyperV: [magenta3]{hypervisor.capitalize() if hypervisor else 'Firecracker'}[/magenta3]",
+        ]
+        gpus = safe_getattr(message, "content.requirements.gpu")
+        if gpus:
+            specs += [f"\n[bright_yellow]GPU [[green]{len(gpus)}[/green]]:\n"]
+            for gpu in gpus:
+                specs += [f"• [green]{gpu.vendor}, {gpu.device_name}[green]"]
+            specs += ["[/bright_yellow]"]
+        specifications = Text.from_markup("".join(specs))
         status_column = Text.assemble(
             Text.assemble(
                 Text("Allocation: ", style="blue"),
@@ -726,44 +756,31 @@ async def _show_instances(messages: List[InstanceMessage], node_list: NodeInfo):
         )
         table.add_row(instance, specifications, status_column)
         table.add_section()
+
     console = Console()
-    console.print(
-        f"\n[bold]Address:[/bold] {messages[0].content.address}",
-    )
     console.print(table)
+
+    infos = [Text.from_markup(f"[bold]Address:[/bold] [bright_cyan]{messages[0].content.address}[/bright_cyan]")]
     if uninitialized_confidential_found:
-        item_hash_field = Text("<vm-item-hash>", style="bright_cyan")
-        console.print(
-            "To start uninitialized confidential instance(s), use:\n\n",
-            # Text.assemble(
-            #    "  aleph instance confidential-init-session ",
-            #    item_hash_field,
-            #    "\n",
-            #    style="italic",
-            # ),
-            # Text.assemble(
-            #    "  aleph instance confidential-start ",
-            #    item_hash_field,
-            #    style="italic",
-            # ),
-            # "\n\nOr just use the all-in-one command:\n\n",
+        infos += [
             Text.assemble(
-                "  aleph instance confidential ",
-                item_hash_field,
-                "\n",
+                "\n\nBoot uninitialized/started confidential instances with:\n",
+                Text.from_markup(
+                    "↳  aleph instance confidential [bright_cyan]<vm-item-hash>[/bright_cyan]", style="italic"
+                ),
+            )
+        ]
+    infos += [
+        Text.assemble(
+            "\n\nConnect to an instance with:\n",
+            Text.from_markup(
+                "↳  ssh root@[yellow]<ipv6-address>[/yellow] [-i [orange3]<ssh-private-key-file>[/orange3]]",
                 style="italic",
             ),
         )
+    ]
     console.print(
-        "To connect to an instance, use:\n\n",
-        Text.assemble(
-            "  ssh root@",
-            Text("<ipv6-address>", style="yellow"),
-            " -i ",
-            Text("<ssh-private-key-file>", style="orange3"),
-            "\n",
-            style="italic",
-        ),
+        Panel(Text.assemble(*infos), title="Infos", border_style="bright_cyan", expand=False, title_align="left")
     )
 
 
