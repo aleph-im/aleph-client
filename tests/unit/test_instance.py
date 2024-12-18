@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import asyncio
 import random
 from datetime import datetime, timezone
 from decimal import Decimal
+from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -24,6 +26,9 @@ from pydantic import BaseModel
 from aleph_client.commands import help_strings
 from aleph_client.commands.instance import (
     allocate,
+    confidential_create,
+    confidential_init_session,
+    confidential_start,
     create,
     delete,
     list_instances,
@@ -267,10 +272,14 @@ def create_mock_validate_ssh_pubkey_file():
     )
 
 
-def mock_fetch_vm_info():
+def create_mock_fetch_vm_info():
     return AsyncMock(
         return_value=[FAKE_VM_HASH, dict(crn_url=FAKE_CRN_URL, allocation_type=help_strings.ALLOCATION_MANUAL)]
     )
+
+
+def create_mock_shutil():
+    return MagicMock(which=MagicMock(return_value="/root/.cargo/bin/sevctl", move=MagicMock(return_value="/fake/path")))
 
 
 def create_mock_client():
@@ -317,6 +326,21 @@ def create_mock_vm_client():
     mock_vm_client_class = MagicMock()
     mock_vm_client_class.return_value.__aenter__ = AsyncMock(return_value=mock_vm_client)
     return mock_vm_client_class, mock_vm_client
+
+
+def create_mock_vm_coco_client():
+    mock_vm_coco_client = MagicMock(
+        get_certificates=AsyncMock(return_value=[200, MagicMock()]),
+        create_session=AsyncMock(),
+        initialize=AsyncMock(),
+        close=AsyncMock(),
+        measurement=AsyncMock(return_value="sev_data"),
+        validate_measure=AsyncMock(return_value=True),
+        build_secret=AsyncMock(return_value=["encoded_packet_header", "encoded_secret"]),
+        inject_secret=AsyncMock(),
+    )
+    mock_vm_coco_client_class = MagicMock(return_value=mock_vm_coco_client)
+    return mock_vm_coco_client_class, mock_vm_coco_client
 
 
 @pytest.mark.parametrize(
@@ -439,11 +463,18 @@ async def test_create_instance(args, expected):
             rootfs_size=20480,
             vcpus=1,
             memory=2048,
+            timeout_seconds=settings.DEFAULT_VM_TIMEOUT,
             skip_volume=True,
+            persistent_volume=None,
+            ephemeral_volume=None,
+            immutable_volume=None,
+            channel=settings.DEFAULT_CHANNEL,
             crn_hash=None,
             crn_url=None,
             confidential=False,
             gpu=False,
+            private_key=None,
+            private_key_file=None,
             print_message=False,
             debug=False,
         )
@@ -493,13 +524,14 @@ async def test_delete_instance():
     mock_load_account = create_mock_load_account()
     mock_account = mock_load_account.return_value
     mock_auth_client_class, mock_auth_client = create_mock_auth_client(mock_account)
+    mock_fetch_vm_info = create_mock_fetch_vm_info()
     mock_vm_client_class, mock_vm_client = create_mock_vm_client()
     mock_get_flow = AsyncMock(return_value={"flowRate": to_wei(0.0001, unit="ether")})
     mock_delete_flow = AsyncMock()
 
     @patch("aleph_client.commands.instance._load_account", mock_load_account)
     @patch("aleph_client.commands.instance.AuthenticatedAlephHttpClient", mock_auth_client_class)
-    @patch("aleph_client.commands.instance.fetch_vm_info", mock_fetch_vm_info())
+    @patch("aleph_client.commands.instance.fetch_vm_info", mock_fetch_vm_info)
     @patch("aleph_client.commands.instance.VmClient", mock_vm_client_class)
     @patch.object(mock_account, "get_flow", mock_get_flow)
     @patch.object(mock_account, "delete_flow", mock_delete_flow)
@@ -524,11 +556,12 @@ async def test_reboot_instance():
     mock_load_account = create_mock_load_account()
     mock_account = mock_load_account.return_value
     mock_auth_client_class, mock_auth_client = create_mock_auth_client(mock_account)
+    mock_fetch_vm_info = create_mock_fetch_vm_info()
     mock_vm_client_class, mock_vm_client = create_mock_vm_client()
 
     @patch("aleph_client.commands.instance._load_account", mock_load_account)
     @patch("aleph_client.commands.instance.network.AlephHttpClient", mock_auth_client_class)
-    @patch("aleph_client.commands.instance.network.fetch_vm_info", mock_fetch_vm_info())
+    @patch("aleph_client.commands.instance.network.fetch_vm_info", mock_fetch_vm_info)
     @patch("aleph_client.commands.instance.VmClient", mock_vm_client_class)
     async def reboot_instance():
         print()  # For better display when pytest -v -s
@@ -549,11 +582,12 @@ async def test_allocate_instance():
     mock_load_account = create_mock_load_account()
     mock_account = mock_load_account.return_value
     mock_auth_client_class, mock_auth_client = create_mock_auth_client(mock_account)
+    mock_fetch_vm_info = create_mock_fetch_vm_info()
     mock_vm_client_class, mock_vm_client = create_mock_vm_client()
 
     @patch("aleph_client.commands.instance._load_account", mock_load_account)
     @patch("aleph_client.commands.instance.network.AlephHttpClient", mock_auth_client_class)
-    @patch("aleph_client.commands.instance.network.fetch_vm_info", mock_fetch_vm_info())
+    @patch("aleph_client.commands.instance.network.fetch_vm_info", mock_fetch_vm_info)
     @patch("aleph_client.commands.instance.VmClient", mock_vm_client_class)
     async def allocate_instance():
         print()  # For better display when pytest -v -s
@@ -574,11 +608,12 @@ async def test_logs_instance():
     mock_load_account = create_mock_load_account()
     mock_account = mock_load_account.return_value
     mock_auth_client_class, mock_auth_client = create_mock_auth_client(mock_account)
+    mock_fetch_vm_info = create_mock_fetch_vm_info()
     mock_vm_client_class, mock_vm_client = create_mock_vm_client()
 
     @patch("aleph_client.commands.instance._load_account", mock_load_account)
     @patch("aleph_client.commands.instance.network.AlephHttpClient", mock_auth_client_class)
-    @patch("aleph_client.commands.instance.network.fetch_vm_info", mock_fetch_vm_info())
+    @patch("aleph_client.commands.instance.network.fetch_vm_info", mock_fetch_vm_info)
     @patch("aleph_client.commands.instance.VmClient", mock_vm_client_class)
     async def logs_instance():
         print()  # For better display when pytest -v -s
@@ -599,11 +634,12 @@ async def test_stop_instance():
     mock_load_account = create_mock_load_account()
     mock_account = mock_load_account.return_value
     mock_auth_client_class, mock_auth_client = create_mock_auth_client(mock_account)
+    mock_fetch_vm_info = create_mock_fetch_vm_info()
     mock_vm_client_class, mock_vm_client = create_mock_vm_client()
 
     @patch("aleph_client.commands.instance._load_account", mock_load_account)
     @patch("aleph_client.commands.instance.network.AlephHttpClient", mock_auth_client_class)
-    @patch("aleph_client.commands.instance.network.fetch_vm_info", mock_fetch_vm_info())
+    @patch("aleph_client.commands.instance.network.fetch_vm_info", mock_fetch_vm_info)
     @patch("aleph_client.commands.instance.VmClient", mock_vm_client_class)
     async def stop_instance():
         print()  # For better display when pytest -v -s
@@ -617,3 +653,169 @@ async def test_stop_instance():
         mock_vm_client.stop_instance.assert_called_once()
 
     await stop_instance()
+
+
+@pytest.mark.asyncio
+async def test_confidential_init_session():
+    mock_load_account = create_mock_load_account()
+    mock_account = mock_load_account.return_value
+    mock_auth_client_class, mock_auth_client = create_mock_auth_client(mock_account)
+    mock_fetch_vm_info = create_mock_fetch_vm_info()
+    mock_shutil = create_mock_shutil()
+    mock_vm_coco_client_class, mock_vm_coco_client = create_mock_vm_coco_client()
+
+    @patch("aleph_client.commands.instance._load_account", mock_load_account)
+    @patch("aleph_client.commands.instance.network.AlephHttpClient", mock_auth_client_class)
+    @patch("aleph_client.commands.instance.network.fetch_vm_info", mock_fetch_vm_info)
+    @patch("aleph_client.commands.utils.shutil", mock_shutil)
+    @patch("aleph_client.commands.instance.shutil", mock_shutil)
+    @patch.object(Path, "exists", MagicMock(return_value=True))
+    @patch("aleph_client.commands.instance.VmConfidentialClient", mock_vm_coco_client_class)
+    async def coco_init_session():
+        print()  # For better display when pytest -v -s
+        await confidential_init_session(
+            FAKE_VM_HASH,
+            domain=None,
+            chain=Chain.AVAX,
+            policy=0x1,
+            keep_session=False,
+            debug=False,
+        )
+        mock_shutil.which.assert_called_once()
+        mock_auth_client.get_message.assert_called_once()
+        mock_vm_coco_client.get_certificates.assert_called_once()
+        mock_shutil.move.assert_called_once()
+        mock_vm_coco_client.create_session.assert_called_once()
+        mock_vm_coco_client.initialize.assert_called_once()
+        mock_vm_coco_client.close.assert_called_once()
+
+    await coco_init_session()
+
+
+@pytest.mark.asyncio
+async def test_confidential_start():
+    mock_load_account = create_mock_load_account()
+    mock_account = mock_load_account.return_value
+    mock_shutil = create_mock_shutil()
+    mock_auth_client_class, mock_auth_client = create_mock_auth_client(mock_account)
+    mock_fetch_vm_info = create_mock_fetch_vm_info()
+    mock_vm_coco_client_class, mock_vm_coco_client = create_mock_vm_coco_client()
+    mock_calculate_firmware_hash = MagicMock(return_value=FAKE_STORE_HASH)
+
+    @patch("aleph_client.commands.instance._load_account", mock_load_account)
+    @patch("aleph_client.commands.utils.shutil", mock_shutil)
+    @patch("aleph_client.commands.instance.network.AlephHttpClient", mock_auth_client_class)
+    @patch("aleph_client.commands.instance.network.fetch_vm_info", mock_fetch_vm_info)
+    @patch.object(Path, "exists", MagicMock(return_value=True))
+    @patch.object(Path, "mkdir", MagicMock())
+    @patch("aleph_client.commands.instance.VmConfidentialClient", mock_vm_coco_client_class)
+    @patch("aleph_client.commands.instance.calculate_firmware_hash", mock_calculate_firmware_hash)
+    async def coco_start():
+        print()  # For better display when pytest -v -s
+        await confidential_start(
+            FAKE_VM_HASH,
+            domain=None,
+            chain=Chain.AVAX,
+            firmware_hash=None,
+            firmware_file="/fake/file",
+            vm_secret="fake_secret",
+            debug=False,
+        )
+        mock_auth_client.get_message.assert_called_once()
+        mock_vm_coco_client.measurement.assert_called_once()
+        mock_calculate_firmware_hash.assert_called_once()
+        mock_vm_coco_client.validate_measure.assert_called_once()
+        mock_vm_coco_client.build_secret.assert_called_once()
+        mock_vm_coco_client.inject_secret.assert_called_once()
+        mock_vm_coco_client.close.assert_called_once()
+
+    await coco_start()
+
+
+@pytest.mark.parametrize(
+    ids=[
+        "coco_from_scratch",
+        "coco_from_hash",
+    ],
+    argnames="args",
+    argvalues=[
+        dict(  # coco_from_scratch
+            payment_type="superfluid",
+            payment_chain="AVAX",
+            crn_hash=FAKE_CRN_HASH,
+            crn_url=FAKE_CRN_URL,
+            vcpus=1,
+            memory=2048,
+            rootfs=FAKE_STORE_HASH,
+            rootfs_size=20480,
+        ),
+        dict(vm_id=FAKE_VM_HASH),  # coco_from_hash
+    ],
+)
+@pytest.mark.asyncio
+async def test_confidential_create(args):
+    mock_load_account = create_mock_load_account()
+    mock_account = mock_load_account.return_value
+    mock_shutil = create_mock_shutil()
+    mock_create = AsyncMock(return_value=[FAKE_VM_HASH, FAKE_CRN_URL, "AVAX"])
+    mock_auth_client_class, mock_auth_client = create_mock_auth_client(mock_account)
+    mock_client_class, mock_client = create_mock_client()
+    mock_fetch_vm_info = create_mock_fetch_vm_info()
+    mock_allocate = AsyncMock(return_value=None)
+    mock_confidential_init_session = AsyncMock(return_value=None)
+    mock_confidential_start = AsyncMock()
+
+    @patch("aleph_client.commands.utils.shutil", mock_shutil)
+    @patch("aleph_client.commands.instance.create", mock_create)
+    @patch("aleph_client.commands.instance.AlephHttpClient", mock_auth_client_class)
+    @patch("aleph_client.commands.instance.network.AlephHttpClient", mock_client_class)
+    @patch("aleph_client.commands.instance.network.fetch_vm_info", mock_fetch_vm_info)
+    @patch("aleph_client.commands.instance.allocate", mock_allocate)
+    @patch("aleph_client.commands.instance.confidential_init_session", mock_confidential_init_session)
+    @patch.object(asyncio, "sleep", AsyncMock())
+    @patch("aleph_client.commands.instance.confidential_start", mock_confidential_start)
+    async def coco_create(instance_spec):
+        print()  # For better display when pytest -v -s
+        all_args = dict(
+            vm_id=None,
+            payment_type=None,
+            payment_chain=None,
+            crn_hash=None,
+            crn_url=None,
+            ssh_pubkey_file=FAKE_PUBKEY_FILE,
+            name="mock_instance",
+            vm_secret="fake_secret",
+            vcpus=None,
+            memory=None,
+            timeout_seconds=settings.DEFAULT_VM_TIMEOUT,
+            gpu=False,
+            rootfs=None,
+            rootfs_size=None,
+            skip_volume=True,
+            persistent_volume=None,
+            ephemeral_volume=None,
+            immutable_volume=None,
+            policy=0x1,
+            confidential_firmware=FAKE_STORE_HASH,
+            firmware_hash=None,
+            firmware_file="/fake/file",
+            keep_session=False,
+            channel=settings.DEFAULT_CHANNEL,
+            private_key=None,
+            private_key_file=None,
+            debug=False,
+        )
+        all_args.update(instance_spec)
+        await confidential_create(**all_args)
+
+    await coco_create(args)
+    mock_shutil.which.assert_called_once()
+    if len(args) > 1:
+        mock_create.assert_called_once()
+    else:
+        mock_auth_client.get_message.assert_called_once()
+        mock_client.get_message.assert_called_once()
+        mock_fetch_vm_info.assert_called_once()
+        mock_allocate.assert_called_once()
+    mock_confidential_init_session.assert_called_once()
+    mock_confidential_start.assert_called_once()
