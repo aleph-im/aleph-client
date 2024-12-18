@@ -817,66 +817,6 @@ async def list(
 
 
 @app.command()
-async def expire(
-    vm_id: str = typer.Argument(..., help="VM item hash to expire"),
-    domain: Optional[str] = typer.Option(None, help="CRN domain on which the VM is running"),
-    chain: Optional[Chain] = typer.Option(None, help=help_strings.PAYMENT_CHAIN_USED),
-    private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
-    private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
-    debug: bool = False,
-):
-    """Expire an instance"""
-
-    setup_logging(debug)
-
-    domain = (
-        (domain and sanitize_url(domain))
-        or await find_crn_of_vm(vm_id)
-        or Prompt.ask("URL of the CRN (Compute node) on which the VM is running")
-    )
-
-    account = _load_account(private_key, private_key_file, chain=chain)
-
-    async with VmClient(account, domain) as manager:
-        status, result = await manager.expire_instance(vm_id=vm_id)
-        if status != 200:
-            echo(f"Status: {status}")
-            return 1
-        echo(f"VM expired on CRN: {domain}")
-
-
-@app.command()
-async def erase(
-    vm_id: str = typer.Argument(..., help="VM item hash to erase"),
-    domain: Optional[str] = typer.Option(None, help="CRN domain on which the VM is stored or running"),
-    chain: Optional[Chain] = typer.Option(None, help=help_strings.PAYMENT_CHAIN_USED),
-    private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
-    private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
-    silent: bool = False,
-    debug: bool = False,
-):
-    """Erase an instance stored or running on a CRN"""
-
-    setup_logging(debug)
-
-    domain = (
-        (domain and sanitize_url(domain))
-        or await find_crn_of_vm(vm_id)
-        or Prompt.ask("URL of the CRN (Compute node) on which the VM is stored or running")
-    )
-
-    account = _load_account(private_key, private_key_file, chain=chain)
-
-    async with VmClient(account, domain) as manager:
-        status, result = await manager.erase_instance(vm_id=vm_id)
-        if status != 200:
-            if not silent:
-                echo(f"Status: {status}")
-            return 1
-        echo(f"VM erased on CRN: {domain}")
-
-
-@app.command()
 async def reboot(
     vm_id: str = typer.Argument(..., help="VM item hash to reboot"),
     domain: Optional[str] = typer.Option(None, help="CRN domain on which the VM is running"),
