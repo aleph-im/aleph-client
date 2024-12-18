@@ -595,19 +595,14 @@ async def delete(
         node_list: NodeInfo = await _fetch_nodes()
         _, info = await fetch_vm_info(existing_message, node_list)
         auto_scheduled = info["allocation_type"] == help_strings.ALLOCATION_AUTO
-        crn_url = str(info["crn_url"])
+        crn_url = info["crn_url"] or (crn_url and sanitize_url(crn_url))
         if not auto_scheduled and crn_url:
             try:
-                status = await erase(
-                    vm_id=item_hash,
-                    domain=crn_url,
-                    chain=chain,
-                    private_key=private_key,
-                    private_key_file=private_key_file,
-                    silent=True,
-                    debug=debug,
-                )
-                if status == 1:
+                async with VmClient(account, crn_url) as manager:
+                    status, _ = await manager.erase_instance(vm_id=item_hash)
+                    if status == 200:
+                        echo(f"VM erased on CRN: {crn_url}")
+                    else:
                     echo(f"No associated VM on {crn_url}. Skipping...")
             except Exception as e:
                 logger.debug(f"Error while deleting associated VM on {crn_url}: {str(e)}")
