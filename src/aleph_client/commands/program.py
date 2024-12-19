@@ -6,28 +6,37 @@ import sys
 from base64 import b16decode, b32encode
 from collections.abc import Mapping
 from pathlib import Path
-from typing import Any, List, Optional, Tuple
+from typing import List, Optional, cast
 from zipfile import BadZipFile
 
 import typer
-from aiohttp import ClientResponse
 from aiohttp.client import _RequestContextManager
-from aleph.sdk import AuthenticatedAlephHttpClient
+from aleph.sdk import AlephHttpClient, AuthenticatedAlephHttpClient
 from aleph.sdk.account import _load_account
 from aleph.sdk.client.vm_client import VmClient
 from aleph.sdk.conf import settings
+from aleph.sdk.exceptions import ForgottenMessageError, MessageNotFoundError
+from aleph.sdk.query.filters import MessageFilter
 from aleph.sdk.types import AccountFromPrivateKey, StorageEnum
-from aleph_message.models import Chain, ProgramMessage, StoreMessage
+from aleph_message.models import Chain, MessageType, ProgramMessage, StoreMessage
 from aleph_message.models.execution.program import ProgramContent
 from aleph_message.models.item_hash import ItemHash
 from aleph_message.status import MessageStatus
 from click import echo
+from rich import box
+from rich.console import Console
+from rich.panel import Panel
+from rich.table import Table
+from rich.text import Text
 
 from aleph_client.commands import help_strings
 from aleph_client.commands.utils import (
+    filter_only_valid_messages,
     get_or_prompt_volumes,
     input_multiline,
+    safe_getattr,
     setup_logging,
+    str_to_datetime,
     yes_no_input,
 )
 from aleph_client.utils import AsyncTyper, create_archive, sanitize_url
@@ -216,6 +225,166 @@ async def update(
 
 
 @app.command()
+async def delete(
+    item_hash: str = typer.Argument(..., help="Item hash to unpersist"),
+    reason: str = typer.Option("User deletion", help="Reason for deleting the program"),
+    delete_code: bool = typer.Option(True, help="Also delete the code"),
+    private_key: Optional[str] = settings.PRIVATE_KEY_STRING,
+    private_key_file: Optional[Path] = settings.PRIVATE_KEY_FILE,
+    print_message: bool = typer.Option(False),
+    debug: bool = False,
+):
+    """Delete a program"""
+
+    setup_logging(debug)
+
+    account = _load_account(private_key, private_key_file)
+
+    async with AuthenticatedAlephHttpClient(account=account, api_server=settings.API_HOST) as client:
+        try:
+            existing_message: ProgramMessage = await client.get_message(
+                item_hash=item_hash, message_type=ProgramMessage
+            )
+        except MessageNotFoundError:
+            typer.echo("Program does not exist")
+            raise typer.Exit(code=1)
+        except ForgottenMessageError:
+            typer.echo("Program already forgotten")
+            raise typer.Exit(code=1)
+        if existing_message.sender != account.get_address():
+            typer.echo("You are not the owner of this program")
+            raise typer.Exit(code=1)
+
+        message, _ = await client.forget(hashes=[ItemHash(item_hash)], reason=reason)
+        if delete_code:
+            try:
+                code_volume: StoreMessage = await client.get_message(
+                    item_hash=existing_message.content.code.ref, message_type=StoreMessage
+                )
+            except MessageNotFoundError:
+                typer.echo("Code volume does not exist. Skipping...")
+            except ForgottenMessageError:
+                typer.echo("Code volume already forgotten, Skipping...")
+            if existing_message.sender != account.get_address():
+                typer.echo("You are not the owner of this code volume, Skipping...")
+            code_message, _ = await client.forget(
+                hashes=[ItemHash(code_volume.item_hash)], reason=f"Deletion of program {item_hash}"
+            )
+            typer.echo(f"Code volume {code_volume.item_hash} has been deleted.")
+        if print_message:
+            typer.echo(f"{message.json(indent=4)}")
+        typer.echo(f"Program {item_hash} has been deleted.")
+
+
+@app.command(name="list")
+async def list_programs(
+    address: Optional[str] = typer.Option(None, help="Owner address of the programs"),
+    private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
+    private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
+    json: bool = typer.Option(default=False, help="Print as json instead of rich table"),
+    debug: bool = False,
+):
+    """List all programs associated to an account"""
+
+    setup_logging(debug)
+
+    if address is None:
+        account = _load_account(private_key, private_key_file)
+        address = account.get_address()
+
+    async with AlephHttpClient(api_server=settings.API_HOST) as client:
+        resp = await client.get_messages(
+            message_filter=MessageFilter(
+                message_types=[MessageType.program],
+                addresses=[address],
+            ),
+            page_size=100,
+        )
+        messages = await filter_only_valid_messages(resp.messages)
+        if not messages:
+            typer.echo(f"Address: {address}\n\nNo program found\n")
+            raise typer.Exit(code=1)
+        if json:
+            for message in messages:
+                typer.echo(message.json(indent=4))
+        else:
+            # Since we filtered on message type, we can safely cast as ProgramMessage.
+            messages = cast(List[ProgramMessage], messages)
+
+            table = Table(box=box.ROUNDED, style="blue_violet")
+            table.add_column(f"Programs [{len(messages)}]", style="blue", overflow="fold")
+            table.add_column("Specifications", style="blue")
+            table.add_column("Configurations", style="blue", overflow="fold")
+
+            for message in messages:
+                name = Text(
+                    (
+                        message.content.metadata["name"]
+                        if hasattr(message.content, "metadata")
+                        and isinstance(message.content.metadata, dict)
+                        and "name" in message.content.metadata
+                        else "-"
+                    ),
+                    style="magenta3",
+                )
+                msg_link = f"https://explorer.aleph.im/address/ETH/{message.sender}/message/PROGRAM/{message.item_hash}"
+                item_hash_link = Text.from_markup(f"[link={msg_link}]{message.item_hash}[/link]", style="bright_cyan")
+                created_at = Text.assemble(
+                    "URLs ↓\t     Created at: ",
+                    Text(
+                        str(str_to_datetime(str(safe_getattr(message, "content.time")))).split(".", maxsplit=1)[0],
+                        style="orchid",
+                    ),
+                )
+                hash_base32 = b32encode(b16decode(message.item_hash.upper())).strip(b"=").lower().decode()
+                func_url_1 = settings.VM_URL_PATH.format(hash=message.item_hash)
+                func_url_2 = settings.VM_URL_HOST.format(hash_base32=hash_base32)
+                urls = Text.from_markup(
+                    f"[bright_yellow][link={func_url_1}]{func_url_1}[/link][/bright_yellow]\n[dark_olive_green2][link={func_url_2}]{func_url_2}[/link][/dark_olive_green2]"
+                )
+                program = Text.assemble(
+                    "Item Hash ↓\t     Name: ", name, "\n", item_hash_link, "\n", created_at, "\n", urls
+                )
+                specs = [
+                    f"vCPU: [magenta3]{message.content.resources.vcpus}[/magenta3]\n",
+                    f"RAM: [magenta3]{message.content.resources.memory / 1_024:.2f} GiB[/magenta3]\n",
+                    "HyperV: [magenta3]Firecracker[/magenta3]\n",
+                    f"Timeout: [magenta3]{message.content.resources.seconds}s[/magenta3]",
+                ]
+                specifications = Text.from_markup("".join(specs))
+                volumes = ""
+                for volume in message.content.volumes:
+                    if safe_getattr(volume, "ref"):
+                        volumes += f"\n• [orchid]{volume.mount}[/orchid]: [bright_cyan][link={settings.API_HOST}/api/v0/messages/{volume.ref}]{volume.ref}[/link][/bright_cyan]"
+                    elif safe_getattr(volume, "ephemeral"):
+                        volumes += f"\n• [orchid]{volume.mount}[/orchid]: [bright_red]ephemeral[/bright_red]"
+                    else:
+                        volumes += f"\n• [orchid]{volume.mount}[/orchid]: [orange3]persistent on {volume.persistence.value}[/orange3]"
+                config = Text.assemble(
+                    Text.from_markup(
+                        f"Runtime: [bright_cyan][link={settings.API_HOST}/api/v0/messages/{message.content.runtime.ref}]{message.content.runtime.ref}[/link][/bright_cyan]\n"
+                        f"Code: [bright_cyan][link={settings.API_HOST}/api/v0/messages/{message.content.code.ref}]{message.content.code.ref}[/link][/bright_cyan]\n"
+                        f"↳ Entrypoint: [orchid]{message.content.code.entrypoint}[/orchid]\n"
+                    ),
+                    Text.from_markup(f"Mounted Volumes: {volumes if volumes else '-'}"),
+                )
+                table.add_row(program, specifications, config)
+                table.add_section()
+
+            console = Console()
+            console.print(table)
+
+            infos = [
+                Text.from_markup(f"[bold]Address:[/bold] [bright_cyan]{messages[0].content.address}[/bright_cyan]")
+            ]
+            console.print(
+                Panel(
+                    Text.assemble(*infos), title="Infos", border_style="bright_cyan", expand=False, title_align="left"
+                )
+            )
+
+
+@app.command()
 async def unpersist(
     item_hash: str = typer.Argument(..., help="Item hash to unpersist"),
     private_key: Optional[str] = settings.PRIVATE_KEY_STRING,
@@ -254,23 +423,22 @@ async def logs(
 ):
     """Display logs for the program.
 
-    Will only show logs frp, one select CRN"""
+    Will only show logs from one selected CRN"""
 
     setup_logging(debug)
 
     account = _load_account(private_key, private_key_file, chain=chain)
     domain = sanitize_url(domain)
 
-    async with VmClient2(account, domain) as client:
-        async with await client.operate(vm_id=item_hash, operation="logs.json", method="GET") as response:
-
+    async with VmClient(account, domain) as client:
+        async with client.operate(vm_id=item_hash, operation="logs", method="GET") as response:
             logger.debug("Request %s %s", response.url, response.status)
             if response.status != 200:
                 logger.debug(response)
                 logger.debug(await response.text())
 
             if response.status == 404:
-                echo(f"Execution not found on this server")
+                echo(f"Server didn't found any execution of this program")
                 return 1
             elif response.status == 403:
 
@@ -284,13 +452,3 @@ async def logs(
             log_entries = await response.json()
             for log in log_entries:
                 echo(f'{log["__REALTIME_TIMESTAMP"]}>  {log["MESSAGE"]}')
-
-
-class VmClient2(VmClient):
-    async def operate(self, vm_id: ItemHash, operation: str, method: str = "POST") -> _RequestContextManager:
-        if not self.pubkey_signature_header:
-            self.pubkey_signature_header = await self._generate_pubkey_signature_header()
-
-        url, header = await self._generate_header(vm_id=vm_id, operation=operation, method=method)
-
-        return self.session.request(method=method, url=url, headers=header)
