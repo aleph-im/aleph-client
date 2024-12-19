@@ -1,5 +1,6 @@
 import contextlib
 import json
+import os
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 from unittest.mock import AsyncMock, patch
@@ -286,16 +287,18 @@ def test_file_upload():
 
 def test_file_download():
     # Test download a file to aleph network
+    ipfs_cid = "QmeomffUNfmQy76CQGy9NdmqEnnHU9soCexBnGU3ezPHVH"
     result = runner.invoke(
         app,
         [
             "file",
             "download",
-            "QmeomffUNfmQy76CQGy9NdmqEnnHU9soCexBnGU3ezPHVH",
+            ipfs_cid,
         ],  # 5 bytes file
     )
     assert result.exit_code == 0
     assert result.stdout is not None
+    os.remove(ipfs_cid)
 
 
 def test_app():

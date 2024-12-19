@@ -438,7 +438,7 @@ async def logs(
                 logger.debug(await response.text())
 
             if response.status == 404:
-                echo(f"Server didn't found any execution of this prorgam")
+                echo(f"Server didn't found any execution of this program")
                 return 1
             elif response.status == 403:
 
