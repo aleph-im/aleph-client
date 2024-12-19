@@ -276,8 +276,8 @@ async def delete(
         typer.echo(f"Program {item_hash} has been deleted.")
 
 
-@app.command()
-async def list(
+@app.command(name="list")
+async def list_programs(
     address: Optional[str] = typer.Option(None, help="Owner address of the programs"),
     private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
     private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
