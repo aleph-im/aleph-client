@@ -233,7 +233,7 @@ def sign_bytes(
     if not message:
         message = input_multiline()
 
-    coroutine = account.sign_raw(message.encode())
+    coroutine = account.sign_raw(str(message).encode())
     signature = asyncio.run(coroutine)
     typer.echo("\nSignature: " + signature.hex())
 
