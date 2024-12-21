@@ -9,7 +9,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from aiohttp import InvalidURL
-from aleph.sdk.chains.evm import EVMAccount
 from aleph.sdk.conf import settings
 from aleph_message.models import Chain, ItemHash
 from aleph_message.models.execution.base import Payment, PaymentType
@@ -53,12 +52,15 @@ from aleph_client.models import (
 )
 from aleph_client.utils import FORBIDDEN_HOSTS, sanitize_url
 
+from .mocks import (
+    FAKE_ADDRESS_EVM,
+    FAKE_PUBKEY_FILE,
+    FAKE_STORE_HASH,
+    create_test_account,
+)
+
 # Utils
 settings.API_HOST = "https://api.twentysix.testnet.network"
-FAKE_PUBKEY_FILE = "/path/fake/pubkey"
-FAKE_PRIVATE_KEY = b"cafe" * 8
-FAKE_ADDRESS_EVM = "0x00001A0e6B9a46Be48a294D74D897d9C48678862"
-FAKE_STORE_HASH = "102682ea8bcc0cec9c42f32fbd2660286b4eb31003108440988343726304607a"  # Needs to exist on Aleph Testnet
 FAKE_VM_HASH = "ab12" * 16
 FAKE_CRN_HASH = "cd34" * 16
 FAKE_CRN_URL = "https://ovh.staging.aleph.sh"
@@ -182,14 +184,6 @@ def test_sanitize_url_with_https_scheme():
     assert sanitize_url(url) == url
 
 
-class MockEVMAccount(EVMAccount):
-    pass
-
-
-def create_test_account() -> MockEVMAccount:
-    return MockEVMAccount(private_key=FAKE_PRIVATE_KEY)
-
-
 def create_mock_load_account():
     mock_account = create_test_account()
     mock_loader = MagicMock(return_value=mock_account)
@@ -293,6 +287,7 @@ def create_mock_auth_client(mock_account):
     mock_response_get_message = create_mock_instance_message(mock_account, payg=True)
     mock_response_create_instance = MagicMock(item_hash=FAKE_VM_HASH)
     mock_auth_client = AsyncMock(
+        get_messages=AsyncMock(),
         get_message=AsyncMock(return_value=mock_response_get_message),
         create_instance=AsyncMock(return_value=[mock_response_create_instance, MagicMock()]),
         get_program_price=AsyncMock(return_value=MagicMock(required_tokens=0.0001)),
