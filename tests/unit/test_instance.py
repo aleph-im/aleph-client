@@ -242,12 +242,14 @@ def create_mock_instance_message(mock_account, payg=False, coco=False, gpu=False
         vm.content.environment.trusted_execution = Dict(firmware=FAKE_STORE_HASH)  # type: ignore
     if gpu:
         vm.content.metadata["name"] += "_gpu"  # type: ignore
-        vm.content.requirements.gpu = Dict(  # type: ignore
-            vendor="NVIDIA",
-            device_name="RTX 4090",
-            device_class=GpuDeviceClass.VGA_COMPATIBLE_CONTROLLER,
-            device_id="abcd:1234",
-        )
+        vm.content.requirements.gpu = [  # type: ignore
+            Dict(
+                vendor="NVIDIA",
+                device_name="RTX 4090",
+                device_class=GpuDeviceClass.VGA_COMPATIBLE_CONTROLLER,
+                device_id="abcd:1234",
+            )
+        ]
     return vm
 
 
