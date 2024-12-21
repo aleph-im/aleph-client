@@ -379,13 +379,13 @@ async def create(
             raise typer.Exit(1)
         if confidential:
             if not safe_getattr(crn, "confidential_computing"):
-            echo("Selected CRN does not support confidential computing.")
-            raise typer.Exit(1)
+                echo("Selected CRN does not support confidential computing.")
+                raise typer.Exit(1)
             trusted_execution = TrustedExecutionEnvironment(firmware=confidential_firmware_as_hash)
         if gpu:
             if not safe_getattr(crn, "gpu_support"):
-            echo("Selected CRN does not support GPU computing.")
-            raise typer.Exit(1)
+                echo("Selected CRN does not support GPU computing.")
+                raise typer.Exit(1)
             if crn.machine_usage and crn.machine_usage.gpu:
                 if len(crn.machine_usage.gpu.available_devices) < 1:
                     echo("Selected CRN does not have any GPUs available.")
@@ -603,7 +603,7 @@ async def delete(
                     if status == 200:
                         echo(f"VM erased on CRN: {crn_url}")
                     else:
-                    echo(f"No associated VM on {crn_url}. Skipping...")
+                        echo(f"No associated VM on {crn_url}. Skipping...")
             except Exception as e:
                 logger.debug(f"Error while deleting associated VM on {crn_url}: {str(e)}")
                 echo(f"Failed to erase associated VM on {crn_url}. Skipping...")
@@ -652,13 +652,20 @@ async def _show_instances(messages: List[InstanceMessage], node_list: NodeInfo):
         link = f"https://explorer.aleph.im/address/ETH/{message.sender}/message/INSTANCE/{message.item_hash}"
         # link = f"{settings.API_HOST}/api/v0/messages/{message.item_hash}"
         item_hash_link = Text.from_markup(f"[link={link}]{message.item_hash}[/link]", style="bright_cyan")
-        is_hold = str(info["payment"]).startswith("hold")
+        is_hold = info["payment"] == "hold"
         payment = Text.assemble(
             "Payment: ",
             Text(
-                str(info["payment"]).capitalize(),
+                info["payment"].capitalize().ljust(12),
                 style="red" if is_hold else "orange3",
             ),
+        )
+        confidential = Text.assemble(
+            "Type: ", Text("Confidential", style="green") if info["confidential"] else Text("Regular", style="grey50")
+        )
+        chain = Text.assemble("Chain: ", Text(info["chain"].ljust(14), style="white"))
+        created_at = Text.assemble(
+            "Created at: ", Text(str(str_to_datetime(info["created_at"])).split(".", maxsplit=1)[0], style="magenta")
         )
         cost: Text | str = ""
         if not is_hold:
@@ -668,24 +675,7 @@ async def _show_instances(messages: List[InstanceMessage], node_list: NodeInfo):
                 phour = Text(f"{3600*price.required_tokens:.2f}/hour", style="bright_magenta")
                 pday = Text(f"{86400*price.required_tokens:.2f}/day", style="bright_magenta")
                 pmonth = Text(f"{2592000*price.required_tokens:.2f}/month", style="bright_magenta")
-                cost = Text.assemble("Aleph cost: ", psec, " | ", phour, " | ", pday, " | ", pmonth, "\n")
-        confidential = (
-            Text.assemble("Type: ", Text("Confidential", style="green"))
-            if info["confidential"]
-            else Text.assemble("Type: ", Text("Regular", style="grey50"))
-        )
-        chain_label, chain_color = str(info["chain"]), "steel_blue"
-        if chain_label == "AVAX":
-            chain_label, chain_color = "AVAX", "bright_red"
-        elif chain_label == "BASE":
-            chain_label, chain_color = "BASE", "blue3"
-        elif chain_label == "SOL":
-            chain_label, chain_color = "SOL ", "medium_spring_green"
-        else:  # ETH
-            chain_label += " "
-        chain = Text.assemble("Chain: ", Text(chain_label, style=chain_color))
-        created_at_parsed = str(str_to_datetime(str(info["created_at"]))).split(".")[0]
-        created_at = Text.assemble("\t     Created at: ", Text(created_at_parsed, style="magenta"))
+                cost = Text.assemble("\nAleph cost: ", psec, " | ", phour, " | ", pday, " | ", pmonth)
         instance = Text.assemble(
             "Item Hash ↓\t     Name: ",
             name,
@@ -693,12 +683,11 @@ async def _show_instances(messages: List[InstanceMessage], node_list: NodeInfo):
             item_hash_link,
             "\n",
             payment,
-            "  ",
             confidential,
             "\n",
-            cost,
             chain,
             created_at,
+            cost,
         )
         specifications = (
             f"vCPUs: {message.content.resources.vcpus}\n"
@@ -706,25 +695,28 @@ async def _show_instances(messages: List[InstanceMessage], node_list: NodeInfo):
             f"Disk: {message.content.rootfs.size_mib / 1_024:.2f} GiB\n"
             f"HyperV: {safe_getattr(message, 'content.environment.hypervisor.value').capitalize() if safe_getattr(message, 'content.environment.hypervisor') else 'Firecracker'}\n"
         )
+        gpu = safe_getattr(message, "content.requirements.gpu.device_name")
+        if gpu:
+            specifications += f"GPU: {gpu}\n"
         status_column = Text.assemble(
             Text.assemble(
                 Text("Allocation: ", style="blue"),
                 Text(
-                    str(info["allocation_type"]) + "\n",
+                    info["allocation_type"] + "\n",
                     style="magenta3" if info["allocation_type"] == help_strings.ALLOCATION_MANUAL else "deep_sky_blue1",
                 ),
             ),
             Text.assemble(
                 Text("Target CRN: ", style="blue"),
                 Text(
-                    str(info["crn_url"]) + "\n",
-                    style="green1" if str(info["crn_url"]).startswith("http") else "dark_slate_gray1",
+                    info["crn_url"] + "\n",
+                    style="green1" if info["crn_url"].startswith("http") else "dark_slate_gray1",
                 ),
             ),
             Text.assemble(
                 Text("IPv6: ", style="blue"),
-                Text(str(info["ipv6_logs"])),
-                style="bright_yellow" if len(str(info["ipv6_logs"]).split(":")) == 8 else "dark_orange",
+                Text(info["ipv6_logs"]),
+                style="bright_yellow" if len(info["ipv6_logs"].split(":")) == 8 else "dark_orange",
             ),
         )
         table.add_row(instance, specifications, status_column)
@@ -772,7 +764,7 @@ async def _show_instances(messages: List[InstanceMessage], node_list: NodeInfo):
 
 @app.command()
 async def list(
-    address: Optional[str] = typer.Option(None, help="Owner address of the instance"),
+    address: Optional[str] = typer.Option(None, help="Owner address of the instances"),
     private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
     private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
     chain: Optional[Chain] = typer.Option(None, help=help_strings.ADDRESS_CHAIN),
@@ -800,7 +792,8 @@ async def list(
             echo(f"Address: {address}\n\nNo instance found\n")
             raise typer.Exit(code=1)
         if json:
-            echo(messages.json(indent=4))
+            for message in messages:
+                echo(message.json(indent=4))
         else:
             # Since we filtered on message type, we can safely cast as InstanceMessage.
             messages = cast(List[InstanceMessage], messages)
