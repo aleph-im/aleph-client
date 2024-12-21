@@ -144,5 +144,5 @@ async def find_crn_of_vm(vm_id: str) -> Optional[str]:
         message: InstanceMessage = await client.get_message(item_hash=ItemHash(vm_id), message_type=InstanceMessage)
         node_list: NodeInfo = await _fetch_nodes()
         _, info = await fetch_vm_info(message, node_list)
-        is_valid = info["crn_url"] and info["crn_url"] != help_strings.CRN_PENDING
+        is_valid = info["crn_url"] not in [help_strings.CRN_PENDING, help_strings.CRN_UNKNOWN]
         return str(info["crn_url"]) if is_valid else None
