@@ -87,7 +87,7 @@ async def create(
         metavar=f"[{'|'.join(PaymentType)}|nft]",
     ),
     payment_chain: Optional[Chain] = typer.Option(
-        None, help=help_strings.PAYMENT_CHAIN, metavar=f"[{'|'.join([Chain.ETH, Chain.AVAX, Chain.BASE, Chain.SOL])}]"
+        None, help=help_strings.PAYMENT_CHAIN, metavar=f"[{'|'.join(get_chains_with_holding() + [Chain.SOL])}]"
     ),
     hypervisor: Optional[HypervisorType] = typer.Option(HypervisorType.qemu, help=help_strings.HYPERVISOR),
     name: Optional[str] = typer.Option(None, help=help_strings.INSTANCE_NAME),
@@ -158,10 +158,13 @@ async def create(
 
     # Force-switches if NFT payment-type
     if payment_type == "nft":
-        payment_chain = Chain.AVAX
         payment_type = PaymentType.hold
-        console.print(
-            "[yellow]NFT[/yellow] payment-type selected: Auto-switch to [cyan]AVAX[/cyan] with [red]HOLD[/red]"
+        payment_chain = Chain(
+            Prompt.ask(
+                "On which chain did you claim your NFT voucher?",
+                choices=[Chain.AVAX.value, Chain.BASE.value, Chain.SOL.value],
+                default=Chain.AVAX.value,
+            )
         )
     elif payment_type in [ptype.value for ptype in PaymentType]:
         payment_type = PaymentType(payment_type)
@@ -174,12 +177,9 @@ async def create(
 
     # Checks if payment-chain is compatible with PAYG
     if is_stream:
-        if payment_chain == Chain.SOL:
-            console.print(
-                "[yellow]SOL[/yellow] chain selected: [red]Not compatible yet with Pay-As-You-Go.[/red]\nChange your configuration or provide another chain using arguments (but EVM address will be used)."
-            )
-            raise typer.Exit(code=1)
-        elif payment_chain is None or payment_chain not in super_token_chains:
+        if payment_chain is None or payment_chain not in super_token_chains:
+            if payment_chain:
+                console.print(f"[red]{payment_chain.value}[/red] incompatible with Pay-As-You-Go.")
             payment_chain = Chain(
                 Prompt.ask(
                     "Which chain do you want to use for Pay-As-You-Go?",
@@ -187,8 +187,10 @@ async def create(
                     default=Chain.AVAX.value,
                 )
             )
-    # Fallback for Hold-tier if no config / no chain is set
-    elif payment_chain is None:
+    # Fallback for Hold-tier if no config / no chain is set / chain not in hold_chains
+    elif payment_chain is None or payment_chain not in hold_chains:
+        if payment_chain:
+            console.print(f"[red]{payment_chain.value}[/red] incompatible with Hold-tier.")
         payment_chain = Chain(
             Prompt.ask(
                 "Which chain do you want to use for Hold-tier?",
@@ -1114,7 +1116,7 @@ async def confidential_create(
         metavar=f"[{'|'.join(PaymentType)}|nft]",
     ),
     payment_chain: Optional[Chain] = typer.Option(
-        None, help=help_strings.PAYMENT_CHAIN, metavar=f"[{'|'.join([Chain.ETH, Chain.AVAX, Chain.BASE, Chain.SOL])}]"
+        None, help=help_strings.PAYMENT_CHAIN, metavar=f"[{'|'.join(get_chains_with_holding() + [Chain.SOL])}]"
     ),
     name: Optional[str] = typer.Option(None, help=help_strings.INSTANCE_NAME),
     rootfs: Optional[str] = typer.Option(None, help=help_strings.ROOTFS),
