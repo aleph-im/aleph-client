@@ -3,15 +3,16 @@
 Copied from typer.cli.py to customise doc generation
 """
 
-import click
 import importlib.util
 import re
 import sys
+from pathlib import Path
+from typing import Any, List, Optional
+
+import click
 import typer
 import typer.core
 from click import Command, Group
-from pathlib import Path
-from typing import Any, List, Optional
 
 default_app_names = ("app", "cli", "main")
 default_func_names = ("main", "cli", "app")
