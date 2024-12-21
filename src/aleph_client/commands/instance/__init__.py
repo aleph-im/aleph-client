@@ -530,9 +530,14 @@ async def create(
                 if not confidential:
                     infos += [
                         Text.assemble(
-                            "\n\nTo get the logs or IPv6 address of the instance, check out:\n",
+                            "\n\nTo get your instance's IPv6, check out:\n",
                             Text.assemble(
                                 "↳ aleph instance list",
+                                style="italic",
+                            ),
+                            "\n\nTo access your instance's logs, use:\n",
+                            Text.from_markup(
+                                f"↳ aleph instance log [bright_cyan]{item_hash}[/bright_cyan]",
                                 style="italic",
                             ),
                         )
@@ -558,13 +563,16 @@ async def create(
             if verbose:
                 infos += [
                     Text.assemble(
+                        "\n\nTo get your instance's IPv6, check out:\n",
                         Text.assemble(
-                            "\n\nTo get the logs or IPv6 address of the instance, check out:\n",
-                            Text(
-                                "↳ aleph instance list",
-                                style="italic",
-                            ),
-                        )
+                            "↳ aleph instance list",
+                            style="italic",
+                        ),
+                        "\n\nTo access your instance's logs, use:\n",
+                        Text.from_markup(
+                            f"↳ aleph instance log [bright_cyan]{item_hash}[/bright_cyan]",
+                            style="italic",
+                        ),
                     )
                 ]
         console.print(
@@ -893,11 +901,7 @@ async def logs(
     """Retrieve the logs of an instance"""
     setup_logging(debug)
 
-    domain = (
-        (domain and sanitize_url(domain))
-        or await find_crn_of_vm(vm_id)
-        or Prompt.ask("URL of the CRN (Compute node) on which the instance is running")
-    )
+    domain = (domain and sanitize_url(domain)) or await find_crn_of_vm(vm_id) or Prompt.ask(help_strings.PROMPT_CRN_URL)
 
     account = _load_account(private_key, private_key_file, chain=chain)
 
@@ -926,11 +930,7 @@ async def stop(
 
     setup_logging(debug)
 
-    domain = (
-        (domain and sanitize_url(domain))
-        or await find_crn_of_vm(vm_id)
-        or Prompt.ask("URL of the CRN (Compute node) on which the instance is running")
-    )
+    domain = (domain and sanitize_url(domain)) or await find_crn_of_vm(vm_id) or Prompt.ask(help_strings.PROMPT_CRN_URL)
 
     account = _load_account(private_key, private_key_file, chain=chain)
 
@@ -1021,6 +1021,7 @@ async def confidential_start(
     vm_secret: str = typer.Option(None, help=help_strings.VM_SECRET),
     private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
     private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
+    verbose: bool = typer.Option(True),
     debug: bool = False,
 ):
     """Validate the authenticity of the VM and start it"""
@@ -1072,18 +1073,24 @@ async def confidential_start(
     await client.inject_secret(vm_hash, encoded_packet_header, encoded_secret)
     await client.close()
     console = Console()
+    infos = [Text.from_markup(f"Your instance [bright_cyan]{vm_id}[/bright_cyan] is currently starting.")]
+    if verbose:
+        infos += [
+            Text.assemble(
+                "\n\nTo get your instance's IPv6, check out:\n",
+                Text.assemble(
+                    "↳ aleph instance list",
+                    style="italic",
+                ),
+                "\n\nTo access your instance's logs, use:\n",
+                Text.from_markup(
+                    f"↳ aleph instance log [bright_cyan]{vm_id}[/bright_cyan]",
+                    style="italic",
+                ),
+            )
+        ]
     console.print(
-        "Your instance is currently starting...\n\nLogs can be fetched using:\n\n",
-        Text.assemble(
-            "  aleph instance logs ",
-            Text(vm_id, style="bright_cyan"),
-            style="italic",
-        ),
-        "\n\nTo get the IPv6 address of the instance, check out:\n\n",
-        Text.assemble(
-            "  aleph instance list\n",
-            style="italic",
-        ),
+        Panel(Text.assemble(*infos), title="Instance Started", border_style="green", expand=False, title_align="left")
     )
 
 
@@ -1195,9 +1202,7 @@ async def confidential_create(
                 raise typer.Exit(code=1)
 
     crn_url = (
-        (crn_url and sanitize_url(crn_url))
-        or await find_crn_of_vm(vm_id)
-        or Prompt.ask("URL of the CRN (Compute node) on which the instance is running")
+        (crn_url and sanitize_url(crn_url)) or await find_crn_of_vm(vm_id) or Prompt.ask(help_strings.PROMPT_CRN_URL)
     )
 
     if not allocated:
@@ -1238,5 +1243,6 @@ async def confidential_create(
         vm_secret=vm_secret,
         private_key=private_key,
         private_key_file=private_key_file,
+        verbose=True,
         debug=debug,
     )
