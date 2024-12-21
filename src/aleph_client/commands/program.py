@@ -254,23 +254,22 @@ async def logs(
 ):
     """Display logs for the program.
 
-    Will only show logs frp, one select CRN"""
+    Will only show logs from one selected CRN"""
 
     setup_logging(debug)
 
     account = _load_account(private_key, private_key_file, chain=chain)
     domain = sanitize_url(domain)
 
-    async with VmClient2(account, domain) as client:
-        async with await client.operate(vm_id=item_hash, operation="logs.json", method="GET") as response:
-
+    async with VmClient(account, domain) as client:
+        async with client.operate(vm_id=item_hash, operation="logs", method="GET") as response:
             logger.debug("Request %s %s", response.url, response.status)
             if response.status != 200:
                 logger.debug(response)
                 logger.debug(await response.text())
 
             if response.status == 404:
-                echo(f"Execution not found on this server")
+                echo(f"Server didn't found any execution of this prorgam")
                 return 1
             elif response.status == 403:
 
@@ -284,13 +283,3 @@ async def logs(
             log_entries = await response.json()
             for log in log_entries:
                 echo(f'{log["__REALTIME_TIMESTAMP"]}>  {log["MESSAGE"]}')
-
-
-class VmClient2(VmClient):
-    async def operate(self, vm_id: ItemHash, operation: str, method: str = "POST") -> _RequestContextManager:
-        if not self.pubkey_signature_header:
-            self.pubkey_signature_header = await self._generate_pubkey_signature_header()
-
-        url, header = await self._generate_header(vm_id=vm_id, operation=operation, method=method)
-
-        return self.session.request(method=method, url=url, headers=header)
