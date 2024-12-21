@@ -1292,6 +1292,9 @@ async def confidential_create(
         echo("Could not initialize the session")
         return 1
 
+    # Safe delay to ensure instance is starting and is ready
+    await asyncio.sleep(3)
+
     await confidential_start(
         vm_id=vm_id,
         domain=crn_url,
