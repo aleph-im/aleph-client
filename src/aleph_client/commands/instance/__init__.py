@@ -76,6 +76,8 @@ app = AsyncTyper(no_args_is_help=True)
 # TODO: This should be put on the API to get always from there
 FLOW_INSTANCE_PRICE_PER_SECOND = Decimal(0.0000155)  # 0.055/h
 
+metavar_valid_chains = f"[{'|'.join(get_chains_with_holding() + [Chain.SOL])}]"
+
 
 @app.command()
 async def create(
@@ -85,9 +87,7 @@ async def create(
         callback=lambda pt: None if pt is None else pt.lower(),
         metavar=f"[{'|'.join(PaymentType)}|nft]",
     ),
-    payment_chain: Optional[Chain] = typer.Option(
-        None, help=help_strings.PAYMENT_CHAIN, metavar=f"[{'|'.join(get_chains_with_holding() + [Chain.SOL])}]"
-    ),
+    payment_chain: Optional[Chain] = typer.Option(None, help=help_strings.PAYMENT_CHAIN, metavar=metavar_valid_chains),
     hypervisor: Optional[HypervisorType] = typer.Option(HypervisorType.qemu, help=help_strings.HYPERVISOR),
     name: Optional[str] = typer.Option(None, help=help_strings.INSTANCE_NAME),
     rootfs: Optional[str] = typer.Option(None, help=help_strings.ROOTFS),
@@ -579,7 +579,7 @@ async def create(
 async def delete(
     item_hash: str = typer.Argument(..., help="Instance item hash to forget"),
     reason: str = typer.Option("User deletion", help="Reason for deleting the instance"),
-    chain: Optional[Chain] = typer.Option(None, help=help_strings.ADDRESS_CHAIN),
+    chain: Optional[Chain] = typer.Option(None, help=help_strings.PAYMENT_CHAIN_USED, metavar=metavar_valid_chains),
     domain: Optional[str] = typer.Option(None, help=help_strings.CRN_URL_VM_DELETION),
     private_key: Optional[str] = settings.PRIVATE_KEY_STRING,
     private_key_file: Optional[Path] = settings.PRIVATE_KEY_FILE,
@@ -789,7 +789,7 @@ async def list_instances(
     address: Optional[str] = typer.Option(None, help="Owner address of the instances"),
     private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
     private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
-    chain: Optional[Chain] = typer.Option(None, help=help_strings.ADDRESS_CHAIN),
+    chain: Optional[Chain] = typer.Option(None, help=help_strings.ADDRESS_CHAIN, metavar=metavar_valid_chains),
     json: bool = typer.Option(default=False, help="Print as json instead of rich table"),
     debug: bool = False,
 ):
@@ -827,7 +827,7 @@ async def list_instances(
 async def reboot(
     vm_id: str = typer.Argument(..., help="VM item hash to reboot"),
     domain: Optional[str] = typer.Option(None, help="CRN domain on which the VM is running"),
-    chain: Optional[Chain] = typer.Option(None, help=help_strings.PAYMENT_CHAIN_USED),
+    chain: Optional[Chain] = typer.Option(None, help=help_strings.PAYMENT_CHAIN_USED, metavar=metavar_valid_chains),
     private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
     private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
     debug: bool = False,
@@ -856,7 +856,7 @@ async def reboot(
 async def allocate(
     vm_id: str = typer.Argument(..., help="VM item hash to allocate"),
     domain: Optional[str] = typer.Option(None, help="CRN domain on which the VM will be allocated"),
-    chain: Optional[Chain] = typer.Option(None, help=help_strings.PAYMENT_CHAIN_USED),
+    chain: Optional[Chain] = typer.Option(None, help=help_strings.PAYMENT_CHAIN_USED, metavar=metavar_valid_chains),
     private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
     private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
     debug: bool = False,
@@ -885,7 +885,7 @@ async def allocate(
 async def logs(
     vm_id: str = typer.Argument(..., help="VM item hash to retrieve the logs from"),
     domain: Optional[str] = typer.Option(None, help="CRN domain on which the VM is running"),
-    chain: Optional[Chain] = typer.Option(None, help=help_strings.PAYMENT_CHAIN_USED),
+    chain: Optional[Chain] = typer.Option(None, help=help_strings.PAYMENT_CHAIN_USED, metavar=metavar_valid_chains),
     private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
     private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
     debug: bool = False,
@@ -946,7 +946,7 @@ async def stop(
 async def confidential_init_session(
     vm_id: str = typer.Argument(..., help="VM item hash to initialize the session for"),
     domain: Optional[str] = typer.Option(None, help="CRN domain on which the session will be initialized"),
-    chain: Optional[Chain] = typer.Option(None, help=help_strings.PAYMENT_CHAIN_USED),
+    chain: Optional[Chain] = typer.Option(None, help=help_strings.PAYMENT_CHAIN_USED, metavar=metavar_valid_chains),
     policy: int = typer.Option(default=0x1),
     keep_session: bool = typer.Option(None, help=help_strings.KEEP_SESSION),
     private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
@@ -1013,11 +1013,11 @@ async def confidential_init_session(
 async def confidential_start(
     vm_id: str = typer.Argument(..., help="VM item hash to start"),
     domain: Optional[str] = typer.Option(None, help="CRN domain on which the VM will be started"),
-    chain: Optional[Chain] = typer.Option(None, help=help_strings.PAYMENT_CHAIN_USED),
+    chain: Optional[Chain] = typer.Option(None, help=help_strings.PAYMENT_CHAIN_USED, metavar=metavar_valid_chains),
     firmware_hash: str = typer.Option(
         settings.DEFAULT_CONFIDENTIAL_FIRMWARE_HASH, help=help_strings.CONFIDENTIAL_FIRMWARE_HASH
     ),
-    firmware_file: str = typer.Option(None, help=help_strings.PRIVATE_KEY),
+    firmware_file: str = typer.Option(None, help=help_strings.CONFIDENTIAL_FIRMWARE_PATH),
     vm_secret: str = typer.Option(None, help=help_strings.VM_SECRET),
     private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
     private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
@@ -1099,7 +1099,7 @@ async def confidential_create(
     firmware_hash: str = typer.Option(
         settings.DEFAULT_CONFIDENTIAL_FIRMWARE_HASH, help=help_strings.CONFIDENTIAL_FIRMWARE_HASH
     ),
-    firmware_file: Optional[str] = typer.Option(None, help=help_strings.PRIVATE_KEY),
+    firmware_file: Optional[str] = typer.Option(None, help=help_strings.CONFIDENTIAL_FIRMWARE_PATH),
     keep_session: Optional[bool] = typer.Option(None, help=help_strings.KEEP_SESSION),
     vm_secret: Optional[str] = typer.Option(None, help=help_strings.VM_SECRET),
     payment_type: Optional[str] = typer.Option(
@@ -1108,9 +1108,7 @@ async def confidential_create(
         callback=lambda pt: None if pt is None else pt.lower(),
         metavar=f"[{'|'.join(PaymentType)}|nft]",
     ),
-    payment_chain: Optional[Chain] = typer.Option(
-        None, help=help_strings.PAYMENT_CHAIN, metavar=f"[{'|'.join(get_chains_with_holding() + [Chain.SOL])}]"
-    ),
+    payment_chain: Optional[Chain] = typer.Option(None, help=help_strings.PAYMENT_CHAIN, metavar=metavar_valid_chains),
     name: Optional[str] = typer.Option(None, help=help_strings.INSTANCE_NAME),
     rootfs: Optional[str] = typer.Option(None, help=help_strings.ROOTFS),
     rootfs_size: Optional[int] = typer.Option(None, help=help_strings.ROOTFS_SIZE),
