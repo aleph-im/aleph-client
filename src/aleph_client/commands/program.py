@@ -18,6 +18,7 @@ from aleph.sdk.conf import settings
 from aleph.sdk.exceptions import ForgottenMessageError, MessageNotFoundError
 from aleph.sdk.query.filters import MessageFilter
 from aleph.sdk.types import AccountFromPrivateKey, StorageEnum
+from aleph.sdk.utils import safe_getattr
 from aleph_message.models import Chain, MessageType, ProgramMessage, StoreMessage
 from aleph_message.models.execution.program import ProgramContent
 from aleph_message.models.item_hash import ItemHash
@@ -36,7 +37,6 @@ from aleph_client.commands.utils import (
     get_or_prompt_environment_variables,
     get_or_prompt_volumes,
     input_multiline,
-    safe_getattr,
     setup_logging,
     str_to_datetime,
     validated_prompt,

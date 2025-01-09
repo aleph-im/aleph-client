@@ -26,7 +26,7 @@ from aleph.sdk.exceptions import (
 from aleph.sdk.query.filters import MessageFilter
 from aleph.sdk.query.responses import PriceResponse
 from aleph.sdk.types import StorageEnum
-from aleph.sdk.utils import calculate_firmware_hash
+from aleph.sdk.utils import calculate_firmware_hash, safe_getattr
 from aleph_message.models import Chain, InstanceMessage, MessageType, StoreMessage
 from aleph_message.models.execution.base import Payment, PaymentType
 from aleph_message.models.execution.environment import (
@@ -58,7 +58,6 @@ from aleph_client.commands.utils import (
     filter_only_valid_messages,
     find_sevctl_or_exit,
     get_or_prompt_volumes,
-    safe_getattr,
     setup_logging,
     str_to_datetime,
     validate_ssh_pubkey_file,

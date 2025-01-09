@@ -8,6 +8,7 @@ from typing import Optional
 import aiohttp
 from aleph.sdk import AlephHttpClient
 from aleph.sdk.conf import settings
+from aleph.sdk.utils import safe_getattr
 from aleph_message.models import InstanceMessage
 from aleph_message.models.execution.base import PaymentType
 from aleph_message.models.item_hash import ItemHash
@@ -15,9 +16,8 @@ from pydantic import ValidationError
 
 from aleph_client.commands import help_strings
 from aleph_client.commands.node import NodeInfo, _fetch_nodes
-from aleph_client.commands.utils import safe_getattr
 from aleph_client.models import MachineUsage
-from aleph_client.utils import AsyncTyper, fetch_json, sanitize_url
+from aleph_client.utils import fetch_json, sanitize_url
 
 logger = logging.getLogger(__name__)
 

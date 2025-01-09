@@ -261,14 +261,6 @@ def is_environment_interactive() -> bool:
     )
 
 
-def safe_getattr(obj, attr, default=None):
-    for part in attr.split("."):
-        obj = getattr(obj, part, default)
-        if obj is default:
-            break
-    return obj
-
-
 async def wait_for_processed_instance(session: ClientSession, item_hash: ItemHash):
     """Wait for a message to be processed by CCN"""
     while True:
