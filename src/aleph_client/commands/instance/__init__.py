@@ -65,6 +65,7 @@ from aleph_client.commands.utils import (
     validated_prompt,
     wait_for_confirmed_flow,
     wait_for_processed_instance,
+    yes_no_input,
 )
 from aleph_client.models import CRNInfo
 from aleph_client.utils import AsyncTyper, sanitize_url
@@ -368,7 +369,7 @@ async def create(
                 # User has ctrl-c
                 raise typer.Exit(1)
             crn.display_crn_specs()
-            if not Confirm.ask("\nDeploy on this node?"):
+            if not yes_no_input("Deploy on this node?", default=True):
                 crn = None
                 continue
     elif crn_url or crn_hash:
@@ -759,11 +760,19 @@ async def _show_instances(messages: List[InstanceMessage], node_list: NodeInfo):
                     style="magenta3" if info["allocation_type"] == help_strings.ALLOCATION_MANUAL else "deep_sky_blue1",
                 ),
             ),
+            (
+                Text.assemble(
+                    Text("CRN Hash: ", style="blue"),
+                    Text(info["crn_hash"] + "\n", style=("bright_cyan")),
+                )
+                if info["crn_hash"]
+                else ""
+            ),
             Text.assemble(
-                Text("Target CRN: ", style="blue"),
+                Text("CRN Url: ", style="blue"),
                 Text(
                     info["crn_url"] + "\n",
-                    style="green1" if info["crn_url"].startswith("http") else "dark_slate_gray1",
+                    style="green1" if info["crn_url"].startswith("http") else "grey50",
                 ),
             ),
             Text.assemble(
