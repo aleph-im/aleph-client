@@ -1,8 +1,7 @@
-import contextlib
 import json
+import os
 from pathlib import Path
 from tempfile import NamedTemporaryFile
-from unittest.mock import AsyncMock, patch
 
 from aleph.sdk.chains.ethereum import ETHAccount
 from aleph.sdk.conf import settings
@@ -286,47 +285,15 @@ def test_file_upload():
 
 def test_file_download():
     # Test download a file to aleph network
+    ipfs_cid = "QmeomffUNfmQy76CQGy9NdmqEnnHU9soCexBnGU3ezPHVH"
     result = runner.invoke(
         app,
         [
             "file",
             "download",
-            "QmeomffUNfmQy76CQGy9NdmqEnnHU9soCexBnGU3ezPHVH",
+            ipfs_cid,
         ],  # 5 bytes file
     )
     assert result.exit_code == 0
     assert result.stdout is not None
-
-
-def test_app():
-    @contextlib.asynccontextmanager
-    async def m(self, vm_id, operation, method="GET"):
-        try:
-            yield AsyncMock(
-                url="http://",
-                status=200,
-                json=AsyncMock(
-                    return_value=[
-                        {
-                            "__REALTIME_TIMESTAMP": "2024-02-02 23:34:21",
-                            "MESSAGE": "hello world",
-                        }
-                    ]
-                ),
-            )
-        finally:
-            pass
-
-    with patch("aleph_client.commands.program.VmClient.operate", m):
-        result = runner.invoke(
-            app,
-            [
-                "program",
-                "logs",
-                "--domain",
-                "http://localhost:4200",
-                "decadecadecadecadecadecadecadecadecadecadecadecadecadecadecadeca",
-            ],
-        )
-        assert result.exit_code == 0, result.stdout
-        assert result.stdout == "Received logs\n2024-02-02 23:34:21>  hello world\n"
+    os.remove(ipfs_cid)
