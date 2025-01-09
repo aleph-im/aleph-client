@@ -2,15 +2,15 @@ from __future__ import annotations
 
 import json
 import logging
-import sys
+import re
 from base64 import b16decode, b32encode
 from collections.abc import Mapping
 from pathlib import Path
 from typing import List, Optional, cast
 from zipfile import BadZipFile
 
+import aiohttp
 import typer
-from aiohttp.client import _RequestContextManager
 from aleph.sdk import AlephHttpClient, AuthenticatedAlephHttpClient
 from aleph.sdk.account import _load_account
 from aleph.sdk.client.vm_client import VmClient
@@ -26,17 +26,20 @@ from click import echo
 from rich import box
 from rich.console import Console
 from rich.panel import Panel
+from rich.prompt import Prompt
 from rich.table import Table
 from rich.text import Text
 
 from aleph_client.commands import help_strings
 from aleph_client.commands.utils import (
     filter_only_valid_messages,
+    get_or_prompt_environment_variables,
     get_or_prompt_volumes,
     input_multiline,
     safe_getattr,
     setup_logging,
     str_to_datetime,
+    validated_prompt,
     yes_no_input,
 )
 from aleph_client.utils import AsyncTyper, create_archive, sanitize_url
@@ -45,40 +48,50 @@ logger = logging.getLogger(__name__)
 app = AsyncTyper(no_args_is_help=True)
 
 
-@app.command()
+@app.command(name="upload")
+@app.command(name="create")
 async def upload(
-    path: Path = typer.Argument(..., help="Path to your source code"),
-    entrypoint: str = typer.Argument(..., help="Your program entrypoint"),
+    path: Path = typer.Argument(..., help=help_strings.PROGRAM_PATH),
+    entrypoint: str = typer.Argument(
+        ...,
+        help=help_strings.PROGRAM_ENTRYPOINT,
+    ),
     channel: Optional[str] = typer.Option(default=settings.DEFAULT_CHANNEL, help=help_strings.CHANNEL),
-    memory: int = typer.Option(settings.DEFAULT_VM_MEMORY, help="Maximum memory allocation on vm in MiB"),
-    vcpus: int = typer.Option(settings.DEFAULT_VM_VCPUS, help="Number of virtual cpus to allocate."),
+    memory: int = typer.Option(settings.DEFAULT_VM_MEMORY, help=help_strings.MEMORY),
+    vcpus: int = typer.Option(settings.DEFAULT_VM_VCPUS, help=help_strings.VCPUS),
     timeout_seconds: float = typer.Option(
         settings.DEFAULT_VM_TIMEOUT,
-        help="If vm is not called after [timeout_seconds] it will shutdown",
+        help=help_strings.TIMEOUT_SECONDS,
     ),
-    private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
-    private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
-    print_messages: bool = typer.Option(False),
-    print_code_message: bool = typer.Option(False),
-    print_program_message: bool = typer.Option(False),
+    name: Optional[str] = typer.Option(None, help="Name for your program"),
     runtime: str = typer.Option(
         None,
-        help="Hash of the runtime to use for your program. Defaults to aleph debian with Python3.8 and node. You can also create your own runtime and pin it",
+        help=help_strings.PROGRAM_RUNTIME.format(runtime_id=settings.DEFAULT_RUNTIME_ID),
     ),
     beta: bool = typer.Option(
         False,
-        help="If true, you will be prompted to add message subscriptions to your program",
+        help=help_strings.PROGRAM_BETA,
     ),
-    debug: bool = False,
     persistent: bool = False,
+    updatable: bool = typer.Option(False, help=help_strings.PROGRAM_UPDATABLE),
+    skip_volume: bool = typer.Option(False, help=help_strings.SKIP_VOLUME),
     persistent_volume: Optional[List[str]] = typer.Option(None, help=help_strings.PERSISTENT_VOLUME),
     ephemeral_volume: Optional[List[str]] = typer.Option(None, help=help_strings.EPHEMERAL_VOLUME),
     immutable_volume: Optional[List[str]] = typer.Option(
         None,
         help=help_strings.IMMUTABLE_VOLUME,
     ),
-):
-    """Register a program to run on aleph.im. For more information, see https://docs.aleph.im/computing/"""
+    skip_env_var: bool = typer.Option(False, help=help_strings.SKIP_ENV_VAR),
+    env_vars: Optional[str] = typer.Option(None, help=help_strings.ENVIRONMENT_VARIABLES),
+    private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
+    private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
+    print_messages: bool = typer.Option(False),
+    print_code_message: bool = typer.Option(False),
+    print_program_message: bool = typer.Option(False),
+    verbose: bool = True,
+    debug: bool = False,
+) -> Optional[str]:
+    """Register a program to run on aleph.im. For more information, see https://docs.aleph.im/computing"""
 
     setup_logging(debug)
 
@@ -88,23 +101,30 @@ async def upload(
         path_object, encoding = create_archive(path)
     except BadZipFile:
         typer.echo("Invalid zip archive")
-        raise typer.Exit(3)
+        raise typer.Exit(code=3)
     except FileNotFoundError:
         typer.echo("No such file or directory")
-        raise typer.Exit(4)
+        raise typer.Exit(code=4)
 
     account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
 
-    runtime = runtime or input(f"Ref of runtime ? [{settings.DEFAULT_RUNTIME_ID}] ") or settings.DEFAULT_RUNTIME_ID
+    name = name or validated_prompt("Program name", lambda x: len(x) < 65)
+    runtime = runtime or input(f"Ref of runtime? [{settings.DEFAULT_RUNTIME_ID}] ") or settings.DEFAULT_RUNTIME_ID
 
-    volumes = get_or_prompt_volumes(
-        persistent_volume=persistent_volume,
-        ephemeral_volume=ephemeral_volume,
-        immutable_volume=immutable_volume,
-    )
+    volumes = []
+    if not skip_volume:
+        volumes = get_or_prompt_volumes(
+            persistent_volume=persistent_volume,
+            ephemeral_volume=ephemeral_volume,
+            immutable_volume=immutable_volume,
+        )
+
+    environment_variables = None
+    if not skip_env_var:
+        environment_variables = get_or_prompt_environment_variables(env_vars)
 
     subscriptions: Optional[List[Mapping]] = None
-    if beta and yes_no_input("Subscribe to messages ?", default=False):
+    if beta and yes_no_input("Subscribe to messages?", default=False):
         content_raw = input_multiline()
         try:
             subscriptions = json.loads(content_raw)
@@ -140,6 +160,8 @@ async def upload(
         message, status = await client.create_program(
             program_ref=program_ref,
             entrypoint=entrypoint,
+            metadata=dict(name=name),
+            allow_amend=updatable,
             runtime=runtime,
             storage_engine=StorageEnum.storage,
             channel=channel,
@@ -149,6 +171,7 @@ async def upload(
             persistent=persistent,
             encoding=encoding,
             volumes=volumes,
+            environment_variables=environment_variables,
             subscriptions=subscriptions,
         )
         logger.debug("Upload finished")
@@ -156,57 +179,94 @@ async def upload(
             typer.echo(f"{message.json(indent=4)}")
 
         item_hash: ItemHash = message.item_hash
-        hash_base32 = b32encode(b16decode(item_hash.upper())).strip(b"=").lower().decode()
+        if verbose:
+            hash_base32 = b32encode(b16decode(item_hash.upper())).strip(b"=").lower().decode()
+            func_url_1 = f"{settings.VM_URL_PATH.format(hash=item_hash)}"
+            func_url_2 = f"{settings.VM_URL_HOST.format(hash_base32=hash_base32)}"
 
-        typer.echo(
-            f"Your program has been uploaded on aleph.im\n\n"
-            "Available on:\n"
-            f"  {settings.VM_URL_PATH.format(hash=item_hash)}\n"
-            f"  {settings.VM_URL_HOST.format(hash_base32=hash_base32)}\n"
-            "Visualise on:\n  https://explorer.aleph.im/address/"
-            f"{message.chain.value}/{message.sender}/message/PROGRAM/{item_hash}\n"
-        )
+            console = Console()
+            infos = [
+                Text.from_markup(f"Your program [bright_cyan]{item_hash}[/bright_cyan] has been uploaded on aleph.im."),
+                Text.assemble(
+                    "\n\nAvailable on:\n",
+                    Text.from_markup(
+                        f"↳ [bright_yellow][link={func_url_1}]{func_url_1}[/link][/bright_yellow]\n",
+                        style="italic",
+                    ),
+                    Text.from_markup(
+                        f"↳ [dark_olive_green2][link={func_url_2}]{func_url_2}[/link][/dark_olive_green2]",
+                        style="italic",
+                    ),
+                    "\n\nVisualise on:\n",
+                    Text.from_markup(
+                        f"[blue]https://explorer.aleph.im/address/{message.chain.value}/{message.sender}/message/PROGRAM/{item_hash}[/blue]"
+                    ),
+                ),
+            ]
+            console.print(
+                Panel(
+                    Text.assemble(*infos),
+                    title="Program Created",
+                    border_style="green",
+                    expand=False,
+                    title_align="left",
+                )
+            )
+        return item_hash
 
 
 @app.command()
 async def update(
     item_hash: str = typer.Argument(..., help="Item hash to update"),
-    path: Path = typer.Argument(..., help="Source path to upload"),
+    path: Path = typer.Argument(..., help=help_strings.PROGRAM_PATH),
     private_key: Optional[str] = settings.PRIVATE_KEY_STRING,
     private_key_file: Optional[Path] = settings.PRIVATE_KEY_FILE,
-    print_message: bool = True,
+    print_message: bool = typer.Option(False),
+    verbose: bool = True,
     debug: bool = False,
 ):
-    """Update the code of an existing program"""
+    """Update the code of an existing program (item hash will not change)"""
 
     setup_logging(debug)
 
-    account = _load_account(private_key, private_key_file)
     path = path.absolute()
 
+    try:
+        path_object, encoding = create_archive(path)
+    except BadZipFile:
+        typer.echo("Invalid zip archive")
+        raise typer.Exit(code=3)
+    except FileNotFoundError:
+        typer.echo("No such file or directory")
+        raise typer.Exit(code=4)
+
+    account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
+
     async with AuthenticatedAlephHttpClient(account=account, api_server=settings.API_HOST) as client:
-        program_message: ProgramMessage = await client.get_message(item_hash=item_hash, message_type=ProgramMessage)
+        try:
+            program_message: ProgramMessage = await client.get_message(item_hash=item_hash, message_type=ProgramMessage)
+        except MessageNotFoundError:
+            typer.echo("Program does not exist")
+            return 1
+        except ForgottenMessageError:
+            typer.echo("Program has been forgotten")
+            return 1
+        if program_message.sender != account.get_address():
+            typer.echo("You are not the owner of this program")
+            return 1
+
         code_ref = program_message.content.code.ref
         code_message: StoreMessage = await client.get_message(item_hash=code_ref, message_type=StoreMessage)
-
-        try:
-            path, encoding = create_archive(path)
-        except BadZipFile:
-            typer.echo("Invalid zip archive")
-            raise typer.Exit(3)
-        except FileNotFoundError:
-            typer.echo("No such file or directory")
-            raise typer.Exit(4)
 
         if encoding != program_message.content.code.encoding:
             logger.error(
                 f"Code must be encoded with the same encoding as the previous version "
                 f"('{encoding}' vs '{program_message.content.code.encoding}'"
             )
-            raise typer.Exit(1)
+            return 1
 
-        # Upload the source code
-        with open(path, "rb") as fd:
+        # Upload the new source code
+        with open(path_object, "rb") as fd:
             logger.debug("Reading file")
             # TODO: Read in lazy mode instead of copying everything in memory
             file_content = fd.read()
@@ -223,15 +283,48 @@ async def update(
             if print_message:
                 typer.echo(f"{message.json(indent=4)}")
 
+        if verbose:
+            hash_base32 = b32encode(b16decode(item_hash.upper())).strip(b"=").lower().decode()
+            func_url_1 = f"{settings.VM_URL_PATH.format(hash=item_hash)}"
+            func_url_2 = f"{settings.VM_URL_HOST.format(hash_base32=hash_base32)}"
+            console = Console()
+            infos = [
+                Text.from_markup(
+                    f"Your program [bright_cyan]{item_hash}[/bright_cyan] has been updated to the new source code."
+                ),
+                Text.from_markup(f"\n\nUpdated code volume: [orange3]{code_message.item_hash}[/orange3]"),
+                Text.assemble(
+                    "\n\nAvailable on:\n",
+                    Text.from_markup(
+                        f"↳ [bright_yellow][link={func_url_1}]{func_url_1}[/link][/bright_yellow]\n",
+                        style="italic",
+                    ),
+                    Text.from_markup(
+                        f"↳ [dark_olive_green2][link={func_url_2}]{func_url_2}[/link][/dark_olive_green2]",
+                        style="italic",
+                    ),
+                ),
+            ]
+            console.print(
+                Panel(
+                    Text.assemble(*infos),
+                    title="Program Updated",
+                    border_style="orange3",
+                    expand=False,
+                    title_align="left",
+                )
+            )
+
 
 @app.command()
 async def delete(
     item_hash: str = typer.Argument(..., help="Item hash to unpersist"),
     reason: str = typer.Option("User deletion", help="Reason for deleting the program"),
-    delete_code: bool = typer.Option(True, help="Also delete the code"),
+    keep_code: bool = typer.Option(False, help=help_strings.PROGRAM_KEEP_CODE),
     private_key: Optional[str] = settings.PRIVATE_KEY_STRING,
     private_key_file: Optional[Path] = settings.PRIVATE_KEY_FILE,
     print_message: bool = typer.Option(False),
+    verbose: bool = True,
     debug: bool = False,
 ):
     """Delete a program"""
@@ -247,37 +340,43 @@ async def delete(
             )
         except MessageNotFoundError:
             typer.echo("Program does not exist")
-            raise typer.Exit(code=1)
+            return 1
         except ForgottenMessageError:
             typer.echo("Program already forgotten")
-            raise typer.Exit(code=1)
+            return 1
         if existing_message.sender != account.get_address():
             typer.echo("You are not the owner of this program")
-            raise typer.Exit(code=1)
+            return 1
 
         message, _ = await client.forget(hashes=[ItemHash(item_hash)], reason=reason)
-        if delete_code:
+        if not keep_code:
             try:
                 code_volume: StoreMessage = await client.get_message(
                     item_hash=existing_message.content.code.ref, message_type=StoreMessage
                 )
             except MessageNotFoundError:
                 typer.echo("Code volume does not exist. Skipping...")
+                return 1
             except ForgottenMessageError:
                 typer.echo("Code volume already forgotten, Skipping...")
+                return 1
             if existing_message.sender != account.get_address():
                 typer.echo("You are not the owner of this code volume, Skipping...")
+                return 1
+
             code_message, _ = await client.forget(
                 hashes=[ItemHash(code_volume.item_hash)], reason=f"Deletion of program {item_hash}"
             )
-            typer.echo(f"Code volume {code_volume.item_hash} has been deleted.")
+            if verbose:
+                typer.echo(f"Code volume {code_volume.item_hash} has been deleted.")
         if print_message:
             typer.echo(f"{message.json(indent=4)}")
-        typer.echo(f"Program {item_hash} has been deleted.")
+        if verbose:
+            typer.echo(f"Program {item_hash} has been deleted.")
 
 
-@app.command()
-async def list(
+@app.command(name="list")
+async def list_programs(
     address: Optional[str] = typer.Option(None, help="Owner address of the programs"),
     private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
     private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
@@ -349,7 +448,9 @@ async def list(
                     f"vCPU: [magenta3]{message.content.resources.vcpus}[/magenta3]\n",
                     f"RAM: [magenta3]{message.content.resources.memory / 1_024:.2f} GiB[/magenta3]\n",
                     "HyperV: [magenta3]Firecracker[/magenta3]\n",
-                    f"Timeout: [magenta3]{message.content.resources.seconds}s[/magenta3]",
+                    f"Timeout: [orange3]{message.content.resources.seconds}s[/orange3]\n",
+                    f"Persistent: {'[green]Yes[/green]' if message.content.on.persistent else '[red]No[/red]'}\n",
+                    f"Updatable: {'[green]Yes[/green]' if message.content.allow_amend else '[red]No[/red]'}",
                 ]
                 specifications = Text.from_markup("".join(specs))
                 volumes = ""
@@ -373,9 +474,14 @@ async def list(
 
             console = Console()
             console.print(table)
-
             infos = [
-                Text.from_markup(f"[bold]Address:[/bold] [bright_cyan]{messages[0].content.address}[/bright_cyan]")
+                Text.from_markup(
+                    f"[bold]Address:[/bold] [bright_cyan]{messages[0].content.address}[/bright_cyan]\n\nTo access any program's logs, use:\n"
+                ),
+                Text.from_markup(
+                    "↳ aleph program logs [bright_cyan]<program-item-hash>[/bright_cyan] --domain [orchid]<crn-url>[/orchid]",
+                    style="italic",
+                ),
             ]
             console.print(
                 Panel(
@@ -385,22 +491,137 @@ async def list(
 
 
 @app.command()
-async def unpersist(
-    item_hash: str = typer.Argument(..., help="Item hash to unpersist"),
+async def persist(
+    item_hash: str = typer.Argument(..., help="Item hash to persist"),
+    keep_prev: bool = typer.Option(
+        False,
+        help=help_strings.PROGRAM_KEEP_PREV,
+    ),
     private_key: Optional[str] = settings.PRIVATE_KEY_STRING,
     private_key_file: Optional[Path] = settings.PRIVATE_KEY_FILE,
+    print_message: bool = typer.Option(False),
+    verbose: bool = True,
     debug: bool = False,
-):
-    """Stop a persistent virtual machine by making it non-persistent"""
+) -> Optional[str]:
+    """Recreate a non-persistent program as persistent (item hash will change)"""
 
     setup_logging(debug)
 
     account = _load_account(private_key, private_key_file)
 
     async with AuthenticatedAlephHttpClient(account=account, api_server=settings.API_HOST) as client:
-        message: ProgramMessage = await client.get_message(item_hash=item_hash, message_type=ProgramMessage)
-        content: ProgramContent = message.content.copy()
+        try:
+            message: ProgramMessage = await client.get_message(item_hash=item_hash, message_type=ProgramMessage)
+        except MessageNotFoundError:
+            typer.echo("Program does not exist")
+            return None
+        except ForgottenMessageError:
+            typer.echo("Program has been forgotten")
+            return None
+        if message.sender != account.get_address():
+            typer.echo("You are not the owner of this program")
+            return None
+        if not message.content.allow_amend:
+            typer.echo("Program is not updatable")
+            return None
+        if message.content.on.persistent:
+            typer.echo("Program is already persistent")
+            return None
 
+        # Update content
+        content: ProgramContent = message.content.copy()
+        content.on.persistent = True
+        content.replaces = message.item_hash
+
+        message, _status, _ = await client.submit(
+            content=content.dict(exclude_none=True),
+            message_type=message.type,
+            channel=message.channel,
+        )
+
+        if print_message:
+            typer.echo(f"{message.json(indent=4)}")
+
+        # Delete previous non-persistent program
+        prev_label, prev_color = "INTACT", "orange3"
+        if not keep_prev:
+            await client.forget(hashes=[ItemHash(item_hash)], reason="Program persisted")
+            prev_label, prev_color = "DELETED", "red"
+
+        if verbose:
+            hash_base32 = b32encode(b16decode(item_hash.upper())).strip(b"=").lower().decode()
+            func_url_1 = f"{settings.VM_URL_PATH.format(hash=item_hash)}"
+            func_url_2 = f"{settings.VM_URL_HOST.format(hash_base32=hash_base32)}"
+            console = Console()
+            infos = [
+                Text.from_markup("Your program is now [green]persistent[/green]. It implies a new item hash."),
+                Text.from_markup(
+                    f"\n\n[{prev_color}]- Prev non-persistent program: {item_hash} -> {prev_label}[/{prev_color}]\n[green]- New persistent program: {message.item_hash}[/green]."
+                ),
+                Text.assemble(
+                    "\n\nAvailable on:\n",
+                    Text.from_markup(
+                        f"↳ [bright_yellow][link={func_url_1}]{func_url_1}[/link][/bright_yellow]\n",
+                        style="italic",
+                    ),
+                    Text.from_markup(
+                        f"↳ [dark_olive_green2][link={func_url_2}]{func_url_2}[/link][/dark_olive_green2]",
+                        style="italic",
+                    ),
+                ),
+            ]
+            console.print(
+                Panel(
+                    Text.assemble(*infos),
+                    title="Program: Persist",
+                    border_style="orchid",
+                    expand=False,
+                    title_align="left",
+                )
+            )
+        return message.item_hash
+
+
+@app.command()
+async def unpersist(
+    item_hash: str = typer.Argument(..., help="Item hash to unpersist"),
+    keep_prev: bool = typer.Option(
+        False,
+        help=help_strings.PROGRAM_KEEP_PREV,
+    ),
+    private_key: Optional[str] = settings.PRIVATE_KEY_STRING,
+    private_key_file: Optional[Path] = settings.PRIVATE_KEY_FILE,
+    print_message: bool = typer.Option(False),
+    verbose: bool = True,
+    debug: bool = False,
+) -> Optional[str]:
+    """Recreate a persistent program as non-persistent (item hash will change)"""
+
+    setup_logging(debug)
+
+    account = _load_account(private_key, private_key_file)
+
+    async with AuthenticatedAlephHttpClient(account=account, api_server=settings.API_HOST) as client:
+        try:
+            message: ProgramMessage = await client.get_message(item_hash=item_hash, message_type=ProgramMessage)
+        except MessageNotFoundError:
+            typer.echo("Program does not exist")
+            return None
+        except ForgottenMessageError:
+            typer.echo("Program has been forgotten")
+            return None
+        if message.sender != account.get_address():
+            typer.echo("You are not the owner of this program")
+            return None
+        if not message.content.allow_amend:
+            typer.echo("Program is not updatable")
+            return None
+        if not message.content.on.persistent:
+            typer.echo("Program is already unpersistent")
+            return None
+
+        # Update content
+        content: ProgramContent = message.content.copy()
         content.on.persistent = False
         content.replaces = message.item_hash
 
@@ -409,7 +630,48 @@ async def unpersist(
             message_type=message.type,
             channel=message.channel,
         )
-        typer.echo(f"{message.json(indent=4)}")
+
+        if print_message:
+            typer.echo(f"{message.json(indent=4)}")
+
+        # Delete previous persistent program
+        prev_label, prev_color = "INTACT", "orange3"
+        if not keep_prev:
+            await client.forget(hashes=[ItemHash(item_hash)], reason="Program unpersisted")
+            prev_label, prev_color = "DELETED", "red"
+
+        if verbose:
+            hash_base32 = b32encode(b16decode(item_hash.upper())).strip(b"=").lower().decode()
+            func_url_1 = f"{settings.VM_URL_PATH.format(hash=item_hash)}"
+            func_url_2 = f"{settings.VM_URL_HOST.format(hash_base32=hash_base32)}"
+            console = Console()
+            infos = [
+                Text.from_markup("Your program is now [red]unpersistent[/red]. It implies a new item hash."),
+                Text.from_markup(
+                    f"\n\n[{prev_color}]- Prev persistent program: {item_hash} -> {prev_label}[/{prev_color}]\n[green]- New non-persistent program: {message.item_hash}[/green]."
+                ),
+                Text.assemble(
+                    "\n\nAvailable on:\n",
+                    Text.from_markup(
+                        f"↳ [bright_yellow][link={func_url_1}]{func_url_1}[/link][/bright_yellow]\n",
+                        style="italic",
+                    ),
+                    Text.from_markup(
+                        f"↳ [dark_olive_green2][link={func_url_2}]{func_url_2}[/link][/dark_olive_green2]",
+                        style="italic",
+                    ),
+                ),
+            ]
+            console.print(
+                Panel(
+                    Text.assemble(*infos),
+                    title="Program: Unpersist",
+                    border_style="orchid",
+                    expand=False,
+                    title_align="left",
+                )
+            )
+        return message.item_hash
 
 
 @app.command()
@@ -417,18 +679,18 @@ async def logs(
     item_hash: str = typer.Argument(..., help="Item hash of program"),
     private_key: Optional[str] = settings.PRIVATE_KEY_STRING,
     private_key_file: Optional[Path] = settings.PRIVATE_KEY_FILE,
-    domain: str = typer.Option(None, help="CRN domain on which the VM is stored or running"),
+    domain: str = typer.Option(None, help=help_strings.PROMPT_PROGRAM_CRN_URL),
     chain: Chain = typer.Option(None, help=help_strings.ADDRESS_CHAIN),
     debug: bool = False,
 ):
-    """Display logs for the program.
+    """Display the logs of a program
 
-    Will only show logs from one selected CRN"""
+    Will only show logs from the selected CRN"""
 
     setup_logging(debug)
 
     account = _load_account(private_key, private_key_file, chain=chain)
-    domain = sanitize_url(domain)
+    domain = sanitize_url(domain or Prompt.ask(help_strings.PROMPT_PROGRAM_CRN_URL))
 
     async with VmClient(account, domain) as client:
         async with client.operate(vm_id=item_hash, operation="logs", method="GET") as response:
@@ -438,17 +700,96 @@ async def logs(
                 logger.debug(await response.text())
 
             if response.status == 404:
-                echo(f"Server didn't found any execution of this prorgam")
+                echo(f"Server didn't found any execution of this program")
                 return 1
             elif response.status == 403:
-
                 echo(f"You are not the owner of this VM. Maybe try with another wallet?")
-
                 return 1
             elif response.status != 200:
-                echo(f"Server error: {response.status}. Please try again latter")
+                echo(f"Server error: {response.status}. Please try again later")
                 return 1
             echo("Received logs")
             log_entries = await response.json()
             for log in log_entries:
                 echo(f'{log["__REALTIME_TIMESTAMP"]}>  {log["MESSAGE"]}')
+
+
+@app.command()
+async def runtime_checker(
+    item_hash: str = typer.Argument(..., help="Item hash of the runtime to check"),
+    private_key: Optional[str] = settings.PRIVATE_KEY_STRING,
+    private_key_file: Optional[Path] = settings.PRIVATE_KEY_FILE,
+    verbose: bool = False,
+    debug: bool = False,
+):
+    """Check versions used by a runtime (distribution, python, nodejs, etc)"""
+
+    setup_logging(debug)
+
+    echo("Deploy runtime checker program...")
+    try:
+        program_hash = await upload(
+            path=Path(__file__).resolve().parent / "program_utils/runtime_checker.squashfs",
+            entrypoint="main:app",
+            channel=settings.DEFAULT_CHANNEL,
+            memory=settings.DEFAULT_VM_MEMORY,
+            vcpus=settings.DEFAULT_VM_VCPUS,
+            timeout_seconds=settings.DEFAULT_VM_TIMEOUT,
+            name="runtime_checker",
+            runtime=item_hash,
+            beta=False,
+            persistent=False,
+            updatable=False,
+            skip_volume=True,
+            skip_env_var=True,
+            private_key=private_key,
+            private_key_file=private_key_file,
+            print_messages=False,
+            print_code_message=False,
+            print_program_message=False,
+            verbose=verbose,
+            debug=debug,
+        )
+        if not program_hash:
+            raise Exception("No program hash")
+    except Exception as e:
+        echo(f"Failed to deploy the runtime checker program: {e}")
+        raise typer.Exit(code=1)
+
+    program_url = settings.VM_URL_PATH.format(hash=program_hash)
+    versions: dict
+    echo("Query runtime checker to retrieve versions...")
+    try:
+        timeout = aiohttp.ClientTimeout(total=settings.HTTP_REQUEST_TIMEOUT)
+        async with aiohttp.ClientSession(timeout=timeout) as session:
+            async with session.get(program_url) as resp:
+                resp.raise_for_status()
+                versions = await resp.json()
+    except Exception as e:
+        logger.debug(f"Unexpected error when calling {program_url}: {e}")
+        raise typer.Exit(code=1)
+
+    echo("Delete runtime checker...")
+    try:
+        await delete(
+            item_hash=program_hash,
+            reason="Automatic deletion of the runtime checker program",
+            keep_code=True,
+            private_key=private_key,
+            private_key_file=private_key_file,
+            print_message=False,
+            verbose=verbose,
+            debug=debug,
+        )
+    except Exception as e:
+        echo(f"Failed to delete the runtime checker program: {e}")
+        raise typer.Exit(code=1)
+
+    console = Console()
+    infos = [Text.from_markup(f"[bold]Ref:[/bold] [bright_cyan]{item_hash}[/bright_cyan]")]
+    for label, version in versions.items():
+        color = "green" if bool(re.search(r"\d", version)) else "red"
+        infos.append(Text.from_markup(f"\n[bold]{label}:[/bold] [{color}]{version}[/{color}]"))
+    console.print(
+        Panel(Text.assemble(*infos), title="Runtime Infos", border_style="violet", expand=False, title_align="left")
+    )

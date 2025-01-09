@@ -80,7 +80,7 @@ def yes_no_input(text: str, default: str | bool) -> bool:
 
 
 def prompt_for_volumes():
-    while yes_no_input("Add volume ?", default=False):
+    while yes_no_input("Add volume?", default=False):
         mount = validated_prompt("Mount path (ex: /opt/data): ", lambda text: len(text) > 0)
         name = validated_prompt("Name: ", lambda text: len(text) > 0)
         comment = Prompt.ask("Comment: ")
@@ -96,7 +96,7 @@ def prompt_for_volumes():
             }
         else:
             ref = validated_prompt("Item hash: ", lambda text: len(text) == 64)
-            use_latest = yes_no_input("Use latest version ?", default=True)
+            use_latest = yes_no_input("Use latest version?", default=True)
             yield {
                 "comment": comment,
                 "mount": mount,
@@ -149,6 +149,27 @@ def get_or_prompt_volumes(ephemeral_volume, immutable_volume, persistent_volume)
             immutable_volume_dict = volume_to_dict(volume=immutable_volume)
             volumes.append(immutable_volume_dict)
     return volumes
+
+
+def env_vars_to_dict(env_vars: Optional[str]) -> Dict[str, str]:
+    dict_store: Dict[str, str] = {}
+    if env_vars:
+        for env_var in env_vars.split(","):
+            label, value = env_var.split("=", 1)
+            dict_store[label.strip()] = value.strip()
+    return dict_store
+
+
+def get_or_prompt_environment_variables(env_vars: Optional[str]) -> Optional[Dict[str, str]]:
+    environment_variables: Dict[str, str] = {}
+    if not env_vars:
+        while yes_no_input("Add environment variable?", default=False):
+            label = validated_prompt("Label: ", lambda text: len(text) > 0)
+            value = validated_prompt("Value: ", lambda text: len(text) > 0)
+            environment_variables[label] = value
+    else:
+        environment_variables = env_vars_to_dict(env_vars)
+    return environment_variables if environment_variables else None
 
 
 def str_to_datetime(date: Optional[str]) -> Optional[datetime]:
