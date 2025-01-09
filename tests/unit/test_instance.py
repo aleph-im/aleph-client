@@ -3,13 +3,11 @@ from __future__ import annotations
 import asyncio
 import random
 from datetime import datetime, timezone
-from decimal import Decimal
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from aiohttp import InvalidURL
-from aleph.sdk.chains.evm import EVMAccount
 from aleph.sdk.conf import settings
 from aleph_message.models import Chain, ItemHash
 from aleph_message.models.execution.base import Payment, PaymentType
@@ -19,9 +17,7 @@ from aleph_message.models.execution.environment import (
     HypervisorType,
     MachineResources,
 )
-from eth_utils.currency import to_wei
 from multidict import CIMultiDict, CIMultiDictProxy
-from pydantic import BaseModel
 
 from aleph_client.commands import help_strings
 from aleph_client.commands.instance import (
@@ -53,15 +49,16 @@ from aleph_client.models import (
 )
 from aleph_client.utils import FORBIDDEN_HOSTS, sanitize_url
 
-# Utils
-settings.API_HOST = "https://api.twentysix.testnet.network"
-FAKE_PUBKEY_FILE = "/path/fake/pubkey"
-FAKE_PRIVATE_KEY = b"cafe" * 8
-FAKE_ADDRESS_EVM = "0x00001A0e6B9a46Be48a294D74D897d9C48678862"
-FAKE_STORE_HASH = "102682ea8bcc0cec9c42f32fbd2660286b4eb31003108440988343726304607a"  # Needs to exist on Aleph Testnet
-FAKE_VM_HASH = "ab12" * 16
-FAKE_CRN_HASH = "cd34" * 16
-FAKE_CRN_URL = "https://ovh.staging.aleph.sh"
+from .mocks import (
+    FAKE_ADDRESS_EVM,
+    FAKE_CRN_HASH,
+    FAKE_CRN_URL,
+    FAKE_PUBKEY_FILE,
+    FAKE_STORE_HASH,
+    FAKE_VM_HASH,
+    Dict,
+    create_mock_load_account,
+)
 
 
 def dummy_gpu_device() -> GpuDevice:
@@ -182,28 +179,6 @@ def test_sanitize_url_with_https_scheme():
     assert sanitize_url(url) == url
 
 
-class MockEVMAccount(EVMAccount):
-    pass
-
-
-def create_test_account() -> MockEVMAccount:
-    return MockEVMAccount(private_key=FAKE_PRIVATE_KEY)
-
-
-def create_mock_load_account():
-    mock_account = create_test_account()
-    mock_loader = MagicMock(return_value=mock_account)
-    mock_loader.return_value.get_super_token_balance = MagicMock(return_value=Decimal(10000 * (10**18)))
-    mock_loader.return_value.can_transact = MagicMock(return_value=True)
-    mock_loader.return_value.superfluid_connector = MagicMock(can_start_flow=MagicMock(return_value=True))
-    return mock_loader
-
-
-class Dict(BaseModel):
-    class Config:
-        extra = "allow"
-
-
 def create_mock_instance_message(mock_account, payg=False, coco=False, gpu=False):
     tmp = list(FAKE_VM_HASH)
     random.shuffle(tmp)
@@ -293,10 +268,11 @@ def create_mock_auth_client(mock_account):
     mock_response_get_message = create_mock_instance_message(mock_account, payg=True)
     mock_response_create_instance = MagicMock(item_hash=FAKE_VM_HASH)
     mock_auth_client = AsyncMock(
+        get_messages=AsyncMock(),
         get_message=AsyncMock(return_value=mock_response_get_message),
-        create_instance=AsyncMock(return_value=[mock_response_create_instance, MagicMock()]),
+        create_instance=AsyncMock(return_value=[mock_response_create_instance, 200]),
         get_program_price=AsyncMock(return_value=MagicMock(required_tokens=0.0001)),
-        forget=AsyncMock(return_value=(MagicMock(), MagicMock())),
+        forget=AsyncMock(return_value=(MagicMock(), 200)),
     )
     mock_auth_client_class = MagicMock()
     mock_auth_client_class.return_value.__aenter__ = AsyncMock(return_value=mock_auth_client)
@@ -526,15 +502,11 @@ async def test_delete_instance():
     mock_auth_client_class, mock_auth_client = create_mock_auth_client(mock_account)
     mock_fetch_vm_info = create_mock_fetch_vm_info()
     mock_vm_client_class, mock_vm_client = create_mock_vm_client()
-    mock_get_flow = AsyncMock(return_value={"flowRate": to_wei(0.0001, unit="ether")})
-    mock_delete_flow = AsyncMock()
 
     @patch("aleph_client.commands.instance._load_account", mock_load_account)
     @patch("aleph_client.commands.instance.AuthenticatedAlephHttpClient", mock_auth_client_class)
     @patch("aleph_client.commands.instance.fetch_vm_info", mock_fetch_vm_info)
     @patch("aleph_client.commands.instance.VmClient", mock_vm_client_class)
-    @patch.object(mock_account, "get_flow", mock_get_flow)
-    @patch.object(mock_account, "delete_flow", mock_delete_flow)
     async def delete_instance():
         print()  # For better display when pytest -v -s
         await delete(
@@ -545,7 +517,7 @@ async def test_delete_instance():
         )
         mock_auth_client.get_message.assert_called_once()
         mock_vm_client.erase_instance.assert_called_once()
-        mock_delete_flow.assert_awaited_once()
+        mock_account.delete_flow.assert_awaited_once()
         mock_auth_client.forget.assert_called_once()
 
     await delete_instance()
@@ -604,7 +576,7 @@ async def test_allocate_instance():
 
 
 @pytest.mark.asyncio
-async def test_logs_instance():
+async def test_logs_instance(capsys):
     mock_load_account = create_mock_load_account()
     mock_account = mock_load_account.return_value
     mock_auth_client_class, mock_auth_client = create_mock_auth_client(mock_account)
@@ -627,6 +599,8 @@ async def test_logs_instance():
         mock_vm_client.get_logs.assert_called_once()
 
     await logs_instance()
+    captured = capsys.readouterr()
+    assert captured.out == "\nLog message 1\nLog message 2\n"
 
 
 @pytest.mark.asyncio
