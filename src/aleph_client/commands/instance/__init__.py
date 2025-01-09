@@ -76,7 +76,10 @@ app = AsyncTyper(no_args_is_help=True)
 # TODO: This should be put on the API to get always from there
 FLOW_INSTANCE_PRICE_PER_SECOND = Decimal(0.0000155)  # 0.055/h
 
-metavar_valid_chains = f"[{'|'.join(get_chains_with_holding() + [Chain.SOL])}]"
+hold_chains = get_chains_with_holding() + [Chain.SOL]
+super_token_chains = get_chains_with_super_token()
+metavar_valid_chains = f"[{'|'.join(hold_chains)}]"
+metavar_valid_payment_types = f"[{'|'.join(PaymentType)}|nft]"
 
 
 @app.command()
@@ -85,9 +88,15 @@ async def create(
         None,
         help=help_strings.PAYMENT_TYPE,
         callback=lambda pt: None if pt is None else pt.lower(),
-        metavar=f"[{'|'.join(PaymentType)}|nft]",
+        metavar=metavar_valid_payment_types,
+        case_sensitive=False,
     ),
-    payment_chain: Optional[Chain] = typer.Option(None, help=help_strings.PAYMENT_CHAIN, metavar=metavar_valid_chains),
+    payment_chain: Optional[Chain] = typer.Option(
+        None,
+        help=help_strings.PAYMENT_CHAIN,
+        metavar=metavar_valid_chains,
+        case_sensitive=False,
+    ),
     hypervisor: Optional[HypervisorType] = typer.Option(HypervisorType.qemu, help=help_strings.HYPERVISOR),
     name: Optional[str] = typer.Option(None, help=help_strings.INSTANCE_NAME),
     rootfs: Optional[str] = typer.Option(None, help=help_strings.ROOTFS),
@@ -144,6 +153,7 @@ async def create(
         config = load_main_configuration(settings.CONFIG_FILE)
         if config is not None:
             payment_chain = config.chain
+            console.print(f"Preset to default chain: [green]{payment_chain}[/green]")
         else:
             console.print("No active chain selected in configuration.")
 
@@ -170,15 +180,14 @@ async def create(
     else:
         raise ValueError(f"Invalid payment-type: {payment_type}")
 
-    is_stream = payment_type != PaymentType.hold
-    hold_chains = get_chains_with_holding() + [Chain.SOL.value]
-    super_token_chains = get_chains_with_super_token()
-
     # Checks if payment-chain is compatible with PAYG
+    is_stream = payment_type != PaymentType.hold
     if is_stream:
         if payment_chain is None or payment_chain not in super_token_chains:
             if payment_chain:
-                console.print(f"[red]{payment_chain.value}[/red] incompatible with Pay-As-You-Go.")
+                console.print(
+                    f"[red]{safe_getattr(payment_chain, 'value') or payment_chain}[/red] incompatible with Pay-As-You-Go."
+                )
             payment_chain = Chain(
                 Prompt.ask(
                     "Which chain do you want to use for Pay-As-You-Go?",
@@ -189,7 +198,9 @@ async def create(
     # Fallback for Hold-tier if no config / no chain is set / chain not in hold_chains
     elif payment_chain is None or payment_chain not in hold_chains:
         if payment_chain:
-            console.print(f"[red]{payment_chain.value}[/red] incompatible with Hold-tier.")
+            console.print(
+                f"[red]{safe_getattr(payment_chain, 'value') or payment_chain}[/red] incompatible with Hold-tier."
+            )
         payment_chain = Chain(
             Prompt.ask(
                 "Which chain do you want to use for Hold-tier?",
@@ -358,7 +369,7 @@ async def create(
                 # User has ctrl-c
                 raise typer.Exit(1)
             crn.display_crn_specs()
-            if not Confirm.ask("\nDeploy on this node ?"):
+            if not Confirm.ask("\nDeploy on this node?"):
                 crn = None
                 continue
     elif crn_url or crn_hash:
@@ -537,7 +548,7 @@ async def create(
                             ),
                             "\n\nTo access your instance's logs, use:\n",
                             Text.from_markup(
-                                f"↳ aleph instance log [bright_cyan]{item_hash}[/bright_cyan]",
+                                f"↳ aleph instance logs [bright_cyan]{item_hash}[/bright_cyan]",
                                 style="italic",
                             ),
                         )
@@ -570,7 +581,7 @@ async def create(
                         ),
                         "\n\nTo access your instance's logs, use:\n",
                         Text.from_markup(
-                            f"↳ aleph instance log [bright_cyan]{item_hash}[/bright_cyan]",
+                            f"↳ aleph instance logs [bright_cyan]{item_hash}[/bright_cyan]",
                             style="italic",
                         ),
                     )
@@ -772,7 +783,7 @@ async def _show_instances(messages: List[InstanceMessage], node_list: NodeInfo):
     if uninitialized_confidential_found:
         infos += [
             Text.assemble(
-                "\n\nBoot uninitialized/started confidential instances with:\n",
+                "\n\nBoot uninitialized/unstarted confidential instances with:\n",
                 Text.from_markup(
                     "↳  aleph instance confidential [bright_cyan]<vm-item-hash>[/bright_cyan]", style="italic"
                 ),
@@ -1084,7 +1095,7 @@ async def confidential_start(
                 ),
                 "\n\nTo access your instance's logs, use:\n",
                 Text.from_markup(
-                    f"↳ aleph instance log [bright_cyan]{vm_id}[/bright_cyan]",
+                    f"↳ aleph instance logs [bright_cyan]{vm_id}[/bright_cyan]",
                     style="italic",
                 ),
             )
@@ -1113,9 +1124,15 @@ async def confidential_create(
         None,
         help=help_strings.PAYMENT_TYPE,
         callback=lambda pt: None if pt is None else pt.lower(),
-        metavar=f"[{'|'.join(PaymentType)}|nft]",
+        metavar=metavar_valid_payment_types,
+        case_sensitive=False,
     ),
-    payment_chain: Optional[Chain] = typer.Option(None, help=help_strings.PAYMENT_CHAIN, metavar=metavar_valid_chains),
+    payment_chain: Optional[Chain] = typer.Option(
+        None,
+        help=help_strings.PAYMENT_CHAIN,
+        metavar=metavar_valid_chains,
+        case_sensitive=False,
+    ),
     name: Optional[str] = typer.Option(None, help=help_strings.INSTANCE_NAME),
     rootfs: Optional[str] = typer.Option(None, help=help_strings.ROOTFS),
     rootfs_size: Optional[int] = typer.Option(None, help=help_strings.ROOTFS_SIZE),
