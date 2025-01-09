@@ -11,8 +11,9 @@ import typer
 from aleph.sdk import AlephHttpClient, AuthenticatedAlephHttpClient
 from aleph.sdk.account import _load_account
 from aleph.sdk.conf import settings
-from aleph.sdk.types import AccountFromPrivateKey, StorageEnum
-from aleph_message.models import ItemHash, StoreMessage
+from aleph.sdk.types import AccountFromPrivateKey, StorageEnum, StoredContent
+from aleph.sdk.utils import safe_getattr
+from aleph_message.models import ItemHash, ItemType, MessageType, StoreMessage
 from aleph_message.status import MessageStatus
 from pydantic import BaseModel, Field
 from rich import box
@@ -101,28 +102,42 @@ async def download(
     output_path: Path = typer.Option(Path("."), help="Output directory path"),
     file_name: str = typer.Option(None, help="Output file name (without extension)"),
     file_extension: str = typer.Option(None, help="Output file extension"),
+    only_info: bool = False,
+    verbose: bool = True,
     debug: bool = False,
-):
-    """Download a file on aleph.im."""
+) -> Optional[StoredContent]:
+    """Download a file from aleph.im or display related infos."""
 
     setup_logging(debug)
 
-    output_path.mkdir(parents=True, exist_ok=True)
+    if not only_info:
+        output_path.mkdir(parents=True, exist_ok=True)
 
-    file_name = file_name if file_name else hash
-    file_extension = file_extension if file_extension else ""
+        file_name = file_name if file_name else hash
+        file_extension = file_extension if file_extension else ""
 
-    output_file_path = output_path / f"{file_name}{file_extension}"
+        output_file_path = output_path / f"{file_name}{file_extension}"
 
-    async with AlephHttpClient(api_server=settings.API_HOST) as client:
-        logger.info(f"Downloading {hash} ...")
-        with open(output_file_path, "wb") as fd:
-            if not use_ipfs:
-                await client.download_file_to_buffer(hash, fd)
-            else:
-                await client.download_file_ipfs_to_buffer(hash, fd)
+        async with AlephHttpClient(api_server=settings.API_HOST) as client:
+            logger.info(f"Downloading {hash} ...")
+            with open(output_file_path, "wb") as fd:
+                if not use_ipfs:
+                    await client.download_file_to_buffer(hash, fd)
+                else:
+                    await client.download_file_ipfs_to_buffer(hash, fd)
 
-        logger.debug("File downloaded successfully.")
+            logger.debug("File downloaded successfully.")
+    else:
+        async with AlephHttpClient(api_server=settings.API_HOST) as client:
+            content = await client.get_stored_content(hash)
+            if verbose:
+                typer.echo(
+                    f"Filename: {content.filename}\nHash: {content.hash}\nURL: {content.url}"
+                    if safe_getattr(content, "url")
+                    else safe_getattr(content, "error")
+                )
+            return content
+    return None
 
 
 @app.command()

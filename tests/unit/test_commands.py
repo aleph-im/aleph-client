@@ -9,8 +9,9 @@ from typer.testing import CliRunner
 
 from aleph_client.__main__ import app
 
+from .mocks import FAKE_STORE_HASH, FAKE_STORE_HASH_CONTENT_FILE_CID
+
 runner = CliRunner()
-settings.API_HOST = "https://api.twentysix.testnet.network"
 
 
 def get_account(my_account_file: Path) -> ETHAccount:
@@ -284,7 +285,7 @@ def test_file_upload():
 
 
 def test_file_download():
-    # Test download a file to aleph network
+    # Test download a file from aleph network
     ipfs_cid = "QmeomffUNfmQy76CQGy9NdmqEnnHU9soCexBnGU3ezPHVH"
     result = runner.invoke(
         app,
@@ -297,3 +298,19 @@ def test_file_download():
     assert result.exit_code == 0
     assert result.stdout is not None
     os.remove(ipfs_cid)
+
+
+def test_file_download_only_info():
+    # Test retrieve the underlying content cid
+    result = runner.invoke(
+        app,
+        [
+            "file",
+            "download",
+            FAKE_STORE_HASH,
+            "--only-info",
+        ],
+        standalone_mode=False,
+    )
+    assert result.exit_code == 0
+    assert result.return_value.dict()["hash"] == FAKE_STORE_HASH_CONTENT_FILE_CID
