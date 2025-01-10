@@ -91,7 +91,9 @@ async def upload(
     verbose: bool = True,
     debug: bool = False,
 ) -> Optional[str]:
-    """Register a program to run on aleph.im. For more information, see https://docs.aleph.im/computing"""
+    """Register a program to run on aleph.im (create/upload are aliases)
+
+    For more information, see https://docs.aleph.im/computing"""
 
     setup_logging(debug)
 

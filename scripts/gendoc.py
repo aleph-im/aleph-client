@@ -4,6 +4,7 @@ Copied from typer.cli.py to customise doc generation
 """
 
 import importlib.util
+import os
 import re
 import sys
 from pathlib import Path
@@ -247,6 +248,19 @@ def get_docs_for_click(
     return docs
 
 
+def replace_local_values(text: str) -> str:
+    # Replace username
+    current_user = Path.home().owner()
+    text = text.replace(current_user, "$USER")
+
+    # Replace private key file path
+    pattern = r"[^/]+\.key"
+    replacement = r"ethereum.key"
+    text = re.sub(pattern, replacement, text)
+
+    return text
+
+
 @utils_app.command()
 def docs(
     ctx: typer.Context,
@@ -270,13 +284,14 @@ def docs(
         typer.echo("No Typer app found", err=True)
         raise typer.Abort()
     click_obj = typer.main.get_command(typer_obj)
-    docs = get_docs_for_click(obj=click_obj, ctx=ctx, name=name, title=title)
-    clean_docs = f"{docs.strip()}\n"
+    generated_docs = get_docs_for_click(obj=click_obj, ctx=ctx, name=name, title=title)
+    clean_docs = f"{generated_docs.strip()}\n"
+    fixed_docs = replace_local_values(clean_docs)
     if output:
-        output.write_text(clean_docs)
+        output.write_text(fixed_docs)
         typer.echo(f"Docs saved to: {output}")
     else:
-        typer.echo(clean_docs)
+        typer.echo(fixed_docs)
 
 
 utils_app()
