@@ -1034,8 +1034,13 @@ async def confidential_init_session(
     godh_path = session_dir / "vm_godh.b64"
     session_path = session_dir / "vm_session.b64"
     assert godh_path.exists()
-    await client.initialize(vm_hash, session_path, godh_path)
-    echo("Confidential Session with VM and CRN initiated")
+    try:
+        await client.initialize(vm_hash, session_path, godh_path)
+        echo("Confidential Session with VM and CRN initiated")
+    except Exception as e:
+        await client.close()
+        echo(f"Failed to initiate confidential session with VM and CRN, reason:\n{e}")
+        return 1
     await client.close()
 
 
@@ -1100,8 +1105,14 @@ async def confidential_start(
     secret_key = vm_secret or Prompt.ask("Please enter secret to start the VM", password=True)
 
     encoded_packet_header, encoded_secret = await client.build_secret(tek_path, tik_path, sev_data, secret_key)
-    await client.inject_secret(vm_hash, encoded_packet_header, encoded_secret)
+    try:
+        await client.inject_secret(vm_hash, encoded_packet_header, encoded_secret)
+    except Exception as e:
+        await client.close()
+        echo(f"Failed to start the VM, reason:\n{e}")
+        return 1
     await client.close()
+
     console = Console()
     infos = [Text.from_markup(f"Your instance [bright_cyan]{vm_id}[/bright_cyan] is currently starting.")]
     if verbose:
