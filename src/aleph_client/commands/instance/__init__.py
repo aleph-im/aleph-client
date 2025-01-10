@@ -282,23 +282,31 @@ async def create(
 
     # Validate rootfs message exist
     async with AlephHttpClient(api_server=settings.API_HOST) as client:
-        rootfs_message: StoreMessage = await client.get_message(item_hash=rootfs, message_type=StoreMessage)
-        if not rootfs_message:
+        rootfs_message: Optional[StoreMessage] = None
+        try:
+            rootfs_message = await client.get_message(item_hash=rootfs, message_type=StoreMessage)
+        except MessageNotFoundError:
             echo("Given rootfs volume does not exist on aleph.im")
+        except ForgottenMessageError:
+            echo("Given rootfs volume has been deleted on aleph.im")
+        if not rootfs_message:
             raise typer.Exit(code=1)
-        if rootfs_size is None and rootfs_message.content.size:
-            rootfs_size = rootfs_message.content.size
+        elif rootfs_size is None:
+            rootfs_size = safe_getattr(rootfs_message, "content.size")
 
     # Validate confidential firmware message exist
     confidential_firmware_as_hash = None
     if confidential:
         async with AlephHttpClient(api_server=settings.API_HOST) as client:
             confidential_firmware_as_hash = ItemHash(confidential_firmware)
-            firmware_message: StoreMessage = await client.get_message(
-                item_hash=confidential_firmware, message_type=StoreMessage
-            )
-            if not firmware_message:
+            firmware_message: Optional[StoreMessage] = None
+            try:
+                firmware_message = await client.get_message(item_hash=confidential_firmware, message_type=StoreMessage)
+            except MessageNotFoundError:
                 echo("Confidential Firmware hash does not exist on aleph.im")
+            except ForgottenMessageError:
+                echo("Confidential Firmware hash has been deleted on aleph.im")
+            if not firmware_message:
                 raise typer.Exit(code=1)
 
     name = name or validated_prompt("Instance name", lambda x: len(x) < 65)
@@ -468,6 +476,9 @@ async def create(
                 f"Instance creation failed due to insufficient funds.\n"
                 f"{account.get_address()} on {account.CHAIN} has {e.available_funds} ALEPH but needs {e.required_funds} ALEPH."
             )
+            raise typer.Exit(code=1)
+        except Exception as e:
+            echo(f"Instance creation failed:\n{e}")
             raise typer.Exit(code=1)
         if print_message:
             echo(f"{message.json(indent=4)}")

@@ -248,18 +248,24 @@ async def update(
         try:
             program_message: ProgramMessage = await client.get_message(item_hash=item_hash, message_type=ProgramMessage)
         except MessageNotFoundError:
-            typer.echo("Program does not exist")
+            typer.echo("Program does not exist on aleph.im")
             return 1
         except ForgottenMessageError:
-            typer.echo("Program has been forgotten")
+            typer.echo("Program has been deleted on aleph.im")
             return 1
         if program_message.sender != account.get_address():
             typer.echo("You are not the owner of this program")
             return 1
 
         code_ref = program_message.content.code.ref
-        code_message: StoreMessage = await client.get_message(item_hash=code_ref, message_type=StoreMessage)
-
+        try:
+            code_message: StoreMessage = await client.get_message(item_hash=code_ref, message_type=StoreMessage)
+        except MessageNotFoundError:
+            typer.echo("Code volume does not exist on aleph.im")
+            return 1
+        except ForgottenMessageError:
+            typer.echo("Code volume has been deleted on aleph.im")
+            return 1
         if encoding != program_message.content.code.encoding:
             logger.error(
                 f"Code must be encoded with the same encoding as the previous version "
@@ -341,10 +347,10 @@ async def delete(
                 item_hash=item_hash, message_type=ProgramMessage
             )
         except MessageNotFoundError:
-            typer.echo("Program does not exist")
+            typer.echo("Program does not exist on aleph.im")
             return 1
         except ForgottenMessageError:
-            typer.echo("Program already forgotten")
+            typer.echo("Program has been already deleted on aleph.im")
             return 1
         if existing_message.sender != account.get_address():
             typer.echo("You are not the owner of this program")
@@ -360,10 +366,10 @@ async def delete(
                 typer.echo("Code volume does not exist. Skipping...")
                 return 1
             except ForgottenMessageError:
-                typer.echo("Code volume already forgotten, Skipping...")
+                typer.echo("Code volume has been already deleted. Skipping...")
                 return 1
             if existing_message.sender != account.get_address():
-                typer.echo("You are not the owner of this code volume, Skipping...")
+                typer.echo("You are not the owner of this code volume. Skipping...")
                 return 1
 
             code_message, _ = await client.forget(
@@ -515,10 +521,10 @@ async def persist(
         try:
             message: ProgramMessage = await client.get_message(item_hash=item_hash, message_type=ProgramMessage)
         except MessageNotFoundError:
-            typer.echo("Program does not exist")
+            typer.echo("Program does not exist on aleph.im")
             return None
         except ForgottenMessageError:
-            typer.echo("Program has been forgotten")
+            typer.echo("Program has been deleted on aleph.im")
             return None
         if message.sender != account.get_address():
             typer.echo("You are not the owner of this program")
@@ -607,10 +613,10 @@ async def unpersist(
         try:
             message: ProgramMessage = await client.get_message(item_hash=item_hash, message_type=ProgramMessage)
         except MessageNotFoundError:
-            typer.echo("Program does not exist")
+            typer.echo("Program does not exist on aleph.im")
             return None
         except ForgottenMessageError:
-            typer.echo("Program has been forgotten")
+            typer.echo("Program has been deleted on aleph.im")
             return None
         if message.sender != account.get_address():
             typer.echo("You are not the owner of this program")

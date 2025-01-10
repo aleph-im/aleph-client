@@ -8,11 +8,14 @@ from typing import Optional
 import aiohttp
 from aleph.sdk import AlephHttpClient
 from aleph.sdk.conf import settings
+from aleph.sdk.exceptions import ForgottenMessageError, MessageNotFoundError
 from aleph.sdk.utils import safe_getattr
 from aleph_message.models import InstanceMessage
 from aleph_message.models.execution.base import PaymentType
 from aleph_message.models.item_hash import ItemHash
+from click import echo
 from pydantic import ValidationError
+from typer import Exit
 
 from aleph_client.commands import help_strings
 from aleph_client.commands.node import NodeInfo, _fetch_nodes
@@ -141,7 +144,15 @@ async def fetch_vm_info(message: InstanceMessage, node_list: NodeInfo) -> tuple[
 
 async def find_crn_of_vm(vm_id: str) -> Optional[str]:
     async with AlephHttpClient(api_server=settings.API_HOST) as client:
-        message: InstanceMessage = await client.get_message(item_hash=ItemHash(vm_id), message_type=InstanceMessage)
+        message: Optional[InstanceMessage] = None
+        try:
+            message = await client.get_message(item_hash=ItemHash(vm_id), message_type=InstanceMessage)
+        except MessageNotFoundError:
+            echo("Instance does not exist on aleph.im")
+        except ForgottenMessageError:
+            echo("Instance has been deleted on aleph.im")
+        if not message:
+            raise Exit(code=1)
         node_list: NodeInfo = await _fetch_nodes()
         _, info = await fetch_vm_info(message, node_list)
         is_valid = info["crn_url"] not in [help_strings.CRN_PENDING, help_strings.CRN_UNKNOWN]
