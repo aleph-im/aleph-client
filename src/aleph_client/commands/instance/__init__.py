@@ -286,9 +286,9 @@ async def create(
         try:
             rootfs_message = await client.get_message(item_hash=rootfs, message_type=StoreMessage)
         except MessageNotFoundError:
-            echo("Given rootfs volume does not exist on aleph.im")
+            echo(f"Given rootfs volume {rootfs} does not exist on aleph.im")
         except ForgottenMessageError:
-            echo("Given rootfs volume has been deleted on aleph.im")
+            echo(f"Given rootfs volume {rootfs} has been deleted on aleph.im")
         if not rootfs_message:
             raise typer.Exit(code=1)
         elif rootfs_size is None:
