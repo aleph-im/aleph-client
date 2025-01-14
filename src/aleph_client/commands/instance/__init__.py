@@ -1005,8 +1005,9 @@ async def confidential_init_session(
     godh_path = session_dir / "vm_godh.b64"
 
     if godh_path.exists() and keep_session is None:
-        keep_session = not Confirm.ask(
-            "Session already initiated for this instance, are you sure you want to override the previous one? You won't be able to communicate with already running VM"
+        keep_session = not yes_no_input(
+            "Session already initiated for this instance, are you sure you want to override the previous one? You won't be able to communicate with already running VM",
+            default=True,
         )
         if keep_session:
             echo("Keeping already initiated session")
@@ -1083,8 +1084,13 @@ async def confidential_start(
         echo("Please run confidential-init-session first ")
         return 1
 
-    sev_data = await client.measurement(vm_hash)
-    echo("Retrieved measurement")
+    try:
+        sev_data = await client.measurement(vm_hash)
+        echo("Retrieved measurement")
+    except Exception as e:
+        await client.close()
+        echo(f"Failed to start the VM, reason:\n{e}")
+        return 1
 
     tek_path = session_dir / "vm_tek.bin"
     tik_path = session_dir / "vm_tik.bin"
@@ -1279,7 +1285,8 @@ async def confidential_create(
         return 1
 
     # Safe delay to ensure instance is starting and is ready
-    await asyncio.sleep(3)
+    echo("Waiting 10sec before to start...")
+    await asyncio.sleep(10)
 
     await confidential_start(
         vm_id=vm_id,
