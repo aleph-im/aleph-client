@@ -24,8 +24,10 @@ from aleph.sdk.evm_utils import (
 from aleph.sdk.utils import bytes_from_hex
 from aleph_message.models import Chain
 from rich.console import Console
+from rich.panel import Panel
 from rich.prompt import Prompt
 from rich.table import Table
+from rich.text import Text
 from typer.colors import GREEN, RED
 
 from aleph_client.commands import help_strings
@@ -259,15 +261,44 @@ async def balance(
             if response.status == 200:
                 balance_data = await response.json()
                 balance_data["available_amount"] = balance_data["balance"] - balance_data["locked_amount"]
-                typer.echo(
-                    "\n"
-                    + f"Address: {balance_data['address']}\n"
-                    + f"Balance: {balance_data['balance']:.2f}".rstrip("0").rstrip(".")
-                    + "\n"
-                    + f" - Locked: {balance_data['locked_amount']:.2f}".rstrip("0").rstrip(".")
-                    + "\n"
-                    + f" - Available: {balance_data['available_amount']:.2f}".rstrip("0").rstrip(".")
-                    + "\n"
+
+                infos = [
+                    Text.from_markup(f"Address: [bright_cyan]{balance_data['address']}[/bright_cyan]"),
+                    Text.from_markup(
+                        f"\nBalance: [bright_cyan]{balance_data['balance']:.2f}".rstrip("0").rstrip(".")
+                        + "[/bright_cyan]"
+                    ),
+                ]
+                details = balance_data.get("details")
+                if details:
+                    infos += [Text("\n ↳ Details")]
+                    for chain, chain_balance in details.items():
+                        infos += [
+                            Text.from_markup(
+                                f"\n    {chain}: [orange3]{chain_balance:.2f}".rstrip("0").rstrip(".") + "[/orange3]"
+                            )
+                        ]
+                available_color = "bright_cyan" if balance_data["available_amount"] >= 0 else "red"
+                infos += [
+                    Text.from_markup(
+                        f"\n - Locked: [bright_cyan]{balance_data['locked_amount']:.2f}".rstrip("0").rstrip(".")
+                        + "[/bright_cyan]"
+                    ),
+                    Text.from_markup(
+                        f"\n - Available: [{available_color}]{balance_data['available_amount']:.2f}".rstrip("0").rstrip(
+                            "."
+                        )
+                        + f"[/{available_color}]"
+                    ),
+                ]
+                console.print(
+                    Panel(
+                        Text.assemble(*infos),
+                        title="Account Infos",
+                        border_style="bright_cyan",
+                        expand=False,
+                        title_align="left",
+                    )
                 )
             else:
                 typer.echo(f"Failed to retrieve balance for address {address}. Status code: {response.status}")

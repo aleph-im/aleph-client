@@ -139,9 +139,7 @@ def test_account_balance(env_files):
         app, ["account", "balance", "--address", "0xCAfEcAfeCAfECaFeCaFecaFecaFECafECafeCaFe", "--chain", "ETH"]
     )
     assert result.exit_code == 0
-    assert result.stdout.startswith(
-        "Failed to retrieve balance for address 0xCAfEcAfeCAfECaFeCaFecaFecaFECafECafeCaFe. Status code: 404"
-    )
+    assert result.stdout.startswith("╭─ Account Infos")
 
 
 def test_account_config(env_files):
