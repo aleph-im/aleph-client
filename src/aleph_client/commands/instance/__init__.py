@@ -340,11 +340,28 @@ async def create(
                 crn_name, score, reward_addr = "?", 0, ""
                 nodes: NodeInfo = await _fetch_nodes()
                 for node in nodes.nodes:
-                    if node["address"].rstrip("/") == crn_url:
-                        crn_name = node["name"]
-                        score = node["score"]
-                        reward_addr = node["stream_reward"]
-                        break
+                    found_node, hash_match = None, False
+                    try:
+                        if sanitize_url(node["address"]) == crn_url:
+                            found_node = node
+                            if found_node["hash"] == crn_hash:
+                                hash_match = True
+                    except aiohttp.InvalidURL:
+                        logger.debug(f"Invalid URL for node `{node['hash']}`: {node['address']}")
+                    if found_node:
+                        if hash_match:
+                            crn_name = found_node["name"]
+                            score = found_node["score"]
+                            reward_addr = found_node["stream_reward"]
+                            break
+                        else:
+                            echo(
+                                f"* Provided CRN *\nUrl: {crn_url}\nHash: {crn_hash}\n\n* Found CRN *\nUrl: {found_node['address']}\nHash: {found_node['hash']}\n\nMismatch between provided CRN and found CRN"
+                            )
+                            raise typer.Exit(1)
+                if crn_name == "?":
+                    echo(f"* Provided CRN *\nUrl: {crn_url}\nHash: {crn_hash}\n\nCRN not found in aggregate")
+                    raise typer.Exit(1)
                 crn_info = await fetch_crn_info(crn_url)
                 if crn_info:
                     crn = CRNInfo(
