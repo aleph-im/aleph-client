@@ -225,7 +225,7 @@ async def create(
                 account.superfluid_connector.can_start_flow(FLOW_INSTANCE_PRICE_PER_SECOND)  # 0.055/h
             except Exception as e:
                 echo(e)
-                raise typer.Exit(code=1)
+                raise typer.Exit(code=1) from e
         else:
             echo("Superfluid connector not available on this chain.")
             raise typer.Exit(code=1)
@@ -391,7 +391,7 @@ async def create(
                     crn.display_crn_specs()
             except Exception as e:
                 echo(f"Unable to fetch CRN config: {e}")
-                raise typer.Exit(1)
+                raise typer.Exit(1) from e
 
         while not crn:
             crn_table = CRNTable(
@@ -516,10 +516,10 @@ async def create(
                 f"{account.get_address()} on {account.CHAIN} has {e.available_funds} ALEPH but "
                 f"needs {e.required_funds} ALEPH."
             )
-            raise typer.Exit(code=1)
+            raise typer.Exit(code=1) from e
         except Exception as e:
             echo(f"Instance creation failed:\n{e}")
-            raise typer.Exit(code=1)
+            raise typer.Exit(code=1) from e
         if print_message:
             echo(f"{message.json(indent=4)}")
 
@@ -1310,12 +1310,12 @@ async def confidential_create(
                     item_hash=ItemHash(vm_id), message_type=InstanceMessage
                 )
                 payment_chain = existing_message.content.payment.chain  # type: ignore
-            except MessageNotFoundError:
+            except MessageNotFoundError as error:
                 echo("Instance does not exist")
-                raise typer.Exit(code=1)
-            except ForgottenMessageError:
+                raise typer.Exit(code=1) from error
+            except ForgottenMessageError as error:
                 echo("Instance already forgotten")
-                raise typer.Exit(code=1)
+                raise typer.Exit(code=1) from error
 
     crn_url = (
         (crn_url and sanitize_url(crn_url)) or await find_crn_of_vm(vm_id) or Prompt.ask(help_strings.PROMPT_CRN_URL)

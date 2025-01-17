@@ -437,4 +437,4 @@ async def configure(
         )
     except ValueError as e:
         typer.secho(f"Error: {e}", fg=typer.colors.RED)
-        raise typer.Exit(1)
+        raise typer.Exit(1) from e

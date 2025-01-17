@@ -285,9 +285,9 @@ def sign(
         message = input_multiline()
     try:
         data = json.loads(message)
-    except json.JSONDecodeError:
+    except json.JSONDecodeError as error:
         typer.echo("Error: Message isn't a valid JSON")
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from error
 
     coroutine = account.sign_message(data)
     signed_message = asyncio.run(coroutine)

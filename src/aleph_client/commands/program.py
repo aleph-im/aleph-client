@@ -101,12 +101,12 @@ async def upload(
 
     try:
         path_object, encoding = create_archive(path)
-    except BadZipFile:
+    except BadZipFile as error:
         typer.echo("Invalid zip archive")
-        raise typer.Exit(code=3)
-    except FileNotFoundError:
+        raise typer.Exit(code=3) from error
+    except FileNotFoundError as error:
         typer.echo("No such file or directory")
-        raise typer.Exit(code=4)
+        raise typer.Exit(code=4) from error
 
     account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
 
@@ -130,9 +130,9 @@ async def upload(
         content_raw = input_multiline()
         try:
             subscriptions = json.loads(content_raw)
-        except json.decoder.JSONDecodeError:
+        except json.decoder.JSONDecodeError as error:
             typer.echo("Not valid JSON")
-            raise typer.Exit(code=2)
+            raise typer.Exit(code=2) from error
     else:
         subscriptions = None
 
