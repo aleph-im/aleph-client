@@ -5,6 +5,7 @@ import inspect
 import logging
 import os
 import re
+import subprocess
 from functools import partial, wraps
 from pathlib import Path
 from shutil import make_archive
@@ -45,7 +46,7 @@ def create_archive(path: Path) -> tuple[Path, Encoding]:
         if settings.CODE_USES_SQUASHFS:
             logger.debug("Creating squashfs archive...")
             archive_path = Path(f"{path}.squashfs")
-            os.system(f"mksquashfs {path} {archive_path} -noappend")
+            subprocess.check_call(["/usr/bin/mksquashfs", path, archive_path, "-noappend"])
             assert archive_path.is_file()
             return archive_path, Encoding.squashfs
         else:
