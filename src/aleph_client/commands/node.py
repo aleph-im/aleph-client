@@ -92,7 +92,9 @@ def _show_compute(node_info):
         node_hash = node["hash"]
 
         #  Format Value
-        creation_time = datetime.datetime.fromtimestamp(node["time"]).strftime("%Y-%m-%d %H:%M:%S")
+        creation_time = datetime.datetime.fromtimestamp(node["time"], tz=datetime.timezone.utc).strftime(
+            "%Y-%m-%d %H:%M:%S"
+        )
         score = _format_score(node["score"])
         decentralization = _format_score(node["decentralization"])
         status = _format_status(node["status"])
@@ -170,7 +172,9 @@ def _show_core(node_info):
         node_hash = node["hash"]
 
         # Format Value
-        creation_time = datetime.datetime.fromtimestamp(node["time"]).strftime("%Y-%m-%d %H:%M:%S")
+        creation_time = datetime.datetime.fromtimestamp(node["time"], tz=datetime.timezone.utc).strftime(
+            "%Y-%m-%d %H:%M:%S"
+        )
         score = _format_score(node["score"])
         status = _format_status(node["status"])
 

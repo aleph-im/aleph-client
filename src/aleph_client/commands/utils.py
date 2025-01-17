@@ -5,7 +5,7 @@ import logging
 import os
 import shutil
 import sys
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Optional, TypeVar, Union
 
@@ -182,7 +182,7 @@ def str_to_datetime(date: Optional[str]) -> Optional[datetime]:
         return None
     try:
         date_f = float(date)
-        return datetime.fromtimestamp(date_f)
+        return datetime.fromtimestamp(date_f, tz=timezone.utc)
     except ValueError:
         pass
     return datetime.fromisoformat(date)
