@@ -138,8 +138,8 @@ def display_active_address(
 
     console.print(
         "✉  [bold italic blue]Addresses for Active Account[/bold italic blue] ✉\n\n"
-        + f"[italic]EVM[/italic]: [cyan]{evm_address}[/cyan]\n"
-        + f"[italic]SOL[/italic]: [magenta]{sol_address}[/magenta]\n"
+        f"[italic]EVM[/italic]: [cyan]{evm_address}[/cyan]\n"
+        f"[italic]SOL[/italic]: [magenta]{sol_address}[/magenta]\n"
     )
 
 
@@ -212,9 +212,9 @@ def export_private_key(
 
     console.print(
         "⚠️  [bold italic red]Private Keys for Active Account[/bold italic red] ⚠️\n\n"
-        + f"[italic]EVM[/italic]: [cyan]{evm_pk}[/cyan]\n"
-        + f"[italic]SOL[/italic]: [magenta]{sol_pk}[/magenta]\n\n"
-        + "[bold italic red]Note: Aleph.im team will NEVER ask for them.[/bold italic red]"
+        f"[italic]EVM[/italic]: [cyan]{evm_pk}[/cyan]\n"
+        f"[italic]SOL[/italic]: [magenta]{sol_pk}[/magenta]\n\n"
+        "[bold italic red]Note: Aleph.im team will NEVER ask for them.[/bold italic red]"
     )
 
 
@@ -344,10 +344,10 @@ async def list_accounts():
 
     console.print(
         "🌐  [bold italic blue]Chain Infos[/bold italic blue] 🌐\n"
-        + f"[italic]Chains with Signing[/italic]: [blue]{', '.join(list(Chain))}[/blue]\n"
-        + f"[italic]Chains with Hold-tier[/italic]: [blue]{', '.join(hold_chains)}[/blue]\n"
-        + f"[italic]Chains with Pay-As-You-Go[/italic]: [blue]{', '.join(payg_chains)}[/blue]\n\n"
-        + "🗃️  [bold italic green]Current Configuration[/bold italic green] 🗃️\n"
+        f"[italic]Chains with Signing[/italic]: [blue]{', '.join(list(Chain))}[/blue]\n"
+        f"[italic]Chains with Hold-tier[/italic]: [blue]{', '.join(hold_chains)}[/blue]\n"
+        f"[italic]Chains with Pay-As-You-Go[/italic]: [blue]{', '.join(payg_chains)}[/blue]\n\n"
+        "🗃️  [bold italic green]Current Configuration[/bold italic green] 🗃️\n"
         + (f"[italic]Active Address[/italic]: [bright_cyan]{active_address}[/bright_cyan]" if active_address else "")
     )
     display_active_chain()
