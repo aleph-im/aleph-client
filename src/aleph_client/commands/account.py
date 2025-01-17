@@ -326,7 +326,8 @@ async def list_accounts():
         table.add_row(config.path.stem, str(config.path), "[bold green]*[/bold green]")
     else:
         console.print(
-            "[red]No private key path selected in the config file.[/red]\nTo set it up, use: [bold italic cyan]aleph account config[/bold italic cyan]\n"
+            "[red]No private key path selected in the config file.[/red]\nTo set it up, use: [bold "
+            "italic cyan]aleph account config[/bold italic cyan]\n"
         )
 
     if unlinked_keys:
@@ -378,7 +379,8 @@ async def configure(
     # Configures active private key file
     if not private_key_file and config and hasattr(config, "path") and Path(config.path).exists():
         if not yes_no_input(
-            f"Active private key file: [bright_cyan]{config.path}[/bright_cyan]\n[yellow]Keep current active private key?[/yellow]",
+            f"Active private key file: [bright_cyan]{config.path}[/bright_cyan]\n[yellow]Keep current active private "
+            "key?[/yellow]",
             default="y",
         ):
             unlinked_keys = list(filter(lambda key_file: key_file.stem != "default", unlinked_keys))
@@ -429,7 +431,8 @@ async def configure(
         config = MainConfiguration(path=private_key_file, chain=chain)
         save_main_configuration(settings.CONFIG_FILE, config)
         console.print(
-            f"New Default Configuration: [italic bright_cyan]{config.path}[/italic bright_cyan] with [italic bright_cyan]{config.chain}[/italic bright_cyan]",
+            f"New Default Configuration: [italic bright_cyan]{config.path}[/italic bright_cyan] with [italic "
+            f"bright_cyan]{config.chain}[/italic bright_cyan]",
             style=typer.colors.GREEN,
         )
     except ValueError as e:

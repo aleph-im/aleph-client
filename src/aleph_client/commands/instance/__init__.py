@@ -189,7 +189,8 @@ async def create(
         if payment_chain is None or payment_chain not in super_token_chains:
             if payment_chain:
                 console.print(
-                    f"[red]{safe_getattr(payment_chain, 'value') or payment_chain}[/red] incompatible with Pay-As-You-Go."
+                    f"[red]{safe_getattr(payment_chain, 'value') or payment_chain}[/red] incompatible with "
+                    "Pay-As-You-Go."
                 )
             payment_chain = Chain(
                 Prompt.ask(
@@ -360,7 +361,9 @@ async def create(
                             break
                         else:
                             echo(
-                                f"* Provided CRN *\nUrl: {crn_url}\nHash: {crn_hash}\n\n* Found CRN *\nUrl: {found_node['address']}\nHash: {found_node['hash']}\n\nMismatch between provided CRN and found CRN"
+                                f"* Provided CRN *\nUrl: {crn_url}\nHash: {crn_hash}\n\n* Found CRN *\nUrl: "
+                                f"{found_node['address']}\nHash: {found_node['hash']}\n\nMismatch between provided CRN "
+                                "and found CRN"
                             )
                             raise typer.Exit(1)
                 if crn_name == "?":
@@ -404,7 +407,8 @@ async def create(
                 continue
     elif crn_url or crn_hash:
         logger.debug(
-            "`--crn-url` and/or `--crn-hash` arguments have been ignored.\nHold-tier regular instances are scheduled automatically on available CRNs by the Aleph.im network."
+            "`--crn-url` and/or `--crn-hash` arguments have been ignored.\nHold-tier regular "
+            "instances are scheduled automatically on available CRNs by the Aleph.im network."
         )
 
     requirements, trusted_execution, gpu_requirement = None, None, None
@@ -445,7 +449,8 @@ async def create(
                 )
                 selected_gpu = available_gpus[selected_gpu_number]
                 gpu_selection = Text.from_markup(
-                    f"[orange3]Vendor[/orange3]: {selected_gpu.vendor}\n[orange3]Model[/orange3]: {selected_gpu.device_name}"
+                    f"[orange3]Vendor[/orange3]: {selected_gpu.vendor}\n[orange3]Model[/orange3]: "
+                    f"{selected_gpu.device_name}"
                 )
                 console.print(
                     Panel(
@@ -508,7 +513,8 @@ async def create(
         except InsufficientFundsError as e:
             echo(
                 f"Instance creation failed due to insufficient funds.\n"
-                f"{account.get_address()} on {account.CHAIN} has {e.available_funds} ALEPH but needs {e.required_funds} ALEPH."
+                f"{account.get_address()} on {account.CHAIN} has {e.available_funds} ALEPH but "
+                f"needs {e.required_funds} ALEPH."
             )
             raise typer.Exit(code=1)
         except Exception as e:
@@ -556,7 +562,10 @@ async def create(
                             f"[orange3]{key}[/orange3]: {value}"
                             for key, value in {
                                 "Hash": flow_hash,
-                                "Aleph cost": f"{price.required_tokens:.7f}/sec | {3600*price.required_tokens:.2f}/hour | {86400*price.required_tokens:.2f}/day | {2592000*price.required_tokens:.2f}/month",
+                                "Aleph cost": (
+                                    f"{price.required_tokens:.7f}/sec | {3600*price.required_tokens:.2f}/hour | "
+                                    f"{86400*price.required_tokens:.2f}/day | {2592000*price.required_tokens:.2f}/month"
+                                ),
                                 "CRN receiver address": crn.stream_reward_address,
                             }.items()
                         )
@@ -613,7 +622,8 @@ async def create(
         else:
             infos += [
                 Text.from_markup(
-                    f"Your instance [bright_cyan]{item_hash}[/bright_cyan] is registered to be deployed on aleph.im.\nThe scheduler usually takes a few minutes to set it up and start it."
+                    f"Your instance [bright_cyan]{item_hash}[/bright_cyan] is registered to be deployed on aleph.im.\n"
+                    "The scheduler usually takes a few minutes to set it up and start it."
                 )
             ]
             if verbose:
@@ -1054,7 +1064,8 @@ async def confidential_init_session(
 
     if godh_path.exists() and keep_session is None:
         keep_session = not yes_no_input(
-            "Session already initiated for this instance, are you sure you want to override the previous one? You won't be able to communicate with already running VM",
+            "Session already initiated for this instance, are you sure you want to override the previous one? You "
+            "won't be able to communicate with already running VM",
             default=True,
         )
         if keep_session:

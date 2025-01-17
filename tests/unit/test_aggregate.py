@@ -89,7 +89,11 @@ async def test_forget(capsys, args):
     argnames="args",
     argvalues=[
         {"key": "AI", "content": '{"test": "ok"}'},  # by key only
-        {"key": "AI", "subkey": "models", "content": '{"chatgpt": true, "claude": true, "libertai": true}'},  # with subkey
+        {
+            "key": "AI",
+            "subkey": "models",
+            "content": '{"chatgpt": true, "claude": true, "libertai": true}',
+        },  # with subkey
     ],
 )
 @pytest.mark.asyncio

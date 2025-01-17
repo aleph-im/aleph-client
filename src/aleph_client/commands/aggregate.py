@@ -472,7 +472,9 @@ async def permissions(
                         if item:
                             display_item = ", ".join(
                                 [
-                                    f"[orchid]{key}([white]{value if type(value) != list else ', '.join(value)}[/white])[/orchid]"
+                                    "[orchid]{key}([white]"
+                                    f"{value if type(value) != list else ', '.join(value)}"
+                                    "[/white])[/orchid]"
                                     for key, value in item.items()
                                 ]
                             )
