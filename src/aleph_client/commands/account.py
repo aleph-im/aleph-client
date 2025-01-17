@@ -235,6 +235,7 @@ def sign_bytes(
     if not message:
         message = input_multiline()
 
+    assert message is not None  # to please mypy
     coroutine = account.sign_raw(str(message).encode())
     signature = asyncio.run(coroutine)
     typer.echo("\nSignature: " + signature.hex())
