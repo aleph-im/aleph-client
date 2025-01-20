@@ -125,6 +125,7 @@ async def create(
         None,
         help=help_strings.IMMUTABLE_VOLUME,
     ),
+    crn_auto_tac: bool = typer.Option(False, help=help_strings.CRN_AUTO_TAC),
     channel: Optional[str] = typer.Option(default=settings.DEFAULT_CHANNEL, help=help_strings.CHANNEL),
     private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
     private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
@@ -337,7 +338,7 @@ async def create(
         if crn_url and crn_hash:
             crn_url = sanitize_url(crn_url)
             try:
-                crn_name, score, reward_addr = "?", 0, ""
+                crn_name, score, reward_addr, terms_and_conditions = "?", 0, "", None
                 nodes: NodeInfo = await _fetch_nodes()
                 for node in nodes.nodes:
                     found_node, hash_match = None, False
@@ -353,6 +354,7 @@ async def create(
                             crn_name = found_node["name"]
                             score = found_node["score"]
                             reward_addr = found_node["stream_reward"]
+                            terms_and_conditions = node["terms_and_conditions"]
                             break
                         else:
                             echo(
@@ -379,6 +381,7 @@ async def create(
                             crn_info.get("computing", {}).get("ENABLE_CONFIDENTIAL_COMPUTING", False)
                         ),
                         gpu_support=bool(crn_info.get("computing", {}).get("ENABLE_GPU_SUPPORT", False)),
+                        terms_and_conditions=terms_and_conditions,
                     )
                     crn.display_crn_specs()
             except Exception as e:
@@ -459,8 +462,20 @@ async def create(
                         device_id=selected_gpu.device_id,
                     )
                 ]
+        if crn.terms_and_conditions:
+            accepted = await crn.display_terms_and_conditions(auto_accept=crn_auto_tac)
+            if accepted is None:
+                echo("Failed to fetch terms and conditions.\nContact support or use a different CRN.")
+                raise typer.Exit(1)
+            elif not accepted:
+                echo("Terms & Conditions rejected: instance creation aborted.")
+                raise typer.Exit(1)
+            echo("Terms & Conditions accepted.")
         requirements = HostRequirements(
-            node=NodeRequirements(node_hash=crn.hash),
+            node=NodeRequirements(
+                node_hash=crn.hash,
+                terms_and_conditions=(ItemHash(crn.terms_and_conditions) if crn.terms_and_conditions else None),
+            ),
             gpu=gpu_requirement,
         )
 
@@ -807,6 +822,17 @@ async def _show_instances(messages: List[InstanceMessage], node_list: NodeInfo):
                 Text("IPv6: ", style="blue"),
                 Text(info["ipv6_logs"]),
                 style="bright_yellow" if len(info["ipv6_logs"].split(":")) == 8 else "dark_orange",
+            ),
+            (
+                Text.assemble(
+                    Text(f"\n[{'✅' if info['tac_accepted'] else '❌'}] Accepted Terms & Conditions: "),
+                    Text(
+                        f"{info['tac_url']}",
+                        style="orange1",
+                    ),
+                )
+                if info["tac_hash"]
+                else ""
             ),
         )
         table.add_row(instance, specifications, status_column)
@@ -1207,6 +1233,7 @@ async def confidential_create(
         None,
         help=help_strings.IMMUTABLE_VOLUME,
     ),
+    crn_auto_tac: bool = typer.Option(False, help=help_strings.CRN_AUTO_TAC),
     channel: Optional[str] = typer.Option(default=settings.DEFAULT_CHANNEL, help=help_strings.CHANNEL),
     private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
     private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
@@ -1239,6 +1266,7 @@ async def confidential_create(
             ssh_pubkey_file=ssh_pubkey_file,
             crn_hash=crn_hash,
             crn_url=crn_url,
+            crn_auto_tac=crn_auto_tac,
             confidential=True,
             confidential_firmware=confidential_firmware,
             gpu=gpu,

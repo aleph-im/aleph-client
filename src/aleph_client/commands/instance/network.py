@@ -18,6 +18,7 @@ from pydantic import ValidationError
 from typer import Exit
 
 from aleph_client.commands import help_strings
+from aleph_client.commands.files import download
 from aleph_client.commands.node import NodeInfo, _fetch_nodes
 from aleph_client.models import MachineUsage
 from aleph_client.utils import fetch_json, sanitize_url
@@ -91,6 +92,7 @@ async def fetch_vm_info(message: InstanceMessage, node_list: NodeInfo) -> tuple[
         firmware = safe_getattr(message, "content.environment.trusted_execution.firmware")
         is_confidential = firmware and len(firmware) == 64
         has_gpu = safe_getattr(message, "content.requirements.gpu")
+        tac_hash = safe_getattr(message, "content.requirements.node.terms_and_conditions")
 
         info = dict(
             crn_hash=str(crn_hash) if crn_hash else "",
@@ -101,6 +103,9 @@ async def fetch_vm_info(message: InstanceMessage, node_list: NodeInfo) -> tuple[
             allocation_type="",
             ipv6_logs="",
             crn_url="",
+            tac_hash=str(tac_hash) if tac_hash else "",
+            tac_url="",
+            tac_accepted="",
         )
         try:
             # Fetch from the scheduler API directly if no payment or no receiver (hold-tier non-confidential)
@@ -137,6 +142,11 @@ async def fetch_vm_info(message: InstanceMessage, node_list: NodeInfo) -> tuple[
                     info["crn_url"] = help_strings.CRN_UNKNOWN
                 if not info["ipv6_logs"]:
                     info["ipv6_logs"] = help_strings.VM_NOT_READY
+                # Terms and conditions
+                if tac_hash:
+                    tac = await download(tac_hash, only_info=True, verbose=False)
+                    tac_url = safe_getattr(tac, "url") or f"missing → {tac_hash}"
+                    info.update(dict(tac_url=tac_url, tac_accepted="Yes"))
         except (aiohttp.ClientResponseError, aiohttp.ClientConnectorError) as e:
             info["ipv6_logs"] = f"Not available. Server error: {e}"
         return message.item_hash, info
