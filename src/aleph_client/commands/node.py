@@ -9,18 +9,19 @@ from typing import Optional
 
 import aiohttp
 import typer
+from aleph.sdk.conf import settings
 from rich import text
 from rich.console import Console
 from rich.markup import escape
 from rich.table import Table
 
 from aleph_client.commands.utils import setup_logging
-from aleph_client.utils import AsyncTyper
+from aleph_client.utils import AsyncTyper, sanitize_url
 
 logger = logging.getLogger(__name__)
 app = AsyncTyper(no_args_is_help=True)
 
-node_link = "https://api2.aleph.im/api/v0/aggregates/0xa1B3bb7d2332383D96b7796B908fB7f7F3c2Be10.json?keys=corechannel"
+node_link = f"{sanitize_url(settings.API_HOST)}/api/v0/aggregates/0xa1B3bb7d2332383D96b7796B908fB7f7F3c2Be10.json?keys=corechannel"
 
 
 class NodeInfo:
@@ -78,6 +79,7 @@ def _show_compute(node_info):
     table.add_column("Decentralization", style="green", justify="right")
     table.add_column("Status", style="green", justify="right")
     table.add_column("Item Hash", style="green", justify="center")
+    table.add_column("URL", style="orchid", justify="center")
 
     for node in node_info.nodes:
         # Prevent escaping with name
@@ -91,6 +93,7 @@ def _show_compute(node_info):
         score = _format_score(node["score"])
         decentralization = _format_score(node["decentralization"])
         status = _format_status(node["status"])
+        node_url = node["address"]
         table.add_row(
             score,
             node_name,
@@ -98,21 +101,42 @@ def _show_compute(node_info):
             decentralization,
             status,
             node_hash,
+            node_url,
         )
 
     console = Console()
     console.print(table)
 
 
-def _filter_node(active: bool, address: Optional[str], core_info):
+def _filter_node(
+    active: bool,
+    address: Optional[str],
+    core_info,
+    payg_receiver=Optional[str],
+    crn_url=Optional[str],
+    crn_hash=Optional[str],
+    ccn_hash=Optional[str],
+):
     result = []
+    try:
+        node_url = not crn_url or sanitize_url(crn_url)
+    except Exception as e:
+        logger.debug(e)
     for node in core_info:
-        if active and node["status"] == "active" and node["score"] > 0:
-            result.append(node)
-        elif address and node["owner"] == address:
-            result.append(node)
-        elif not active and not address:
-            result.append(node)
+        try:
+            sanitized_url = node["address"] or sanitize_url(node["address"])
+            if (
+                (not active or (node["status"] == "linked" and node["score"] > 0))
+                and (not address or node["owner"] == address)
+                and (not payg_receiver or node["stream_reward"] == payg_receiver)
+                and (not crn_url or (sanitized_url == node_url))
+                and (not crn_hash or node["hash"] == crn_hash)
+                and (not ccn_hash or node["parent"] == ccn_hash)
+            ):
+                node["address"] = sanitized_url
+                result.append(node)
+        except Exception as e:
+            logger.debug(e)
     return result
 
 
@@ -154,14 +178,28 @@ async def compute(
     json: bool = typer.Option(default=False, help="Print as json instead of rich table"),
     active: bool = typer.Option(default=False, help="Only show active nodes"),
     address: Optional[str] = typer.Option(default=None, help="Owner address to filter by"),
+    payg_receiver: Optional[str] = typer.Option(
+        default=None, help="PAYG (Pay-As-You-Go) receiver address to filter by"
+    ),
+    crn_url: Optional[str] = typer.Option(default=None, help="CRN Url to filter by"),
+    crn_hash: Optional[str] = typer.Option(default=None, help="CRN hash to filter by"),
+    ccn_hash: Optional[str] = typer.Option(default=None, help="Linked CCN hash to filter by"),
     debug: bool = False,
 ):
-    """Get all compute node on aleph network"""
+    """Get all compute node (CRN) on aleph network"""
 
     setup_logging(debug)
 
     compute_info: NodeInfo = await _fetch_nodes()
-    compute_info.nodes = _filter_node(core_info=compute_info.nodes, active=active, address=address)
+    compute_info.nodes = _filter_node(
+        core_info=compute_info.nodes,
+        active=active,
+        address=address,
+        payg_receiver=payg_receiver,
+        crn_url=crn_url,
+        crn_hash=crn_hash,
+        ccn_hash=ccn_hash,
+    )
 
     if not json:
         _show_compute(compute_info)
@@ -176,7 +214,7 @@ async def core(
     address: Optional[str] = typer.Option(default=None, help="Owner address to filter by"),
     debug: bool = False,
 ):
-    """Get all core node on aleph"""
+    """Get all core node (CCN) on aleph"""
     setup_logging(debug)
 
     core_info: NodeInfo = await _fetch_nodes()

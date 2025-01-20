@@ -14,6 +14,7 @@ import typer
 from aleph.sdk import AlephHttpClient, AuthenticatedAlephHttpClient
 from aleph.sdk.account import _load_account
 from aleph.sdk.conf import settings
+from aleph.sdk.exceptions import ForgottenMessageError, MessageNotFoundError
 from aleph.sdk.query.filters import MessageFilter
 from aleph.sdk.query.responses import MessagesResponse
 from aleph.sdk.types import AccountFromPrivateKey, StorageEnum
@@ -42,13 +43,20 @@ async def get(
     item_hash: str = typer.Argument(..., help="Item hash of the message"),
 ):
     async with AlephHttpClient(api_server=settings.API_HOST) as client:
-        message, status = await client.get_message(item_hash=ItemHash(item_hash), with_status=True)
-        typer.echo(f"Message Status: {colorized_status(status)}")
-        if status == MessageStatus.REJECTED:
-            reason = await client.get_message_error(item_hash=ItemHash(item_hash))
-            typer.echo(colorful_json(json.dumps(reason, indent=4)))
-        else:
-            typer.echo(colorful_message_json(message))
+        message: Optional[AlephMessage] = None
+        try:
+            message, status = await client.get_message(item_hash=ItemHash(item_hash), with_status=True)
+        except MessageNotFoundError:
+            typer.echo("Message does not exist on aleph.im")
+        except ForgottenMessageError:
+            typer.echo("Message has been forgotten on aleph.im")
+        if message:
+            typer.echo(f"Message Status: {colorized_status(status)}")
+            if status == MessageStatus.REJECTED:
+                reason = await client.get_message_error(item_hash=ItemHash(item_hash))
+                typer.echo(colorful_json(json.dumps(reason, indent=4)))
+            else:
+                typer.echo(colorful_message_json(message))
 
 
 @app.command()
@@ -173,41 +181,47 @@ async def amend(
     account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
 
     async with AlephHttpClient(api_server=settings.API_HOST) as client:
-        existing_message: AlephMessage = await client.get_message(item_hash=item_hash)
+        existing_message: Optional[AlephMessage] = None
+        try:
+            existing_message = await client.get_message(item_hash=item_hash)
+        except MessageNotFoundError:
+            typer.echo("Message does not exist on aleph.im")
+        except ForgottenMessageError:
+            typer.echo("Message has been forgotten on aleph.im")
+        if existing_message:
+            editor: str = os.getenv("EDITOR", default="nano")
+            with tempfile.NamedTemporaryFile(suffix="json") as fd:
+                # Fill in message template
+                fd.write(existing_message.content.json(indent=4).encode())
+                fd.seek(0)
 
-    editor: str = os.getenv("EDITOR", default="nano")
-    with tempfile.NamedTemporaryFile(suffix="json") as fd:
-        # Fill in message template
-        fd.write(existing_message.content.json(indent=4).encode())
-        fd.seek(0)
+                # Launch editor
+                subprocess.run([editor, fd.name], check=True)
 
-        # Launch editor
-        subprocess.run([editor, fd.name], check=True)
+                # Read new message
+                fd.seek(0)
+                new_content_json = fd.read()
 
-        # Read new message
-        fd.seek(0)
-        new_content_json = fd.read()
+            content_type = type(existing_message).__annotations__["content"]
+            new_content_dict = json.loads(new_content_json)
+            new_content = content_type(**new_content_dict)
 
-    content_type = type(existing_message).__annotations__["content"]
-    new_content_dict = json.loads(new_content_json)
-    new_content = content_type(**new_content_dict)
+            if isinstance(existing_message, ProgramMessage):
+                new_content.replaces = existing_message.item_hash
+            else:
+                new_content.ref = existing_message.item_hash
 
-    if isinstance(existing_message, ProgramMessage):
-        new_content.replaces = existing_message.item_hash
-    else:
-        new_content.ref = existing_message.item_hash
+            new_content.time = time.time()
+            new_content.type = "amend"
 
-    new_content.time = time.time()
-    new_content.type = "amend"
-
-    typer.echo(new_content)
-    async with AuthenticatedAlephHttpClient(account=account, api_server=settings.API_HOST) as client:
-        message, status, response = await client.submit(
-            content=new_content.dict(),
-            message_type=existing_message.type,
-            channel=existing_message.channel,
-        )
-    typer.echo(f"{message.json(indent=4)}")
+            typer.echo(new_content)
+            async with AuthenticatedAlephHttpClient(account=account, api_server=settings.API_HOST) as client:
+                message, status, response = await client.submit(
+                    content=new_content.dict(),
+                    message_type=existing_message.type,
+                    channel=existing_message.channel,
+                )
+            typer.echo(f"{message.json(indent=4)}")
 
 
 @app.command()
@@ -241,11 +255,18 @@ async def watch(
     setup_logging(debug)
 
     async with AlephHttpClient(api_server=settings.API_HOST) as client:
-        original: AlephMessage = await client.get_message(item_hash=ref)
-        async for message in client.watch_messages(
-            message_filter=MessageFilter(refs=[ref], addresses=[original.content.address])
-        ):
-            typer.echo(f"{message.json(indent=indent)}")
+        original: Optional[AlephMessage] = None
+        try:
+            original = await client.get_message(item_hash=ref)
+        except MessageNotFoundError:
+            typer.echo("Message does not exist on aleph.im")
+        except ForgottenMessageError:
+            typer.echo("Message has been forgotten on aleph.im")
+        if original:
+            async for message in client.watch_messages(
+                message_filter=MessageFilter(refs=[ref], addresses=[original.content.address])
+            ):
+                typer.echo(f"{message.json(indent=indent)}")
 
 
 @app.command()
