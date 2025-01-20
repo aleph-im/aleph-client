@@ -128,6 +128,7 @@ def create_mock_crn_info():
             qemu_support=True,
             confidential_computing=True,
             gpu_support=True,
+            terms_and_conditions=FAKE_STORE_HASH,
         )
     )
 
@@ -179,7 +180,7 @@ def test_sanitize_url_with_https_scheme():
     assert sanitize_url(url) == url
 
 
-def create_mock_instance_message(mock_account, payg=False, coco=False, gpu=False):
+def create_mock_instance_message(mock_account, payg=False, coco=False, gpu=False, tac=False):
     tmp = list(FAKE_VM_HASH)
     random.shuffle(tmp)
     vm_item_hash = "".join(tmp)
@@ -207,7 +208,7 @@ def create_mock_instance_message(mock_account, payg=False, coco=False, gpu=False
             volumes=[],
         ),
     )
-    if payg or coco or gpu:
+    if payg or coco or gpu or tac:
         vm.content.metadata["name"] += "_payg"  # type: ignore
         vm.content.payment = Payment(chain=Chain.AVAX, receiver=FAKE_ADDRESS_EVM, type=PaymentType.superfluid)  # type: ignore
         vm.content.requirements = Dict(  # type: ignore
@@ -230,6 +231,9 @@ def create_mock_instance_message(mock_account, payg=False, coco=False, gpu=False
                 device_id="abcd:1234",
             )
         ]
+    if tac:
+        vm.content.metadata["name"] += "_tac"  # type: ignore
+        vm.content.requirements.node.terms_and_conditions = FAKE_STORE_HASH  # type: ignore
     return vm
 
 
@@ -238,7 +242,8 @@ def create_mock_instance_messages(mock_account):
     payg = create_mock_instance_message(mock_account, payg=True)
     coco = create_mock_instance_message(mock_account, coco=True)
     gpu = create_mock_instance_message(mock_account, gpu=True)
-    return AsyncMock(return_value=[regular, payg, coco, gpu])
+    tac = create_mock_instance_message(mock_account, tac=True)
+    return AsyncMock(return_value=[regular, payg, coco, gpu, tac])
 
 
 def create_mock_validate_ssh_pubkey_file():
@@ -258,7 +263,12 @@ def create_mock_shutil():
 
 
 def create_mock_client():
-    mock_client = AsyncMock(get_message=AsyncMock(return_value=True))
+    mock_client = AsyncMock(
+        get_message=AsyncMock(return_value=True),
+        get_stored_content=AsyncMock(
+            return_value=Dict(filename="fake_tac", hash="0xfake_tac", url="https://fake.tac.com")
+        ),
+    )
     mock_client_class = MagicMock()
     mock_client_class.return_value.__aenter__ = AsyncMock(return_value=mock_client)
     return mock_client_class, mock_client
@@ -444,6 +454,7 @@ async def test_create_instance(args, expected):
             persistent_volume=None,
             ephemeral_volume=None,
             immutable_volume=None,
+            crn_auto_tac=True,
             channel=settings.DEFAULT_CHANNEL,
             crn_hash=None,
             crn_url=None,
@@ -473,10 +484,12 @@ async def test_create_instance(args, expected):
 async def test_list_instances():
     mock_load_account = create_mock_load_account()
     mock_account = mock_load_account.return_value
+    mock_client_class, mock_client = create_mock_client()
     mock_auth_client_class, mock_auth_client = create_mock_auth_client(mock_account)
     mock_instance_messages = create_mock_instance_messages(mock_account)
 
     @patch("aleph_client.commands.instance._load_account", mock_load_account)
+    @patch("aleph_client.commands.files.AlephHttpClient", mock_client_class)
     @patch("aleph_client.commands.instance.AlephHttpClient", mock_auth_client_class)
     @patch("aleph_client.commands.instance.filter_only_valid_messages", mock_instance_messages)
     async def list_instance():
@@ -490,7 +503,8 @@ async def test_list_instances():
         mock_instance_messages.assert_called_once()
         mock_auth_client.get_messages.assert_called_once()
         mock_auth_client.get_program_price.assert_called()
-        assert mock_auth_client.get_program_price.call_count == 3
+        assert mock_auth_client.get_program_price.call_count == 4
+        assert mock_client.get_stored_content.call_count == 1
 
     await list_instance()
 
@@ -769,6 +783,7 @@ async def test_confidential_create(args):
             persistent_volume=None,
             ephemeral_volume=None,
             immutable_volume=None,
+            crn_auto_tac=True,
             policy=0x1,
             confidential_firmware=FAKE_STORE_HASH,
             firmware_hash=None,
