@@ -41,7 +41,7 @@ async def fetch_crn_info(node_url: str) -> dict | None:
     """
     url = ""
     try:
-        base_url: str = sanitize_url(node_url.rstrip("/"))
+        base_url: str = sanitize_url(node_url)
         timeout = aiohttp.ClientTimeout(total=settings.HTTP_REQUEST_TIMEOUT)
         async with aiohttp.ClientSession(timeout=timeout) as session:
             info: dict

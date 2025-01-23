@@ -18,8 +18,8 @@ FAKE_STORE_HASH_CONTENT_FILE_CID = "QmX8K1c22WmQBAww5ShWQqwMiFif7XFrJD6iFBj7skQZ
 FAKE_VM_HASH = "ab12" * 16
 FAKE_PROGRAM_HASH = "cd34" * 16
 FAKE_PROGRAM_HASH_2 = "ef56" * 16
-FAKE_CRN_HASH = "2cdb78cf561c6f0f839edb817395d3b5ece20d89125c5afba658f9170d6932c8"
-FAKE_CRN_URL = "https://dchq.staging.aleph.sh"
+FAKE_CRN_HASH = "cb764fe80f76cd5ec395952263fcbf0f5d2cc0dfe1ed98c90e13734b3fb2df3e"
+FAKE_CRN_URL = "https://coco-1.crn.aleph.sh"
 FAKE_FLOW_HASH = "0xfake_flow_hash"
 
 
