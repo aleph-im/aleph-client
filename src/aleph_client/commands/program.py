@@ -458,7 +458,7 @@ async def list_programs(
                     "HyperV: [magenta3]Firecracker[/magenta3]\n",
                     f"Timeout: [orange3]{message.content.resources.seconds}s[/orange3]\n",
                     f"Persistent: {'[green]Yes[/green]' if message.content.on.persistent else '[red]No[/red]'}\n",
-                    f"Updatable: {'[green]Yes[/green]' if message.content.allow_amend else '[red]No[/red]'}",
+                    f"Updatable: {'[green]Yes[/green]' if message.content.allow_amend else '[orange3]Code only[/orange3]'}",
                 ]
                 specifications = Text.from_markup("".join(specs))
                 volumes = ""
@@ -511,7 +511,7 @@ async def persist(
     verbose: bool = True,
     debug: bool = False,
 ) -> Optional[str]:
-    """Recreate a non-persistent program as persistent (item hash will change)"""
+    """Recreate a non-persistent program as persistent (item hash will change). The program must be updatable and yours"""
 
     setup_logging(debug)
 
@@ -603,7 +603,7 @@ async def unpersist(
     verbose: bool = True,
     debug: bool = False,
 ) -> Optional[str]:
-    """Recreate a persistent program as non-persistent (item hash will change)"""
+    """Recreate a persistent program as non-persistent (item hash will change). The program must be updatable and yours"""
 
     setup_logging(debug)
 
