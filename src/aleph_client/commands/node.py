@@ -124,17 +124,26 @@ def _filter_node(
         logger.debug(e)
     for node in core_info:
         try:
-            sanitized_url = node["address"] or sanitize_url(node["address"])
-            if (
-                (not active or (node["status"] == "linked" and node["score"] > 0))
-                and (not address or node["owner"] == address)
-                and (not payg_receiver or node["stream_reward"] == payg_receiver)
-                and (not crn_url or (sanitized_url == node_url))
-                and (not crn_hash or node["hash"] == crn_hash)
-                and (not ccn_hash or node["parent"] == ccn_hash)
-            ):
-                node["address"] = sanitized_url
-                result.append(node)
+            if "total_staked" in node:  # CCN
+                if (
+                    (not active or (node["status"] == "active" and node["score"] > 0))
+                    and (not address or node["owner"] == address)
+                    and (not ccn_hash or node["hash"] == ccn_hash)
+                ):
+                    result.append(node)
+            elif "parent" in node:  # CRN
+                sanitized_url = "address" in node and sanitize_url(node["address"])
+                if sanitized_url:
+                    node["address"] = sanitized_url
+                if (
+                    (not active or (node["status"] == "linked" and node["score"] > 0))
+                    and (not address or node["owner"] == address)
+                    and (not payg_receiver or node["stream_reward"] == payg_receiver)
+                    and (not crn_url or node["address"] == node_url)
+                    and (not crn_hash or node["hash"] == crn_hash)
+                    and (not ccn_hash or node["parent"] == ccn_hash)
+                ):
+                    result.append(node)
         except Exception as e:
             logger.debug(e)
     return result
@@ -148,12 +157,14 @@ def _show_core(node_info):
     table.add_column("Linked", style="#029AFF", justify="left")
     table.add_column("Creation Time", style="#029AFF", justify="center")
     table.add_column("Status", style="green", justify="right")
+    table.add_column("Item Hash", style="green", justify="center")
 
     for node in node_info:
         # Prevent escaping with name
         node_name = node["name"]
         node_name = _escape_and_normalize(node_name)
         node_name = _remove_ansi_escape(node_name)
+        node_hash = node["hash"]
 
         # Format Value
         creation_time = datetime.datetime.fromtimestamp(node["time"]).strftime("%Y-%m-%d %H:%M:%S")
@@ -167,6 +178,7 @@ def _show_core(node_info):
             str(len(node["resource_nodes"])),
             creation_time,
             status,
+            node_hash,
         )
 
     console = Console()
@@ -212,13 +224,14 @@ async def core(
     json: bool = typer.Option(default=False, help="Print as json instead of rich table"),
     active: bool = typer.Option(default=False, help="Only show active nodes"),
     address: Optional[str] = typer.Option(default=None, help="Owner address to filter by"),
+    ccn_hash: Optional[str] = typer.Option(default=None, help="CCN hash to filter by"),
     debug: bool = False,
 ):
     """Get all core node (CCN) on aleph"""
     setup_logging(debug)
 
     core_info: NodeInfo = await _fetch_nodes()
-    core_info.core_node = _filter_node(core_info=core_info.core_node, active=active, address=address)
+    core_info.core_node = _filter_node(core_info=core_info.core_node, active=active, address=address, ccn_hash=ccn_hash)
 
     if not json:
         _show_core(node_info=core_info.core_node)

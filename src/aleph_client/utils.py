@@ -172,4 +172,4 @@ def sanitize_url(url: str) -> str:
             f"({', '.join(FORBIDDEN_HOSTS)})"
         )
         raise aiohttp.InvalidURL("Invalid URL host")
-    return url
+    return url.strip("/")
