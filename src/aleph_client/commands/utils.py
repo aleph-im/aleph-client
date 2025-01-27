@@ -17,6 +17,9 @@ from aleph.sdk.exceptions import ForgottenMessageError, MessageNotFoundError
 from aleph.sdk.types import GenericMessage
 from aleph_message.models import AlephMessage, ItemHash
 from aleph_message.status import MessageStatus
+from base58 import b58decode
+from multibase import encode
+from multicodec import add_prefix
 from pygments import highlight
 from pygments.formatters.terminal256 import Terminal256Formatter
 from pygments.lexers import JsonLexer
@@ -321,3 +324,9 @@ def find_sevctl_or_exit() -> Path:
         echo("Instructions for setup https://docs.aleph.im/computing/confidential/requirements/")
         raise Exit(code=1)
     return Path(sevctl_path)
+
+
+def ipfs_cid_v0_to_v1(cid_v0: str) -> str:  # TODO: Move to SDK?
+    decoded_cid_v0 = b58decode(cid_v0)
+    buffer = b"".join([bytes([1]), add_prefix("dag-pb", decoded_cid_v0)])
+    return encode("base32", buffer).decode()

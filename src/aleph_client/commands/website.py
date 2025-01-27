@@ -32,11 +32,13 @@ from rich.table import Table
 from rich.text import Text
 
 from aleph_client.commands import help_strings
+from aleph_client.commands.files import download
 from aleph_client.commands.utils import (
     filter_only_valid_messages,
     get_or_prompt_environment_variables,
     get_or_prompt_volumes,
     input_multiline,
+    ipfs_cid_v0_to_v1,
     setup_logging,
     str_to_datetime,
     validated_prompt,
@@ -166,7 +168,7 @@ async def list_websites(
             table = Table(box=box.ROUNDED, style="blue_violet")
             table.add_column(f"Websites [{len(websites)}]", style="blue", overflow="fold")
             table.add_column("Specifications", style="blue")
-            table.add_column("Linked Domains", style="blue", overflow="fold")
+            table.add_column("Infos & Domains", style="blue", overflow="fold")
 
             for sitename, details in websites.items():
                 name = Text(sitename, style="magenta3")
@@ -188,20 +190,56 @@ async def list_websites(
                     ),
                 )
                 website = Text.assemble(
-                    "Item Hash ↓\t     Name: ", name, "\n", item_hash_link, "\n", created_at, "  ", updated_at
+                    "Item Hash ↓\t     Name: ",
+                    name,
+                    "\n",
+                    item_hash_link,
+                    "\n",
+                    created_at,
+                    "  ",
+                    updated_at,
                 )
                 specs = [
                     (
-                        f"Framework: [magenta3]{details["metadata"]['framework']}[/magenta3]"
+                        f"Framework: [magenta3]{details['metadata']['framework'].capitalize()}[/magenta3]"
                         if "framework" in details["metadata"]
                         else ""
                     ),
-                    f"Current Version: [magenta3]{details['version']}[/magenta3]",
-                    f"History Size: [magenta3]{len(details.get('history', {}))}[/magenta3]",
+                    f"Current Version: [green]v{details['version']}[/green]",
+                    f"History Size: [orange1]{len(details.get('history', {}))}[/orange1]",
                 ]
                 specifications = Text.from_markup("\n".join(specs))
-                url = ""  # TODO: Calc v1 CID for default url
-                domains = Text.from_markup(f"[bright_yellow][link={url}]{url}[/link][/bright_yellow]")
+
+                stored_msg_info = await download(current_volume, only_info=True, verbose=False)
+                cid_v0 = stored_msg_info.hash
+                cid_v1 = ipfs_cid_v0_to_v1(cid_v0)
+                url = f"https://{cid_v1}.ipfs.aleph.sh"  # TODO: Move to SDK
+                current_domains, legacy_domains = "", ""
+                if "linked_domains" in details:
+                    if "current" in details["linked_domains"]:
+                        for domain in details["linked_domains"]["current"]:
+                            full_domain = f"https://{domain}"
+                            current_domains += (
+                                f"\n• [bright_cyan][link={full_domain}]{full_domain}[/link][/bright_cyan]"
+                            )
+                    if "legacy" in details["linked_domains"]:
+                        legacy = sorted(
+                            details["linked_domains"]["legacy"].items(), key=lambda x: int(x[0]), reverse=True
+                        )
+                        for version, urls in legacy:
+                            legacy_urls = []
+                            for domain in urls:
+                                full_domain = f"https://{domain}"
+                                legacy_urls.append(f"[cyan][link={full_domain}]{full_domain}[/link][/cyan]")
+                            legacy_domains += f"\n• [orange1]v{version}[/orange1]: " + ", ".join(legacy_urls)
+                domains = Text.assemble(
+                    Text.from_markup(f"CID v0: [bright_cyan]{cid_v0}[/bright_cyan]\n"),
+                    Text.from_markup(
+                        f"Default Gateway (using CID v1):\n↳ [bright_yellow][link={url}]{url}[/link][/bright_yellow]\n"
+                    ),
+                    Text.from_markup(f"Custom Domains: {current_domains if current_domains else '-'}"),
+                    Text.from_markup(f"\nLegacy Domains: {legacy_domains}") if legacy_domains else "",
+                )
                 table.add_row(website, specifications, domains)
                 table.add_section()
 
