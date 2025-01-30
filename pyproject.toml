@@ -117,7 +117,7 @@ python = [ "3.9", "3.10", "3.11", "3.12" ]
 dependencies = [
   "black==24.4.2",
   "mypy==1.10.0",
-  "ruff==0.4.9",
+  "ruff==0.9.*",
   "isort==5.13.2",
   "yamlfix==1.16.1",
   "pyproject-fmt==2.2.1",
