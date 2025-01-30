@@ -214,8 +214,8 @@ async def amend(
             new_content.type = "amend"
 
             typer.echo(new_content)
-            async with AuthenticatedAlephHttpClient(account=account, api_server=settings.API_HOST) as client:
-                message, status, response = await client.submit(
+            async with AuthenticatedAlephHttpClient(account=account, api_server=settings.API_HOST) as account_client:
+                message, status, response = await account_client.submit(
                     content=new_content.dict(),
                     message_type=existing_message.type,
                     channel=existing_message.channel,
