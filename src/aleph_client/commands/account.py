@@ -273,10 +273,10 @@ async def balance(
                 details = balance_data.get("details")
                 if details:
                     infos += [Text("\n ↳ Details")]
-                    for chain, chain_balance in details.items():
+                    for chain_, chain_balance in details.items():
                         infos += [
                             Text.from_markup(
-                                f"\n    {chain}: [orange3]{chain_balance:.2f}".rstrip("0").rstrip(".") + "[/orange3]"
+                                f"\n    {chain_}: [orange3]{chain_balance:.2f}".rstrip("0").rstrip(".") + "[/orange3]"
                             )
                         ]
                 available_color = "bright_cyan" if balance_data["available_amount"] >= 0 else "red"
