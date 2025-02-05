@@ -41,8 +41,8 @@ jobs:
 
       - name: Pytest in the Docker image
         run: |
-          docker run --entrypoint /opt/venv/bin/pytest aleph-client:${GITHUB_REF##*/} /opt/aleph-client/
+          docker run -w /opt/aleph-client --entrypoint /opt/venv/bin/hatch aleph-client:${GITHUB_REF##*/} run testing:test
 
       - name: MyPy in the Docker image
         run: |-
-          docker run --entrypoint /opt/venv/bin/mypy aleph-client:${GITHUB_REF##*/} --config-file /opt/aleph-client/mypy.ini /opt/aleph-client/src/ /opt/aleph-client/tests/
+          docker run -w /opt/aleph-client --entrypoint /opt/venv/bin/hatch aleph-client:${GITHUB_REF##*/} run linting:all
