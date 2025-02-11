@@ -88,17 +88,17 @@ async def forget(
             inline=inline,
             address=address,
         )
-        content = f"{message.json(indent=4)}"
+        dumped_content = f"{message.json(indent=4)}"
 
         if status != MessageStatus.REJECTED:
             if print_message:
-                typer.echo(content)
+                typer.echo(dumped_content)
             if verbose:
                 label_subkeys = f" -> {subkeys}" if subkeys else ""
                 typer.echo(f"Aggregate `{key}{label_subkeys}` has been deleted")
             return True
         elif verbose:
-            typer.echo(f"Aggregate deletion has been rejected:\n{content}")
+            typer.echo(f"Aggregate deletion has been rejected:\n{dumped_content}")
     return False
 
 
