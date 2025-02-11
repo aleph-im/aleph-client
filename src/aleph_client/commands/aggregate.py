@@ -253,7 +253,7 @@ async def list_aggregates(
                     infos.append(
                         Text.from_markup(f"\n↳ [orange1]{key}[/orange1]:"),
                     )
-                    if type(value) == dict and any(v is None for _, v in value.items()):
+                    if isinstance(value, dict) and any(v is None for _, v in value.items()):
                         infos.append(
                             Text.from_markup("\n[gray50]x empty[/gray50]"),
                         )
@@ -473,7 +473,7 @@ async def permissions(
                             display_item = ", ".join(
                                 [
                                     "[orchid]{key}([white]"
-                                    f"{value if type(value) != list else ', '.join(value)}"
+                                    f"{value if isinstance(value, list) else ', '.join(value)}"
                                     "[/white])[/orchid]"
                                     for key, value in item.items()
                                 ]
