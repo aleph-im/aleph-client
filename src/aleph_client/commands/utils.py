@@ -82,27 +82,36 @@ def yes_no_input(text: str, default: str | bool) -> bool:
 def prompt_for_volumes():
     while yes_no_input("Add volume?", default=False):
         mount = validated_prompt("Mount path (ex: /opt/data): ", lambda text: len(text) > 0)
-        name = validated_prompt("Name: ", lambda text: len(text) > 0)
-        comment = Prompt.ask("Comment: ")
-        persistent = yes_no_input("Persist on VM host?", default=False)
-        if persistent:
-            size_mib = validated_int_prompt("Size (MiB): ", min_value=1)
-            yield {
-                "comment": comment,
-                "mount": mount,
-                "name": name,
-                "persistence": "host",
-                "size_mib": size_mib,
-            }
-        else:
+        comment = Prompt.ask("Comment (description): ")
+        base_volume = {"mount": mount, "comment": comment}
+
+        if yes_no_input("Use an immutable volume?", default=False):
             ref = validated_prompt("Item hash: ", lambda text: len(text) == 64)
             use_latest = yes_no_input("Use latest version?", default=True)
             yield {
-                "comment": comment,
-                "mount": mount,
-                "name": name,
+                **base_volume,
                 "ref": ref,
                 "use_latest": use_latest,
+            }
+        elif yes_no_input("Persist on VM host?", default=False):
+            parent = None
+            if yes_no_input("Copy from a parent volume?", default=False):
+                parent = {"ref": validated_prompt("Item hash: ", lambda text: len(text) == 64), "use_latest": True}
+            name = validated_prompt("Name: ", lambda text: len(text) > 0)
+            size_mib = validated_int_prompt("Size (MiB): ", min_value=1, max_value=2048000)
+            yield {
+                **base_volume,
+                "parent": parent,
+                "persistence": "host",
+                "name": name,
+                "size_mib": size_mib,
+            }
+        else:  # Ephemeral
+            size_mib = validated_int_prompt("Size (MiB): ", min_value=1, max_value=1024)
+            yield {
+                **base_volume,
+                "ephemeral": True,
+                "size_mib": size_mib,
             }
 
 
