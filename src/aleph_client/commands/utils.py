@@ -174,7 +174,7 @@ def get_or_prompt_environment_variables(env_vars: Optional[str]) -> Optional[dic
 
 def str_to_datetime(date: Optional[str]) -> Optional[datetime]:
     """
-    Converts a string representation of a date/time to a datetime object.
+    Converts a string representation of a date/time to a datetime object in local time.
 
     The function can accept either a timestamp or an ISO format datetime string as the input.
     """
@@ -182,10 +182,13 @@ def str_to_datetime(date: Optional[str]) -> Optional[datetime]:
         return None
     try:
         date_f = float(date)
-        return datetime.fromtimestamp(date_f, tz=timezone.utc)
+        utc_dt = datetime.fromtimestamp(date_f, tz=timezone.utc)
+        return utc_dt.astimezone()
     except ValueError:
-        pass
-    return datetime.fromisoformat(date)
+        dt = datetime.fromisoformat(date)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt.astimezone()
 
 
 T = TypeVar("T")
