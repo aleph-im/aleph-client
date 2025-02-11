@@ -495,7 +495,7 @@ async def create(
                         device_id=selected_gpu.device_id,
                     )
                 ]
-        if crn.terms_and_conditions and is_stream:
+        if crn.terms_and_conditions:
             tac_accepted = await crn.display_terms_and_conditions(auto_accept=crn_auto_tac)
             if tac_accepted is None:
                 echo("Failed to fetch terms and conditions.\nContact support or use a different CRN.")
