@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import List, Optional
+from typing import Optional
 
 from aleph.sdk.types import StoredContent
 from aleph_message.models import ItemHash
@@ -60,8 +60,8 @@ class GpuDevice(BaseModel):
 
 
 class GPUProperties(BaseModel):
-    devices: List[GpuDevice]
-    available_devices: List[GpuDevice]
+    devices: list[GpuDevice]
+    available_devices: list[GpuDevice]
 
 
 class MachineUsage(BaseModel):
@@ -146,13 +146,19 @@ class CRNInfo(BaseModel):
     @property
     def display_ram(self) -> str:
         if self.machine_usage:
-            return f"{self.machine_usage.mem.available_kB / 1_000_000:>3.0f} / {self.machine_usage.mem.total_kB / 1_000_000:>3.0f} GB"
+            return (
+                f"{self.machine_usage.mem.available_kB / 1_000_000:>3.0f} / "
+                f"{self.machine_usage.mem.total_kB / 1_000_000:>3.0f} GB"
+            )
         return ""
 
     @property
     def display_hdd(self) -> str:
         if self.machine_usage:
-            return f"{self.machine_usage.disk.available_kB / 1_000_000:>4.0f} / {self.machine_usage.disk.total_kB / 1_000_000:>4.0f} GB"
+            return (
+                f"{self.machine_usage.disk.available_kB / 1_000_000:>4.0f} / "
+                f"{self.machine_usage.disk.total_kB / 1_000_000:>4.0f} GB"
+            )
         return ""
 
     @property

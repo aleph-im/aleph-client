@@ -48,7 +48,7 @@ def create_mock_load_account():
 
 
 async def mock_fetch_nodes() -> NodeInfo:
-    NODE_AGGREGATE = {
+    node_aggregate = {
         "address": "0xa1B3bb7d2332383D96b7796B908fB7f7F3c2Be10",
         "data": {
             "corechannel": {
@@ -73,7 +73,10 @@ async def mock_fetch_nodes() -> NodeInfo:
                         },
                         "has_bonus": True,
                         "authorized": [],
-                        "description": "Supporting Aleph from NULS POCM through to running a node. Moshe is a genius!\n\nPowered by Node Forge.",
+                        "description": (
+                            "Supporting Aleph from NULS POCM through to running a node. Moshe is a "
+                            "genius!\n\nPowered by Node Forge."
+                        ),
                         "performance": 0.915326986415614,
                         "multiaddress": "/ip4/51.79.82.13/tcp/4025/p2p/QmfKB9q89aCX3wqkiqgis9SHfx2MznGd6LTsqektdKUBg5",
                         "total_staked": 1032817.18542335,
@@ -124,4 +127,4 @@ async def mock_fetch_nodes() -> NodeInfo:
         },
         "info": {},
     }
-    return NodeInfo(**NODE_AGGREGATE)
+    return NodeInfo(**node_aggregate)

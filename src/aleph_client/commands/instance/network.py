@@ -94,19 +94,19 @@ async def fetch_vm_info(message: InstanceMessage, node_list: NodeInfo) -> tuple[
         has_gpu = safe_getattr(message, "content.requirements.gpu")
         tac_hash = safe_getattr(message, "content.requirements.node.terms_and_conditions")
 
-        info = dict(
-            crn_hash=str(crn_hash) if crn_hash else "",
-            created_at=str(created_at),
-            payment=str(hold),
-            chain=str(chain),
-            confidential=str(firmware) if is_confidential else "",
-            allocation_type="",
-            ipv6_logs="",
-            crn_url="",
-            tac_hash=str(tac_hash) if tac_hash else "",
-            tac_url="",
-            tac_accepted="",
-        )
+        info = {
+            "crn_hash": str(crn_hash) if crn_hash else "",
+            "created_at": str(created_at),
+            "payment": str(hold),
+            "chain": str(chain),
+            "confidential": str(firmware) if is_confidential else "",
+            "allocation_type": "",
+            "ipv6_logs": "",
+            "crn_url": "",
+            "tac_hash": str(tac_hash) if tac_hash else "",
+            "tac_url": "",
+            "tac_accepted": "",
+        }
         try:
             # Fetch from the scheduler API directly if no payment or no receiver (hold-tier non-confidential)
             if is_hold and not is_confidential and not has_gpu:
@@ -146,7 +146,7 @@ async def fetch_vm_info(message: InstanceMessage, node_list: NodeInfo) -> tuple[
                 if tac_hash:
                     tac = await download(tac_hash, only_info=True, verbose=False)
                     tac_url = safe_getattr(tac, "url") or f"missing → {tac_hash}"
-                    info.update(dict(tac_url=tac_url, tac_accepted="Yes"))
+                    info.update({"tac_url": tac_url, "tac_accepted": "Yes"})
         except (aiohttp.ClientResponseError, aiohttp.ClientConnectorError) as e:
             info["ipv6_logs"] = f"Not available. Server error: {e}"
         return message.item_hash, info

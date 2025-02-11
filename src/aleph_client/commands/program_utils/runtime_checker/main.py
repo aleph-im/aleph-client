@@ -1,22 +1,21 @@
 import platform
 import subprocess
-from typing import Dict
 
 from fastapi import FastAPI
 
 app = FastAPI()
 
-extra_checks = dict(
-    Docker="docker --version",
-    Nodejs="node --version",
-    Rust="rustc --version",
-    Go="go version",
-)
+extra_checks = {
+    "Docker": "docker --version",
+    "Nodejs": "node --version",
+    "Rust": "rustc --version",
+    "Go": "go version",
+}
 
 
 @app.get("/")
-async def versions() -> Dict[str, str]:
-    results = dict()
+async def versions() -> dict[str, str]:
+    results = {}
 
     # Distribution
     try:

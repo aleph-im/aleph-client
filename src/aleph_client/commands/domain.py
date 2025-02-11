@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from time import sleep
-from typing import Dict, Optional, cast
+from typing import Optional, cast
 
 import typer
 from aleph.sdk.account import _load_account
@@ -27,6 +28,8 @@ from rich.table import Table
 from aleph_client.commands import help_strings
 from aleph_client.commands.utils import is_environment_interactive
 from aleph_client.utils import AsyncTyper
+
+logger = logging.getLogger(__name__)
 
 app = AsyncTyper(no_args_is_help=True)
 
@@ -107,7 +110,7 @@ async def attach_resource(
 
         async with AuthenticatedAlephHttpClient(account=account, api_server=settings.API_HOST) as client:
 
-            options: Optional[Dict] = None
+            options: Optional[dict] = None
             if catch_all_path and catch_all_path.startswith("/"):
                 options = {"catch_all_path": catch_all_path}
 
@@ -318,7 +321,7 @@ async def info(
     options = domain_info["info"].get("options")
     if resource_type == TargetType.IPFS and options and "catch_all_path" in options:
         table.add_column("Catch all path", justify="right", style="cyan", no_wrap=True)
-        print(domain_info)
+        logger.debug(domain_info)
         table_values.append(domain_info["info"]["options"]["catch_all_path"])
     elif resource_type == TargetType.PROGRAM:
         table.add_column("Target resource", justify="right", style="cyan", no_wrap=True)

@@ -13,7 +13,7 @@ from aleph.sdk.account import _load_account
 from aleph.sdk.conf import settings
 from aleph.sdk.types import AccountFromPrivateKey, StorageEnum, StoredContent
 from aleph.sdk.utils import safe_getattr
-from aleph_message.models import ItemHash, ItemType, MessageType, StoreMessage
+from aleph_message.models import ItemHash, StoreMessage
 from aleph_message.status import MessageStatus
 from pydantic import BaseModel, Field
 from rich import box
@@ -169,7 +169,9 @@ class GetAccountFilesQueryParams(BaseModel):
     page: int = Field(default=1, ge=1, description="Offset in pages. Starts at 1.")
     sort_order: int = Field(
         default=-1,
-        description="Order in which files should be listed: -1 means most recent messages first, 1 means older messages first.",
+        description=(
+            "Order in which files should be listed: -1 means most recent messages first, 1 means older messages first."
+        ),
     )
 
 
@@ -228,7 +230,9 @@ async def list(
     page: int = typer.Option(1, help="Offset in pages."),
     sort_order: int = typer.Option(
         -1,
-        help="Order in which files should be listed: -1 means most recent messages first, 1 means older messages first.",
+        help=(
+            "Order in which files should be listed: -1 means most recent messages first, 1 means older messages first."
+        ),
     ),
     json: bool = typer.Option(default=False, help="Print as json instead of rich table"),
 ):

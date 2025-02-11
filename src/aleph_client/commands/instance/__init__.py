@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 import asyncio
+import builtins
 import json
 import logging
 import shutil
 from decimal import Decimal
 from math import ceil
 from pathlib import Path
-from typing import List, Optional, Tuple, cast
+from typing import Optional, cast
 
 import aiohttp
 import typer
@@ -41,7 +42,7 @@ from click import echo
 from rich import box
 from rich.console import Console
 from rich.panel import Panel
-from rich.prompt import Confirm, Prompt
+from rich.prompt import Prompt
 from rich.table import Table
 from rich.text import Text
 
@@ -74,9 +75,9 @@ logger = logging.getLogger(__name__)
 app = AsyncTyper(no_args_is_help=True)
 
 # TODO: This should be put on the API to get always from there
-FLOW_INSTANCE_PRICE_PER_SECOND = Decimal(0.0000155)  # 0.055/h
+FLOW_INSTANCE_PRICE_PER_SECOND = Decimal("0.0000155")  # 0.055/h
 
-hold_chains = get_chains_with_holding() + [Chain.SOL]
+hold_chains = [*get_chains_with_holding(), Chain.SOL]
 super_token_chains = get_chains_with_super_token()
 metavar_valid_chains = f"[{'|'.join(hold_chains)}]"
 metavar_valid_payment_types = f"[{'|'.join(PaymentType)}|nft]"
@@ -119,9 +120,9 @@ async def create(
     ),
     gpu: bool = typer.Option(False, help=help_strings.GPU_OPTION),
     skip_volume: bool = typer.Option(False, help=help_strings.SKIP_VOLUME),
-    persistent_volume: Optional[List[str]] = typer.Option(None, help=help_strings.PERSISTENT_VOLUME),
-    ephemeral_volume: Optional[List[str]] = typer.Option(None, help=help_strings.EPHEMERAL_VOLUME),
-    immutable_volume: Optional[List[str]] = typer.Option(
+    persistent_volume: Optional[list[str]] = typer.Option(None, help=help_strings.PERSISTENT_VOLUME),
+    ephemeral_volume: Optional[list[str]] = typer.Option(None, help=help_strings.EPHEMERAL_VOLUME),
+    immutable_volume: Optional[list[str]] = typer.Option(
         None,
         help=help_strings.IMMUTABLE_VOLUME,
     ),
@@ -132,7 +133,7 @@ async def create(
     print_message: bool = typer.Option(False),
     verbose: bool = typer.Option(True),
     debug: bool = False,
-) -> Tuple[ItemHash, Optional[str], Chain]:
+) -> tuple[ItemHash, Optional[str], Chain]:
     """Create and register a new instance on aleph.im"""
     setup_logging(debug)
     console = Console()
@@ -179,7 +180,8 @@ async def create(
     elif payment_type in [ptype.value for ptype in PaymentType]:
         payment_type = PaymentType(payment_type)
     else:
-        raise ValueError(f"Invalid payment-type: {payment_type}")
+        msg = f"Invalid payment-type: {payment_type}"
+        raise ValueError(msg)
 
     # Checks if payment-chain is compatible with PAYG
     is_stream = payment_type != PaymentType.hold
@@ -187,7 +189,8 @@ async def create(
         if payment_chain is None or payment_chain not in super_token_chains:
             if payment_chain:
                 console.print(
-                    f"[red]{safe_getattr(payment_chain, 'value') or payment_chain}[/red] incompatible with Pay-As-You-Go."
+                    f"[red]{safe_getattr(payment_chain, 'value') or payment_chain}[/red] incompatible with "
+                    "Pay-As-You-Go."
                 )
             payment_chain = Chain(
                 Prompt.ask(
@@ -222,7 +225,7 @@ async def create(
                 account.superfluid_connector.can_start_flow(FLOW_INSTANCE_PRICE_PER_SECOND)  # 0.055/h
             except Exception as e:
                 echo(e)
-                raise typer.Exit(code=1)
+                raise typer.Exit(code=1) from e
         else:
             echo("Superfluid connector not available on this chain.")
             raise typer.Exit(code=1)
@@ -358,7 +361,9 @@ async def create(
                             break
                         else:
                             echo(
-                                f"* Provided CRN *\nUrl: {crn_url}\nHash: {crn_hash}\n\n* Found CRN *\nUrl: {found_node['address']}\nHash: {found_node['hash']}\n\nMismatch between provided CRN and found CRN"
+                                f"* Provided CRN *\nUrl: {crn_url}\nHash: {crn_hash}\n\n* Found CRN *\nUrl: "
+                                f"{found_node['address']}\nHash: {found_node['hash']}\n\nMismatch between provided CRN "
+                                "and found CRN"
                             )
                             raise typer.Exit(1)
                 if crn_name == "?":
@@ -386,7 +391,7 @@ async def create(
                     crn.display_crn_specs()
             except Exception as e:
                 echo(f"Unable to fetch CRN config: {e}")
-                raise typer.Exit(1)
+                raise typer.Exit(1) from e
 
         while not crn:
             crn_table = CRNTable(
@@ -402,7 +407,8 @@ async def create(
                 continue
     elif crn_url or crn_hash:
         logger.debug(
-            f"`--crn-url` and/or `--crn-hash` arguments have been ignored.\nHold-tier regular instances are scheduled automatically on available CRNs by the Aleph.im network."
+            "`--crn-url` and/or `--crn-hash` arguments have been ignored.\nHold-tier regular "
+            "instances are scheduled automatically on available CRNs by the Aleph.im network."
         )
 
     requirements, trusted_execution, gpu_requirement = None, None, None
@@ -443,7 +449,8 @@ async def create(
                 )
                 selected_gpu = available_gpus[selected_gpu_number]
                 gpu_selection = Text.from_markup(
-                    f"[orange3]Vendor[/orange3]: {selected_gpu.vendor}\n[orange3]Model[/orange3]: {selected_gpu.device_name}"
+                    f"[orange3]Vendor[/orange3]: {selected_gpu.vendor}\n[orange3]Model[/orange3]: "
+                    f"{selected_gpu.device_name}"
                 )
                 console.print(
                     Panel(
@@ -506,12 +513,13 @@ async def create(
         except InsufficientFundsError as e:
             echo(
                 f"Instance creation failed due to insufficient funds.\n"
-                f"{account.get_address()} on {account.CHAIN} has {e.available_funds} ALEPH but needs {e.required_funds} ALEPH."
+                f"{account.get_address()} on {account.CHAIN} has {e.available_funds} ALEPH but "
+                f"needs {e.required_funds} ALEPH."
             )
-            raise typer.Exit(code=1)
+            raise typer.Exit(code=1) from e
         except Exception as e:
             echo(f"Instance creation failed:\n{e}")
-            raise typer.Exit(code=1)
+            raise typer.Exit(code=1) from e
         if print_message:
             echo(f"{message.json(indent=4)}")
 
@@ -540,7 +548,7 @@ async def create(
                         account.superfluid_connector.can_start_flow(FLOW_INSTANCE_PRICE_PER_SECOND)  # Min for 0.11/h
                     except Exception as e:
                         echo(e)
-                        raise typer.Exit(code=1)
+                        raise typer.Exit(code=1) from e
                     flow_hash = await update_flow(
                         account=account,
                         receiver=crn.stream_reward_address,
@@ -554,7 +562,10 @@ async def create(
                             f"[orange3]{key}[/orange3]: {value}"
                             for key, value in {
                                 "Hash": flow_hash,
-                                "Aleph cost": f"{price.required_tokens:.7f}/sec | {3600*price.required_tokens:.2f}/hour | {86400*price.required_tokens:.2f}/day | {2592000*price.required_tokens:.2f}/month",
+                                "Aleph cost": (
+                                    f"{price.required_tokens:.7f}/sec | {3600*price.required_tokens:.2f}/hour | "
+                                    f"{86400*price.required_tokens:.2f}/day | {2592000*price.required_tokens:.2f}/month"
+                                ),
                                 "CRN receiver address": crn.stream_reward_address,
                             }.items()
                         )
@@ -611,7 +622,8 @@ async def create(
         else:
             infos += [
                 Text.from_markup(
-                    f"Your instance [bright_cyan]{item_hash}[/bright_cyan] is registered to be deployed on aleph.im.\nThe scheduler usually takes a few minutes to set it up and start it."
+                    f"Your instance [bright_cyan]{item_hash}[/bright_cyan] is registered to be deployed on aleph.im.\n"
+                    "The scheduler usually takes a few minutes to set it up and start it."
                 )
             ]
             if verbose:
@@ -648,7 +660,10 @@ async def delete(
     print_message: bool = typer.Option(False),
     debug: bool = False,
 ):
-    """Delete an instance, unallocating all resources associated with it. Associated VM will be stopped and erased. Immutable volumes will not be deleted."""
+    """
+    Delete an instance, unallocating all resources associated with it. Associated VM will be stopped and erased.
+    Immutable volumes will not be deleted.
+    """
 
     setup_logging(debug)
 
@@ -661,10 +676,10 @@ async def delete(
 
         except MessageNotFoundError:
             echo("Instance does not exist")
-            raise typer.Exit(code=1)
+            raise typer.Exit(code=1) from None
         except ForgottenMessageError:
             echo("Instance already forgotten")
-            raise typer.Exit(code=1)
+            raise typer.Exit(code=1) from None
         if existing_message.sender != account.get_address():
             echo("You are not the owner of this instance")
             raise typer.Exit(code=1)
@@ -697,7 +712,7 @@ async def delete(
                         else:
                             echo(f"No associated VM on {crn_url}. Skipping...")
                 except Exception as e:
-                    logger.debug(f"Error while deleting associated VM on {crn_url}: {str(e)}")
+                    logger.debug(f"Error while deleting associated VM on {crn_url}: {e!s}")
                     echo(f"Failed to erase associated VM on {crn_url}. Skipping...")
         else:
             echo(f"Instance {item_hash} was auto-scheduled, VM will be erased automatically.")
@@ -719,7 +734,7 @@ async def delete(
         echo(f"Instance {item_hash} has been deleted.")
 
 
-async def _show_instances(messages: List[InstanceMessage], node_list: NodeInfo):
+async def _show_instances(messages: builtins.list[InstanceMessage], node_list: NodeInfo):
     table = Table(box=box.ROUNDED, style="blue_violet")
     table.add_column(f"Instances [{len(messages)}]", style="blue", overflow="fold")
     table.add_column("Specifications", style="blue")
@@ -899,7 +914,7 @@ async def list_instances(
                 echo(message.json(indent=4))
         else:
             # Since we filtered on message type, we can safely cast as InstanceMessage.
-            messages = cast(List[InstanceMessage], messages)
+            messages = cast(builtins.list[InstanceMessage], messages)
             resource_nodes: NodeInfo = await _fetch_nodes()
             await _show_instances(messages, resource_nodes)
 
@@ -1049,7 +1064,8 @@ async def confidential_init_session(
 
     if godh_path.exists() and keep_session is None:
         keep_session = not yes_no_input(
-            "Session already initiated for this instance, are you sure you want to override the previous one? You won't be able to communicate with already running VM",
+            "Session already initiated for this instance, are you sure you want to override the previous one? You "
+            "won't be able to communicate with already running VM",
             default=True,
         )
         if keep_session:
@@ -1061,7 +1077,8 @@ async def confidential_init_session(
         code, platform_file = await client.get_certificates()
         if code != 200:
             echo(
-                "Failed to retrieve platform certificate from the CRN. This node might be temporary down, please try again later. If the problem persist, contact the node operator."
+                "Failed to retrieve platform certificate from the CRN. This node might be temporary down, please try "
+                "again later. If the problem persist, contact the node operator."
             )
             return 1
 
@@ -1141,7 +1158,8 @@ async def confidential_start(
     if firmware_file:
         firmware_path = Path(firmware_file)
         if not firmware_path.exists():
-            raise FileNotFoundError("Firmware path does not exist")
+            msg = "Firmware path does not exist"
+            raise FileNotFoundError(msg)
         firmware_hash = calculate_firmware_hash(firmware_path)
         logger.info(f"Calculated Firmware hash: {firmware_hash}")
     logger.info(sev_data)
@@ -1227,9 +1245,9 @@ async def confidential_create(
     ),
     gpu: bool = typer.Option(False, help=help_strings.GPU_OPTION),
     skip_volume: bool = typer.Option(False, help=help_strings.SKIP_VOLUME),
-    persistent_volume: Optional[List[str]] = typer.Option(None, help=help_strings.PERSISTENT_VOLUME),
-    ephemeral_volume: Optional[List[str]] = typer.Option(None, help=help_strings.EPHEMERAL_VOLUME),
-    immutable_volume: Optional[List[str]] = typer.Option(
+    persistent_volume: Optional[list[str]] = typer.Option(None, help=help_strings.PERSISTENT_VOLUME),
+    ephemeral_volume: Optional[list[str]] = typer.Option(None, help=help_strings.EPHEMERAL_VOLUME),
+    immutable_volume: Optional[list[str]] = typer.Option(
         None,
         help=help_strings.IMMUTABLE_VOLUME,
     ),
@@ -1292,12 +1310,12 @@ async def confidential_create(
                     item_hash=ItemHash(vm_id), message_type=InstanceMessage
                 )
                 payment_chain = existing_message.content.payment.chain  # type: ignore
-            except MessageNotFoundError:
+            except MessageNotFoundError as error:
                 echo("Instance does not exist")
-                raise typer.Exit(code=1)
-            except ForgottenMessageError:
+                raise typer.Exit(code=1) from error
+            except ForgottenMessageError as error:
                 echo("Instance already forgotten")
-                raise typer.Exit(code=1)
+                raise typer.Exit(code=1) from error
 
     crn_url = (
         (crn_url and sanitize_url(crn_url)) or await find_crn_of_vm(vm_id) or Prompt.ask(help_strings.PROMPT_CRN_URL)

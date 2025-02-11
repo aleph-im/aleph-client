@@ -49,7 +49,7 @@ def create_mock_program_message(mock_account, program_item_hash=None, persistent
             type="vm-function",
             address=mock_account.get_address(),
             time=1734037086.2333803,
-            metadata=dict(name="mock_program"),
+            metadata={"name": "mock_program"},
             resources=Dict(vcpus=1, memory=1024, seconds=30),
             volumes=[
                 Dict(name="immutable", mount="/opt/packages", ref=FAKE_STORE_HASH),
@@ -99,10 +99,10 @@ async def vm_client_operate(vm_id, operation, method="GET"):
         status=200,
         json=AsyncMock(
             return_value=[
-                dict(
-                    __REALTIME_TIMESTAMP="2024-02-02 23:34:21",
-                    MESSAGE="hello world",
-                )
+                {
+                    "__REALTIME_TIMESTAMP": "2024-02-02 23:34:21",
+                    "MESSAGE": "hello world",
+                }
             ]
         ),
     )

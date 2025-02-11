@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 #
 # This file is execfile()d with the current directory set to its containing dir.
 #
@@ -52,8 +51,8 @@ try:
         args = args[1:]
 
     apidoc.main(args)
-except Exception as e:
-    print("Running `sphinx-apidoc` failed!\n{}".format(e))
+except Exception:
+    pass
 
 # -- General configuration -----------------------------------------------------
 

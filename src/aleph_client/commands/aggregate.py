@@ -4,7 +4,7 @@ import inspect
 import logging
 from json import JSONDecodeError, dumps, loads
 from pathlib import Path
-from typing import Optional
+from typing import Annotated, Optional
 
 import typer
 from aiohttp import ClientResponseError, ClientSession
@@ -18,7 +18,6 @@ from aleph_message.status import MessageStatus
 from rich.console import Console
 from rich.panel import Panel
 from rich.text import Text
-from typing_extensions import Annotated
 
 from aleph_client.commands import help_strings
 from aleph_client.commands.utils import setup_logging
@@ -89,17 +88,17 @@ async def forget(
             inline=inline,
             address=address,
         )
-        content = f"{message.json(indent=4)}"
+        dumped_content = f"{message.json(indent=4)}"
 
         if status != MessageStatus.REJECTED:
             if print_message:
-                typer.echo(content)
+                typer.echo(dumped_content)
             if verbose:
                 label_subkeys = f" -> {subkeys}" if subkeys else ""
                 typer.echo(f"Aggregate `{key}{label_subkeys}` has been deleted")
             return True
         elif verbose:
-            typer.echo(f"Aggregate deletion has been rejected:\n{content}")
+            typer.echo(f"Aggregate deletion has been rejected:\n{dumped_content}")
     return False
 
 
@@ -109,7 +108,11 @@ async def post(
     content: Annotated[
         str,
         typer.Argument(
-            help='Aggregate content, in json format and between single quotes. E.g. \'{"a": 1, "b": 2}\'. If a subkey is provided, also allow to pass a string content between quotes',
+            help=(
+                'Aggregate content, in json format and between single quotes. E.g. \'{"a": 1, '
+                '"b": 2}\'. If a subkey is provided, also allow to pass a string content between '
+                "quotes"
+            ),
         ),
     ],
     subkey: Annotated[Optional[str], typer.Option(help="Specified subkey where the content will be replaced")] = None,
@@ -250,7 +253,7 @@ async def list_aggregates(
                     infos.append(
                         Text.from_markup(f"\n↳ [orange1]{key}[/orange1]:"),
                     )
-                    if type(value) == dict and any([v is None for _, v in value.items()]):
+                    if isinstance(value, dict) and any(v is None for _, v in value.items()):
                         infos.append(
                             Text.from_markup("\n[gray50]x empty[/gray50]"),
                         )
@@ -325,8 +328,9 @@ async def authorize(
                 try:
                     valid_types.append(MessageType(t.upper()).value)
                 except ValueError as e:
-                    print(
-                        f"Invalid value passed into `--types`: {t}\nValid values: {', '.join([e.value for e in MessageType])}"
+                    logger.error(
+                        f"Invalid value passed into `--types`: {t}\n"
+                        f"Valid values: {', '.join([e.value for e in MessageType])}"
                     )
                     raise typer.Exit(1) from e
             new_auth["types"] = valid_types
@@ -468,7 +472,9 @@ async def permissions(
                         if item:
                             display_item = ", ".join(
                                 [
-                                    f"[orchid]{key}([white]{value if type(value) != list else ', '.join(value)}[/white])[/orchid]"
+                                    "[orchid]{key}([white]"
+                                    f"{value if isinstance(value, list) else ', '.join(value)}"
+                                    "[/white])[/orchid]"
                                     for key, value in item.items()
                                 ]
                             )

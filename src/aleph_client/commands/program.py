@@ -6,7 +6,7 @@ import re
 from base64 import b16decode, b32encode
 from collections.abc import Mapping
 from pathlib import Path
-from typing import List, Optional, cast
+from typing import Optional, cast
 from zipfile import BadZipFile
 
 import aiohttp
@@ -75,9 +75,9 @@ async def upload(
     persistent: bool = False,
     updatable: bool = typer.Option(False, help=help_strings.PROGRAM_UPDATABLE),
     skip_volume: bool = typer.Option(False, help=help_strings.SKIP_VOLUME),
-    persistent_volume: Optional[List[str]] = typer.Option(None, help=help_strings.PERSISTENT_VOLUME),
-    ephemeral_volume: Optional[List[str]] = typer.Option(None, help=help_strings.EPHEMERAL_VOLUME),
-    immutable_volume: Optional[List[str]] = typer.Option(
+    persistent_volume: Optional[list[str]] = typer.Option(None, help=help_strings.PERSISTENT_VOLUME),
+    ephemeral_volume: Optional[list[str]] = typer.Option(None, help=help_strings.EPHEMERAL_VOLUME),
+    immutable_volume: Optional[list[str]] = typer.Option(
         None,
         help=help_strings.IMMUTABLE_VOLUME,
     ),
@@ -101,12 +101,12 @@ async def upload(
 
     try:
         path_object, encoding = create_archive(path)
-    except BadZipFile:
+    except BadZipFile as error:
         typer.echo("Invalid zip archive")
-        raise typer.Exit(code=3)
-    except FileNotFoundError:
+        raise typer.Exit(code=3) from error
+    except FileNotFoundError as error:
         typer.echo("No such file or directory")
-        raise typer.Exit(code=4)
+        raise typer.Exit(code=4) from error
 
     account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
 
@@ -125,14 +125,14 @@ async def upload(
     if not skip_env_var:
         environment_variables = get_or_prompt_environment_variables(env_vars)
 
-    subscriptions: Optional[List[Mapping]] = None
+    subscriptions: Optional[list[Mapping]] = None
     if beta and yes_no_input("Subscribe to messages?", default=False):
         content_raw = input_multiline()
         try:
             subscriptions = json.loads(content_raw)
-        except json.decoder.JSONDecodeError:
+        except json.decoder.JSONDecodeError as error:
             typer.echo("Not valid JSON")
-            raise typer.Exit(code=2)
+            raise typer.Exit(code=2) from error
     else:
         subscriptions = None
 
@@ -162,7 +162,7 @@ async def upload(
         message, status = await client.create_program(
             program_ref=program_ref,
             entrypoint=entrypoint,
-            metadata=dict(name=name),
+            metadata={"name": name},
             allow_amend=updatable,
             runtime=runtime,
             storage_engine=StorageEnum.storage,
@@ -235,12 +235,12 @@ async def update(
 
     try:
         path_object, encoding = create_archive(path)
-    except BadZipFile:
+    except BadZipFile as error:
         typer.echo("Invalid zip archive")
-        raise typer.Exit(code=3)
-    except FileNotFoundError:
+        raise typer.Exit(code=3) from error
+    except FileNotFoundError as error:
         typer.echo("No such file or directory")
-        raise typer.Exit(code=4)
+        raise typer.Exit(code=4) from error
 
     account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
 
@@ -411,91 +411,101 @@ async def list_programs(
         if not messages:
             typer.echo(f"Address: {address}\n\nNo program found\n")
             raise typer.Exit(code=1)
+
         if json:
             for message in messages:
                 typer.echo(message.json(indent=4))
-        else:
-            # Since we filtered on message type, we can safely cast as ProgramMessage.
-            messages = cast(List[ProgramMessage], messages)
+            return
 
-            table = Table(box=box.ROUNDED, style="blue_violet")
-            table.add_column(f"Programs [{len(messages)}]", style="blue", overflow="fold")
-            table.add_column("Specifications", style="blue")
-            table.add_column("Configurations", style="blue", overflow="fold")
+        # Since we filtered on message type, we can safely cast as ProgramMessage.
+        messages = cast(list[ProgramMessage], messages)
 
-            for message in messages:
-                name = Text(
-                    (
-                        message.content.metadata["name"]
-                        if hasattr(message.content, "metadata")
-                        and isinstance(message.content.metadata, dict)
-                        and "name" in message.content.metadata
-                        else "-"
-                    ),
-                    style="magenta3",
-                )
-                msg_link = f"https://explorer.aleph.im/address/ETH/{message.sender}/message/PROGRAM/{message.item_hash}"
-                item_hash_link = Text.from_markup(f"[link={msg_link}]{message.item_hash}[/link]", style="bright_cyan")
-                created_at = Text.assemble(
-                    "URLs ↓\t     Created at: ",
-                    Text(
-                        str(str_to_datetime(str(safe_getattr(message, "content.time")))).split(".", maxsplit=1)[0],
-                        style="orchid",
-                    ),
-                )
-                hash_base32 = b32encode(b16decode(message.item_hash.upper())).strip(b"=").lower().decode()
-                func_url_1 = settings.VM_URL_PATH.format(hash=message.item_hash)
-                func_url_2 = settings.VM_URL_HOST.format(hash_base32=hash_base32)
-                urls = Text.from_markup(
-                    f"[bright_yellow][link={func_url_1}]{func_url_1}[/link][/bright_yellow]\n[dark_olive_green2][link={func_url_2}]{func_url_2}[/link][/dark_olive_green2]"
-                )
-                program = Text.assemble(
-                    "Item Hash ↓\t     Name: ", name, "\n", item_hash_link, "\n", created_at, "\n", urls
-                )
-                specs = [
-                    f"vCPU: [magenta3]{message.content.resources.vcpus}[/magenta3]\n",
-                    f"RAM: [magenta3]{message.content.resources.memory / 1_024:.2f} GiB[/magenta3]\n",
-                    "HyperV: [magenta3]Firecracker[/magenta3]\n",
-                    f"Timeout: [orange3]{message.content.resources.seconds}s[/orange3]\n",
-                    f"Persistent: {'[green]Yes[/green]' if message.content.on.persistent else '[red]No[/red]'}\n",
-                    f"Updatable: {'[green]Yes[/green]' if message.content.allow_amend else '[orange3]Code only[/orange3]'}",
-                ]
-                specifications = Text.from_markup("".join(specs))
-                volumes = ""
-                for volume in message.content.volumes:
-                    if safe_getattr(volume, "ref"):
-                        volumes += f"\n• [orchid]{volume.mount}[/orchid]: [bright_cyan][link={settings.API_HOST}/api/v0/messages/{volume.ref}]{volume.ref}[/link][/bright_cyan]"
-                    elif safe_getattr(volume, "ephemeral"):
-                        volumes += f"\n• [orchid]{volume.mount}[/orchid]: [bright_red]ephemeral[/bright_red]"
-                    else:
-                        volumes += f"\n• [orchid]{volume.mount}[/orchid]: [orange3]persistent on {volume.persistence.value}[/orange3]"
-                config = Text.assemble(
-                    Text.from_markup(
-                        f"Runtime: [bright_cyan][link={settings.API_HOST}/api/v0/messages/{message.content.runtime.ref}]{message.content.runtime.ref}[/link][/bright_cyan]\n"
-                        f"Code: [bright_cyan][link={settings.API_HOST}/api/v0/messages/{message.content.code.ref}]{message.content.code.ref}[/link][/bright_cyan]\n"
-                        f"↳ Entrypoint: [orchid]{message.content.code.entrypoint}[/orchid]\n"
-                    ),
-                    Text.from_markup(f"Mounted Volumes: {volumes if volumes else '-'}"),
-                )
-                table.add_row(program, specifications, config)
-                table.add_section()
+        table = Table(box=box.ROUNDED, style="blue_violet")
+        table.add_column(f"Programs [{len(messages)}]", style="blue", overflow="fold")
+        table.add_column("Specifications", style="blue")
+        table.add_column("Configurations", style="blue", overflow="fold")
 
-            console = Console()
-            console.print(table)
-            infos = [
-                Text.from_markup(
-                    f"[bold]Address:[/bold] [bright_cyan]{messages[0].content.address}[/bright_cyan]\n\nTo access any program's logs, use:\n"
+        for message in messages:
+            name = Text(
+                (
+                    message.content.metadata["name"]
+                    if hasattr(message.content, "metadata")
+                    and isinstance(message.content.metadata, dict)
+                    and "name" in message.content.metadata
+                    else "-"
                 ),
-                Text.from_markup(
-                    "↳ aleph program logs [bright_cyan]<program-item-hash>[/bright_cyan] --domain [orchid]<crn-url>[/orchid]",
-                    style="italic",
-                ),
-            ]
-            console.print(
-                Panel(
-                    Text.assemble(*infos), title="Infos", border_style="bright_cyan", expand=False, title_align="left"
-                )
+                style="magenta3",
             )
+            msg_link = f"https://explorer.aleph.im/address/ETH/{message.sender}/message/PROGRAM/{message.item_hash}"
+            item_hash_link = Text.from_markup(f"[link={msg_link}]{message.item_hash}[/link]", style="bright_cyan")
+            created_at = Text.assemble(
+                "URLs ↓\t     Created at: ",
+                Text(
+                    str(str_to_datetime(str(safe_getattr(message, "content.time")))).split(".", maxsplit=1)[0],
+                    style="orchid",
+                ),
+            )
+            hash_base32 = b32encode(b16decode(message.item_hash.upper())).strip(b"=").lower().decode()
+            func_url_1 = settings.VM_URL_PATH.format(hash=message.item_hash)
+            func_url_2 = settings.VM_URL_HOST.format(hash_base32=hash_base32)
+            urls = Text.from_markup(
+                f"[bright_yellow][link={func_url_1}]{func_url_1}[/link][/bright_yellow]\n[dark_olive_green2][link={func_url_2}]{func_url_2}[/link][/dark_olive_green2]"
+            )
+            program = Text.assemble(
+                "Item Hash ↓\t     Name: ", name, "\n", item_hash_link, "\n", created_at, "\n", urls
+            )
+            specs = [
+                f"vCPU: [magenta3]{message.content.resources.vcpus}[/magenta3]\n",
+                f"RAM: [magenta3]{message.content.resources.memory / 1_024:.2f} GiB[/magenta3]\n",
+                "HyperV: [magenta3]Firecracker[/magenta3]\n",
+                f"Timeout: [orange3]{message.content.resources.seconds}s[/orange3]\n",
+                f"Persistent: {'[green]Yes[/green]' if message.content.on.persistent else '[red]No[/red]'}\n",
+                f"Updatable: {'[green]Yes[/green]' if message.content.allow_amend else '[orange3]Code only[/orange3]'}",
+            ]
+            specifications = Text.from_markup("".join(specs))
+            volumes = ""
+            for volume in message.content.volumes:
+                if safe_getattr(volume, "ref"):
+                    volumes += (
+                        f"\n• [orchid]{volume.mount}[/orchid]: [bright_cyan]"
+                        f"[link={settings.API_HOST}/api/v0/messages/{volume.ref}]{volume.ref}[/link][/bright_cyan]"
+                    )
+                elif safe_getattr(volume, "ephemeral"):
+                    volumes += f"\n• [orchid]{volume.mount}[/orchid]: [bright_red]ephemeral[/bright_red]"
+                else:
+                    volumes += (
+                        f"\n• [orchid]{volume.mount}[/orchid]: [orange3]persistent on {volume.persistence.value}"
+                        "[/orange3]"
+                    )
+            config = Text.assemble(
+                Text.from_markup(
+                    f"Runtime: [bright_cyan][link={settings.API_HOST}/api/v0/messages/{message.content.runtime.ref}]"
+                    f"{message.content.runtime.ref}[/link][/bright_cyan]\n"
+                    f"Code: [bright_cyan][link={settings.API_HOST}/api/v0/messages/{message.content.code.ref}]"
+                    f"{message.content.code.ref}[/link][/bright_cyan]\n"
+                    f"↳ Entrypoint: [orchid]{message.content.code.entrypoint}[/orchid]\n"
+                ),
+                Text.from_markup(f"Mounted Volumes: {volumes if volumes else '-'}"),
+            )
+            table.add_row(program, specifications, config)
+            table.add_section()
+
+        console = Console()
+        console.print(table)
+        infos = [
+            Text.from_markup(
+                f"[bold]Address:[/bold] [bright_cyan]{messages[0].content.address}[/bright_cyan]\n\nTo access any "
+                "program's logs, use:\n"
+            ),
+            Text.from_markup(
+                "↳ aleph program logs [bright_cyan]<program-item-hash>[/bright_cyan] --domain [orchid]<crn-url>"
+                "[/orchid]",
+                style="italic",
+            ),
+        ]
+        console.print(
+            Panel(Text.assemble(*infos), title="Infos", border_style="bright_cyan", expand=False, title_align="left")
+        )
 
 
 @app.command()
@@ -511,7 +521,9 @@ async def persist(
     verbose: bool = True,
     debug: bool = False,
 ) -> Optional[str]:
-    """Recreate a non-persistent program as persistent (item hash will change). The program must be updatable and yours"""
+    """
+    Recreate a non-persistent program as persistent (item hash will change). The program must be updatable and yours
+    """
 
     setup_logging(debug)
 
@@ -564,7 +576,8 @@ async def persist(
             infos = [
                 Text.from_markup("Your program is now [green]persistent[/green]. It implies a new item hash."),
                 Text.from_markup(
-                    f"\n\n[{prev_color}]- Prev non-persistent program: {item_hash} -> {prev_label}[/{prev_color}]\n[green]- New persistent program: {message.item_hash}[/green]."
+                    f"\n\n[{prev_color}]- Prev non-persistent program: {item_hash} -> {prev_label}[/{prev_color}]\n"
+                    f"[green]- New persistent program: {message.item_hash}[/green]."
                 ),
                 Text.assemble(
                     "\n\nAvailable on:\n",
@@ -603,7 +616,9 @@ async def unpersist(
     verbose: bool = True,
     debug: bool = False,
 ) -> Optional[str]:
-    """Recreate a persistent program as non-persistent (item hash will change). The program must be updatable and yours"""
+    """
+    Recreate a persistent program as non-persistent (item hash will change). The program must be updatable and yours
+    """
 
     setup_logging(debug)
 
@@ -656,7 +671,8 @@ async def unpersist(
             infos = [
                 Text.from_markup("Your program is now [red]unpersistent[/red]. It implies a new item hash."),
                 Text.from_markup(
-                    f"\n\n[{prev_color}]- Prev persistent program: {item_hash} -> {prev_label}[/{prev_color}]\n[green]- New non-persistent program: {message.item_hash}[/green]."
+                    f"\n\n[{prev_color}]- Prev persistent program: {item_hash} -> {prev_label}[/{prev_color}]\n[green]-"
+                    f" New non-persistent program: {message.item_hash}[/green]."
                 ),
                 Text.assemble(
                     "\n\nAvailable on:\n",
@@ -708,10 +724,10 @@ async def logs(
                 logger.debug(await response.text())
 
             if response.status == 404:
-                echo(f"Server didn't found any execution of this program")
+                echo("Server didn't found any execution of this program")
                 return 1
             elif response.status == 403:
-                echo(f"You are not the owner of this VM. Maybe try with another wallet?")
+                echo("You are not the owner of this VM. Maybe try with another wallet?")
                 return 1
             elif response.status != 200:
                 echo(f"Server error: {response.status}. Please try again later")
@@ -759,10 +775,11 @@ async def runtime_checker(
             debug=debug,
         )
         if not program_hash:
-            raise Exception("No program hash")
+            msg = "No program hash"
+            raise Exception(msg)
     except Exception as e:
         echo(f"Failed to deploy the runtime checker program: {e}")
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from e
 
     program_url = settings.VM_URL_PATH.format(hash=program_hash)
     versions: dict
@@ -775,7 +792,7 @@ async def runtime_checker(
                 versions = await resp.json()
     except Exception as e:
         logger.debug(f"Unexpected error when calling {program_url}: {e}")
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from e
 
     echo("Delete runtime checker...")
     try:
@@ -791,7 +808,7 @@ async def runtime_checker(
         )
     except Exception as e:
         echo(f"Failed to delete the runtime checker program: {e}")
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from e
 
     console = Console()
     infos = [Text.from_markup(f"[bold]Ref:[/bold] [bright_cyan]{item_hash}[/bright_cyan]")]

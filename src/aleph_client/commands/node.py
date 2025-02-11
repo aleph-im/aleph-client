@@ -21,7 +21,10 @@ from aleph_client.utils import AsyncTyper, sanitize_url
 logger = logging.getLogger(__name__)
 app = AsyncTyper(no_args_is_help=True)
 
-node_link = f"{sanitize_url(settings.API_HOST)}/api/v0/aggregates/0xa1B3bb7d2332383D96b7796B908fB7f7F3c2Be10.json?keys=corechannel"
+node_link = (
+    f"{sanitize_url(settings.API_HOST)}/api/v0/aggregates/0xa1B3bb7d2332383D96b7796B908fB7f7F3c2Be10.json?"
+    "keys=corechannel"
+)
 
 
 class NodeInfo:
@@ -89,7 +92,9 @@ def _show_compute(node_info):
         node_hash = node["hash"]
 
         #  Format Value
-        creation_time = datetime.datetime.fromtimestamp(node["time"]).strftime("%Y-%m-%d %H:%M:%S")
+        creation_time = datetime.datetime.fromtimestamp(node["time"], tz=datetime.timezone.utc).strftime(
+            "%Y-%m-%d %H:%M:%S"
+        )
         score = _format_score(node["score"])
         decentralization = _format_score(node["decentralization"])
         status = _format_status(node["status"])
@@ -167,7 +172,9 @@ def _show_core(node_info):
         node_hash = node["hash"]
 
         # Format Value
-        creation_time = datetime.datetime.fromtimestamp(node["time"]).strftime("%Y-%m-%d %H:%M:%S")
+        creation_time = datetime.datetime.fromtimestamp(node["time"], tz=datetime.timezone.utc).strftime(
+            "%Y-%m-%d %H:%M:%S"
+        )
         score = _format_score(node["score"])
         status = _format_status(node["status"])
 

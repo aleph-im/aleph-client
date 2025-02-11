@@ -138,8 +138,8 @@ def display_active_address(
 
     console.print(
         "✉  [bold italic blue]Addresses for Active Account[/bold italic blue] ✉\n\n"
-        + f"[italic]EVM[/italic]: [cyan]{evm_address}[/cyan]\n"
-        + f"[italic]SOL[/italic]: [magenta]{sol_address}[/magenta]\n"
+        f"[italic]EVM[/italic]: [cyan]{evm_address}[/cyan]\n"
+        f"[italic]SOL[/italic]: [magenta]{sol_address}[/magenta]\n"
     )
 
 
@@ -156,7 +156,7 @@ def display_active_chain():
         active_chain = config.chain
 
     compatible_chains = get_compatible_chains()
-    hold_chains = get_chains_with_holding() + [Chain.SOL.value]
+    hold_chains = [*get_chains_with_holding(), Chain.SOL.value]
     payg_chains = get_chains_with_super_token()
 
     chain = f"[bold green]{active_chain}[/bold green]" if active_chain else "[red]Not Selected[/red]"
@@ -212,9 +212,9 @@ def export_private_key(
 
     console.print(
         "⚠️  [bold italic red]Private Keys for Active Account[/bold italic red] ⚠️\n\n"
-        + f"[italic]EVM[/italic]: [cyan]{evm_pk}[/cyan]\n"
-        + f"[italic]SOL[/italic]: [magenta]{sol_pk}[/magenta]\n\n"
-        + "[bold italic red]Note: Aleph.im team will NEVER ask for them.[/bold italic red]"
+        f"[italic]EVM[/italic]: [cyan]{evm_pk}[/cyan]\n"
+        f"[italic]SOL[/italic]: [magenta]{sol_pk}[/magenta]\n\n"
+        "[bold italic red]Note: Aleph.im team will NEVER ask for them.[/bold italic red]"
     )
 
 
@@ -273,10 +273,10 @@ async def balance(
                 details = balance_data.get("details")
                 if details:
                     infos += [Text("\n ↳ Details")]
-                    for chain, chain_balance in details.items():
+                    for chain_, chain_balance in details.items():
                         infos += [
                             Text.from_markup(
-                                f"\n    {chain}: [orange3]{chain_balance:.2f}".rstrip("0").rstrip(".") + "[/orange3]"
+                                f"\n    {chain_}: [orange3]{chain_balance:.2f}".rstrip("0").rstrip(".") + "[/orange3]"
                             )
                         ]
                 available_color = "bright_cyan" if balance_data["available_amount"] >= 0 else "red"
@@ -326,7 +326,8 @@ async def list_accounts():
         table.add_row(config.path.stem, str(config.path), "[bold green]*[/bold green]")
     else:
         console.print(
-            "[red]No private key path selected in the config file.[/red]\nTo set it up, use: [bold italic cyan]aleph account config[/bold italic cyan]\n"
+            "[red]No private key path selected in the config file.[/red]\nTo set it up, use: [bold "
+            "italic cyan]aleph account config[/bold italic cyan]\n"
         )
 
     if unlinked_keys:
@@ -334,7 +335,7 @@ async def list_accounts():
             if key_file.stem != "default":
                 table.add_row(key_file.stem, str(key_file), "[bold red]-[/bold red]")
 
-    hold_chains = get_chains_with_holding() + [Chain.SOL.value]
+    hold_chains = [*get_chains_with_holding(), Chain.SOL.value]
     payg_chains = get_chains_with_super_token()
 
     active_address = None
@@ -344,10 +345,10 @@ async def list_accounts():
 
     console.print(
         "🌐  [bold italic blue]Chain Infos[/bold italic blue] 🌐\n"
-        + f"[italic]Chains with Signing[/italic]: [blue]{', '.join(list(Chain))}[/blue]\n"
-        + f"[italic]Chains with Hold-tier[/italic]: [blue]{', '.join(hold_chains)}[/blue]\n"
-        + f"[italic]Chains with Pay-As-You-Go[/italic]: [blue]{', '.join(payg_chains)}[/blue]\n\n"
-        + "🗃️  [bold italic green]Current Configuration[/bold italic green] 🗃️\n"
+        f"[italic]Chains with Signing[/italic]: [blue]{', '.join(list(Chain))}[/blue]\n"
+        f"[italic]Chains with Hold-tier[/italic]: [blue]{', '.join(hold_chains)}[/blue]\n"
+        f"[italic]Chains with Pay-As-You-Go[/italic]: [blue]{', '.join(payg_chains)}[/blue]\n\n"
+        "🗃️  [bold italic green]Current Configuration[/bold italic green] 🗃️\n"
         + (f"[italic]Active Address[/italic]: [bright_cyan]{active_address}[/bright_cyan]" if active_address else "")
     )
     display_active_chain()
@@ -378,7 +379,8 @@ async def configure(
     # Configures active private key file
     if not private_key_file and config and hasattr(config, "path") and Path(config.path).exists():
         if not yes_no_input(
-            f"Active private key file: [bright_cyan]{config.path}[/bright_cyan]\n[yellow]Keep current active private key?[/yellow]",
+            f"Active private key file: [bright_cyan]{config.path}[/bright_cyan]\n[yellow]Keep current active private "
+            "key?[/yellow]",
             default="y",
         ):
             unlinked_keys = list(filter(lambda key_file: key_file.stem != "default", unlinked_keys))
@@ -429,9 +431,10 @@ async def configure(
         config = MainConfiguration(path=private_key_file, chain=chain)
         save_main_configuration(settings.CONFIG_FILE, config)
         console.print(
-            f"New Default Configuration: [italic bright_cyan]{config.path}[/italic bright_cyan] with [italic bright_cyan]{config.chain}[/italic bright_cyan]",
+            f"New Default Configuration: [italic bright_cyan]{config.path}[/italic bright_cyan] with [italic "
+            f"bright_cyan]{config.chain}[/italic bright_cyan]",
             style=typer.colors.GREEN,
         )
     except ValueError as e:
         typer.secho(f"Error: {e}", fg=typer.colors.RED)
-        raise typer.Exit(1)
+        raise typer.Exit(1) from e

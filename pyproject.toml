@@ -117,7 +117,7 @@ python = [ "3.9", "3.10", "3.11", "3.12" ]
 dependencies = [
   "black==24.4.2",
   "mypy==1.10.0",
-  "ruff==0.4.9",
+  "ruff==0.9.*",
   "isort==5.13.2",
   "yamlfix==1.16.1",
   "pyproject-fmt==2.2.1",
@@ -129,7 +129,7 @@ dependencies = [
 [tool.hatch.envs.linting.scripts]
 typing = "mypy --config-file=pyproject.toml {args:} ./src/ ./tests/"
 style = [
-  # "ruff {args:}",
+  "ruff check {args:}",
   "black --check --diff {args:} ./src/ ./tests/",
   "isort --check-only --profile black {args:} ./src/ ./tests/",
   "yamlfix --check .",
@@ -137,7 +137,7 @@ style = [
 ]
 fmt = [
   "black {args:} ./src/ ./tests/",
-  # "ruff --fix {args:}",
+  "ruff check --fix {args:}",
   "isort --profile black {args:} ./src/ ./tests/",
   "yamlfix .",
   "pyproject-fmt pyproject.toml",
@@ -155,7 +155,9 @@ target-version = [ "py39" ]
 [tool.ruff]
 target-version = "py39"
 line-length = 120
-select = [
+exclude = [ "docs/", "scripts/gendoc.py" ]
+
+lint.select = [
   "A",
   "ARG",
   "B",
@@ -182,21 +184,44 @@ select = [
   "W",
   "YTT",
 ]
-ignore = [
-  #  # Allow non-abstract empty methods in abstract base classes
-  #  "B027",
-  #  # Allow boolean positional values in function calls, like `dict.get(... True)`
-  #  "FBT003",
-  #  # Ignore checks for possible passwords
-  #  "S105", "S106", "S107",
-  #  # Ignore complexity
-  #  "C901", "PLR0911", "PLR0912", "PLR0913", "PLR0915",
+lint.ignore = [
+  "A001",
+  "A002",
+  "ARG001",
+  "ARG002",
+  # Be compatible with typer
+  "B008",
+  # Ignore complexity
+  "C901",
+  # Allow boolean arguments in functions definitions
+  "FBT001",
+  "FBT002",
+  "FBT003",
+  # to avoid errors on variables like total_kB
+  "N815",
+  "PLR0911",
+  "PLR0912",
+  "PLR0913",
+  "PLR0915",
+  "PLR2004",
+  "RUF012",
   # Allow the use of assert statements
   "S101",
+  # Ignore checks for possible passwords
+  "S105", # "S106", "S107",
+  # ignore false positive
+  "S603",
+  # don't perform this modification:
+  # Union[a, b] -> a | b /Optional[type] -> type | None
+  # since python 3.9 doesn't support it
+  "UP007",
 ]
-
 #[tool.ruff.isort]
 #known-first-party = ["aleph_client"]
+lint.per-file-ignores."src/aleph_client/commands/help_strings.py" = [ "E501" ]
+lint.per-file-ignores."tests/unit/*" = [ "T201" ]
+
+lint.per-file-ignores."tests/unit/test_instance.py" = [ "S106", "T201" ]
 
 [tool.pytest.ini_options]
 pythonpath = [
@@ -227,9 +252,60 @@ exclude_lines = [
 python_version = "3.9"
 install_types = true
 non_interactive = true
-ignore_missing_imports = true
 explicit_package_bases = true
+exclude = "conftest.py"
+show_column_numbers = true
+
+# Suppressing errors
+# Shows errors related to strict None checking, if the global strict_optional flag is enabled
+strict_optional = true
+no_implicit_optional = true
+
+# Import discovery
+# Suppresses error messages about imports that cannot be resolved
+ignore_missing_imports = true
+# Forces import to reference the original source file
+no_implicit_reexport = true
+# show error messages from unrelated files
+follow_imports = "silent"
+follow_imports_for_stubs = false
+
+# Disallow dynamic typing
+# Disallows usage of types that come from unfollowed imports
+disallow_any_unimported = false
+# Disallows all expressions in the module that have type Any
+disallow_any_expr = false
+# Disallows functions that have Any in their signature after decorator transformation.
+disallow_any_decorated = false
+# Disallows explicit Any in type positions such as type annotations and generic type parameters.
+disallow_any_explicit = false
+# Disallows usage of generic types that do not specify explicit type parameters.
+disallow_any_generics = false
+# Disallows subclassing a value of type Any.
+disallow_subclassing_any = false
+
+# Untyped definitions and calls
+# Disallows calling functions without type annotations from functions with type annotations.
+disallow_untyped_calls = false
+# Disallows defining functions without type annotations or with incomplete type annotations
+disallow_untyped_defs = false
+# Disallows defining functions with incomplete type annotations.
 check_untyped_defs = true
+# Type-checks the interior of functions without type annotations.
+disallow_incomplete_defs = false
+# Reports an error whenever a function with type annotations is decorated with a decorator without annotations.
+disallow_untyped_decorators = false
+
+# Prohibit comparisons of non-overlapping types (ex: 42 == "no")
+strict_equality = true
+
+# Configuring warnings
+# Warns about unneeded # type: ignore comments.
+warn_unused_ignores = true
+# Shows errors for missing return statements on some execution paths.
+warn_no_return = true
+# Shows a warning when returning a value with type Any from a function declared with a non- Any return type.
+warn_return_any = false
 
 [tool.spinx]
 source-dir = "docs"

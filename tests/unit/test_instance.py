@@ -15,7 +15,6 @@ from aleph_message.models.execution.environment import (
     CpuProperties,
     GpuDeviceClass,
     HypervisorType,
-    MachineResources,
 )
 from multidict import CIMultiDict, CIMultiDictProxy
 
@@ -195,7 +194,7 @@ def create_mock_instance_message(mock_account, payg=False, coco=False, gpu=False
         content=Dict(
             address=mock_account.get_address(),
             time=1734037086.2333803,
-            metadata=dict(name="mock_instance"),
+            metadata={"name": "mock_instance"},
             authorized_keys=["ssh-rsa ..."],
             environment=Dict(hypervisor=HypervisorType.qemu, trusted_execution=None),
             resources=Dict(vcpus=1, memory=2048),
@@ -254,7 +253,7 @@ def create_mock_validate_ssh_pubkey_file():
 
 def create_mock_fetch_vm_info():
     return AsyncMock(
-        return_value=[FAKE_VM_HASH, dict(crn_url=FAKE_CRN_URL, allocation_type=help_strings.ALLOCATION_MANUAL)]
+        return_value=[FAKE_VM_HASH, {"crn_url": FAKE_CRN_URL, "allocation_type": help_strings.ALLOCATION_MANUAL}]
     )
 
 
@@ -342,76 +341,76 @@ def create_mock_vm_coco_client():
     argnames="args, expected",
     argvalues=[
         (  # regular_hold_evm
-            dict(
-                payment_type="hold",
-                payment_chain="ETH",
-                rootfs="debian12",
-            ),
+            {
+                "payment_type": "hold",
+                "payment_chain": "ETH",
+                "rootfs": "debian12",
+            },
             (FAKE_VM_HASH, None, "ETH"),
         ),
         (  # regular_superfluid_evm
-            dict(
-                payment_type="superfluid",
-                payment_chain="AVAX",
-                rootfs="debian12",
-                crn_hash=FAKE_CRN_HASH,
-                crn_url=FAKE_CRN_URL,
-            ),
+            {
+                "payment_type": "superfluid",
+                "payment_chain": "AVAX",
+                "rootfs": "debian12",
+                "crn_hash": FAKE_CRN_HASH,
+                "crn_url": FAKE_CRN_URL,
+            },
             (FAKE_VM_HASH, FAKE_CRN_URL, "AVAX"),
         ),
         (  # regular_hold_sol
-            dict(
-                payment_type="hold",
-                payment_chain="SOL",
-                rootfs="debian12",
-            ),
+            {
+                "payment_type": "hold",
+                "payment_chain": "SOL",
+                "rootfs": "debian12",
+            },
             (FAKE_VM_HASH, None, "SOL"),
         ),
         (  # coco_hold_sol
-            dict(
-                payment_type="hold",
-                payment_chain="SOL",
-                rootfs=FAKE_STORE_HASH,
-                crn_hash=FAKE_CRN_HASH,
-                crn_url=FAKE_CRN_URL,
-                confidential=True,
-                confidential_firmware=FAKE_STORE_HASH,
-            ),
+            {
+                "payment_type": "hold",
+                "payment_chain": "SOL",
+                "rootfs": FAKE_STORE_HASH,
+                "crn_hash": FAKE_CRN_HASH,
+                "crn_url": FAKE_CRN_URL,
+                "confidential": True,
+                "confidential_firmware": FAKE_STORE_HASH,
+            },
             (FAKE_VM_HASH, FAKE_CRN_URL, "SOL"),
         ),
         (  # coco_hold_evm
-            dict(
-                payment_type="hold",
-                payment_chain="ETH",
-                rootfs=FAKE_STORE_HASH,
-                crn_hash=FAKE_CRN_HASH,
-                crn_url=FAKE_CRN_URL,
-                confidential=True,
-                confidential_firmware=FAKE_STORE_HASH,
-            ),
+            {
+                "payment_type": "hold",
+                "payment_chain": "ETH",
+                "rootfs": FAKE_STORE_HASH,
+                "crn_hash": FAKE_CRN_HASH,
+                "crn_url": FAKE_CRN_URL,
+                "confidential": True,
+                "confidential_firmware": FAKE_STORE_HASH,
+            },
             (FAKE_VM_HASH, FAKE_CRN_URL, "ETH"),
         ),
         (  # coco_superfluid_evm
-            dict(
-                payment_type="superfluid",
-                payment_chain="BASE",
-                rootfs=FAKE_STORE_HASH,
-                crn_hash=FAKE_CRN_HASH,
-                crn_url=FAKE_CRN_URL,
-                confidential=True,
-                confidential_firmware=FAKE_STORE_HASH,
-            ),
+            {
+                "payment_type": "superfluid",
+                "payment_chain": "BASE",
+                "rootfs": FAKE_STORE_HASH,
+                "crn_hash": FAKE_CRN_HASH,
+                "crn_url": FAKE_CRN_URL,
+                "confidential": True,
+                "confidential_firmware": FAKE_STORE_HASH,
+            },
             (FAKE_VM_HASH, FAKE_CRN_URL, "BASE"),
         ),
         (  # gpu_superfluid_evm
-            dict(
-                payment_type="superfluid",
-                payment_chain="BASE",
-                rootfs="debian12",
-                crn_hash=FAKE_CRN_HASH,
-                crn_url=FAKE_CRN_URL,
-                gpu=True,
-            ),
+            {
+                "payment_type": "superfluid",
+                "payment_chain": "BASE",
+                "rootfs": "debian12",
+                "crn_hash": FAKE_CRN_HASH,
+                "crn_url": FAKE_CRN_URL,
+                "gpu": True,
+            },
             (FAKE_VM_HASH, FAKE_CRN_URL, "BASE"),
         ),
     ],
@@ -442,29 +441,29 @@ async def test_create_instance(args, expected):
     @patch("aleph_client.commands.instance.VmClient", mock_vm_client_class)
     async def create_instance(instance_spec):
         print()  # For better display when pytest -v -s
-        all_args = dict(
-            ssh_pubkey_file=FAKE_PUBKEY_FILE,
-            name="mock_instance",
-            hypervisor=HypervisorType.qemu,
-            rootfs_size=20480,
-            vcpus=1,
-            memory=2048,
-            timeout_seconds=settings.DEFAULT_VM_TIMEOUT,
-            skip_volume=True,
-            persistent_volume=None,
-            ephemeral_volume=None,
-            immutable_volume=None,
-            crn_auto_tac=True,
-            channel=settings.DEFAULT_CHANNEL,
-            crn_hash=None,
-            crn_url=None,
-            confidential=False,
-            gpu=False,
-            private_key=None,
-            private_key_file=None,
-            print_message=False,
-            debug=False,
-        )
+        all_args = {
+            "ssh_pubkey_file": FAKE_PUBKEY_FILE,
+            "name": "mock_instance",
+            "hypervisor": HypervisorType.qemu,
+            "rootfs_size": 20480,
+            "vcpus": 1,
+            "memory": 2048,
+            "timeout_seconds": settings.DEFAULT_VM_TIMEOUT,
+            "skip_volume": True,
+            "persistent_volume": None,
+            "ephemeral_volume": None,
+            "immutable_volume": None,
+            "crn_auto_tac": True,
+            "channel": settings.DEFAULT_CHANNEL,
+            "crn_hash": None,
+            "crn_url": None,
+            "confidential": False,
+            "gpu": False,
+            "private_key": None,
+            "private_key_file": None,
+            "print_message": False,
+            "debug": False,
+        }
         all_args.update(instance_spec)
         return await create(**all_args)
 
@@ -727,17 +726,17 @@ async def test_confidential_start():
     ],
     argnames="args",
     argvalues=[
-        dict(  # coco_from_scratch
-            payment_type="superfluid",
-            payment_chain="AVAX",
-            crn_hash=FAKE_CRN_HASH,
-            crn_url=FAKE_CRN_URL,
-            vcpus=1,
-            memory=2048,
-            rootfs=FAKE_STORE_HASH,
-            rootfs_size=20480,
-        ),
-        dict(vm_id=FAKE_VM_HASH),  # coco_from_hash
+        {  # coco_from_scratch
+            "payment_type": "superfluid",
+            "payment_chain": "AVAX",
+            "crn_hash": FAKE_CRN_HASH,
+            "crn_url": FAKE_CRN_URL,
+            "vcpus": 1,
+            "memory": 2048,
+            "rootfs": FAKE_STORE_HASH,
+            "rootfs_size": 20480,
+        },
+        {"vm_id": FAKE_VM_HASH},  # coco_from_hash
     ],
 )
 @pytest.mark.asyncio
@@ -764,36 +763,36 @@ async def test_confidential_create(args):
     @patch("aleph_client.commands.instance.confidential_start", mock_confidential_start)
     async def coco_create(instance_spec):
         print()  # For better display when pytest -v -s
-        all_args = dict(
-            vm_id=None,
-            payment_type=None,
-            payment_chain=None,
-            crn_hash=None,
-            crn_url=None,
-            ssh_pubkey_file=FAKE_PUBKEY_FILE,
-            name="mock_instance",
-            vm_secret="fake_secret",
-            vcpus=None,
-            memory=None,
-            timeout_seconds=settings.DEFAULT_VM_TIMEOUT,
-            gpu=False,
-            rootfs=None,
-            rootfs_size=None,
-            skip_volume=True,
-            persistent_volume=None,
-            ephemeral_volume=None,
-            immutable_volume=None,
-            crn_auto_tac=True,
-            policy=0x1,
-            confidential_firmware=FAKE_STORE_HASH,
-            firmware_hash=None,
-            firmware_file="/fake/file",
-            keep_session=False,
-            channel=settings.DEFAULT_CHANNEL,
-            private_key=None,
-            private_key_file=None,
-            debug=False,
-        )
+        all_args = {
+            "vm_id": None,
+            "payment_type": None,
+            "payment_chain": None,
+            "crn_hash": None,
+            "crn_url": None,
+            "ssh_pubkey_file": FAKE_PUBKEY_FILE,
+            "name": "mock_instance",
+            "vm_secret": "fake_secret",
+            "vcpus": None,
+            "memory": None,
+            "timeout_seconds": settings.DEFAULT_VM_TIMEOUT,
+            "gpu": False,
+            "rootfs": None,
+            "rootfs_size": None,
+            "skip_volume": True,
+            "persistent_volume": None,
+            "ephemeral_volume": None,
+            "immutable_volume": None,
+            "crn_auto_tac": True,
+            "policy": 0x1,
+            "confidential_firmware": FAKE_STORE_HASH,
+            "firmware_hash": None,
+            "firmware_file": "/fake/file",
+            "keep_session": False,
+            "channel": settings.DEFAULT_CHANNEL,
+            "private_key": None,
+            "private_key_file": None,
+            "debug": False,
+        }
         all_args.update(instance_spec)
         await confidential_create(**all_args)
 
