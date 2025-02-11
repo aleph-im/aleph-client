@@ -3,7 +3,6 @@ from unittest.mock import AsyncMock, MagicMock
 
 from aleph.sdk.chains.evm import EVMAccount
 from aleph.sdk.conf import settings
-from eth_utils.currency import to_wei
 from pydantic import BaseModel
 
 from aleph_client.commands.node import NodeInfo
@@ -44,11 +43,8 @@ def create_mock_load_account():
     mock_loader = MagicMock(return_value=mock_account)
     mock_loader.return_value.get_super_token_balance = MagicMock(return_value=Decimal(10000 * (10**18)))
     mock_loader.return_value.can_transact = MagicMock(return_value=True)
-    mock_loader.return_value.superfluid_connector = MagicMock(can_start_flow=MagicMock(return_value=True))
-    mock_loader.return_value.get_flow = AsyncMock(return_value={"flowRate": to_wei(0.0001, unit="ether")})
-    mock_loader.return_value.create_flow = AsyncMock(return_value=FAKE_FLOW_HASH)
-    mock_loader.return_value.update_flow = AsyncMock(return_value=FAKE_FLOW_HASH)
-    mock_loader.return_value.delete_flow = AsyncMock(return_value=FAKE_FLOW_HASH)
+    mock_loader.return_value.can_start_flow = MagicMock(return_value=True)
+    mock_loader.return_value.manage_flow = AsyncMock(return_value=FAKE_FLOW_HASH)
     return mock_loader
 
 

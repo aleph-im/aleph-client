@@ -261,11 +261,17 @@ def create_mock_shutil():
     return MagicMock(which=MagicMock(return_value="/root/.cargo/bin/sevctl", move=MagicMock(return_value="/fake/path")))
 
 
-def create_mock_client():
+def create_mock_client(payment_type="superfluid"):
     mock_client = AsyncMock(
         get_message=AsyncMock(return_value=True),
         get_stored_content=AsyncMock(
             return_value=Dict(filename="fake_tac", hash="0xfake_tac", url="https://fake.tac.com")
+        ),
+        get_estimated_price=AsyncMock(
+            return_value=MagicMock(
+                required_tokens=0.00001527777777777777 if payment_type == "superfluid" else 1000,
+                payment_type=payment_type,
+            )
         ),
     )
     mock_client_class = MagicMock()
@@ -273,16 +279,30 @@ def create_mock_client():
     return mock_client_class, mock_client
 
 
-def create_mock_auth_client(mock_account):
+def create_mock_auth_client(mock_account, payment_type="superfluid", payment_types=None):
+
+    def response_get_program_price(ptype):
+        return MagicMock(
+            required_tokens=0.00001527777777777777 if ptype == "superfluid" else 1000,
+            payment_type=ptype,
+        )
+
     mock_response_get_message = create_mock_instance_message(mock_account, payg=True)
     mock_response_create_instance = MagicMock(item_hash=FAKE_VM_HASH)
     mock_auth_client = AsyncMock(
         get_messages=AsyncMock(),
         get_message=AsyncMock(return_value=mock_response_get_message),
         create_instance=AsyncMock(return_value=[mock_response_create_instance, 200]),
-        get_program_price=AsyncMock(return_value=MagicMock(required_tokens=0.0001)),
+        get_program_price=None,
         forget=AsyncMock(return_value=(MagicMock(), 200)),
     )
+    if payment_types:
+        mock_auth_client.get_program_price = AsyncMock(
+            side_effect=[response_get_program_price(pt) for pt in payment_types]
+        )
+    else:
+        mock_auth_client.get_program_price = AsyncMock(return_value=response_get_program_price(payment_type))
+
     mock_auth_client_class = MagicMock()
     mock_auth_client_class.return_value.__aenter__ = AsyncMock(return_value=mock_auth_client)
     return mock_auth_client_class, mock_auth_client
@@ -420,23 +440,23 @@ async def test_create_instance(args, expected):
     mock_validate_ssh_pubkey_file = create_mock_validate_ssh_pubkey_file()
     mock_load_account = create_mock_load_account()
     mock_account = mock_load_account.return_value
-    mock_client_class, _ = create_mock_client()
-    mock_auth_client_class, mock_auth_client = create_mock_auth_client(mock_account)
+    mock_get_balance = AsyncMock(return_value={"available_amount": 100000})
+    mock_client_class, mock_client = create_mock_client(payment_type=args["payment_type"])
+    mock_auth_client_class, mock_auth_client = create_mock_auth_client(mock_account, payment_type=args["payment_type"])
     mock_vm_client_class, mock_vm_client = create_mock_vm_client()
     mock_crn_info = create_mock_crn_info()
     mock_validated_int_prompt = MagicMock(return_value=1)
     mock_wait_for_processed_instance = AsyncMock()
-    mock_update_flow = AsyncMock(return_value="fake_flow_hash")
     mock_wait_for_confirmed_flow = AsyncMock()
 
     @patch("aleph_client.commands.instance.validate_ssh_pubkey_file", mock_validate_ssh_pubkey_file)
     @patch("aleph_client.commands.instance._load_account", mock_load_account)
+    @patch("aleph_client.commands.instance.get_balance", mock_get_balance)
     @patch("aleph_client.commands.instance.AlephHttpClient", mock_client_class)
     @patch("aleph_client.commands.instance.AuthenticatedAlephHttpClient", mock_auth_client_class)
     @patch("aleph_client.commands.instance.CRNInfo", mock_crn_info)
     @patch("aleph_client.commands.instance.validated_int_prompt", mock_validated_int_prompt)
     @patch("aleph_client.commands.instance.wait_for_processed_instance", mock_wait_for_processed_instance)
-    @patch("aleph_client.commands.instance.update_flow", mock_update_flow)
     @patch("aleph_client.commands.instance.wait_for_confirmed_flow", mock_wait_for_confirmed_flow)
     @patch("aleph_client.commands.instance.VmClient", mock_vm_client_class)
     async def create_instance(instance_spec):
@@ -445,9 +465,10 @@ async def test_create_instance(args, expected):
             "ssh_pubkey_file": FAKE_PUBKEY_FILE,
             "name": "mock_instance",
             "hypervisor": HypervisorType.qemu,
-            "rootfs_size": 20480,
-            "vcpus": 1,
-            "memory": 2048,
+            "compute_units": 1,
+            "vcpus": None,
+            "memory": None,
+            "rootfs_size": None,
             "timeout_seconds": settings.DEFAULT_VM_TIMEOUT,
             "skip_volume": True,
             "persistent_volume": None,
@@ -455,6 +476,7 @@ async def test_create_instance(args, expected):
             "immutable_volume": None,
             "crn_auto_tac": True,
             "channel": settings.DEFAULT_CHANNEL,
+            "address": None,
             "crn_hash": None,
             "crn_url": None,
             "confidential": False,
@@ -470,10 +492,13 @@ async def test_create_instance(args, expected):
     returned = await create_instance(args)
     mock_load_account.assert_called_once()
     mock_validate_ssh_pubkey_file.return_value.read_text.assert_called_once()
+    mock_client.get_estimated_price.assert_called_once()
     mock_auth_client.create_instance.assert_called_once()
-    if args["payment_type"] == "superfluid":
+    if args["payment_type"] == "hold":
+        mock_get_balance.assert_called_once()
+    elif args["payment_type"] == "superfluid":
         mock_wait_for_processed_instance.assert_called_once()
-        mock_update_flow.assert_called_once()
+        mock_account.manage_flow.assert_called_once()
         mock_wait_for_confirmed_flow.assert_called_once()
         mock_vm_client.start_instance.assert_called_once()
     assert returned == expected
@@ -484,8 +509,10 @@ async def test_list_instances():
     mock_load_account = create_mock_load_account()
     mock_account = mock_load_account.return_value
     mock_client_class, mock_client = create_mock_client()
-    mock_auth_client_class, mock_auth_client = create_mock_auth_client(mock_account)
     mock_instance_messages = create_mock_instance_messages(mock_account)
+    mock_auth_client_class, mock_auth_client = create_mock_auth_client(
+        mock_account, payment_types=[vm.content.payment.type for vm in mock_instance_messages.return_value]
+    )
 
     @patch("aleph_client.commands.instance._load_account", mock_load_account)
     @patch("aleph_client.commands.files.AlephHttpClient", mock_client_class)
@@ -502,7 +529,7 @@ async def test_list_instances():
         mock_instance_messages.assert_called_once()
         mock_auth_client.get_messages.assert_called_once()
         mock_auth_client.get_program_price.assert_called()
-        assert mock_auth_client.get_program_price.call_count == 4
+        assert mock_auth_client.get_program_price.call_count == 5
         assert mock_client.get_stored_content.call_count == 1
 
     await list_instance()
@@ -530,7 +557,7 @@ async def test_delete_instance():
         )
         mock_auth_client.get_message.assert_called_once()
         mock_vm_client.erase_instance.assert_called_once()
-        mock_account.delete_flow.assert_awaited_once()
+        mock_account.manage_flow.assert_awaited_once()
         mock_auth_client.forget.assert_called_once()
 
     await delete_instance()
@@ -731,10 +758,8 @@ async def test_confidential_start():
             "payment_chain": "AVAX",
             "crn_hash": FAKE_CRN_HASH,
             "crn_url": FAKE_CRN_URL,
-            "vcpus": 1,
-            "memory": 2048,
             "rootfs": FAKE_STORE_HASH,
-            "rootfs_size": 20480,
+            "compute_units": 1,
         },
         {"vm_id": FAKE_VM_HASH},  # coco_from_hash
     ],
@@ -770,14 +795,16 @@ async def test_confidential_create(args):
             "crn_hash": None,
             "crn_url": None,
             "ssh_pubkey_file": FAKE_PUBKEY_FILE,
+            "address": None,
             "name": "mock_instance",
             "vm_secret": "fake_secret",
+            "compute_units": None,
             "vcpus": None,
             "memory": None,
+            "rootfs_size": None,
             "timeout_seconds": settings.DEFAULT_VM_TIMEOUT,
             "gpu": False,
             "rootfs": None,
-            "rootfs_size": None,
             "skip_volume": True,
             "persistent_volume": None,
             "ephemeral_volume": None,
