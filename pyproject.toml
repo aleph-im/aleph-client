@@ -307,10 +307,6 @@ warn_no_return = true
 # Shows a warning when returning a value with type Any from a function declared with a non- Any return type.
 warn_return_any = false
 
-# Miscellaneous strictness flags
-# Allows variables to be redefined with an arbitrary type, as long as the redefinition is in the same block and nesting level as the original definition.
-antyped_defs = true
-
 [tool.spinx]
 source-dir = "docs"
 build-dir = "docs/_build"
