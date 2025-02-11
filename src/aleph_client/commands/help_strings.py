@@ -22,11 +22,10 @@ INSTANCE_NAME = "Name of your new instance"
 ROOTFS = (
     "Hash of the rootfs to use for your instance. Defaults to Ubuntu 22. You can also create your own rootfs and pin it"
 )
-ROOTFS_SIZE = (
-    "Size of the rootfs to use for your instance. If not set, content.size of the --rootfs store message will be used"
-)
+COMPUTE_UNITS = "Number of compute units to allocate. Compute units correspond to a tier that includes vcpus, memory, disk and gpu presets. For reference, run: `aleph pricing for --help`"
+ROOTFS_SIZE = "Rootfs size in MiB to allocate"
 VCPUS = "Number of virtual CPUs to allocate"
-MEMORY = "Maximum memory (RAM) allocation on VM in MiB"
+MEMORY = "Maximum memory (RAM) in MiB to allocate"
 TIMEOUT_SECONDS = "If vm is not called after [timeout_seconds] it will shutdown"
 SSH_PUBKEY_FILE = "Path to a public ssh key to be added to the instance"
 CRN_HASH = "Hash of the CRN to deploy to (only applicable for confidential and/or Pay-As-You-Go instances)"
@@ -51,6 +50,7 @@ PAYMENT_CHAIN = "Chain you want to use to pay for your instance"
 PAYMENT_CHAIN_USED = "Chain you are using to pay for your instance"
 ORIGIN_CHAIN = "Chain of origin of your private key (ensuring correct parsing)"
 ADDRESS_CHAIN = "Chain for the address"
+ADDRESS_PAYER = "Address of the payer. In order to delegate the payment, your account must be authorized beforehand to publish on the behalf of this address. See the docs for more info: https://docs.aleph.im/protocol/permissions/"
 CREATE_REPLACE = "Overwrites private key file if it already exists"
 CREATE_ACTIVE = "Loads the new private key after creation"
 PROMPT_CRN_URL = "URL of the CRN (Compute node) on which the instance is running"

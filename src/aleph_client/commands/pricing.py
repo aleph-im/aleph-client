@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 from decimal import Decimal
 from enum import Enum
-from typing import Dict, List, Optional
+from typing import Annotated, Optional
 
 import aiohttp
 import typer
@@ -15,7 +15,6 @@ from rich.console import Console, Group
 from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
-from typing_extensions import Annotated
 
 from aleph_client.commands.utils import setup_logging, validated_int_prompt
 from aleph_client.utils import AsyncTyper, sanitize_url
@@ -50,17 +49,17 @@ class GroupEntity(str, Enum):
     ALL = "all"
 
 
-PRICING_GROUPS: Dict[str, List[PricingEntity]] = {
+PRICING_GROUPS: dict[str, list[PricingEntity]] = {
     GroupEntity.STORAGE: [PricingEntity.STORAGE],
     GroupEntity.WEBSITE: [PricingEntity.WEB3_HOSTING],
     GroupEntity.PROGRAM: [PricingEntity.PROGRAM, PricingEntity.PROGRAM_PERSISTENT],
     GroupEntity.INSTANCE: [PricingEntity.INSTANCE],
     GroupEntity.CONFIDENTIAL: [PricingEntity.INSTANCE_CONFIDENTIAL],
     GroupEntity.GPU: [PricingEntity.INSTANCE_GPU_STANDARD, PricingEntity.INSTANCE_GPU_PREMIUM],
-    GroupEntity.ALL: [entity for entity in PricingEntity],
+    GroupEntity.ALL: list(PricingEntity),
 }
 
-PAYG_GROUP: List[PricingEntity] = [
+PAYG_GROUP: list[PricingEntity] = [
     PricingEntity.INSTANCE,
     PricingEntity.INSTANCE_CONFIDENTIAL,
     PricingEntity.INSTANCE_GPU_STANDARD,
@@ -123,7 +122,7 @@ class Pricing:
         tiers = entity.get("tiers", [])
 
         displayable_group = None
-        tier_data: Dict[int, SelectedTier] = {}
+        tier_data: dict[int, SelectedTier] = {}
         auto_selected = compute_units or vcpus or memory or disk or gpu_model
         if tiers:
             if auto_selected:
@@ -149,7 +148,8 @@ class Pricing:
                     if disk:
                         requirements.append(f"disk>={disk}")
                     typer.echo(
-                        f"Minimum tier with required {' & '.join(requirements)} not found for {pricing_entity.value}"
+                        f"Minimum tier with required {' & '.join(requirements)}"
+                        f" not found for {pricing_entity.value}"
                     )
                     if exit_on_error:
                         raise typer.Exit(1)
@@ -198,7 +198,8 @@ class Pricing:
                 if "payg" in price_unit and pricing_entity in PAYG_GROUP:
                     payg_daily = Decimal(price_unit["payg"]) * current_units
                     row.append(
-                        f"{displayable_amount(payg_daily, decimals=3)} token/hour\n{displayable_amount(payg_daily*24, decimals=3)} token/day"
+                        f"{displayable_amount(payg_daily, decimals=3)} token/hour"
+                        f"\n{displayable_amount(payg_daily*24, decimals=3)} token/day"
                     )
                 if pricing_entity in PRICING_GROUPS[GroupEntity.PROGRAM]:
                     internet_cell = (
@@ -229,13 +230,15 @@ class Pricing:
 
             extra_price_holding = (
                 f"[red]{displayable_amount(Decimal(price_storage['holding'])*1024, decimals=5)}"
-                + " token/Gib[/red] (Holding) -or- "
+                " token/Gib[/red] (Holding) -or- "
                 if "holding" in price_storage
                 else ""
             )
             infos = [
                 Text.from_markup(
-                    f"Extra Volume Cost: {extra_price_holding}[green]{displayable_amount(Decimal(price_storage['payg'])*1024*24, decimals=5)} token/Gib/day[/green] (Pay-As-You-Go)"
+                    f"Extra Volume Cost: {extra_price_holding}"
+                    f"[green]{displayable_amount(Decimal(price_storage['payg'])*1024*24, decimals=5)}"
+                    " token/Gib/day[/green] (Pay-As-You-Go)"
                 )
             ]
             displayable_group = Group(
@@ -247,12 +250,17 @@ class Pricing:
             if price_fixed:
                 infos.append(
                     Text.from_markup(
-                        f"Service & Availability (Holding): [orange1]{displayable_amount(price_fixed, decimals=3)} tokens[/orange1]\n\n+ "
+                        f"Service & Availability (Holding): [orange1]{displayable_amount(price_fixed, decimals=3)}"
+                        " tokens[/orange1]\n\n+ "
                     )
                 )
             infos.append(
                 Text.from_markup(
-                    f"$ALEPH (Holding): [bright_cyan]{displayable_amount(Decimal(price_storage['holding']), decimals=5)} token/Mib[/bright_cyan] -or- [bright_cyan]{displayable_amount(Decimal(price_storage['holding'])*1024, decimals=5)} token/Gib[/bright_cyan]"
+                    "$ALEPH (Holding): [bright_cyan]"
+                    f"{displayable_amount(Decimal(price_storage['holding']), decimals=5)}"
+                    " token/Mib[/bright_cyan] -or- [bright_cyan]"
+                    f"{displayable_amount(Decimal(price_storage['holding'])*1024, decimals=5)}"
+                    " token/Gib[/bright_cyan]"
                 )
             )
             displayable_group = Group(
@@ -273,7 +281,7 @@ class Pricing:
         if selector and pricing_entity not in [PricingEntity.STORAGE, PricingEntity.WEB3_HOSTING]:
             if not auto_selected:
                 tier = validated_int_prompt("Select a tier by index", default=1, min_value=1, max_value=len(tiers))
-            return list(tier_data.values())[0] if auto_selected else tier_data[tier]
+            return next(iter(tier_data.values())) if auto_selected else tier_data[tier]
 
         return None
 

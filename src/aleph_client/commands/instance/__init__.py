@@ -6,9 +6,8 @@ import json
 import logging
 import shutil
 from decimal import Decimal
-from math import ceil
 from pathlib import Path
-from typing import Optional, cast
+from typing import Any, Optional, Union, cast
 
 import aiohttp
 import typer
@@ -18,7 +17,12 @@ from aleph.sdk.chains.ethereum import ETHAccount
 from aleph.sdk.client.vm_client import VmClient
 from aleph.sdk.client.vm_confidential_client import VmConfidentialClient
 from aleph.sdk.conf import load_main_configuration, settings
-from aleph.sdk.evm_utils import get_chains_with_holding, get_chains_with_super_token
+from aleph.sdk.evm_utils import (
+    FlowUpdate,
+    ether_rounding,
+    get_chains_with_holding,
+    get_chains_with_super_token,
+)
 from aleph.sdk.exceptions import (
     ForgottenMessageError,
     InsufficientFundsError,
@@ -26,8 +30,13 @@ from aleph.sdk.exceptions import (
 )
 from aleph.sdk.query.filters import MessageFilter
 from aleph.sdk.query.responses import PriceResponse
-from aleph.sdk.types import StorageEnum
-from aleph.sdk.utils import calculate_firmware_hash, safe_getattr
+from aleph.sdk.types import StorageEnum, TokenType
+from aleph.sdk.utils import (
+    calculate_firmware_hash,
+    displayable_amount,
+    make_instance_content,
+    safe_getattr,
+)
 from aleph_message.models import Chain, InstanceMessage, MessageType, StoreMessage
 from aleph_message.models.execution.base import Payment, PaymentType
 from aleph_message.models.execution.environment import (
@@ -47,14 +56,15 @@ from rich.table import Table
 from rich.text import Text
 
 from aleph_client.commands import help_strings
+from aleph_client.commands.account import get_balance
 from aleph_client.commands.instance.display import CRNTable
 from aleph_client.commands.instance.network import (
     fetch_crn_info,
     fetch_vm_info,
     find_crn_of_vm,
 )
-from aleph_client.commands.instance.superfluid import FlowUpdate, update_flow
 from aleph_client.commands.node import NodeInfo, _fetch_nodes
+from aleph_client.commands.pricing import PricingEntity, SelectedTier, fetch_pricing
 from aleph_client.commands.utils import (
     filter_only_valid_messages,
     find_sevctl_or_exit,
@@ -73,9 +83,6 @@ from aleph_client.utils import AsyncTyper, sanitize_url
 
 logger = logging.getLogger(__name__)
 app = AsyncTyper(no_args_is_help=True)
-
-# TODO: This should be put on the API to get always from there
-FLOW_INSTANCE_PRICE_PER_SECOND = Decimal("0.0000155")  # 0.055/h
 
 hold_chains = [*get_chains_with_holding(), Chain.SOL]
 super_token_chains = get_chains_with_super_token()
@@ -101,9 +108,10 @@ async def create(
     hypervisor: Optional[HypervisorType] = typer.Option(HypervisorType.qemu, help=help_strings.HYPERVISOR),
     name: Optional[str] = typer.Option(None, help=help_strings.INSTANCE_NAME),
     rootfs: Optional[str] = typer.Option(None, help=help_strings.ROOTFS),
-    rootfs_size: Optional[int] = typer.Option(None, help=help_strings.ROOTFS_SIZE),
+    compute_units: Optional[int] = typer.Option(None, help=help_strings.COMPUTE_UNITS),
     vcpus: Optional[int] = typer.Option(None, help=help_strings.VCPUS),
     memory: Optional[int] = typer.Option(None, help=help_strings.MEMORY),
+    rootfs_size: Optional[int] = typer.Option(None, help=help_strings.ROOTFS_SIZE),
     timeout_seconds: float = typer.Option(
         settings.DEFAULT_VM_TIMEOUT,
         help=help_strings.TIMEOUT_SECONDS,
@@ -112,6 +120,7 @@ async def create(
         Path("~/.ssh/id_rsa.pub").expanduser(),
         help=help_strings.SSH_PUBKEY_FILE,
     ),
+    address: Optional[str] = typer.Option(None, help=help_strings.ADDRESS_PAYER),
     crn_hash: Optional[str] = typer.Option(None, help=help_strings.CRN_HASH),
     crn_url: Optional[str] = typer.Option(None, help=help_strings.CRN_URL),
     confidential: bool = typer.Option(False, help=help_strings.CONFIDENTIAL_OPTION),
@@ -150,6 +159,10 @@ async def create(
         )
     ssh_pubkey: str = ssh_pubkey_file.read_text(encoding="utf-8").strip()
 
+    # Populates account / address
+    account = _load_account(private_key, private_key_file, chain=payment_chain)
+    address = address or settings.ADDRESS_TO_USE or account.get_address()
+
     # Loads default configuration if no chain is set
     if payment_chain is None:
         config = load_main_configuration(settings.CONFIG_FILE)
@@ -168,15 +181,22 @@ async def create(
         )
 
     # Force-switches if NFT payment-type
+    nft_chains = [Chain.AVAX, Chain.BASE, Chain.SOL]
     if payment_type == "nft":
         payment_type = PaymentType.hold
-        payment_chain = Chain(
-            Prompt.ask(
-                "On which chain did you claim your NFT voucher?",
-                choices=[Chain.AVAX.value, Chain.BASE.value, Chain.SOL.value],
-                default=Chain.AVAX.value,
+        if payment_chain is None or payment_chain not in nft_chains:
+            if payment_chain:
+                console.print(
+                    f"[red]{safe_getattr(payment_chain, 'value') or payment_chain}[/red]"
+                    " incompatible with NFT vouchers."
+                )
+            payment_chain = Chain(
+                Prompt.ask(
+                    "On which chain did you claim your NFT voucher?",
+                    choices=[nft_chain.value for nft_chain in nft_chains],
+                    default=Chain.AVAX.value,
+                )
             )
-        )
     elif payment_type in [ptype.value for ptype in PaymentType]:
         payment_type = PaymentType(payment_type)
     else:
@@ -186,6 +206,9 @@ async def create(
     # Checks if payment-chain is compatible with PAYG
     is_stream = payment_type != PaymentType.hold
     if is_stream:
+        if address != account.get_address():
+            console.print("Payment delegation is incompatible with Pay-As-You-Go.")
+            raise typer.Exit(code=1)
         if payment_chain is None or payment_chain not in super_token_chains:
             if payment_chain:
                 console.print(
@@ -212,23 +235,6 @@ async def create(
                 default=Chain.ETH.value,
             )
         )
-
-    # Populates account
-    account = _load_account(private_key, private_key_file, chain=payment_chain)
-
-    # Checks required balances (Gas + Aleph ERC20) for superfluid payment
-    if is_stream and isinstance(account, ETHAccount):
-        if account.CHAIN != payment_chain:
-            account.switch_chain(payment_chain)
-        if account.superfluid_connector and hasattr(account.superfluid_connector, "can_start_flow"):
-            try:  # Quick check with theoretical min price
-                account.superfluid_connector.can_start_flow(FLOW_INSTANCE_PRICE_PER_SECOND)  # 0.055/h
-            except Exception as e:
-                echo(e)
-                raise typer.Exit(code=1) from e
-        else:
-            echo("Superfluid connector not available on this chain.")
-            raise typer.Exit(code=1)
 
     # Checks if Hypervisor is compatible with confidential or with GPU support
     if confidential or gpu:
@@ -295,8 +301,6 @@ async def create(
             echo(f"Given rootfs volume {rootfs} has been deleted on aleph.im")
         if not rootfs_message:
             raise typer.Exit(code=1)
-        elif rootfs_size is None:
-            rootfs_size = safe_getattr(rootfs_message, "content.size")
 
     # Validate confidential firmware message exist
     confidential_firmware_as_hash = None
@@ -314,19 +318,24 @@ async def create(
                 raise typer.Exit(code=1)
 
     name = name or validated_prompt("Instance name", lambda x: len(x) < 65)
-    rootfs_size = rootfs_size or validated_int_prompt(
-        "Disk size in MiB", default=settings.DEFAULT_ROOTFS_SIZE, min_value=10_240, max_value=542_288
-    )
-    vcpus = vcpus or validated_int_prompt(
-        "Number of virtual cpus to allocate", default=settings.DEFAULT_VM_VCPUS, min_value=1, max_value=12
-    )
-    memory = memory or validated_int_prompt(
-        "Maximum memory allocation on vm in MiB",
-        default=settings.DEFAULT_INSTANCE_MEMORY,
-        min_value=2_048,
-        max_value=24_576,
-    )
 
+    pricing = await fetch_pricing()
+    pricing_entity = PricingEntity.INSTANCE_CONFIDENTIAL if confidential else PricingEntity.INSTANCE  # TODO: Add gpu
+    tier = cast(  # Safe cast
+        SelectedTier,
+        pricing.display_table_for(
+            pricing_entity,
+            compute_units=compute_units or 0,
+            vcpus=vcpus or 0,
+            memory=memory or 0,
+            disk=rootfs_size or 0,
+            # gpu_model=gpu_model,
+            selector=True,
+        ),
+    )
+    vcpus = tier.vcpus
+    memory = tier.memory
+    rootfs_size = tier.disk
     volumes = []
     if not skip_volume:
         volumes = get_or_prompt_volumes(
@@ -334,6 +343,23 @@ async def create(
             ephemeral_volume=ephemeral_volume,
             immutable_volume=immutable_volume,
         )
+
+    # Early check with minimal cost (Gas + Aleph ERC20)
+    available_funds = Decimal(0 if is_stream else (await get_balance(address))["available_amount"])
+    try:
+        if is_stream and isinstance(account, ETHAccount):
+            if account.CHAIN != payment_chain:
+                account.switch_chain(payment_chain)
+            if safe_getattr(account, "superfluid_connector"):
+                account.can_start_flow(tier.price.payg)
+            else:
+                echo("Superfluid connector not available on this chain.")
+                raise typer.Exit(code=1)
+        elif available_funds < tier.price.hold:
+            raise InsufficientFundsError(TokenType.ALEPH, float(tier.price.hold), float(available_funds))
+    except InsufficientFundsError as e:
+        echo(e)
+        raise typer.Exit(code=1) from e
 
     stream_reward_address = None
     crn = None
@@ -411,7 +437,7 @@ async def create(
             "instances are scheduled automatically on available CRNs by the Aleph.im network."
         )
 
-    requirements, trusted_execution, gpu_requirement = None, None, None
+    requirements, trusted_execution, gpu_requirement, tac_accepted = None, None, None, None
     if crn:
         stream_reward_address = safe_getattr(crn, "stream_reward_address") or ""
         if is_stream and not stream_reward_address:
@@ -469,52 +495,78 @@ async def create(
                         device_id=selected_gpu.device_id,
                     )
                 ]
-        if crn.terms_and_conditions:
-            accepted = await crn.display_terms_and_conditions(auto_accept=crn_auto_tac)
-            if accepted is None:
+        if crn.terms_and_conditions and is_stream:
+            tac_accepted = await crn.display_terms_and_conditions(auto_accept=crn_auto_tac)
+            if tac_accepted is None:
                 echo("Failed to fetch terms and conditions.\nContact support or use a different CRN.")
                 raise typer.Exit(1)
-            elif not accepted:
+            elif not tac_accepted:
                 echo("Terms & Conditions rejected: instance creation aborted.")
                 raise typer.Exit(1)
             echo("Terms & Conditions accepted.")
+
         requirements = HostRequirements(
             node=NodeRequirements(
                 node_hash=crn.hash,
-                terms_and_conditions=(ItemHash(crn.terms_and_conditions) if crn.terms_and_conditions else None),
+                terms_and_conditions=(ItemHash(crn.terms_and_conditions) if tac_accepted else None),
             ),
             gpu=gpu_requirement,
         )
 
+    payment = Payment(
+        chain=payment_chain,
+        receiver=stream_reward_address if stream_reward_address else None,
+        type=payment_type,
+    )
+
+    content_dict: dict[str, Any] = {
+        "address": address,
+        "rootfs": rootfs,
+        "rootfs_size": rootfs_size,
+        "metadata": {"name": name},
+        "memory": memory,
+        "vcpus": vcpus,
+        "timeout_seconds": timeout_seconds,
+        "volumes": volumes,
+        "ssh_keys": [ssh_pubkey],
+        "hypervisor": hypervisor,
+        "payment": payment,
+        "requirements": requirements,
+        "trusted_execution": trusted_execution,
+    }
+
+    # Estimate cost and check required balances (Gas + Aleph ERC20)
+    required_tokens: Decimal
+    async with AlephHttpClient(api_server=settings.API_HOST) as client:
+        try:
+            content = make_instance_content(**content_dict)
+            price: PriceResponse = await client.get_estimated_price(content)
+            required_tokens = ether_rounding(Decimal(price.required_tokens))
+        except Exception as e:
+            echo(e)
+            raise typer.Exit(code=1) from e
+
+        try:
+            if is_stream and isinstance(account, ETHAccount):
+                account.can_start_flow(required_tokens)
+            elif available_funds < required_tokens:
+                raise InsufficientFundsError(TokenType.ALEPH, float(required_tokens), float(available_funds))
+        except InsufficientFundsError as e:
+            echo(e)
+            raise typer.Exit(code=1) from e
+
     async with AuthenticatedAlephHttpClient(account=account, api_server=settings.API_HOST) as client:
-        payment = Payment(
-            chain=payment_chain,
-            receiver=stream_reward_address if stream_reward_address else None,
-            type=payment_type,
-        )
         try:
             message, status = await client.create_instance(
-                sync=True,
-                rootfs=rootfs,
-                rootfs_size=rootfs_size,
-                storage_engine=StorageEnum.storage,
+                **content_dict,
                 channel=channel,
-                metadata={"name": name},
-                memory=memory,
-                vcpus=vcpus,
-                timeout_seconds=timeout_seconds,
-                volumes=volumes,
-                ssh_keys=[ssh_pubkey],
-                hypervisor=hypervisor,
-                payment=payment,
-                requirements=requirements,
-                trusted_execution=trusted_execution,
+                storage_engine=StorageEnum.storage,
+                sync=True,
             )
         except InsufficientFundsError as e:
             echo(
                 f"Instance creation failed due to insufficient funds.\n"
-                f"{account.get_address()} on {account.CHAIN} has {e.available_funds} ALEPH but "
-                f"needs {e.required_funds} ALEPH."
+                f"{address} on {account.CHAIN} has {e.available_funds} ALEPH but needs {e.required_funds} ALEPH."
             )
             raise typer.Exit(code=1) from e
         except Exception as e:
@@ -539,45 +591,36 @@ async def create(
                 await wait_for_processed_instance(session, item_hash)
 
             # Pay-As-You-Go
-            if payment_type == PaymentType.superfluid:
-                price: PriceResponse = await client.get_program_price(item_hash)
-                ceil_factor = 10**18
-                required_tokens = ceil(Decimal(price.required_tokens) * ceil_factor) / ceil_factor
-                if isinstance(account, ETHAccount) and account.superfluid_connector:
-                    try:  # Double check with effective price
-                        account.superfluid_connector.can_start_flow(FLOW_INSTANCE_PRICE_PER_SECOND)  # Min for 0.11/h
-                    except Exception as e:
-                        echo(e)
-                        raise typer.Exit(code=1) from e
-                    flow_hash = await update_flow(
-                        account=account,
-                        receiver=crn.stream_reward_address,
-                        flow=Decimal(required_tokens),
-                        update_type=FlowUpdate.INCREASE,
+            if is_stream and isinstance(account, ETHAccount):
+                # Start the flow
+                flow_hash = await account.manage_flow(
+                    receiver=crn.stream_reward_address,
+                    flow=required_tokens,
+                    update_type=FlowUpdate.INCREASE,
+                )
+                # Wait for the flow transaction to be confirmed
+                await wait_for_confirmed_flow(account, message.content.payment.receiver)
+                if flow_hash:
+                    flow_info = "\n".join(
+                        f"[orange3]{key}[/orange3]: {value}"
+                        for key, value in {
+                            "Hash": flow_hash,
+                            "$ALEPH": f"{displayable_amount(required_tokens, decimals=8)}/sec"
+                            f" | {displayable_amount(3600*required_tokens, decimals=3)}/hour"
+                            f" | {displayable_amount(86400*required_tokens, decimals=3)}/day"
+                            f" | {displayable_amount(2592000*required_tokens, decimals=3)}/month",
+                            "CRN receiver address": crn.stream_reward_address,
+                        }.items()
                     )
-                    # Wait for the flow transaction to be confirmed
-                    await wait_for_confirmed_flow(account, message.content.payment.receiver)
-                    if flow_hash:
-                        flow_info = "\n".join(
-                            f"[orange3]{key}[/orange3]: {value}"
-                            for key, value in {
-                                "Hash": flow_hash,
-                                "Aleph cost": (
-                                    f"{price.required_tokens:.7f}/sec | {3600*price.required_tokens:.2f}/hour | "
-                                    f"{86400*price.required_tokens:.2f}/day | {2592000*price.required_tokens:.2f}/month"
-                                ),
-                                "CRN receiver address": crn.stream_reward_address,
-                            }.items()
+                    console.print(
+                        Panel(
+                            flow_info,
+                            title="Flow Created",
+                            border_style="violet",
+                            expand=False,
+                            title_align="left",
                         )
-                        console.print(
-                            Panel(
-                                flow_info,
-                                title="Flow Created",
-                                border_style="violet",
-                                expand=False,
-                                title_align="left",
-                            )
-                        )
+                    )
 
             # Notify CRN
             async with VmClient(account, crn.url) as crn_client:
@@ -721,9 +764,14 @@ async def delete(
         if payment and payment.type == PaymentType.superfluid and payment.receiver and isinstance(account, ETHAccount):
             if account.CHAIN != payment.chain:
                 account.switch_chain(payment.chain)
-            if account.superfluid_connector and price:
-                flow_hash = await update_flow(
-                    account, payment.receiver, Decimal(price.required_tokens), FlowUpdate.REDUCE
+            if safe_getattr(account, "superfluid_connector") and price:
+                try:  # Safety check to ensure account can transact
+                    account.can_transact()
+                except Exception as e:
+                    echo(e)
+                    raise typer.Exit(code=1) from e
+                flow_hash = await account.manage_flow(
+                    payment.receiver, ether_rounding(Decimal(price.required_tokens)), FlowUpdate.REDUCE
                 )
                 if flow_hash:
                     echo(f"Flow {flow_hash} has been deleted.")
@@ -759,12 +807,11 @@ async def _show_instances(messages: builtins.list[InstanceMessage], node_list: N
         link = f"https://explorer.aleph.im/address/ETH/{message.sender}/message/INSTANCE/{message.item_hash}"
         # link = f"{settings.API_HOST}/api/v0/messages/{message.item_hash}"
         item_hash_link = Text.from_markup(f"[link={link}]{message.item_hash}[/link]", style="bright_cyan")
-        is_hold = info["payment"] == "hold"
         payment = Text.assemble(
             "Payment: ",
             Text(
                 info["payment"].capitalize().ljust(12),
-                style="red" if is_hold else "orange3",
+                style="red" if info["payment"] == PaymentType.hold.value else "orange3",
             ),
         )
         confidential = Text.assemble(
@@ -774,15 +821,21 @@ async def _show_instances(messages: builtins.list[InstanceMessage], node_list: N
         created_at = Text.assemble(
             "Created at: ", Text(str(str_to_datetime(info["created_at"])).split(".", maxsplit=1)[0], style="orchid")
         )
-        cost: Text | str = ""
-        if not is_hold:
-            async with AlephHttpClient(api_server=settings.API_HOST) as client:
-                price: PriceResponse = await client.get_program_price(message.item_hash)
-                psec = Text(f"{price.required_tokens:.7f}/sec", style="magenta3")
-                phour = Text(f"{3600*price.required_tokens:.2f}/hour", style="magenta3")
-                pday = Text(f"{86400*price.required_tokens:.2f}/day", style="magenta3")
-                pmonth = Text(f"{2592000*price.required_tokens:.2f}/month", style="magenta3")
-                cost = Text.assemble("\nAleph cost: ", psec, " | ", phour, " | ", pday, " | ", pmonth)
+        async with AlephHttpClient(api_server=settings.API_HOST) as client:
+            price: PriceResponse = await client.get_program_price(message.item_hash)
+            required_tokens = Decimal(price.required_tokens)
+            if price.payment_type == PaymentType.hold.value:
+                aleph_price = Text(f"{displayable_amount(required_tokens, decimals=3)} (fixed)", style="violet")
+            else:
+                psec = f"{displayable_amount(required_tokens, decimals=8)}/sec"
+                phour = f"{displayable_amount(3600*required_tokens, decimals=3)}/hour"
+                pday = f"{displayable_amount(86400*required_tokens, decimals=3)}/day"
+                pmonth = f"{displayable_amount(2592000*required_tokens, decimals=3)}/month"
+                aleph_price = Text.assemble(psec, " | ", phour, " | ", pday, " | ", pmonth, style="violet")
+        cost = Text.assemble("\n$ALEPH: ", aleph_price)
+        payer: Union[str, Text] = ""
+        if message.sender != message.content.address:
+            payer = Text.assemble("\nPayer: ", Text(str(message.sender), style="orange1"))
         instance = Text.assemble(
             "Item Hash ↓\t     Name: ",
             name,
@@ -795,6 +848,7 @@ async def _show_instances(messages: builtins.list[InstanceMessage], node_list: N
             chain,
             created_at,
             cost,
+            payer,
         )
         hypervisor = safe_getattr(message, "content.environment.hypervisor")
         specs = [
@@ -856,7 +910,7 @@ async def _show_instances(messages: builtins.list[InstanceMessage], node_list: N
     console = Console()
     console.print(table)
 
-    infos = [Text.from_markup(f"[bold]Address:[/bold] [bright_cyan]{messages[0].content.address}[/bright_cyan]")]
+    infos = [Text.from_markup(f"[bold]Address:[/bold] [bright_cyan]{messages[0].sender}[/bright_cyan]")]
     if uninitialized_confidential_found:
         infos += [
             Text.assemble(
@@ -893,9 +947,8 @@ async def list_instances(
 
     setup_logging(debug)
 
-    if address is None:
-        account = _load_account(private_key, private_key_file, chain=chain)
-        address = account.get_address()
+    account = _load_account(private_key, private_key_file, chain=chain)
+    address = address or settings.ADDRESS_TO_USE or account.get_address()
 
     async with AlephHttpClient(api_server=settings.API_HOST) as client:
         resp = await client.get_messages(
@@ -1232,9 +1285,10 @@ async def confidential_create(
     ),
     name: Optional[str] = typer.Option(None, help=help_strings.INSTANCE_NAME),
     rootfs: Optional[str] = typer.Option(None, help=help_strings.ROOTFS),
-    rootfs_size: Optional[int] = typer.Option(None, help=help_strings.ROOTFS_SIZE),
+    compute_units: Optional[int] = typer.Option(None, help=help_strings.COMPUTE_UNITS),
     vcpus: Optional[int] = typer.Option(None, help=help_strings.VCPUS),
     memory: Optional[int] = typer.Option(None, help=help_strings.MEMORY),
+    rootfs_size: Optional[int] = typer.Option(None, help=help_strings.ROOTFS_SIZE),
     timeout_seconds: float = typer.Option(
         settings.DEFAULT_VM_TIMEOUT,
         help=help_strings.TIMEOUT_SECONDS,
@@ -1243,6 +1297,7 @@ async def confidential_create(
         Path("~/.ssh/id_rsa.pub").expanduser(),
         help=help_strings.SSH_PUBKEY_FILE,
     ),
+    address: Optional[str] = typer.Option(None, help=help_strings.ADDRESS_PAYER),
     gpu: bool = typer.Option(False, help=help_strings.GPU_OPTION),
     skip_volume: bool = typer.Option(False, help=help_strings.SKIP_VOLUME),
     persistent_volume: Optional[list[str]] = typer.Option(None, help=help_strings.PERSISTENT_VOLUME),
@@ -1277,11 +1332,13 @@ async def confidential_create(
             hypervisor=HypervisorType.qemu,
             name=name,
             rootfs=rootfs,
-            rootfs_size=rootfs_size,
+            compute_units=compute_units,
             vcpus=vcpus,
             memory=memory,
+            rootfs_size=rootfs_size,
             timeout_seconds=timeout_seconds,
             ssh_pubkey_file=ssh_pubkey_file,
+            address=address,
             crn_hash=crn_hash,
             crn_url=crn_url,
             crn_auto_tac=crn_auto_tac,
