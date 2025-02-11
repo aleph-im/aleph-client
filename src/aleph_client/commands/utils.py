@@ -227,7 +227,7 @@ def validated_int_prompt(
     while True:
         try:
             value = IntPrompt.ask(
-                prompt + f" [min: {min_value or '-'}, max: {max_value or '-'}]",
+                prompt + f" [orange1]<min: {min_value or '-'}, max: {max_value or '-'}>[/orange1]",
                 default=default,
             )
         except PromptError:
