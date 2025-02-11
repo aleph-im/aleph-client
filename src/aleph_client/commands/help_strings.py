@@ -5,7 +5,7 @@ PRIVATE_KEY_FILE = "Path to your private key file"
 REF = "Item hash of the message to update"
 SIGNABLE_MESSAGE = "Message to sign"
 CUSTOM_DOMAIN_TARGET_TYPES = "IPFS|PROGRAM|INSTANCE"
-CUSTOM_DOMAIN_OWNER_ADDRESS = "Owner address, default current account"
+CUSTOM_DOMAIN_OWNER_ADDRESS = "Owner address. Defaults to current account address"
 CUSTOM_DOMAIN_NAME = "Domain name. ex: aleph.im"
 CUSTOM_DOMAIN_ITEM_HASH = "Item hash"
 SKIP_VOLUME = "Skip prompt to attach more volumes"
@@ -62,3 +62,7 @@ PROGRAM_BETA = "If true, you will be prompted to add message subscriptions to yo
 PROGRAM_UPDATABLE = "Allow program updates. By default, only the source code can be modified without requiring redeployement (same item hash). When enabled (set to True), this option allows to update any other field. However, such modifications will require a program redeployment (new item hash)"
 PROGRAM_KEEP_CODE = "Keep the source code intact instead of deleting it"
 PROGRAM_KEEP_PREV = "Keep the previous program intact instead of deleting it"
+TARGET_ADDRESS = "Target address. Defaults to current account address"
+AGGREGATE_SECURITY_KEY_PROTECTED = (
+    "The aggregate key `security` is protected. Use `aleph aggregate [allow|revoke]` to manage it."
+)
