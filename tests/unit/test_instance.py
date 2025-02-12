@@ -113,44 +113,21 @@ def dummy_machine_info() -> MachineInfo:
     )
 
 
-def create_mock_crn_info():
-    mock_machine_info = dummy_machine_info()
-    return MagicMock(
-        return_value=CRNInfo(
-            hash=ItemHash(FAKE_CRN_HASH),
-            name="Mock CRN",
-            url=FAKE_CRN_URL,
-            version="v420.69",
-            score=0.5,
-            stream_reward_address=mock_machine_info.reward_address,
-            machine_usage=mock_machine_info.machine_usage,
-            qemu_support=True,
-            confidential_computing=True,
-            gpu_support=True,
-            terms_and_conditions=FAKE_STORE_HASH,
-        )
-    )
-
-
 def dict_to_ci_multi_dict_proxy(d: dict) -> CIMultiDictProxy:
     """Return a read-only proxy to a case-insensitive multi-dict created from a dict."""
     return CIMultiDictProxy(CIMultiDict(d))
 
 
 @pytest.mark.asyncio
-async def test_fetch_crn_info() -> None:
+async def test_fetch_crn_info():
     # Test with valid node
-    # TODO: Mock the response from the node, don't rely on a real node
-    node_url = "https://ovh.staging.aleph.sh"
+    node_url = "https://crn-rbx04.omega-aleph.com"  # TODO: Fix for production
     info = await fetch_crn_info(node_url)
     assert info
-    assert info["machine_usage"]
-
+    assert info.machine_usage
     # Test with invalid node
     invalid_node_url = "https://coconut.example.org/"
     assert not (await fetch_crn_info(invalid_node_url))
-
-    # TODO: Test different error handling
 
 
 def test_sanitize_url_with_empty_url():
@@ -248,6 +225,31 @@ def create_mock_instance_messages(mock_account):
 def create_mock_validate_ssh_pubkey_file():
     return MagicMock(
         return_value=MagicMock(return_value=FAKE_PUBKEY_FILE, read_text=MagicMock(return_value="ssh-rsa ..."))
+    )
+
+
+def create_mock_fetch_crn_info():
+    mock_machine_info = dummy_machine_info()
+    return AsyncMock(
+        return_value=CRNInfo(
+            hash=ItemHash(FAKE_CRN_HASH),
+            name="Mock CRN",
+            owner=FAKE_ADDRESS_EVM,
+            url=FAKE_CRN_URL,
+            ccn_hash=FAKE_CRN_HASH,
+            status="linked",
+            version="v420.69",
+            score=0.9,
+            reward_address=FAKE_ADDRESS_EVM,
+            stream_reward_address=mock_machine_info.reward_address,
+            machine_usage=mock_machine_info.machine_usage,
+            ipv6=True,
+            qemu_support=True,
+            confidential_computing=True,
+            gpu_support=True,
+            terms_and_conditions=FAKE_STORE_HASH,
+            compatible_available_gpus=[],
+        )
     )
 
 
@@ -444,7 +446,7 @@ async def test_create_instance(args, expected):
     mock_client_class, mock_client = create_mock_client(payment_type=args["payment_type"])
     mock_auth_client_class, mock_auth_client = create_mock_auth_client(mock_account, payment_type=args["payment_type"])
     mock_vm_client_class, mock_vm_client = create_mock_vm_client()
-    mock_crn_info = create_mock_crn_info()
+    mock_fetch_crn_info = create_mock_fetch_crn_info()
     mock_validated_int_prompt = MagicMock(return_value=1)
     mock_wait_for_processed_instance = AsyncMock()
     mock_wait_for_confirmed_flow = AsyncMock()
@@ -454,7 +456,7 @@ async def test_create_instance(args, expected):
     @patch("aleph_client.commands.instance.get_balance", mock_get_balance)
     @patch("aleph_client.commands.instance.AlephHttpClient", mock_client_class)
     @patch("aleph_client.commands.instance.AuthenticatedAlephHttpClient", mock_auth_client_class)
-    @patch("aleph_client.commands.instance.CRNInfo", mock_crn_info)
+    @patch("aleph_client.commands.instance.fetch_crn_info", mock_fetch_crn_info)
     @patch("aleph_client.commands.instance.validated_int_prompt", mock_validated_int_prompt)
     @patch("aleph_client.commands.instance.wait_for_processed_instance", mock_wait_for_processed_instance)
     @patch("aleph_client.commands.instance.wait_for_confirmed_flow", mock_wait_for_confirmed_flow)
@@ -497,6 +499,7 @@ async def test_create_instance(args, expected):
     if args["payment_type"] == "hold":
         mock_get_balance.assert_called_once()
     elif args["payment_type"] == "superfluid":
+        mock_fetch_crn_info.assert_called_once()
         mock_wait_for_processed_instance.assert_called_once()
         mock_account.manage_flow.assert_called_once()
         mock_wait_for_confirmed_flow.assert_called_once()
