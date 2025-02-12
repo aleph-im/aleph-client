@@ -11,10 +11,9 @@ from textual.reactive import reactive
 from textual.widgets import DataTable, Footer, Label, ProgressBar
 from textual.widgets._data_table import RowKey
 
-from aleph_client.commands.instance.network import fetch_crn_info
-from aleph_client.commands.node import NodeInfo, _fetch_nodes, _format_score
+from aleph_client.commands.instance.network import fetch_crn_list
+from aleph_client.commands.node import _format_score
 from aleph_client.models import CRNInfo
-from aleph_client.utils import extract_valid_eth_address
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +32,10 @@ class CRNTable(App[CRNInfo]):
     only_confidentials: bool = False
     only_gpu: bool = False
     current_sorts: set = set()
+    loader_label_start: Label
+    loader_label_end: Label
+    progress_bar: ProgressBar
+
     BINDINGS = [
         ("s", "sort_by_score", "Sort By Score"),
         ("n", "sort_by_name", "Sort By Name"),
@@ -67,7 +70,7 @@ class CRNTable(App[CRNInfo]):
         self.table.add_column("Reward Address", key="stream_reward_address")
         self.table.add_column("🔒", key="confidential_computing")
         self.table.add_column("GPU", key="gpu_support")
-        ## self.table.add_column("Qemu", key="qemu_support") ## Qemu computing enabled by default on nodes
+        ## self.table.add_column("Qemu", key="qemu_support") ## Qemu computing enabled by default on CRNs
         self.table.add_column("Cores", key="cpu")
         self.table.add_column("Free RAM 🌡", key="ram")
         self.table.add_column("Free Disk 💿", key="hdd")
@@ -91,97 +94,72 @@ class CRNTable(App[CRNInfo]):
         task.add_done_callback(self.tasks.discard)
 
     async def fetch_node_list(self):
-        nodes: NodeInfo = await _fetch_nodes()
-        for node in nodes.nodes:
-            self.crns[RowKey(node["hash"])] = CRNInfo(
-                hash=node["hash"],
-                name=node["name"],
-                url=node["address"].rstrip("/"),
-                version=None,
-                score=node["score"],
-                stream_reward_address=node["stream_reward"],
-                machine_usage=None,
-                qemu_support=None,
-                confidential_computing=None,
-                gpu_support=None,
-                terms_and_conditions=node["terms_and_conditions"],
-            )
+        crn_list: list[CRNInfo] = await fetch_crn_list(ipv6=False, stream_address=False)
+        self.crns: dict[RowKey, CRNInfo] = {RowKey(crn.hash): crn for crn in crn_list}
 
         # Initialize the progress bar
         self.total_crns = len(self.crns)
         self.progress_bar.total = self.total_crns
-        self.loader_label_start.update(f"Fetching data of {self.total_crns} nodes ")
+        self.loader_label_start.update(f"Fetching data of {self.total_crns} CRNs ")
         self.tasks = set()
 
         # Fetch all CRNs
-        for node in list(self.crns.values()):
-            task = asyncio.create_task(self.fetch_node_info(node))
+        for crn in list(self.crns.values()):
+            task = asyncio.create_task(self.add_crn_info(crn))
             self.tasks.add(task)
             task.add_done_callback(self.make_progress)
             task.add_done_callback(self.tasks.discard)
 
-    async def fetch_node_info(self, node: CRNInfo):
-        try:
-            crn_info = await fetch_crn_info(node.url)
-        except Exception as e:
-            logger.debug(e)
+    async def add_crn_info(self, crn: CRNInfo):
+        self.active_crns += 1
+        # Skip CRNs without machine usage
+        if not crn.machine_usage:
+            logger.debug(f"Skipping CRN {crn.hash}, no machine usage")
             return
-        if crn_info:
-            node.version = crn_info.get("version", "")
-            node.stream_reward_address = extract_valid_eth_address(
-                crn_info.get("payment", {}).get("PAYMENT_RECEIVER_ADDRESS") or node.stream_reward_address or ""
-            )
-            node.qemu_support = crn_info.get("computing", {}).get("ENABLE_QEMU_SUPPORT", False)
-            node.confidential_computing = crn_info.get("computing", {}).get("ENABLE_CONFIDENTIAL_COMPUTING", False)
-            node.gpu_support = crn_info.get("computing", {}).get("ENABLE_GPU_SUPPORT", False)
-            node.machine_usage = crn_info.get("machine_usage")
+        # Skip CRNs without ipv6 connectivity
+        if not crn.ipv6:
+            logger.debug(f"Skipping CRN {crn.hash}, no ipv6 connectivity")
+            return
+        # Skip CRNs without reward address if only_reward_address is set
+        if self.only_reward_address and not crn.stream_reward_address:
+            logger.debug(f"Skipping CRN {crn.hash}, no reward address")
+            return
+        # Skip non-qemu CRNs if only_qemu is set
+        if self.only_qemu and not crn.qemu_support:
+            logger.debug(f"Skipping CRN {crn.hash}, no qemu support")
+            return
+        # Skip non-confidential CRNs if only_confidentials is set
+        if self.only_confidentials and not crn.confidential_computing:
+            logger.debug(f"Skipping CRN {crn.hash}, no confidential support")
+            return
+        # Skip non-gpu CRNs if only-gpu is set
+        if (
+            self.only_gpu
+            and not crn.gpu_support
+            and not (crn.machine_usage.gpu and len(crn.machine_usage.gpu.available_devices) < 1)
+        ):
+            logger.debug(f"Skipping CRN {crn.hash}, no GPU support or without GPU available")
+            return
+        self.filtered_crns += 1
 
-            # Skip nodes without machine usage
-            if not node.machine_usage:
-                logger.debug(f"Skipping node {node.hash}, no machine usage")
-                return
+        # Fetch terms and conditions
+        tac = await crn.terms_and_conditions_content
 
-            self.active_crns += 1
-            # Skip nodes without reward address if only_reward_address is set
-            if self.only_reward_address and not node.stream_reward_address:
-                logger.debug(f"Skipping node {node.hash}, no reward address")
-                return
-            # Skip non-qemu nodes if only_qemu is set
-            if self.only_qemu and not node.qemu_support:
-                logger.debug(f"Skipping node {node.hash}, no qemu support")
-                return
-            # Skip non-confidential nodes if only_confidentials is set
-            if self.only_confidentials and not node.confidential_computing:
-                logger.debug(f"Skipping node {node.hash}, no confidential support")
-                return
-            # Skip non-gpu nodes if only-gpu is set
-            if (
-                self.only_gpu
-                and not node.gpu_support
-                and not (node.machine_usage.gpu and len(node.machine_usage.gpu.available_devices) < 1)
-            ):
-                logger.debug(f"Skipping node {node.hash}, no GPU support or without GPU available")
-                return
-            self.filtered_crns += 1
-
-            # Fetch terms and conditions
-            tac = await node.terms_and_conditions_content
-
-            self.table.add_row(
-                _format_score(node.score),
-                node.name,
-                node.version,
-                node.stream_reward_address,
-                "✅" if node.confidential_computing else "✖",
-                # "✅" if node.qemu_support else "✖", ## Qemu computing enabled by default on nodes
-                "✅" if node.gpu_support else "✖",
-                node.display_cpu,
-                node.display_ram,
-                node.display_hdd,
-                node.url,
-                tac.url if tac else "✖",
-                key=node.hash,
-            )
+        self.table.add_row(
+            _format_score(crn.score),
+            crn.name,
+            crn.version,
+            crn.stream_reward_address,
+            "✅" if crn.confidential_computing else "✖",
+            # "✅" if crn.qemu_support else "✖", ## Qemu computing enabled by default on crns
+            "✅" if crn.gpu_support else "✖",
+            crn.display_cpu,
+            crn.display_ram,
+            crn.display_hdd,
+            crn.url,
+            tac.url if tac else "✖",
+            key=crn.hash,
+        )
 
     def make_progress(self, task):
         """Called automatically to advance the progress bar."""
@@ -191,7 +169,7 @@ class CRNTable(App[CRNInfo]):
         except NoMatches:
             pass
         if len(self.tasks) == 0:
-            self.loader_label_start.update(f"Fetched {self.total_crns} nodes ")
+            self.loader_label_start.update(f"Fetched {self.total_crns} CRNs ")
 
     def on_data_table_row_selected(self, message: DataTable.RowSelected):
         """Return the selected row"""

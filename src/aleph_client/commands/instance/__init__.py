@@ -60,10 +60,10 @@ from aleph_client.commands.account import get_balance
 from aleph_client.commands.instance.display import CRNTable
 from aleph_client.commands.instance.network import (
     fetch_crn_info,
+    fetch_crn_list,
     fetch_vm_info,
     find_crn_of_vm,
 )
-from aleph_client.commands.node import NodeInfo, _fetch_nodes
 from aleph_client.commands.pricing import PricingEntity, SelectedTier, fetch_pricing
 from aleph_client.commands.utils import (
     filter_only_valid_messages,
@@ -78,7 +78,6 @@ from aleph_client.commands.utils import (
     wait_for_processed_instance,
     yes_no_input,
 )
-from aleph_client.models import CRNInfo
 from aleph_client.utils import AsyncTyper, sanitize_url
 
 logger = logging.getLogger(__name__)
@@ -364,59 +363,31 @@ async def create(
     stream_reward_address = None
     crn = None
     if is_stream or confidential or gpu:
-        if crn_url and crn_hash:
-            crn_url = sanitize_url(crn_url)
+        if crn_url:
             try:
-                crn_name, score, reward_addr, terms_and_conditions = "?", 0, "", None
-                nodes: NodeInfo = await _fetch_nodes()
-                for node in nodes.nodes:
-                    found_node, hash_match = None, False
-                    try:
-                        if sanitize_url(node["address"]) == crn_url:
-                            found_node = node
-                            if found_node["hash"] == crn_hash:
-                                hash_match = True
-                    except aiohttp.InvalidURL:
-                        logger.debug(f"Invalid URL for node `{node['hash']}`: {node['address']}")
-                    if found_node:
-                        if hash_match:
-                            crn_name = found_node["name"]
-                            score = found_node["score"]
-                            reward_addr = found_node["stream_reward"]
-                            terms_and_conditions = node["terms_and_conditions"]
-                            break
-                        else:
-                            echo(
-                                f"* Provided CRN *\nUrl: {crn_url}\nHash: {crn_hash}\n\n* Found CRN *\nUrl: "
-                                f"{found_node['address']}\nHash: {found_node['hash']}\n\nMismatch between provided CRN "
-                                "and found CRN"
-                            )
-                            raise typer.Exit(1)
-                if crn_name == "?":
-                    echo(f"* Provided CRN *\nUrl: {crn_url}\nHash: {crn_hash}\n\nCRN not found in aggregate")
-                    raise typer.Exit(1)
-                crn_info = await fetch_crn_info(crn_url)
-                if crn_info:
-                    crn = CRNInfo(
-                        hash=ItemHash(crn_hash),
-                        name=crn_name or "?",
-                        url=crn_url,
-                        version=crn_info.get("version", ""),
-                        score=score,
-                        stream_reward_address=str(crn_info.get("payment", {}).get("PAYMENT_RECEIVER_ADDRESS"))
-                        or reward_addr
-                        or "",
-                        machine_usage=crn_info.get("machine_usage"),
-                        qemu_support=bool(crn_info.get("computing", {}).get("ENABLE_QEMU_SUPPORT", False)),
-                        confidential_computing=bool(
-                            crn_info.get("computing", {}).get("ENABLE_CONFIDENTIAL_COMPUTING", False)
-                        ),
-                        gpu_support=bool(crn_info.get("computing", {}).get("ENABLE_GPU_SUPPORT", False)),
-                        terms_and_conditions=terms_and_conditions,
-                    )
+                crn_url = sanitize_url(crn_url)
+            except aiohttp.InvalidURL as e:
+                echo(f"Invalid URL provided: {crn_url}")
+                raise typer.Exit(1) from e
+
+        echo("Fetching compute resource node's list...")
+        await fetch_crn_list(ipv6=False, stream_address=False)  # Precache complete unfiltered CRN list
+
+        if crn_url or crn_hash:
+            try:
+                crn = await fetch_crn_info(crn_url, crn_hash)
+                if crn:
+                    if (crn_hash and crn_hash != crn.hash) or (crn_url and crn_url != crn.url):
+                        echo(
+                            f"* Provided CRN *\nUrl: {crn_url}\nHash: {crn_hash}\n\n* Found CRN *\nUrl: "
+                            f"{crn.url}\nHash: {crn.hash}\n\nMismatch between provided CRN and found CRN"
+                        )
+                        raise typer.Exit(1)
                     crn.display_crn_specs()
+                else:
+                    echo(f"* Provided CRN *\nUrl: {crn_url}\nHash: {crn_hash}\n\nProvided CRN not found")
+                    raise typer.Exit(1)
             except Exception as e:
-                echo(f"Unable to fetch CRN config: {e}")
                 raise typer.Exit(1) from e
 
         while not crn:
@@ -737,8 +708,7 @@ async def delete(
         chain = existing_message.content.payment.chain  # type: ignore
 
         # Check status of the instance and eventually erase associated VM
-        node_list: NodeInfo = await _fetch_nodes()
-        _, info = await fetch_vm_info(existing_message, node_list)
+        _, info = await fetch_vm_info(existing_message)
         auto_scheduled = info["allocation_type"] == help_strings.ALLOCATION_AUTO
         crn_url = (info["crn_url"] not in [help_strings.CRN_PENDING, help_strings.CRN_UNKNOWN] and info["crn_url"]) or (
             domain and sanitize_url(domain)
@@ -782,13 +752,14 @@ async def delete(
         echo(f"Instance {item_hash} has been deleted.")
 
 
-async def _show_instances(messages: builtins.list[InstanceMessage], node_list: NodeInfo):
+async def _show_instances(messages: builtins.list[InstanceMessage]):
     table = Table(box=box.ROUNDED, style="blue_violet")
     table.add_column(f"Instances [{len(messages)}]", style="blue", overflow="fold")
     table.add_column("Specifications", style="blue")
     table.add_column("Logs", style="blue", overflow="fold")
 
-    scheduler_responses = dict(await asyncio.gather(*[fetch_vm_info(message, node_list) for message in messages]))
+    await fetch_crn_list()  # Precache CRN list
+    scheduler_responses = dict(await asyncio.gather(*[fetch_vm_info(message) for message in messages]))
     uninitialized_confidential_found = False
     for message in messages:
         info = scheduler_responses[message.item_hash]
@@ -968,8 +939,7 @@ async def list_instances(
         else:
             # Since we filtered on message type, we can safely cast as InstanceMessage.
             messages = cast(builtins.list[InstanceMessage], messages)
-            resource_nodes: NodeInfo = await _fetch_nodes()
-            await _show_instances(messages, resource_nodes)
+            await _show_instances(messages)
 
 
 @app.command()
