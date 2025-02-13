@@ -83,10 +83,11 @@ from aleph_client.utils import AsyncTyper, sanitize_url
 logger = logging.getLogger(__name__)
 app = AsyncTyper(no_args_is_help=True)
 
-hold_chains = [*get_chains_with_holding(), Chain.SOL]
-super_token_chains = get_chains_with_super_token()
-metavar_valid_chains = f"[{'|'.join(hold_chains)}]"
 metavar_valid_payment_types = f"[{'|'.join(PaymentType)}|nft]"
+hold_chains = [*get_chains_with_holding(), Chain.SOL]
+metavar_valid_chains = f"[{'|'.join(hold_chains)}]"
+super_token_chains = get_chains_with_super_token()
+metavar_valid_payg_chains = f"[{'|'.join(super_token_chains)}]"
 
 
 @app.command()
@@ -239,7 +240,7 @@ async def create(
     # Checks if Hypervisor is compatible with confidential or with GPU support
     if confidential or gpu:
         if hypervisor and hypervisor != HypervisorType.qemu:
-            echo("Only QEMU is supported as an hypervisor for confidential")
+            echo("Only QEMU is supported as an hypervisor for confidential or GPU support")
             raise typer.Exit(code=1)
         elif not hypervisor:
             echo("Using QEMU as hypervisor for confidential or GPU support")
@@ -1426,5 +1427,79 @@ async def confidential_create(
         private_key=private_key,
         private_key_file=private_key_file,
         verbose=True,
+        debug=debug,
+    )
+
+
+@app.command(name="gpu")
+async def gpu_create(
+    payment_chain: Optional[Chain] = typer.Option(
+        None,
+        help=help_strings.PAYMENT_CHAIN,
+        metavar=metavar_valid_payg_chains,
+        case_sensitive=False,
+    ),
+    name: Optional[str] = typer.Option(None, help=help_strings.INSTANCE_NAME),
+    rootfs: Optional[str] = typer.Option(None, help=help_strings.ROOTFS),
+    compute_units: Optional[int] = typer.Option(None, help=help_strings.COMPUTE_UNITS),
+    vcpus: Optional[int] = typer.Option(None, help=help_strings.VCPUS),
+    memory: Optional[int] = typer.Option(None, help=help_strings.MEMORY),
+    rootfs_size: Optional[int] = typer.Option(None, help=help_strings.ROOTFS_SIZE),
+    timeout_seconds: float = typer.Option(
+        settings.DEFAULT_VM_TIMEOUT,
+        help=help_strings.TIMEOUT_SECONDS,
+    ),
+    ssh_pubkey_file: Path = typer.Option(
+        Path("~/.ssh/id_rsa.pub").expanduser(),
+        help=help_strings.SSH_PUBKEY_FILE,
+    ),
+    address: Optional[str] = typer.Option(None, help=help_strings.ADDRESS_PAYER),
+    crn_hash: Optional[str] = typer.Option(None, help=help_strings.CRN_HASH),
+    crn_url: Optional[str] = typer.Option(None, help=help_strings.CRN_URL),
+    skip_volume: bool = typer.Option(False, help=help_strings.SKIP_VOLUME),
+    persistent_volume: Optional[list[str]] = typer.Option(None, help=help_strings.PERSISTENT_VOLUME),
+    ephemeral_volume: Optional[list[str]] = typer.Option(None, help=help_strings.EPHEMERAL_VOLUME),
+    immutable_volume: Optional[list[str]] = typer.Option(
+        None,
+        help=help_strings.IMMUTABLE_VOLUME,
+    ),
+    crn_auto_tac: bool = typer.Option(False, help=help_strings.CRN_AUTO_TAC),
+    channel: Optional[str] = typer.Option(default=settings.DEFAULT_CHANNEL, help=help_strings.CHANNEL),
+    private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
+    private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
+    print_message: bool = typer.Option(False),
+    verbose: bool = typer.Option(True),
+    debug: bool = False,
+):
+    """Create and register a new GPU instance on aleph.im"""
+
+    await create(
+        payment_type=PaymentType.superfluid,
+        payment_chain=payment_chain,
+        hypervisor=HypervisorType.qemu,
+        name=name,
+        rootfs=rootfs,
+        compute_units=compute_units,
+        vcpus=vcpus,
+        memory=memory,
+        rootfs_size=rootfs_size,
+        timeout_seconds=timeout_seconds,
+        ssh_pubkey_file=ssh_pubkey_file,
+        address=address,
+        crn_hash=crn_hash,
+        crn_url=crn_url,
+        crn_auto_tac=crn_auto_tac,
+        confidential=False,
+        confidential_firmware=None,
+        gpu=True,
+        skip_volume=skip_volume,
+        persistent_volume=persistent_volume,
+        ephemeral_volume=ephemeral_volume,
+        immutable_volume=immutable_volume,
+        channel=channel,
+        private_key=private_key,
+        private_key_file=private_key_file,
+        print_message=print_message,
+        verbose=verbose,
         debug=debug,
     )
