@@ -32,8 +32,11 @@ from aleph_client.utils import fetch_json, sanitize_url
 
 logger = logging.getLogger(__name__)
 
+latest_crn_version_link = "https://api.github.com/repos/aleph-im/aleph-vm/releases/latest"
+
 settings_link = (
-    f"{sanitize_url(settings.API_HOST)}/api/v0/aggregates/0xFba561a84A537fCaa567bb7A2257e7142701ae2A.json?keys=settings"
+    f"{sanitize_url(settings.API_HOST)}/api/v0/"
+    "aggregates/0xFba561a84A537fCaa567bb7A2257e7142701ae2A.json?keys=settings"
 )
 
 crn_list_link = (
@@ -84,32 +87,57 @@ async def call_program_crn_list() -> Optional[dict]:
 
 
 @async_lru_cache
+async def fetch_latest_crn_version() -> str:
+    """Fetch the latest crn version.
+
+    Returns:
+        str: Latest crn version as x.x.x.
+    """
+
+    async with ClientSession() as session:
+        try:
+            data = await fetch_json(session, latest_crn_version_link)
+            return data.get("tag_name")
+        except Exception as e:
+            logger.error(f"Error while fetching latest crn version: {e}")
+            raise Exit(code=1) from e
+
+
+@async_lru_cache
 async def fetch_crn_list(
-    ipv6: bool = True, stream_address: bool = True, confidential: Optional[bool] = None, gpu: Optional[bool] = None
+    latest_crn_version: bool = False,
+    ipv6: bool = False,
+    stream_address: bool = False,
+    confidential: bool = False,
+    gpu: bool = False,
 ) -> list[CRNInfo]:
-    """Fetch compute resource node list.
+    """Fetch compute resource node list, unfiltered by default.
 
     Args:
+        latest_crn_version (bool): Filter by latest crn version.
         ipv6 (bool): Filter invalid IPv6 configuration.
         stream_address (bool): Filter invalid payment receiver address.
-        confidential (Optional[bool]): Filter by confidential computing support.
-        gpu (Optional[bool]): Filter by GPU support.
+        confidential (bool): Filter by confidential computing support.
+        gpu (bool): Filter by GPU support.
     Returns:
         list[CRNInfo]: List of compute resource nodes.
     """
 
     data = await call_program_crn_list()
+    last_crn_version = await fetch_latest_crn_version()
     crns = []
     for crn in data.get("crns"):
+        if latest_crn_version and crn.get("version") >= last_crn_version:
+            continue
         if ipv6:
             ipv6_check = crn.get("ipv6_check")
             if not ipv6_check or not all(ipv6_check.values()):
                 continue
         if stream_address and not crn.get("payment_receiver_address"):
             continue
-        if confidential is not None and confidential != bool(crn.get("confidential_support")):
+        if confidential and not crn.get("confidential_support"):
             continue
-        if gpu is not None and gpu != bool(crn.get("gpu_support")):
+        if gpu and not (crn.get("gpu_support") and crn.get("compatible_available_gpus")):
             continue
         try:
             crns.append(CRNInfo.from_unsanitized_input(crn))

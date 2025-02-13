@@ -55,10 +55,12 @@ class MachineProperties(BaseModel):
 
 class GpuDevice(BaseModel):
     vendor: str
+    model: str
     device_name: str
     device_class: GpuDeviceClass
     pci_host: str
     device_id: str
+    compatible: bool
 
 
 class GPUProperties(BaseModel):

@@ -63,10 +63,12 @@ from .mocks import (
 def dummy_gpu_device() -> GpuDevice:
     return GpuDevice(
         vendor="NVIDIA",
+        model="RTX 4090",
         device_name="RTX 4090",
         device_class=GpuDeviceClass.VGA_COMPATIBLE_CONTROLLER,
         pci_host="01:00.0",
         device_id="abcd:1234",
+        compatible=True,
     )
 
 
@@ -228,6 +230,10 @@ def create_mock_validate_ssh_pubkey_file():
     )
 
 
+def mock_fetch_latest_crn_version():
+    return AsyncMock(return_value="v420.69")
+
+
 def create_mock_fetch_crn_info():
     mock_machine_info = dummy_machine_info()
     return AsyncMock(
@@ -248,7 +254,7 @@ def create_mock_fetch_crn_info():
             confidential_computing=True,
             gpu_support=True,
             terms_and_conditions=FAKE_STORE_HASH,
-            compatible_available_gpus=[],
+            compatible_available_gpus=[dummy_gpu_device()],
         )
     )
 
@@ -456,6 +462,7 @@ async def test_create_instance(args, expected):
     @patch("aleph_client.commands.instance.get_balance", mock_get_balance)
     @patch("aleph_client.commands.instance.AlephHttpClient", mock_client_class)
     @patch("aleph_client.commands.instance.AuthenticatedAlephHttpClient", mock_auth_client_class)
+    @patch("aleph_client.commands.instance.network.fetch_latest_crn_version", mock_fetch_latest_crn_version())
     @patch("aleph_client.commands.instance.fetch_crn_info", mock_fetch_crn_info)
     @patch("aleph_client.commands.instance.validated_int_prompt", mock_validated_int_prompt)
     @patch("aleph_client.commands.instance.wait_for_processed_instance", mock_wait_for_processed_instance)
@@ -518,6 +525,7 @@ async def test_list_instances():
     )
 
     @patch("aleph_client.commands.instance._load_account", mock_load_account)
+    @patch("aleph_client.commands.instance.network.fetch_latest_crn_version", mock_fetch_latest_crn_version())
     @patch("aleph_client.commands.files.AlephHttpClient", mock_client_class)
     @patch("aleph_client.commands.instance.AlephHttpClient", mock_auth_client_class)
     @patch("aleph_client.commands.instance.filter_only_valid_messages", mock_instance_messages)

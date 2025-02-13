@@ -374,7 +374,7 @@ async def create(
                 raise typer.Exit(1) from e
 
         echo("Fetching compute resource node's list...")
-        await fetch_crn_list(ipv6=False, stream_address=False)  # Precache complete unfiltered CRN list
+        await fetch_crn_list()  # Precache complete unfiltered CRN list
 
         if crn_url or crn_hash:
             try:
@@ -395,7 +395,11 @@ async def create(
 
         while not crn:
             crn_table = CRNTable(
-                only_reward_address=is_stream, only_qemu=is_qemu, only_confidentials=confidential, only_gpu=gpu
+                only_latest_crn_version=True,
+                only_reward_address=is_stream,
+                only_qemu=is_qemu,
+                only_confidentials=confidential,
+                only_gpu=gpu,
             )
             crn = await crn_table.run_async()
             if not crn:
@@ -761,7 +765,7 @@ async def _show_instances(messages: builtins.list[InstanceMessage]):
     table.add_column("Specifications", style="blue")
     table.add_column("Logs", style="blue", overflow="fold")
 
-    await fetch_crn_list()  # Precache CRN list
+    await fetch_crn_list()  # Precache complete unfiltered CRN list
     scheduler_responses = dict(await asyncio.gather(*[fetch_vm_info(message) for message in messages]))
     uninitialized_confidential_found = False
     for message in messages:

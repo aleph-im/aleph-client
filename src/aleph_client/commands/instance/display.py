@@ -11,7 +11,10 @@ from textual.reactive import reactive
 from textual.widgets import DataTable, Footer, Label, ProgressBar
 from textual.widgets._data_table import RowKey
 
-from aleph_client.commands.instance.network import fetch_crn_list
+from aleph_client.commands.instance.network import (
+    fetch_crn_list,
+    fetch_latest_crn_version,
+)
 from aleph_client.commands.node import _format_score
 from aleph_client.models import CRNInfo
 
@@ -22,6 +25,7 @@ class CRNTable(App[CRNInfo]):
     table: DataTable
     tasks: set[asyncio.Task] = set()
     crns: dict[RowKey, CRNInfo] = {}
+    last_crn_version: str
     total_crns: int
     active_crns: int = 0
     filtered_crns: int = 0
@@ -50,12 +54,14 @@ class CRNTable(App[CRNInfo]):
 
     def __init__(
         self,
+        only_latest_crn_version: bool = False,
         only_reward_address: bool = False,
         only_qemu: bool = False,
         only_confidentials: bool = False,
         only_gpu: bool = False,
     ):
         super().__init__()
+        self.only_latest_crn_version = only_latest_crn_version
         self.only_reward_address = only_reward_address
         self.only_qemu = only_qemu
         self.only_confidentials = only_confidentials
@@ -94,8 +100,8 @@ class CRNTable(App[CRNInfo]):
         task.add_done_callback(self.tasks.discard)
 
     async def fetch_node_list(self):
-        crn_list: list[CRNInfo] = await fetch_crn_list(ipv6=False, stream_address=False)
-        self.crns: dict[RowKey, CRNInfo] = {RowKey(crn.hash): crn for crn in crn_list}
+        self.crns: dict[RowKey, CRNInfo] = {RowKey(crn.hash): crn for crn in await fetch_crn_list()}
+        self.last_crn_version = await fetch_latest_crn_version()
 
         # Initialize the progress bar
         self.total_crns = len(self.crns)
@@ -112,6 +118,10 @@ class CRNTable(App[CRNInfo]):
 
     async def add_crn_info(self, crn: CRNInfo):
         self.active_crns += 1
+        # Skip CRNs with legacy version
+        if self.only_latest_crn_version and crn.version < self.last_crn_version:
+            logger.debug(f"Skipping CRN {crn.hash}, legacy version")
+            return
         # Skip CRNs without machine usage
         if not crn.machine_usage:
             logger.debug(f"Skipping CRN {crn.hash}, no machine usage")
@@ -133,11 +143,7 @@ class CRNTable(App[CRNInfo]):
             logger.debug(f"Skipping CRN {crn.hash}, no confidential support")
             return
         # Skip non-gpu CRNs if only-gpu is set
-        if (
-            self.only_gpu
-            and not crn.gpu_support
-            and not (crn.machine_usage.gpu and len(crn.machine_usage.gpu.available_devices) < 1)
-        ):
+        if self.only_gpu and not (crn.gpu_support and crn.compatible_available_gpus):
             logger.debug(f"Skipping CRN {crn.hash}, no GPU support or without GPU available")
             return
         self.filtered_crns += 1
