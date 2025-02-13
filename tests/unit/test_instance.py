@@ -80,7 +80,7 @@ def dummy_machine_info() -> MachineInfo:
         hash=FAKE_CRN_HASH,
         name="Mock CRN",
         url="https://example.com",
-        version="v420.69",
+        version="123.420.69",
         score=0.5,
         reward_address=FAKE_ADDRESS_EVM,
         machine_usage=MachineUsage(
@@ -120,16 +120,28 @@ def dict_to_ci_multi_dict_proxy(d: dict) -> CIMultiDictProxy:
     return CIMultiDictProxy(CIMultiDict(d))
 
 
+def create_mock_fetch_latest_crn_version():
+    return AsyncMock(return_value="123.420.69")
+
+
 @pytest.mark.asyncio
 async def test_fetch_crn_info():
+    mock_fetch_latest_crn_version = create_mock_fetch_latest_crn_version()
+
+    @patch("aleph_client.commands.instance.network.fetch_latest_crn_version", mock_fetch_latest_crn_version)
+    async def fetch_crn_info_with_mock(url):
+        print()  # For better display when pytest -v -s
+        return await fetch_crn_info(url)
+
     # Test with valid node
     node_url = "https://coco-1.crn.aleph.sh/"
-    info = await fetch_crn_info(node_url)
+    info = await fetch_crn_info_with_mock(node_url)
     assert info
     assert info.machine_usage
     # Test with invalid node
     invalid_node_url = "https://coconut.example.org/"
-    assert not (await fetch_crn_info(invalid_node_url))
+    assert not (await fetch_crn_info_with_mock(invalid_node_url))
+    mock_fetch_latest_crn_version.assert_called()
 
 
 def test_sanitize_url_with_empty_url():
@@ -230,10 +242,6 @@ def create_mock_validate_ssh_pubkey_file():
     )
 
 
-def mock_fetch_latest_crn_version():
-    return AsyncMock(return_value="v420.69")
-
-
 def create_mock_fetch_crn_info():
     mock_machine_info = dummy_machine_info()
     return AsyncMock(
@@ -244,7 +252,7 @@ def create_mock_fetch_crn_info():
             url=FAKE_CRN_URL,
             ccn_hash=FAKE_CRN_HASH,
             status="linked",
-            version="v420.69",
+            version="123.420.69",
             score=0.9,
             reward_address=FAKE_ADDRESS_EVM,
             stream_reward_address=mock_machine_info.reward_address,
@@ -452,6 +460,7 @@ async def test_create_instance(args, expected):
     mock_client_class, mock_client = create_mock_client(payment_type=args["payment_type"])
     mock_auth_client_class, mock_auth_client = create_mock_auth_client(mock_account, payment_type=args["payment_type"])
     mock_vm_client_class, mock_vm_client = create_mock_vm_client()
+    mock_fetch_latest_crn_version = create_mock_fetch_latest_crn_version()
     mock_fetch_crn_info = create_mock_fetch_crn_info()
     mock_validated_int_prompt = MagicMock(return_value=1)
     mock_wait_for_processed_instance = AsyncMock()
@@ -462,7 +471,7 @@ async def test_create_instance(args, expected):
     @patch("aleph_client.commands.instance.get_balance", mock_get_balance)
     @patch("aleph_client.commands.instance.AlephHttpClient", mock_client_class)
     @patch("aleph_client.commands.instance.AuthenticatedAlephHttpClient", mock_auth_client_class)
-    @patch("aleph_client.commands.instance.network.fetch_latest_crn_version", mock_fetch_latest_crn_version())
+    @patch("aleph_client.commands.instance.network.fetch_latest_crn_version", mock_fetch_latest_crn_version)
     @patch("aleph_client.commands.instance.fetch_crn_info", mock_fetch_crn_info)
     @patch("aleph_client.commands.instance.validated_int_prompt", mock_validated_int_prompt)
     @patch("aleph_client.commands.instance.wait_for_processed_instance", mock_wait_for_processed_instance)
@@ -499,17 +508,22 @@ async def test_create_instance(args, expected):
         return await create(**all_args)
 
     returned = await create_instance(args)
+    # Basic assertions for all cases
     mock_load_account.assert_called_once()
     mock_validate_ssh_pubkey_file.return_value.read_text.assert_called_once()
     mock_client.get_estimated_price.assert_called_once()
     mock_auth_client.create_instance.assert_called_once()
+    # Payment type specific assertions
     if args["payment_type"] == "hold":
         mock_get_balance.assert_called_once()
     elif args["payment_type"] == "superfluid":
-        mock_fetch_crn_info.assert_called_once()
-        mock_wait_for_processed_instance.assert_called_once()
         mock_account.manage_flow.assert_called_once()
         mock_wait_for_confirmed_flow.assert_called_once()
+    # CRN related assertions
+    if args["payment_type"] == "superfluid" or args.get("confidential") or args.get("gpu"):
+        mock_fetch_latest_crn_version.assert_called()
+        mock_fetch_crn_info.assert_called_once()
+        mock_wait_for_processed_instance.assert_called_once()
         mock_vm_client.start_instance.assert_called_once()
     assert returned == expected
 
@@ -518,6 +532,7 @@ async def test_create_instance(args, expected):
 async def test_list_instances():
     mock_load_account = create_mock_load_account()
     mock_account = mock_load_account.return_value
+    mock_fetch_latest_crn_version = create_mock_fetch_latest_crn_version()
     mock_client_class, mock_client = create_mock_client()
     mock_instance_messages = create_mock_instance_messages(mock_account)
     mock_auth_client_class, mock_auth_client = create_mock_auth_client(
@@ -525,7 +540,7 @@ async def test_list_instances():
     )
 
     @patch("aleph_client.commands.instance._load_account", mock_load_account)
-    @patch("aleph_client.commands.instance.network.fetch_latest_crn_version", mock_fetch_latest_crn_version())
+    @patch("aleph_client.commands.instance.network.fetch_latest_crn_version", mock_fetch_latest_crn_version)
     @patch("aleph_client.commands.files.AlephHttpClient", mock_client_class)
     @patch("aleph_client.commands.instance.AlephHttpClient", mock_auth_client_class)
     @patch("aleph_client.commands.instance.filter_only_valid_messages", mock_instance_messages)
@@ -538,6 +553,7 @@ async def test_list_instances():
             debug=False,
         )
         mock_instance_messages.assert_called_once()
+        mock_fetch_latest_crn_version.assert_called()
         mock_auth_client.get_messages.assert_called_once()
         mock_auth_client.get_program_price.assert_called()
         assert mock_auth_client.get_program_price.call_count == 5

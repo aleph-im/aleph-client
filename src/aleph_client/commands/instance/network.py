@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import sys
 from asyncio import ensure_future
 from functools import lru_cache
 from ipaddress import IPv6Interface
@@ -48,7 +49,8 @@ PATH_ABOUT_EXECUTIONS_LIST = "/about/executions/list"
 
 
 def async_lru_cache(async_function):
-    @lru_cache(maxsize=1)
+
+    @lru_cache(maxsize=0 if "pytest" in sys.modules else 1)
     def cached_async_function(*args, **kwargs):
         return ensure_future(async_function(*args, **kwargs))
 
