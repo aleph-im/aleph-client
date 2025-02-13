@@ -99,7 +99,11 @@ async def fetch_latest_crn_version() -> str:
     async with ClientSession() as session:
         try:
             data = await fetch_json(session, latest_crn_version_link)
-            return data.get("tag_name")
+            version = data.get("tag_name")
+            if not version:
+                msg = "No tag_name found in GitHub release data"
+                raise ValueError(msg)
+            return version
         except Exception as e:
             logger.error(f"Error while fetching latest crn version: {e}")
             raise Exit(code=1) from e

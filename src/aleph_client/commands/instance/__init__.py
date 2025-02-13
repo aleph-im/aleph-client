@@ -221,7 +221,6 @@ async def create(
                     default=Chain.AVAX.value,
                 )
             )
-        await fetch_settings()
 
     # Fallback for Hold-tier if no config / no chain is set / chain not in hold_chains
     elif payment_chain is None or payment_chain not in hold_chains:
@@ -570,30 +569,46 @@ async def create(
 
             # Pay-As-You-Go
             if is_stream and isinstance(account, ETHAccount):
-                # Start the flow
-                flow_hash = await account.manage_flow(
+                # Start the flows
+                echo("Starting the flows...")
+                fetched_settings = await fetch_settings()
+                community_wallet_address = fetched_settings.get("community_wallet_address")
+                flow_hash_crn = await account.manage_flow(
                     receiver=crn.stream_reward_address,
-                    flow=required_tokens,
+                    flow=required_tokens * Decimal("0.8"),
                     update_type=FlowUpdate.INCREASE,
                 )
-                # Wait for the flow transaction to be confirmed
-                await wait_for_confirmed_flow(account, message.content.payment.receiver)
-                if flow_hash:
+                if flow_hash_crn:
+                    await asyncio.sleep(5)  # 2nd flow tx fails if no delay
+                    flow_hash_community = await account.manage_flow(
+                        receiver=community_wallet_address,
+                        flow=required_tokens * Decimal("0.2"),
+                        update_type=FlowUpdate.INCREASE,
+                    )
+                else:
+                    echo("Flow creation failed. Check your wallet balance and try recreate the VM.")
+                    raise typer.Exit(code=1)
+                # Wait for the flow transactions to be confirmed
+                await wait_for_confirmed_flow(account, crn.stream_reward_address)
+                await wait_for_confirmed_flow(account, community_wallet_address)
+                if flow_hash_crn and flow_hash_community:
                     flow_info = "\n".join(
                         f"[orange3]{key}[/orange3]: {value}"
                         for key, value in {
-                            "Hash": flow_hash,
-                            "$ALEPH": f"{displayable_amount(required_tokens, decimals=8)}/sec"
+                            "$ALEPH": f"[violet]{displayable_amount(required_tokens, decimals=8)}/sec"
                             f" | {displayable_amount(3600*required_tokens, decimals=3)}/hour"
                             f" | {displayable_amount(86400*required_tokens, decimals=3)}/day"
-                            f" | {displayable_amount(2592000*required_tokens, decimals=3)}/month",
-                            "CRN receiver address": crn.stream_reward_address,
+                            f" | {displayable_amount(2592000*required_tokens, decimals=3)}/month[/violet]",
+                            "Flow Distribution": "\n[bright_cyan]80% -> CRN wallet[/bright_cyan]"
+                            f"\n  Address: {crn.stream_reward_address}\n  Tx: {flow_hash_crn}"
+                            f"\n[bright_cyan]20% -> Community wallet[/bright_cyan]"
+                            f"\n  Address:{community_wallet_address}\n  Tx: {flow_hash_community}",
                         }.items()
                     )
                     console.print(
                         Panel(
-                            flow_info,
-                            title="Flow Created",
+                            Text.from_markup(flow_info),
+                            title="Flows Created",
                             border_style="violet",
                             expand=False,
                             title_align="left",
@@ -699,13 +714,14 @@ async def delete(
             echo("Instance does not exist")
             raise typer.Exit(code=1) from None
         except ForgottenMessageError:
-            echo("Instance already forgotten")
+            echo("Instance already deleted")
             raise typer.Exit(code=1) from None
         if existing_message.sender != account.get_address():
             echo("You are not the owner of this instance")
             raise typer.Exit(code=1)
 
-        # If PAYG, retrieve flow price
+        # If PAYG, retrieve creation time & flow price
+        creation_time: float = existing_message.content.time
         payment: Optional[Payment] = existing_message.content.payment
         price: Optional[PriceResponse] = None
         if safe_getattr(payment, "type") == PaymentType.superfluid:
@@ -742,16 +758,31 @@ async def delete(
             if account.CHAIN != payment.chain:
                 account.switch_chain(payment.chain)
             if safe_getattr(account, "superfluid_connector") and price:
+                fetched_settings = await fetch_settings()
+                community_wallet_timestamp = fetched_settings.get("community_wallet_timestamp")
+                community_wallet_address = fetched_settings.get("community_wallet_address")
                 try:  # Safety check to ensure account can transact
                     account.can_transact()
                 except Exception as e:
                     echo(e)
                     raise typer.Exit(code=1) from e
-                flow_hash = await account.manage_flow(
-                    payment.receiver, Decimal(price.required_tokens), FlowUpdate.REDUCE
+                echo("Deleting the flows...")
+                flow_hash_crn = await account.manage_flow(
+                    payment.receiver, Decimal(price.required_tokens) * Decimal("0.8"), FlowUpdate.REDUCE
                 )
-                if flow_hash:
-                    echo(f"Flow {flow_hash} has been deleted.")
+                if flow_hash_crn:
+                    echo(f"CRN flow has been deleted successfully (Tx: {flow_hash_crn})")
+                    if community_wallet_timestamp < creation_time:
+                        await asyncio.sleep(5)
+                        flow_hash_community = await account.manage_flow(
+                            community_wallet_address, Decimal(price.required_tokens) * Decimal("0.2"), FlowUpdate.REDUCE
+                        )
+                        if flow_hash_community:
+                            echo(f"Community flow has been deleted successfully (Tx: {flow_hash_community})")
+                    else:
+                        echo("No community flow to delete (legacy instance). Skipping...")
+                else:
+                    echo("No flow to delete. Skipping...")
 
         message, status = await client.forget(hashes=[ItemHash(item_hash)], reason=reason)
         if print_message:

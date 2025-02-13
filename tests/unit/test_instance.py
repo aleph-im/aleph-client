@@ -184,7 +184,7 @@ def create_mock_instance_message(mock_account, payg=False, coco=False, gpu=False
         item_hash=vm_item_hash,
         content=Dict(
             address=mock_account.get_address(),
-            time=1734037086.2333803,
+            time=2999999999.1234567,
             metadata={"name": "mock_instance"},
             authorized_keys=["ssh-rsa ..."],
             environment=Dict(hypervisor=HypervisorType.qemu, trusted_execution=None),
@@ -475,6 +475,7 @@ async def test_create_instance(args, expected):
     @patch("aleph_client.commands.instance.fetch_crn_info", mock_fetch_crn_info)
     @patch("aleph_client.commands.instance.validated_int_prompt", mock_validated_int_prompt)
     @patch("aleph_client.commands.instance.wait_for_processed_instance", mock_wait_for_processed_instance)
+    @patch.object(asyncio, "sleep", AsyncMock())
     @patch("aleph_client.commands.instance.wait_for_confirmed_flow", mock_wait_for_confirmed_flow)
     @patch("aleph_client.commands.instance.VmClient", mock_vm_client_class)
     async def create_instance(instance_spec):
@@ -517,8 +518,8 @@ async def test_create_instance(args, expected):
     if args["payment_type"] == "hold":
         mock_get_balance.assert_called_once()
     elif args["payment_type"] == "superfluid":
-        mock_account.manage_flow.assert_called_once()
-        mock_wait_for_confirmed_flow.assert_called_once()
+        assert mock_account.manage_flow.call_count == 2
+        assert mock_wait_for_confirmed_flow.call_count == 2
     # CRN related assertions
     if args["payment_type"] == "superfluid" or args.get("confidential") or args.get("gpu"):
         mock_fetch_latest_crn_version.assert_called()
@@ -574,6 +575,7 @@ async def test_delete_instance():
     @patch("aleph_client.commands.instance.AuthenticatedAlephHttpClient", mock_auth_client_class)
     @patch("aleph_client.commands.instance.fetch_vm_info", mock_fetch_vm_info)
     @patch("aleph_client.commands.instance.VmClient", mock_vm_client_class)
+    @patch.object(asyncio, "sleep", AsyncMock())
     async def delete_instance():
         print()  # For better display when pytest -v -s
         await delete(
@@ -584,7 +586,7 @@ async def test_delete_instance():
         )
         mock_auth_client.get_message.assert_called_once()
         mock_vm_client.erase_instance.assert_called_once()
-        mock_account.manage_flow.assert_awaited_once()
+        assert mock_account.manage_flow.call_count == 2
         mock_auth_client.forget.assert_called_once()
 
     await delete_instance()
