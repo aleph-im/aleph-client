@@ -121,7 +121,7 @@ def dict_to_ci_multi_dict_proxy(d: dict) -> CIMultiDictProxy:
 @pytest.mark.asyncio
 async def test_fetch_crn_info():
     # Test with valid node
-    node_url = "https://crn-rbx04.omega-aleph.com"  # TODO: Fix for production
+    node_url = "https://coco-1.crn.aleph.sh/"
     info = await fetch_crn_info(node_url)
     assert info
     assert info.machine_usage

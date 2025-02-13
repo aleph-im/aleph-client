@@ -24,7 +24,7 @@ app = AsyncTyper(no_args_is_help=True)
 
 # TODO: Change with proper address
 pricing_link = (
-    f"{sanitize_url(settings.API_HOST)}/api/v0/aggregates/0xA07B1214bAe0D5ccAA25449C3149c0aC83658874.json?keys=pricing"
+    f"{sanitize_url(settings.API_HOST)}/api/v0/aggregates/0xFba561a84A537fCaa567bb7A2257e7142701ae2A.json?keys=pricing"
 )
 
 

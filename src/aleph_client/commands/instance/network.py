@@ -32,10 +32,14 @@ from aleph_client.utils import fetch_json, sanitize_url
 
 logger = logging.getLogger(__name__)
 
+settings_link = (
+    f"{sanitize_url(settings.API_HOST)}/api/v0/aggregates/0xFba561a84A537fCaa567bb7A2257e7142701ae2A.json?keys=settings"
+)
+
 crn_list_link = (
-    f"{sanitize_url('https://coco-1.crn.aleph.sh')}/vm/"
+    f"{sanitize_url('https://ovh.staging.aleph.sh')}/vm/"
     "bec08b08bb9f9685880f3aeb9c1533951ad56abef2a39c97f5a93683bdaa5e30/crns.json"
-)  # TODO: Change for production
+)  # TODO: Change for production with load balancer
 
 PATH_ABOUT_EXECUTIONS_LIST = "/about/executions/list"
 
@@ -125,9 +129,10 @@ async def fetch_crn_info(crn_url: Optional[str] = None, crn_hash: Optional[str] 
         Union[CRNInfo, None]: The compute resource node or None if not found.
     """
 
+    crn_url = sanitize_url(crn_url)
     crn_list = await fetch_crn_list()
     for crn in crn_list:
-        if crn.hash == crn_hash or crn.url == crn_url:
+        if crn.url == crn_url or crn.hash == crn_hash:
             return crn
     return None
 
@@ -220,6 +225,7 @@ async def find_crn_of_vm(vm_id: str) -> Optional[str]:
     Returns:
         str: CRN url or None if not found.
     """
+
     async with AlephHttpClient(api_server=settings.API_HOST) as client:
         message: Optional[InstanceMessage] = None
         try:
@@ -233,3 +239,20 @@ async def find_crn_of_vm(vm_id: str) -> Optional[str]:
         _, info = await fetch_vm_info(message)
         is_valid = info["crn_url"] not in [help_strings.CRN_PENDING, help_strings.CRN_UNKNOWN]
         return str(info["crn_url"]) if is_valid else None
+
+
+@async_lru_cache
+async def fetch_settings() -> dict:
+    """Fetch the settings from aggregate for flows and gpu instances.
+
+    Returns:
+        dict: Dictionary containing the settings.
+    """
+
+    async with ClientSession() as session:
+        try:
+            data = await fetch_json(session, settings_link)
+            return data.get("data", {}).get("settings")
+        except Exception as e:
+            logger.error(f"Error while fetching settings: {e}")
+            raise Exit(code=1) from e

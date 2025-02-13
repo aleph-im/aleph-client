@@ -19,7 +19,6 @@ from aleph.sdk.client.vm_confidential_client import VmConfidentialClient
 from aleph.sdk.conf import load_main_configuration, settings
 from aleph.sdk.evm_utils import (
     FlowUpdate,
-    ether_rounding,
     get_chains_with_holding,
     get_chains_with_super_token,
 )
@@ -61,6 +60,7 @@ from aleph_client.commands.instance.display import CRNTable
 from aleph_client.commands.instance.network import (
     fetch_crn_info,
     fetch_crn_list,
+    fetch_settings,
     fetch_vm_info,
     find_crn_of_vm,
 )
@@ -221,6 +221,8 @@ async def create(
                     default=Chain.AVAX.value,
                 )
             )
+        await fetch_settings()
+
     # Fallback for Hold-tier if no config / no chain is set / chain not in hold_chains
     elif payment_chain is None or payment_chain not in hold_chains:
         if payment_chain:
@@ -266,10 +268,11 @@ async def create(
             )
         ]
         hypervisor = HypervisorType(hypervisor_choice)
-    is_qemu = hypervisor == HypervisorType.qemu
 
+    is_qemu = hypervisor == HypervisorType.qemu
     os_choices = available_hypervisors[hypervisor]
 
+    # Rootfs selection
     if not rootfs or len(rootfs) != 64:
         if confidential:
             # Confidential only support custom rootfs
@@ -512,7 +515,7 @@ async def create(
         try:
             content = make_instance_content(**content_dict)
             price: PriceResponse = await client.get_estimated_price(content)
-            required_tokens = ether_rounding(Decimal(price.required_tokens))
+            required_tokens = Decimal(price.required_tokens)
         except Exception as e:
             echo(e)
             raise typer.Exit(code=1) from e
@@ -741,7 +744,7 @@ async def delete(
                     echo(e)
                     raise typer.Exit(code=1) from e
                 flow_hash = await account.manage_flow(
-                    payment.receiver, ether_rounding(Decimal(price.required_tokens)), FlowUpdate.REDUCE
+                    payment.receiver, Decimal(price.required_tokens), FlowUpdate.REDUCE
                 )
                 if flow_hash:
                     echo(f"Flow {flow_hash} has been deleted.")
