@@ -128,6 +128,7 @@ async def create(
         default=settings.DEFAULT_CONFIDENTIAL_FIRMWARE, help=help_strings.CONFIDENTIAL_FIRMWARE
     ),
     gpu: bool = typer.Option(False, help=help_strings.GPU_OPTION),
+    premium: Optional[bool] = typer.Option(None, help=help_strings.GPU_PREMIUM_OPTION),
     skip_volume: bool = typer.Option(False, help=help_strings.SKIP_VOLUME),
     persistent_volume: Optional[list[str]] = typer.Option(None, help=help_strings.PERSISTENT_VOLUME),
     ephemeral_volume: Optional[list[str]] = typer.Option(None, help=help_strings.EPHEMERAL_VOLUME),
@@ -319,10 +320,46 @@ async def create(
             if not firmware_message:
                 raise typer.Exit(code=1)
 
-    name = name or validated_prompt("Instance name", lambda x: len(x) < 65)
+    # Filter and prepare the list of available GPUs
+    crn_list = None
+    found_gpu_models: Optional[dict[str, dict[str, dict[str, int]]]] = None
+    if gpu:
+        echo("Fetching available GPU list...")
+        crn_list = await fetch_crn_list(latest_crn_version=True, ipv6=True, stream_address=True, gpu=True)
+        found_gpu_models = {}
+        for crn_ in crn_list:
+            found_gpus: dict[str, dict[str, dict[str, int]]] = {}
+            for gpu_ in crn_.compatible_available_gpus:
+                model = gpu_["model"]
+                device = gpu_["device_name"]
+                if model not in found_gpus:
+                    found_gpus[model] = {device: {"count": 1, "on_crns": 1}}
+                elif device not in found_gpus[model]:
+                    found_gpus[model][device] = {"count": 1, "on_crns": 1}
+                else:
+                    found_gpus[model][device]["count"] += 1
+            for model, devices in found_gpus.items():
+                if model not in found_gpu_models:
+                    found_gpu_models[model] = devices
+                else:
+                    for device, details in devices.items():
+                        if device not in found_gpu_models[model]:
+                            found_gpu_models[model][device] = details
+                        else:
+                            found_gpu_models[model][device]["count"] += details["count"]
+                            found_gpu_models[model][device]["on_crns"] += details["on_crns"]
+        premium = yes_no_input("Premium GPUs (high VRAM)?", default=False) if premium is None else premium
 
     pricing = await fetch_pricing()
-    pricing_entity = PricingEntity.INSTANCE_CONFIDENTIAL if confidential else PricingEntity.INSTANCE  # TODO: Add gpu
+    pricing_entity = (
+        PricingEntity.INSTANCE_CONFIDENTIAL
+        if confidential
+        else (
+            PricingEntity.INSTANCE_GPU_PREMIUM
+            if gpu and premium
+            else PricingEntity.INSTANCE_GPU_STANDARD if gpu else PricingEntity.INSTANCE
+        )
+    )
     tier = cast(  # Safe cast
         SelectedTier,
         pricing.display_table_for(
@@ -331,13 +368,15 @@ async def create(
             vcpus=vcpus or 0,
             memory=memory or 0,
             disk=rootfs_size or 0,
-            # gpu_model=gpu_model,
+            gpu_models=found_gpu_models,
             selector=True,
         ),
     )
+    name = name or validated_prompt("Instance name", lambda x: x and len(x) < 65)
     vcpus = tier.vcpus
     memory = tier.memory
     rootfs_size = tier.disk
+    gpu_model = tier.gpu_model
     volumes = []
     if not skip_volume:
         volumes = get_or_prompt_volumes(
@@ -374,9 +413,9 @@ async def create(
                 raise typer.Exit(1) from e
 
         echo("Fetching compute resource node's list...")
-        await fetch_crn_list()  # Precache complete unfiltered CRN list
+        crn_list = await fetch_crn_list()  # Precache CRN list
 
-        if crn_url or crn_hash:
+        if (crn_url or crn_hash) and not gpu:
             try:
                 crn = await fetch_crn_info(crn_url, crn_hash)
                 if crn:
@@ -400,6 +439,7 @@ async def create(
                 only_qemu=is_qemu,
                 only_confidentials=confidential,
                 only_gpu=gpu,
+                only_gpu_model=gpu_model,
             )
             crn = await crn_table.run_async()
             if not crn:
@@ -419,7 +459,7 @@ async def create(
     if crn:
         stream_reward_address = safe_getattr(crn, "stream_reward_address") or ""
         if is_stream and not stream_reward_address:
-            echo("Selected CRN does not have a defined receiver address.")
+            echo("Selected CRN does not have a defined or valid receiver address.")
             raise typer.Exit(1)
         if is_qemu and not safe_getattr(crn, "qemu_support"):
             echo("Selected CRN does not support QEMU hypervisor.")
@@ -599,7 +639,7 @@ async def create(
                             "$ALEPH": f"[violet]{displayable_amount(required_tokens, decimals=8)}/sec"
                             f" | {displayable_amount(3600*required_tokens, decimals=3)}/hour"
                             f" | {displayable_amount(86400*required_tokens, decimals=3)}/day"
-                            f" | {displayable_amount(2592000*required_tokens, decimals=3)}/month[/violet]",
+                            f" | {displayable_amount(2628000*required_tokens, decimals=3)}/month[/violet]",
                             "Flow Distribution": "\n[bright_cyan]80% -> CRN wallet[/bright_cyan]"
                             f"\n  Address: {crn.stream_reward_address}\n  Tx: {flow_hash_crn}"
                             f"\n[bright_cyan]20% -> Community wallet[/bright_cyan]"
@@ -797,7 +837,7 @@ async def _show_instances(messages: builtins.list[InstanceMessage]):
     table.add_column("Specifications", style="blue")
     table.add_column("Logs", style="blue", overflow="fold")
 
-    await fetch_crn_list()  # Precache complete unfiltered CRN list
+    await fetch_crn_list()  # Precache CRN list
     scheduler_responses = dict(await asyncio.gather(*[fetch_vm_info(message) for message in messages]))
     uninitialized_confidential_found = False
     for message in messages:
@@ -840,7 +880,7 @@ async def _show_instances(messages: builtins.list[InstanceMessage]):
                 psec = f"{displayable_amount(required_tokens, decimals=8)}/sec"
                 phour = f"{displayable_amount(3600*required_tokens, decimals=3)}/hour"
                 pday = f"{displayable_amount(86400*required_tokens, decimals=3)}/day"
-                pmonth = f"{displayable_amount(2592000*required_tokens, decimals=3)}/month"
+                pmonth = f"{displayable_amount(2628000*required_tokens, decimals=3)}/month"
                 aleph_price = Text.assemble(psec, " | ", phour, " | ", pday, " | ", pmonth, style="violet")
         cost = Text.assemble("\n$ALEPH: ", aleph_price)
         payer: Union[str, Text] = ""
@@ -1308,6 +1348,7 @@ async def confidential_create(
     ),
     address: Optional[str] = typer.Option(None, help=help_strings.ADDRESS_PAYER),
     gpu: bool = typer.Option(False, help=help_strings.GPU_OPTION),
+    premium: Optional[bool] = typer.Option(None, help=help_strings.GPU_PREMIUM_OPTION),
     skip_volume: bool = typer.Option(False, help=help_strings.SKIP_VOLUME),
     persistent_volume: Optional[list[str]] = typer.Option(None, help=help_strings.PERSISTENT_VOLUME),
     ephemeral_volume: Optional[list[str]] = typer.Option(None, help=help_strings.EPHEMERAL_VOLUME),
@@ -1354,6 +1395,7 @@ async def confidential_create(
             confidential=True,
             confidential_firmware=confidential_firmware,
             gpu=gpu,
+            premium=premium,
             skip_volume=skip_volume,
             persistent_volume=persistent_volume,
             ephemeral_volume=ephemeral_volume,
@@ -1445,6 +1487,7 @@ async def gpu_create(
     vcpus: Optional[int] = typer.Option(None, help=help_strings.VCPUS),
     memory: Optional[int] = typer.Option(None, help=help_strings.MEMORY),
     rootfs_size: Optional[int] = typer.Option(None, help=help_strings.ROOTFS_SIZE),
+    premium: Optional[bool] = typer.Option(None, help=help_strings.GPU_PREMIUM_OPTION),
     timeout_seconds: float = typer.Option(
         settings.DEFAULT_VM_TIMEOUT,
         help=help_strings.TIMEOUT_SECONDS,
@@ -1492,6 +1535,7 @@ async def gpu_create(
         confidential=False,
         confidential_firmware=None,
         gpu=True,
+        premium=premium,
         skip_volume=skip_volume,
         persistent_volume=persistent_volume,
         ephemeral_volume=ephemeral_volume,
