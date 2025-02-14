@@ -1,9 +1,6 @@
 from __future__ import annotations
 
 import logging
-import sys
-from asyncio import ensure_future
-from functools import lru_cache
 from ipaddress import IPv6Interface
 from json import JSONDecodeError
 from typing import Optional
@@ -29,7 +26,12 @@ from typer import Exit
 from aleph_client.commands import help_strings
 from aleph_client.commands.files import download
 from aleph_client.models import CRNInfo
-from aleph_client.utils import fetch_json, sanitize_url
+from aleph_client.utils import (
+    async_lru_cache,
+    extract_valid_eth_address,
+    fetch_json,
+    sanitize_url,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -46,15 +48,6 @@ crn_list_link = (
 )  # TODO: Change for production with load balancer
 
 PATH_ABOUT_EXECUTIONS_LIST = "/about/executions/list"
-
-
-def async_lru_cache(async_function):
-
-    @lru_cache(maxsize=0 if "pytest" in sys.modules else 1)
-    def cached_async_function(*args, **kwargs):
-        return ensure_future(async_function(*args, **kwargs))
-
-    return cached_async_function
 
 
 @async_lru_cache
@@ -130,16 +123,16 @@ async def fetch_crn_list(
     """
 
     data = await call_program_crn_list()
-    last_crn_version = await fetch_latest_crn_version()
+    current_crn_version = await fetch_latest_crn_version()
     crns = []
     for crn in data.get("crns"):
-        if latest_crn_version and crn.get("version") >= last_crn_version:
+        if latest_crn_version and (crn.get("version") or "0.0.0") < current_crn_version:
             continue
         if ipv6:
             ipv6_check = crn.get("ipv6_check")
             if not ipv6_check or not all(ipv6_check.values()):
                 continue
-        if stream_address and not crn.get("payment_receiver_address"):
+        if stream_address and not extract_valid_eth_address(crn.get("payment_receiver_address") or ""):
             continue
         if confidential and not crn.get("confidential_support"):
             continue
