@@ -25,7 +25,7 @@ class CRNTable(App[CRNInfo]):
     table: DataTable
     tasks: set[asyncio.Task] = set()
     crns: dict[RowKey, CRNInfo] = {}
-    last_crn_version: str
+    current_crn_version: str
     total_crns: int
     active_crns: int = 0
     filtered_crns: int = 0
@@ -35,6 +35,7 @@ class CRNTable(App[CRNInfo]):
     only_qemu: bool = False
     only_confidentials: bool = False
     only_gpu: bool = False
+    only_gpu_model: Optional[str] = None
     current_sorts: set = set()
     loader_label_start: Label
     loader_label_end: Label
@@ -59,6 +60,7 @@ class CRNTable(App[CRNInfo]):
         only_qemu: bool = False,
         only_confidentials: bool = False,
         only_gpu: bool = False,
+        only_gpu_model: Optional[str] = None,
     ):
         super().__init__()
         self.only_latest_crn_version = only_latest_crn_version
@@ -66,6 +68,7 @@ class CRNTable(App[CRNInfo]):
         self.only_qemu = only_qemu
         self.only_confidentials = only_confidentials
         self.only_gpu = only_gpu
+        self.only_gpu_model = only_gpu_model
 
     def compose(self):
         """Create child widgets for the app."""
@@ -101,7 +104,7 @@ class CRNTable(App[CRNInfo]):
 
     async def fetch_node_list(self):
         self.crns: dict[RowKey, CRNInfo] = {RowKey(crn.hash): crn for crn in await fetch_crn_list()}
-        self.last_crn_version = await fetch_latest_crn_version()
+        self.current_crn_version = await fetch_latest_crn_version()
 
         # Initialize the progress bar
         self.total_crns = len(self.crns)
@@ -119,7 +122,7 @@ class CRNTable(App[CRNInfo]):
     async def add_crn_info(self, crn: CRNInfo):
         self.active_crns += 1
         # Skip CRNs with legacy version
-        if self.only_latest_crn_version and crn.version < self.last_crn_version:
+        if self.only_latest_crn_version and crn.version < self.current_crn_version:
             logger.debug(f"Skipping CRN {crn.hash}, legacy version")
             return
         # Skip CRNs without machine usage
@@ -145,6 +148,14 @@ class CRNTable(App[CRNInfo]):
         # Skip non-gpu CRNs if only-gpu is set
         if self.only_gpu and not (crn.gpu_support and crn.compatible_available_gpus):
             logger.debug(f"Skipping CRN {crn.hash}, no GPU support or without GPU available")
+            return
+        # Skip CRNs without compatible GPU if only-gpu-model is set
+        elif (
+            self.only_gpu
+            and self.only_gpu_model
+            and self.only_gpu_model not in [gpu["model"] for gpu in crn.compatible_available_gpus]
+        ):
+            logger.debug(f"Skipping CRN {crn.hash}, no {self.only_gpu_model} GPU support")
             return
         self.filtered_crns += 1
 
