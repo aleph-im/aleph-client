@@ -196,7 +196,7 @@ class Pricing:
                     if gpu_models is None:
                         row.append(tier["model"])
                     elif tier["model"] in gpu_models:
-                        gpu_line = f"{tier["model"]}"
+                        gpu_line = tier["model"]
                         for device, details in gpu_models[tier["model"]].items():
                             gpu_line += f"\n[bright_yellow]• {device}[/bright_yellow]\n"
                             gpu_line += f"  [grey50]↳ [white]{details['count']}[/white]"
