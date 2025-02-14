@@ -8,7 +8,7 @@ from typing import Annotated, Optional
 import aiohttp
 import typer
 from aleph.sdk.conf import settings
-from aleph.sdk.utils import displayable_amount
+from aleph.sdk.utils import displayable_amount, safe_getattr
 from pydantic import BaseModel
 from rich import box
 from rich.console import Console, Group
@@ -16,13 +16,11 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
-from aleph_client.commands.utils import setup_logging, validated_int_prompt
-from aleph_client.utils import AsyncTyper, sanitize_url
+from aleph_client.commands.utils import setup_logging, validated_prompt
+from aleph_client.utils import async_lru_cache, sanitize_url
 
 logger = logging.getLogger(__name__)
-app = AsyncTyper(no_args_is_help=True)
 
-# TODO: Change with proper address
 pricing_link = (
     f"{sanitize_url(settings.API_HOST)}/api/v0/aggregates/0xFba561a84A537fCaa567bb7A2257e7142701ae2A.json?keys=pricing"
 )
@@ -91,21 +89,29 @@ class Pricing:
 
     def display_table_for(
         self,
-        pricing_entity: PricingEntity,
+        pricing_entity: Optional[PricingEntity] = None,
         compute_units: int = 0,
         vcpus: int = 0,
         memory: int = 0,
         disk: int = 0,
-        gpu_model: str = "",
+        gpu_models: Optional[dict[str, dict[str, dict[str, int]]]] = None,
+        persistent: Optional[bool] = None,
         selector: bool = False,
         exit_on_error: bool = True,
     ) -> Optional[SelectedTier]:
         """Display pricing table for an entity"""
 
-        entity = self.data.get(pricing_entity.value)
-        label = pricing_entity.value.replace("_", " ").title().replace("Gpu", "GPU")
-        if not entity:
-            logger.error(f"Entity {pricing_entity.value} not found")
+        if not pricing_entity:
+            if persistent is not None:
+                # Program entity selection: Persistent or Non-Persistent
+                pricing_entity = PricingEntity.PROGRAM_PERSISTENT if persistent else PricingEntity.PROGRAM
+
+        entity_name = safe_getattr(pricing_entity, "value")
+        if pricing_entity:
+            entity = self.data.get(entity_name)
+            label = entity_name.replace("_", " ").title()
+        else:
+            logger.error(f"Entity {entity_name} not found")
             if exit_on_error:
                 raise typer.Exit(1)
             else:
@@ -123,7 +129,7 @@ class Pricing:
 
         displayable_group = None
         tier_data: dict[int, SelectedTier] = {}
-        auto_selected = compute_units or vcpus or memory or disk or gpu_model
+        auto_selected = (compute_units or vcpus or memory or disk) and not gpu_models
         if tiers:
             if auto_selected:
                 tiers = [
@@ -133,7 +139,6 @@ class Pricing:
                     and vcpus <= unit_vcpus * tier["compute_units"]
                     and memory <= unit_memory * tier["compute_units"]
                     and disk <= unit_disk * tier["compute_units"]
-                    and (not gpu_model or gpu_model == tier["model"])
                 ]
                 if tiers:
                     tiers = tiers[:1]
@@ -177,18 +182,28 @@ class Pricing:
                 table.add_column("+ Internet Access", style="orange1", justify="center")
 
             for tier in tiers:
-                tier_id = int(tier["id"].split("-", 1)[1])
+                tier_id = tier["id"].split("-", 1)[1]
                 current_units = tier["compute_units"]
                 table.add_section()
                 row = [
-                    str(tier_id),
+                    tier_id,
                     str(current_units),
                     str(unit_vcpus * current_units),
                     f"{unit_memory * current_units / 1024:.0f}",
                     f"{unit_disk * current_units / 1024:.0f}",
                 ]
                 if "model" in tier:
-                    row.append(tier["model"])
+                    if gpu_models is None:
+                        row.append(tier["model"])
+                    elif tier["model"] in gpu_models:
+                        gpu_line = f"{tier["model"]}"
+                        for device, details in gpu_models[tier["model"]].items():
+                            gpu_line += f"\n[bright_yellow]• {device}[/bright_yellow]\n"
+                            gpu_line += f"  [grey50]↳ [white]{details['count']}[/white]"
+                            gpu_line += f" available on [white]{details['on_crns']}[/white] CRN(s)[/grey50]"
+                        row.append(Text.from_markup(gpu_line))
+                    else:
+                        continue
                 if "vram" in tier:
                     row.append(f"{tier['vram'] / 1024:.0f}")
                 if "holding" in price_unit:
@@ -196,10 +211,10 @@ class Pricing:
                         f"{displayable_amount(Decimal(price_unit['holding']) * current_units, decimals=3)} tokens"
                     )
                 if "payg" in price_unit and pricing_entity in PAYG_GROUP:
-                    payg_daily = Decimal(price_unit["payg"]) * current_units
+                    payg_hourly = Decimal(price_unit["payg"]) * current_units
                     row.append(
-                        f"{displayable_amount(payg_daily, decimals=3)} token/hour"
-                        f"\n{displayable_amount(payg_daily*24, decimals=3)} token/day"
+                        f"{displayable_amount(payg_hourly, decimals=3)} token/hour"
+                        f"\n{displayable_amount(payg_hourly*24, decimals=3)} token/day"
                     )
                 if pricing_entity in PRICING_GROUPS[GroupEntity.PROGRAM]:
                     internet_cell = (
@@ -211,7 +226,7 @@ class Pricing:
                 table.add_row(*row)
 
                 tier_data[tier_id] = SelectedTier(
-                    tier=int(tier_id),
+                    tier=tier_id,
                     compute_units=current_units,
                     vcpus=unit_vcpus * current_units,
                     memory=unit_memory * current_units,
@@ -267,25 +282,30 @@ class Pricing:
                 Text.assemble(*infos),
             )
 
-        console = Console()
-        console.print(
-            Panel(
-                displayable_group,
-                title=f"Pricing: {'Selected ' if compute_units else ''}{label}",
-                border_style="orchid",
-                expand=False,
-                title_align="left",
+        if gpu_models and not tier_data:
+            typer.echo(f"No GPU available for {label} at the moment.")
+            raise typer.Exit(1)
+        else:
+            console = Console()
+            console.print(
+                Panel(
+                    displayable_group,
+                    title=f"Pricing: {'Selected ' if compute_units else ''}{label}",
+                    border_style="orchid",
+                    expand=False,
+                    title_align="left",
+                )
             )
-        )
 
         if selector and pricing_entity not in [PricingEntity.STORAGE, PricingEntity.WEB3_HOSTING]:
             if not auto_selected:
-                tier = validated_int_prompt("Select a tier by index", default=1, min_value=1, max_value=len(tiers))
-            return next(iter(tier_data.values())) if auto_selected else tier_data[tier]
+                tier_id = validated_prompt("Select a tier by index", lambda tier_id: tier_id in tier_data)
+            return next(iter(tier_data.values())) if auto_selected else tier_data[tier_id]
 
         return None
 
 
+@async_lru_cache
 async def fetch_pricing() -> Pricing:
     """Fetch pricing aggregate and format it as Pricing"""
 
@@ -299,13 +319,12 @@ async def fetch_pricing() -> Pricing:
             return Pricing(**data)
 
 
-@app.command(name="for")
 async def prices_for_service(
     service: Annotated[GroupEntity, typer.Argument(help="Service to display pricing for")],
     compute_units: Annotated[int, typer.Option(help="Compute units to display pricing for")] = 0,
     debug: bool = False,
 ):
-    """Display pricing for a service"""
+    """Display pricing for services available on aleph.im & twentysix.cloud"""
 
     setup_logging(debug)
 
