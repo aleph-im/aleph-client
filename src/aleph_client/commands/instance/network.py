@@ -43,9 +43,8 @@ settings_link = (
 )
 
 crn_list_link = (
-    f"{sanitize_url('https://ovh.staging.aleph.sh')}/vm/"
-    "bec08b08bb9f9685880f3aeb9c1533951ad56abef2a39c97f5a93683bdaa5e30/crns.json"
-)  # TODO: Change for production with load balancer
+    "https://ovh.staging.aleph.sh/vm/bec08b08bb9f9685880f3aeb9c1533951ad56abef2a39c97f5a93683bdaa5e30/crns.json"
+)
 
 PATH_ABOUT_EXECUTIONS_LIST = "/about/executions/list"
 

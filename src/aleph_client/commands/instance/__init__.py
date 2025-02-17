@@ -541,7 +541,7 @@ async def create(
             price: PriceResponse = await client.get_estimated_price(content)
             required_tokens = Decimal(price.required_tokens)
         except Exception as e:
-            echo(e)
+            echo(f"Failed to estimate instance cost, error: {e}")
             raise typer.Exit(code=1) from e
 
         try:

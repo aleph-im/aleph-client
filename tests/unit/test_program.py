@@ -22,6 +22,7 @@ from aleph_client.commands.program import (
 )
 
 from .mocks import (
+    FAKE_ADDRESS_EVM,
     FAKE_PROGRAM_HASH,
     FAKE_PROGRAM_HASH_2,
     FAKE_STORE_HASH,
@@ -41,7 +42,7 @@ def create_mock_program_message(
     program = Dict(
         chain=Chain.ETH,
         sender=mock_account.get_address(),
-        type="program",
+        type="vm-function",
         channel="ALEPH-CLOUDSOLUTIONS",
         confirmed=True,
         item_type="inline",
@@ -95,6 +96,12 @@ def create_mock_auth_client(mock_account, swap_persistent=False):
         create_program=AsyncMock(return_value=[MagicMock(item_hash=FAKE_PROGRAM_HASH), 200]),
         forget=AsyncMock(return_value=(MagicMock(), 200)),
         submit=AsyncMock(return_value=[mock_response_get_message_2, 200, MagicMock()]),
+        get_estimated_price=AsyncMock(
+            return_value=MagicMock(
+                required_tokens=1000,
+                payment_type="hold",
+            )
+        ),
     )
     mock_auth_client_class = MagicMock()
     mock_auth_client_class.return_value.__aenter__ = AsyncMock(return_value=mock_auth_client)
@@ -146,25 +153,29 @@ async def test_upload_program():
     mock_load_account = create_mock_load_account()
     mock_account = mock_load_account.return_value
     mock_auth_client_class, mock_auth_client = create_mock_auth_client(mock_account)
+    mock_get_balance = AsyncMock(return_value={"available_amount": 100000})
 
     @patch("aleph_client.commands.program._load_account", mock_load_account)
     @patch("aleph_client.utils.os.path.isfile", MagicMock(return_value=True))
     @patch("aleph_client.commands.program.AuthenticatedAlephHttpClient", mock_auth_client_class)
+    @patch("aleph_client.commands.program.get_balance", mock_get_balance)
     @patch("aleph_client.commands.program.open", MagicMock())
     async def upload_program():
         print()  # For better display when pytest -v -s
         returned = await upload(
+            address=FAKE_ADDRESS_EVM,
             path=Path("/fake/file.squashfs"),
             entrypoint="main:app",
             name="mock_program",
             runtime=settings.DEFAULT_RUNTIME_ID,
-            vcpus=settings.DEFAULT_VM_VCPUS,
-            memory=settings.DEFAULT_VM_MEMORY,
-            timeout_seconds=settings.DEFAULT_VM_TIMEOUT,
+            compute_units=1,
+            vcpus=None,
+            memory=None,
+            timeout_seconds=None,
             internet=False,
-            persistent=False,
             updatable=True,
             beta=False,
+            persistent=False,
             skip_volume=True,
             skip_env_var=True,
             channel=settings.DEFAULT_CHANNEL,
@@ -178,6 +189,8 @@ async def test_upload_program():
         )
         mock_load_account.assert_called_once()
         mock_auth_client.create_store.assert_called_once()
+        mock_get_balance.assert_called_once()
+        mock_auth_client.get_estimated_price.assert_called_once()
         mock_auth_client.create_program.assert_called_once()
         assert returned == FAKE_PROGRAM_HASH
 

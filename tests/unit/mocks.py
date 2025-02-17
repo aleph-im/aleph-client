@@ -9,7 +9,7 @@ from aleph_client.commands.node import NodeInfo
 
 # Change to Aleph testnet
 # settings.API_HOST = "https://api.twentysix.testnet.network"
-settings.API_HOST = "http://51.159.223.120:4024"  # TODO: Revert before release
+settings.API_HOST = "http://51.159.223.120:4024"  # TODO: change it
 
 # Utils
 FAKE_PRIVATE_KEY = b"cafe" * 8
@@ -18,9 +18,9 @@ FAKE_ADDRESS_EVM = "0x00001A0e6B9a46Be48a294D74D897d9C48678862"
 # FAKE_STORE_HASH = "102682ea8bcc0cec9c42f32fbd2660286b4eb31003108440988343726304607a"  # Has to exist on Aleph Testnet
 # FAKE_STORE_HASH_CONTENT_FILE_CID = "QmX8K1c22WmQBAww5ShWQqwMiFif7XFrJD6iFBj7skQZXW"  # From FAKE_STORE_HASH message
 # FAKE_STORE_HASH_PUBLISHER = "0x74F82AC22C1EB20dDb9799284FD8D60eaf48A8fb"  # From FAKE_STORE_HASH message
-FAKE_STORE_HASH = "5b868dc8c2df0dd9bb810b7a31cc50c8ad1e6569905e45ab4fd2eee36fecc4d2"  # TODO: Revert before release
-FAKE_STORE_HASH_CONTENT_FILE_CID = "QmXSEnpQCnUfeGFoSjY1XAK1Cuad5CtAaqyachGTtsFSuA"  # TODO: Revert before release
-FAKE_STORE_HASH_PUBLISHER = "0xe0aaF578B287de16852dbc54Ae34a263FF2F4b9E"  # TODO: Revert before release
+FAKE_STORE_HASH = "5b868dc8c2df0dd9bb810b7a31cc50c8ad1e6569905e45ab4fd2eee36fecc4d2"  # TODO: change it
+FAKE_STORE_HASH_CONTENT_FILE_CID = "QmXSEnpQCnUfeGFoSjY1XAK1Cuad5CtAaqyachGTtsFSuA"  # TODO: change it
+FAKE_STORE_HASH_PUBLISHER = "0xe0aaF578B287de16852dbc54Ae34a263FF2F4b9E"  # TODO: change it
 FAKE_VM_HASH = "ab12" * 16
 FAKE_PROGRAM_HASH = "cd34" * 16
 FAKE_PROGRAM_HASH_2 = "ef56" * 16
