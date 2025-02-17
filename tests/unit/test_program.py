@@ -31,7 +31,9 @@ from .mocks import (
 )
 
 
-def create_mock_program_message(mock_account, program_item_hash=None, persistent=False, allow_amend=True):
+def create_mock_program_message(
+    mock_account, program_item_hash=None, internet=False, persistent=False, allow_amend=True
+):
     if not program_item_hash:
         tmp = list(FAKE_PROGRAM_HASH)
         random.shuffle(tmp)
@@ -39,7 +41,9 @@ def create_mock_program_message(mock_account, program_item_hash=None, persistent
     program = Dict(
         chain=Chain.ETH,
         sender=mock_account.get_address(),
-        type="program",
+        type=f"program{'_internet' if internet else ''}"
+        f"{'_persistent' if persistent else ''}"
+        f"{'_updatable' if allow_amend else ''}",
         channel="ALEPH-CLOUDSOLUTIONS",
         confirmed=True,
         item_type="inline",
@@ -50,6 +54,7 @@ def create_mock_program_message(mock_account, program_item_hash=None, persistent
             address=mock_account.get_address(),
             time=1734037086.2333803,
             metadata={"name": "mock_program"},
+            environment=Dict(internet=internet),
             resources=Dict(vcpus=1, memory=1024, seconds=30),
             volumes=[
                 Dict(name="immutable", mount="/opt/packages", ref=FAKE_STORE_HASH),
@@ -68,8 +73,10 @@ def create_mock_program_message(mock_account, program_item_hash=None, persistent
 def create_mock_program_messages(mock_account):
     return AsyncMock(
         return_value=[
+            create_mock_program_message(mock_account, allow_amend=False),
+            create_mock_program_message(mock_account, internet=True, allow_amend=False),
+            create_mock_program_message(mock_account, persistent=True, allow_amend=False),
             create_mock_program_message(mock_account),
-            create_mock_program_message(mock_account, persistent=True),
         ]
     )
 
@@ -147,17 +154,18 @@ async def test_upload_program():
         returned = await upload(
             path=Path("/fake/file.squashfs"),
             entrypoint="main:app",
-            channel=settings.DEFAULT_CHANNEL,
-            memory=settings.DEFAULT_VM_MEMORY,
-            vcpus=settings.DEFAULT_VM_VCPUS,
-            timeout_seconds=settings.DEFAULT_VM_TIMEOUT,
             name="mock_program",
             runtime=settings.DEFAULT_RUNTIME_ID,
-            beta=False,
+            vcpus=settings.DEFAULT_VM_VCPUS,
+            memory=settings.DEFAULT_VM_MEMORY,
+            timeout_seconds=settings.DEFAULT_VM_TIMEOUT,
+            internet=False,
             persistent=False,
             updatable=True,
+            beta=False,
             skip_volume=True,
             skip_env_var=True,
+            channel=settings.DEFAULT_CHANNEL,
             private_key=None,
             private_key_file=None,
             print_messages=False,
