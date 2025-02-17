@@ -68,6 +68,7 @@ from aleph_client.commands.pricing import PricingEntity, SelectedTier, fetch_pri
 from aleph_client.commands.utils import (
     filter_only_valid_messages,
     find_sevctl_or_exit,
+    found_gpus_by_model,
     get_or_prompt_volumes,
     setup_logging,
     str_to_datetime,
@@ -326,28 +327,7 @@ async def create(
     if gpu:
         echo("Fetching available GPU list...")
         crn_list = await fetch_crn_list(latest_crn_version=True, ipv6=True, stream_address=True, gpu=True)
-        found_gpu_models = {}
-        for crn_ in crn_list:
-            found_gpus: dict[str, dict[str, dict[str, int]]] = {}
-            for gpu_ in crn_.compatible_available_gpus:
-                model = gpu_["model"]
-                device = gpu_["device_name"]
-                if model not in found_gpus:
-                    found_gpus[model] = {device: {"count": 1, "on_crns": 1}}
-                elif device not in found_gpus[model]:
-                    found_gpus[model][device] = {"count": 1, "on_crns": 1}
-                else:
-                    found_gpus[model][device]["count"] += 1
-            for model, devices in found_gpus.items():
-                if model not in found_gpu_models:
-                    found_gpu_models[model] = devices
-                else:
-                    for device, details in devices.items():
-                        if device not in found_gpu_models[model]:
-                            found_gpu_models[model][device] = details
-                        else:
-                            found_gpu_models[model][device]["count"] += details["count"]
-                            found_gpu_models[model][device]["on_crns"] += details["on_crns"]
+        found_gpu_models = found_gpus_by_model(crn_list)
         premium = yes_no_input("Premium GPUs (high VRAM)?", default=False) if premium is None else premium
 
     pricing = await fetch_pricing()
@@ -643,7 +623,7 @@ async def create(
                             "Flow Distribution": "\n[bright_cyan]80% -> CRN wallet[/bright_cyan]"
                             f"\n  Address: {crn.stream_reward_address}\n  Tx: {flow_hash_crn}"
                             f"\n[bright_cyan]20% -> Community wallet[/bright_cyan]"
-                            f"\n  Address:{community_wallet_address}\n  Tx: {flow_hash_community}",
+                            f"\n  Address: {community_wallet_address}\n  Tx: {flow_hash_community}",
                         }.items()
                     )
                     console.print(

@@ -168,12 +168,12 @@ class Pricing:
             table.add_column("Tier", style="cyan")
             table.add_column("Compute Units", style="orchid")
             table.add_column("vCPUs", style="bright_cyan")
-            table.add_column("RAM (Gib)", style="bright_cyan")
-            table.add_column("Disk (Gib)", style="bright_cyan")
+            table.add_column("RAM (GiB)", style="bright_cyan")
+            table.add_column("Disk (GiB)", style="bright_cyan")
             if "model" in tiers[0]:
                 table.add_column("GPU Model", style="orange1")
             if "vram" in tiers[0]:
-                table.add_column("VRAM (Gib)", style="orange1")
+                table.add_column("VRAM (GiB)", style="orange1")
             if "holding" in price_unit:
                 table.add_column("$ALEPH (Holding)", style="red", justify="center")
             if "payg" in price_unit and pricing_entity in PAYG_GROUP:
@@ -245,7 +245,7 @@ class Pricing:
 
             extra_price_holding = (
                 f"[red]{displayable_amount(Decimal(price_storage['holding'])*1024, decimals=5)}"
-                " token/Gib[/red] (Holding) -or- "
+                " token/GiB[/red] (Holding) -or- "
                 if "holding" in price_storage
                 else ""
             )
@@ -253,7 +253,7 @@ class Pricing:
                 Text.from_markup(
                     f"Extra Volume Cost: {extra_price_holding}"
                     f"[green]{displayable_amount(Decimal(price_storage['payg'])*1024*24, decimals=5)}"
-                    " token/Gib/day[/green] (Pay-As-You-Go)"
+                    " token/GiB/day[/green] (Pay-As-You-Go)"
                 )
             ]
             displayable_group = Group(
@@ -275,7 +275,7 @@ class Pricing:
                     f"{displayable_amount(Decimal(price_storage['holding']), decimals=5)}"
                     " token/Mib[/bright_cyan] -or- [bright_cyan]"
                     f"{displayable_amount(Decimal(price_storage['holding'])*1024, decimals=5)}"
-                    " token/Gib[/bright_cyan]"
+                    " token/GiB[/bright_cyan]"
                 )
             )
             displayable_group = Group(
