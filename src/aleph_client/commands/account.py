@@ -21,7 +21,7 @@ from aleph.sdk.evm_utils import (
     get_chains_with_super_token,
     get_compatible_chains,
 )
-from aleph.sdk.utils import bytes_from_hex
+from aleph.sdk.utils import bytes_from_hex, displayable_amount
 from aleph_message.models import Chain
 from rich.console import Console
 from rich.panel import Panel
@@ -241,6 +241,20 @@ def sign_bytes(
     typer.echo("\nSignature: " + signature.hex())
 
 
+async def get_balance(address: str) -> dict:
+    balance_data: dict = {}
+    uri = f"{settings.API_HOST}/api/v0/addresses/{address}/balance"
+    async with aiohttp.ClientSession() as session:
+        response = await session.get(uri)
+        if response.status == 200:
+            balance_data = await response.json()
+            balance_data["available_amount"] = balance_data["balance"] - balance_data["locked_amount"]
+        else:
+            error = f"Failed to retrieve balance for address {address}. Status code: {response.status}"
+            raise Exception(error)
+    return balance_data
+
+
 @app.command()
 async def balance(
     address: Optional[str] = typer.Option(None, help="Address"),
@@ -255,54 +269,46 @@ async def balance(
         address = account.get_address()
 
     if address:
-        uri = f"{settings.API_HOST}/api/v0/addresses/{address}/balance"
-
-        async with aiohttp.ClientSession() as session:
-            response = await session.get(uri)
-            if response.status == 200:
-                balance_data = await response.json()
-                balance_data["available_amount"] = balance_data["balance"] - balance_data["locked_amount"]
-
-                infos = [
-                    Text.from_markup(f"Address: [bright_cyan]{balance_data['address']}[/bright_cyan]"),
-                    Text.from_markup(
-                        f"\nBalance: [bright_cyan]{balance_data['balance']:.2f}".rstrip("0").rstrip(".")
-                        + "[/bright_cyan]"
-                    ),
-                ]
-                details = balance_data.get("details")
-                if details:
-                    infos += [Text("\n ↳ Details")]
-                    for chain_, chain_balance in details.items():
-                        infos += [
-                            Text.from_markup(
-                                f"\n    {chain_}: [orange3]{chain_balance:.2f}".rstrip("0").rstrip(".") + "[/orange3]"
-                            )
-                        ]
-                available_color = "bright_cyan" if balance_data["available_amount"] >= 0 else "red"
-                infos += [
-                    Text.from_markup(
-                        f"\n - Locked: [bright_cyan]{balance_data['locked_amount']:.2f}".rstrip("0").rstrip(".")
-                        + "[/bright_cyan]"
-                    ),
-                    Text.from_markup(
-                        f"\n - Available: [{available_color}]{balance_data['available_amount']:.2f}".rstrip("0").rstrip(
-                            "."
+        try:
+            balance_data = await get_balance(address)
+            infos = [
+                Text.from_markup(f"Address: [bright_cyan]{balance_data['address']}[/bright_cyan]"),
+                Text.from_markup(
+                    f"\nBalance: [bright_cyan]{displayable_amount(balance_data['balance'], decimals=2)}[/bright_cyan]"
+                ),
+            ]
+            details = balance_data.get("details")
+            if details:
+                infos += [Text("\n ↳ Details")]
+                for chain_, chain_balance in details.items():
+                    infos += [
+                        Text.from_markup(
+                            f"\n    {chain_}: [orange3]{displayable_amount(chain_balance, decimals=2)}[/orange3]"
                         )
-                        + f"[/{available_color}]"
-                    ),
-                ]
-                console.print(
-                    Panel(
-                        Text.assemble(*infos),
-                        title="Account Infos",
-                        border_style="bright_cyan",
-                        expand=False,
-                        title_align="left",
-                    )
+                    ]
+            available_color = "bright_cyan" if balance_data["available_amount"] >= 0 else "red"
+            infos += [
+                Text.from_markup(
+                    f"\n - Locked: [bright_cyan]{displayable_amount(balance_data['locked_amount'], decimals=2)}"
+                    "[/bright_cyan]"
+                ),
+                Text.from_markup(
+                    f"\n - Available: [{available_color}]"
+                    f"{displayable_amount(balance_data['available_amount'], decimals=2)}"
+                    f"[/{available_color}]"
+                ),
+            ]
+            console.print(
+                Panel(
+                    Text.assemble(*infos),
+                    title="Account Infos",
+                    border_style="bright_cyan",
+                    expand=False,
+                    title_align="left",
                 )
-            else:
-                typer.echo(f"Failed to retrieve balance for address {address}. Status code: {response.status}")
+            )
+        except Exception as e:
+            typer.echo(e)
     else:
         typer.echo("Error: Please provide either a private key, private key file, or an address.")
 

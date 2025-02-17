@@ -6,7 +6,9 @@ import logging
 import os
 import re
 import subprocess
-from functools import partial, wraps
+import sys
+from asyncio import ensure_future
+from functools import lru_cache, partial, wraps
 from pathlib import Path
 from shutil import make_archive
 from typing import Optional, Union
@@ -179,3 +181,12 @@ def sanitize_url(url: str) -> str:
         msg = "Invalid URL host"
         raise aiohttp.InvalidURL(msg)
     return url.strip("/")
+
+
+def async_lru_cache(async_function):
+
+    @lru_cache(maxsize=0 if "pytest" in sys.modules else 1)
+    def cached_async_function(*args, **kwargs):
+        return ensure_future(async_function(*args, **kwargs))
+
+    return cached_async_function
