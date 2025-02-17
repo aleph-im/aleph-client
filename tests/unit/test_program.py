@@ -41,9 +41,7 @@ def create_mock_program_message(
     program = Dict(
         chain=Chain.ETH,
         sender=mock_account.get_address(),
-        type=f"program{'_internet' if internet else ''}"
-        f"{'_persistent' if persistent else ''}"
-        f"{'_updatable' if allow_amend else ''}",
+        type="program",
         channel="ALEPH-CLOUDSOLUTIONS",
         confirmed=True,
         item_type="inline",
@@ -53,7 +51,11 @@ def create_mock_program_message(
             type="vm-function",
             address=mock_account.get_address(),
             time=1734037086.2333803,
-            metadata={"name": "mock_program"},
+            metadata={
+                "name": f"mock_program{'_internet' if internet else ''}"
+                f"{'_persistent' if persistent else ''}"
+                f"{'_updatable' if allow_amend else ''}",
+            },
             environment=Dict(internet=internet),
             resources=Dict(vcpus=1, memory=1024, seconds=30),
             volumes=[

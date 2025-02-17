@@ -328,7 +328,7 @@ async def create(
         echo("Fetching available GPU list...")
         crn_list = await fetch_crn_list(latest_crn_version=True, ipv6=True, stream_address=True, gpu=True)
         found_gpu_models = found_gpus_by_model(crn_list)
-        premium = yes_no_input("Premium GPUs (high VRAM)?", default=False) if premium is None else premium
+        premium = yes_no_input(f"{help_strings.GPU_PREMIUM_OPTION}?", default=False) if premium is None else premium
 
     pricing = await fetch_pricing()
     pricing_entity = (
