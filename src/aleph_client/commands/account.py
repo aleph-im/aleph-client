@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from pathlib import Path
-from typing import Optional
+from typing import Annotated, Optional
 
 import aiohttp
 import typer
@@ -46,12 +46,12 @@ console = Console()
 
 @app.command()
 async def create(
-    private_key: Optional[str] = typer.Option(None, help=help_strings.PRIVATE_KEY),
-    private_key_file: Optional[Path] = typer.Option(None, help=help_strings.PRIVATE_KEY_FILE),
-    chain: Optional[Chain] = typer.Option(default=None, help=help_strings.ORIGIN_CHAIN),
-    replace: bool = typer.Option(default=False, help=help_strings.CREATE_REPLACE),
-    active: bool = typer.Option(default=True, help=help_strings.CREATE_ACTIVE),
-    debug: bool = False,
+    private_key: Annotated[Optional[str], typer.Option(help=help_strings.PRIVATE_KEY)] = None,
+    private_key_file: Annotated[Optional[Path], typer.Option(help=help_strings.PRIVATE_KEY_FILE)] = None,
+    chain: Annotated[Optional[Chain], typer.Option(help=help_strings.ORIGIN_CHAIN)] = None,
+    replace: Annotated[bool, typer.Option(help=help_strings.CREATE_REPLACE)] = False,
+    active: Annotated[bool, typer.Option(help=help_strings.CREATE_ACTIVE)] = True,
+    debug: Annotated[bool, typer.Option()] = False,
 ):
     """Create or import a private key."""
 
@@ -120,8 +120,10 @@ async def create(
 
 @app.command(name="address")
 def display_active_address(
-    private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
-    private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
+    private_key: Annotated[Optional[str], typer.Option(help=help_strings.PRIVATE_KEY)] = settings.PRIVATE_KEY_STRING,
+    private_key_file: Annotated[
+        Optional[Path], typer.Option(help=help_strings.PRIVATE_KEY_FILE)
+    ] = settings.PRIVATE_KEY_FILE,
 ):
     """
     Display your public address(es).
@@ -183,8 +185,10 @@ def path_directory():
 
 @app.command()
 def show(
-    private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
-    private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
+    private_key: Annotated[Optional[str], typer.Option(help=help_strings.PRIVATE_KEY)] = settings.PRIVATE_KEY_STRING,
+    private_key_file: Annotated[
+        Optional[Path], typer.Option(help=help_strings.PRIVATE_KEY_FILE)
+    ] = settings.PRIVATE_KEY_FILE,
 ):
     """Display current configuration."""
 
@@ -194,8 +198,8 @@ def show(
 
 @app.command()
 def export_private_key(
-    private_key: Optional[str] = typer.Option(None, help=help_strings.PRIVATE_KEY),
-    private_key_file: Optional[Path] = typer.Option(None, help=help_strings.PRIVATE_KEY_FILE),
+    private_key: Annotated[Optional[str], typer.Option(help=help_strings.PRIVATE_KEY)] = None,
+    private_key_file: Annotated[Optional[Path], typer.Option(help=help_strings.PRIVATE_KEY_FILE)] = None,
 ):
     """
     Display your private key.
@@ -220,11 +224,13 @@ def export_private_key(
 
 @app.command("sign-bytes")
 def sign_bytes(
-    message: Optional[str] = typer.Option(None, help="Message to sign"),
-    private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
-    private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
-    chain: Optional[Chain] = typer.Option(None, help=help_strings.ADDRESS_CHAIN),
-    debug: bool = False,
+    message: Annotated[Optional[str], typer.Option(help="Message to sign")] = None,
+    private_key: Annotated[Optional[str], typer.Option(help=help_strings.PRIVATE_KEY)] = settings.PRIVATE_KEY_STRING,
+    private_key_file: Annotated[
+        Optional[Path], typer.Option(help=help_strings.PRIVATE_KEY_FILE)
+    ] = settings.PRIVATE_KEY_FILE,
+    chain: Annotated[Optional[Chain], typer.Option(help=help_strings.ADDRESS_CHAIN)] = None,
+    debug: Annotated[bool, typer.Option()] = False,
 ):
     """Sign a message using your private key."""
 
@@ -257,10 +263,12 @@ async def get_balance(address: str) -> dict:
 
 @app.command()
 async def balance(
-    address: Optional[str] = typer.Option(None, help="Address"),
-    private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
-    private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
-    chain: Optional[Chain] = typer.Option(None, help=help_strings.ADDRESS_CHAIN),
+    address: Annotated[Optional[str], typer.Option(help="Address")] = None,
+    private_key: Annotated[Optional[str], typer.Option(help=help_strings.PRIVATE_KEY)] = settings.PRIVATE_KEY_STRING,
+    private_key_file: Annotated[
+        Optional[Path], typer.Option(help=help_strings.PRIVATE_KEY_FILE)
+    ] = settings.PRIVATE_KEY_FILE,
+    chain: Annotated[Optional[Chain], typer.Option(help=help_strings.ADDRESS_CHAIN)] = None,
 ):
     """Display your ALEPH balance."""
     account = _load_account(private_key, private_key_file, chain=chain)
@@ -363,8 +371,8 @@ async def list_accounts():
 
 @app.command(name="config")
 async def configure(
-    private_key_file: Optional[Path] = typer.Option(None, help="New path to the private key file"),
-    chain: Optional[Chain] = typer.Option(None, help="New active chain"),
+    private_key_file: Annotated[Optional[Path], typer.Option(help="New path to the private key file")] = None,
+    chain: Annotated[Optional[Chain], typer.Option(help="New active chain")] = None,
 ):
     """Configure current private key file and active chain (default selection)"""
 

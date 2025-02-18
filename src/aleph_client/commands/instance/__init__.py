@@ -7,7 +7,7 @@ import logging
 import shutil
 from decimal import Decimal
 from pathlib import Path
-from typing import Any, Optional, Union, cast
+from typing import Annotated, Any, Optional, Union, cast
 
 import aiohttp
 import typer
@@ -93,57 +93,56 @@ metavar_valid_payg_chains = f"[{'|'.join(super_token_chains)}]"
 
 @app.command()
 async def create(
-    payment_type: Optional[str] = typer.Option(
-        None,
-        help=help_strings.PAYMENT_TYPE,
-        callback=lambda pt: None if pt is None else pt.lower(),
-        metavar=metavar_valid_payment_types,
-        case_sensitive=False,
-    ),
-    payment_chain: Optional[Chain] = typer.Option(
-        None,
-        help=help_strings.PAYMENT_CHAIN,
-        metavar=metavar_valid_chains,
-        case_sensitive=False,
-    ),
-    hypervisor: HypervisorType = typer.Option(HypervisorType.qemu, help=help_strings.HYPERVISOR),
-    name: Optional[str] = typer.Option(None, help=help_strings.INSTANCE_NAME),
-    rootfs: Optional[str] = typer.Option(None, help=help_strings.ROOTFS),
-    compute_units: Optional[int] = typer.Option(None, help=help_strings.COMPUTE_UNITS),
-    vcpus: Optional[int] = typer.Option(None, help=help_strings.VCPUS),
-    memory: Optional[int] = typer.Option(None, help=help_strings.MEMORY),
-    rootfs_size: Optional[int] = typer.Option(None, help=help_strings.ROOTFS_SIZE),
-    timeout_seconds: float = typer.Option(
-        settings.DEFAULT_VM_TIMEOUT,
-        help=help_strings.TIMEOUT_SECONDS,
-    ),
-    ssh_pubkey_file: Path = typer.Option(
-        Path("~/.ssh/id_rsa.pub").expanduser(),
-        help=help_strings.SSH_PUBKEY_FILE,
-    ),
-    address: Optional[str] = typer.Option(None, help=help_strings.ADDRESS_PAYER),
-    crn_hash: Optional[str] = typer.Option(None, help=help_strings.CRN_HASH),
-    crn_url: Optional[str] = typer.Option(None, help=help_strings.CRN_URL),
-    confidential: bool = typer.Option(False, help=help_strings.CONFIDENTIAL_OPTION),
-    confidential_firmware: str = typer.Option(
-        default=settings.DEFAULT_CONFIDENTIAL_FIRMWARE, help=help_strings.CONFIDENTIAL_FIRMWARE
-    ),
-    gpu: bool = typer.Option(False, help=help_strings.GPU_OPTION),
-    premium: Optional[bool] = typer.Option(None, help=help_strings.GPU_PREMIUM_OPTION),
-    skip_volume: bool = typer.Option(False, help=help_strings.SKIP_VOLUME),
-    persistent_volume: Optional[list[str]] = typer.Option(None, help=help_strings.PERSISTENT_VOLUME),
-    ephemeral_volume: Optional[list[str]] = typer.Option(None, help=help_strings.EPHEMERAL_VOLUME),
-    immutable_volume: Optional[list[str]] = typer.Option(
-        None,
-        help=help_strings.IMMUTABLE_VOLUME,
-    ),
-    crn_auto_tac: bool = typer.Option(False, help=help_strings.CRN_AUTO_TAC),
-    channel: Optional[str] = typer.Option(default=settings.DEFAULT_CHANNEL, help=help_strings.CHANNEL),
-    private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
-    private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
-    print_message: bool = typer.Option(False),
-    verbose: bool = typer.Option(True),
-    debug: bool = False,
+    payment_type: Annotated[
+        Optional[str],
+        typer.Option(
+            help=help_strings.PAYMENT_TYPE,
+            callback=lambda pt: None if pt is None else pt.lower(),
+            metavar=metavar_valid_payment_types,
+            case_sensitive=False,
+        ),
+    ] = None,
+    payment_chain: Annotated[
+        Optional[Chain],
+        typer.Option(
+            help=help_strings.PAYMENT_CHAIN,
+            metavar=metavar_valid_chains,
+            case_sensitive=False,
+        ),
+    ] = None,
+    hypervisor: Annotated[HypervisorType, typer.Option(help=help_strings.HYPERVISOR)] = HypervisorType.qemu,
+    name: Annotated[Optional[str], typer.Option(help=help_strings.INSTANCE_NAME)] = None,
+    rootfs: Annotated[Optional[str], typer.Option(help=help_strings.ROOTFS)] = None,
+    compute_units: Annotated[Optional[int], typer.Option(help=help_strings.COMPUTE_UNITS)] = None,
+    vcpus: Annotated[Optional[int], typer.Option(help=help_strings.VCPUS)] = None,
+    memory: Annotated[Optional[int], typer.Option(help=help_strings.MEMORY)] = None,
+    rootfs_size: Annotated[Optional[int], typer.Option(help=help_strings.ROOTFS_SIZE)] = None,
+    timeout_seconds: Annotated[float, typer.Option(help=help_strings.TIMEOUT_SECONDS)] = settings.DEFAULT_VM_TIMEOUT,
+    ssh_pubkey_file: Annotated[Path, typer.Option(help=help_strings.SSH_PUBKEY_FILE)] = Path(
+        "~/.ssh/id_rsa.pub"
+    ).expanduser(),
+    address: Annotated[Optional[str], typer.Option(help=help_strings.ADDRESS_PAYER)] = None,
+    crn_hash: Annotated[Optional[str], typer.Option(help=help_strings.CRN_HASH)] = None,
+    crn_url: Annotated[Optional[str], typer.Option(help=help_strings.CRN_URL)] = None,
+    confidential: Annotated[bool, typer.Option(help=help_strings.CONFIDENTIAL_OPTION)] = False,
+    confidential_firmware: Annotated[
+        str, typer.Option(help=help_strings.CONFIDENTIAL_FIRMWARE)
+    ] = settings.DEFAULT_CONFIDENTIAL_FIRMWARE,
+    gpu: Annotated[bool, typer.Option(help=help_strings.GPU_OPTION)] = False,
+    premium: Annotated[Optional[bool], typer.Option(help=help_strings.GPU_PREMIUM_OPTION)] = None,
+    skip_volume: Annotated[bool, typer.Option(help=help_strings.SKIP_VOLUME)] = False,
+    persistent_volume: Annotated[Optional[list[str]], typer.Option(help=help_strings.PERSISTENT_VOLUME)] = None,
+    ephemeral_volume: Annotated[Optional[list[str]], typer.Option(help=help_strings.EPHEMERAL_VOLUME)] = None,
+    immutable_volume: Annotated[Optional[list[str]], typer.Option(help=help_strings.IMMUTABLE_VOLUME)] = None,
+    crn_auto_tac: Annotated[bool, typer.Option(help=help_strings.CRN_AUTO_TAC)] = False,
+    channel: Annotated[Optional[str], typer.Option(help=help_strings.CHANNEL)] = settings.DEFAULT_CHANNEL,
+    private_key: Annotated[Optional[str], typer.Option(help=help_strings.PRIVATE_KEY)] = settings.PRIVATE_KEY_STRING,
+    private_key_file: Annotated[
+        Optional[Path], typer.Option(help=help_strings.PRIVATE_KEY_FILE)
+    ] = settings.PRIVATE_KEY_FILE,
+    print_message: Annotated[bool, typer.Option(help="Print the message after creation")] = False,
+    verbose: Annotated[bool, typer.Option(help="Display additional information")] = True,
+    debug: Annotated[bool, typer.Option(help="Enable debug logging")] = False,
 ) -> tuple[ItemHash, Optional[str], Chain]:
     """Create and register a new instance on aleph.im"""
     setup_logging(debug)
@@ -688,14 +687,18 @@ async def create(
 
 @app.command()
 async def delete(
-    item_hash: str = typer.Argument(..., help="Instance item hash to forget"),
-    reason: str = typer.Option("User deletion", help="Reason for deleting the instance"),
-    chain: Optional[Chain] = typer.Option(None, help=help_strings.PAYMENT_CHAIN_USED, metavar=metavar_valid_chains),
-    domain: Optional[str] = typer.Option(None, help=help_strings.CRN_URL_VM_DELETION),
-    private_key: Optional[str] = settings.PRIVATE_KEY_STRING,
-    private_key_file: Optional[Path] = settings.PRIVATE_KEY_FILE,
-    print_message: bool = typer.Option(False),
-    debug: bool = False,
+    item_hash: Annotated[str, typer.Argument(help="Instance item hash to forget")],
+    reason: Annotated[str, typer.Option(help="Reason for deleting the instance")] = "User deletion",
+    chain: Annotated[
+        Optional[Chain], typer.Option(help=help_strings.PAYMENT_CHAIN_USED, metavar=metavar_valid_chains)
+    ] = None,
+    domain: Annotated[Optional[str], typer.Option(help=help_strings.CRN_URL_VM_DELETION)] = None,
+    private_key: Annotated[Optional[str], typer.Option(help=help_strings.PRIVATE_KEY)] = settings.PRIVATE_KEY_STRING,
+    private_key_file: Annotated[
+        Optional[Path], typer.Option(help=help_strings.PRIVATE_KEY_FILE)
+    ] = settings.PRIVATE_KEY_FILE,
+    print_message: Annotated[bool, typer.Option(help="Print the message after deletion")] = False,
+    debug: Annotated[bool, typer.Option(help="Enable debug logging")] = False,
 ):
     """
     Delete an instance, unallocating all resources associated with it. Associated VM will be stopped and erased.
@@ -950,12 +953,16 @@ async def _show_instances(messages: builtins.list[InstanceMessage]):
 
 @app.command(name="list")
 async def list_instances(
-    address: Optional[str] = typer.Option(None, help="Owner address of the instances"),
-    private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
-    private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
-    chain: Optional[Chain] = typer.Option(None, help=help_strings.ADDRESS_CHAIN, metavar=metavar_valid_chains),
-    json: bool = typer.Option(default=False, help="Print as json instead of rich table"),
-    debug: bool = False,
+    address: Annotated[Optional[str], typer.Option(help="Owner address of the instances")] = None,
+    private_key: Annotated[Optional[str], typer.Option(help=help_strings.PRIVATE_KEY)] = settings.PRIVATE_KEY_STRING,
+    private_key_file: Annotated[
+        Optional[Path], typer.Option(help=help_strings.PRIVATE_KEY_FILE)
+    ] = settings.PRIVATE_KEY_FILE,
+    chain: Annotated[
+        Optional[Chain], typer.Option(help=help_strings.ADDRESS_CHAIN, metavar=metavar_valid_chains)
+    ] = None,
+    json: Annotated[bool, typer.Option(help="Print as json instead of rich table")] = False,
+    debug: Annotated[bool, typer.Option(help="Enable debug logging")] = False,
 ):
     """List all instances associated to an account"""
 
@@ -987,12 +994,16 @@ async def list_instances(
 
 @app.command()
 async def reboot(
-    vm_id: str = typer.Argument(..., help="VM item hash to reboot"),
-    domain: Optional[str] = typer.Option(None, help="CRN domain on which the VM is running"),
-    chain: Optional[Chain] = typer.Option(None, help=help_strings.PAYMENT_CHAIN_USED, metavar=metavar_valid_chains),
-    private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
-    private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
-    debug: bool = False,
+    vm_id: Annotated[str, typer.Argument(help="VM item hash to reboot")],
+    domain: Annotated[Optional[str], typer.Option(help="CRN domain on which the VM is running")] = None,
+    chain: Annotated[
+        Optional[Chain], typer.Option(help=help_strings.PAYMENT_CHAIN_USED, metavar=metavar_valid_chains)
+    ] = None,
+    private_key: Annotated[Optional[str], typer.Option(help=help_strings.PRIVATE_KEY)] = settings.PRIVATE_KEY_STRING,
+    private_key_file: Annotated[
+        Optional[Path], typer.Option(help=help_strings.PRIVATE_KEY_FILE)
+    ] = settings.PRIVATE_KEY_FILE,
+    debug: Annotated[bool, typer.Option(help="Enable debug logging")] = False,
 ):
     """Reboot an instance"""
 
@@ -1016,12 +1027,16 @@ async def reboot(
 
 @app.command()
 async def allocate(
-    vm_id: str = typer.Argument(..., help="VM item hash to allocate"),
-    domain: Optional[str] = typer.Option(None, help="CRN domain on which the VM will be allocated"),
-    chain: Optional[Chain] = typer.Option(None, help=help_strings.PAYMENT_CHAIN_USED, metavar=metavar_valid_chains),
-    private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
-    private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
-    debug: bool = False,
+    vm_id: Annotated[str, typer.Argument(help="VM item hash to allocate")],
+    domain: Annotated[Optional[str], typer.Option(help="CRN domain on which the VM will be allocated")] = None,
+    chain: Annotated[
+        Optional[Chain], typer.Option(help=help_strings.PAYMENT_CHAIN_USED, metavar=metavar_valid_chains)
+    ] = None,
+    private_key: Annotated[Optional[str], typer.Option(help=help_strings.PRIVATE_KEY)] = settings.PRIVATE_KEY_STRING,
+    private_key_file: Annotated[
+        Optional[Path], typer.Option(help=help_strings.PRIVATE_KEY_FILE)
+    ] = settings.PRIVATE_KEY_FILE,
+    debug: Annotated[bool, typer.Option(help="Enable debug logging")] = False,
 ):
     """Notify a CRN to start an instance (for Pay-As-You-Go and confidential instances only)"""
 
@@ -1045,12 +1060,16 @@ async def allocate(
 
 @app.command()
 async def logs(
-    vm_id: str = typer.Argument(..., help="VM item hash to retrieve the logs from"),
-    domain: Optional[str] = typer.Option(None, help="CRN domain on which the VM is running"),
-    chain: Optional[Chain] = typer.Option(None, help=help_strings.PAYMENT_CHAIN_USED, metavar=metavar_valid_chains),
-    private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
-    private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
-    debug: bool = False,
+    vm_id: Annotated[str, typer.Argument(help="VM item hash to retrieve the logs from")],
+    domain: Annotated[Optional[str], typer.Option(help="CRN domain on which the VM is running")] = None,
+    chain: Annotated[
+        Optional[Chain], typer.Option(help=help_strings.PAYMENT_CHAIN_USED, metavar=metavar_valid_chains)
+    ] = None,
+    private_key: Annotated[Optional[str], typer.Option(help=help_strings.PRIVATE_KEY)] = settings.PRIVATE_KEY_STRING,
+    private_key_file: Annotated[
+        Optional[Path], typer.Option(help=help_strings.PRIVATE_KEY_FILE)
+    ] = settings.PRIVATE_KEY_FILE,
+    debug: Annotated[bool, typer.Option(help="Enable debug logging")] = False,
 ):
     """Retrieve the logs of an instance"""
     setup_logging(debug)
@@ -1073,12 +1092,14 @@ async def logs(
 
 @app.command()
 async def stop(
-    vm_id: str = typer.Argument(..., help="VM item hash to stop"),
-    domain: Optional[str] = typer.Option(None, help="CRN domain on which the VM is running"),
-    chain: Optional[Chain] = typer.Option(None, help=help_strings.PAYMENT_CHAIN_USED),
-    private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
-    private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
-    debug: bool = False,
+    vm_id: Annotated[str, typer.Argument(help="VM item hash to stop")],
+    domain: Annotated[Optional[str], typer.Option(help="CRN domain on which the VM is running")] = None,
+    chain: Annotated[Optional[Chain], typer.Option(help=help_strings.PAYMENT_CHAIN_USED)] = None,
+    private_key: Annotated[Optional[str], typer.Option(help=help_strings.PRIVATE_KEY)] = settings.PRIVATE_KEY_STRING,
+    private_key_file: Annotated[
+        Optional[Path], typer.Option(help=help_strings.PRIVATE_KEY_FILE)
+    ] = settings.PRIVATE_KEY_FILE,
+    debug: Annotated[bool, typer.Option(help="Enable debug logging")] = False,
 ):
     """Stop an instance"""
 
@@ -1098,14 +1119,18 @@ async def stop(
 
 @app.command()
 async def confidential_init_session(
-    vm_id: str = typer.Argument(..., help="VM item hash to initialize the session for"),
-    domain: Optional[str] = typer.Option(None, help="CRN domain on which the session will be initialized"),
-    chain: Optional[Chain] = typer.Option(None, help=help_strings.PAYMENT_CHAIN_USED, metavar=metavar_valid_chains),
-    policy: int = typer.Option(default=0x1),
-    keep_session: bool = typer.Option(None, help=help_strings.KEEP_SESSION),
-    private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
-    private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
-    debug: bool = False,
+    vm_id: Annotated[str, typer.Argument(help="VM item hash to initialize the session for")],
+    domain: Annotated[Optional[str], typer.Option(help="CRN domain on which the session will be initialized")] = None,
+    chain: Annotated[
+        Optional[Chain], typer.Option(help=help_strings.PAYMENT_CHAIN_USED, metavar=metavar_valid_chains)
+    ] = None,
+    policy: Annotated[int, typer.Option(help="Policy for the confidential session")] = 0x1,
+    keep_session: Annotated[Optional[bool], typer.Option(help=help_strings.KEEP_SESSION)] = None,
+    private_key: Annotated[Optional[str], typer.Option(help=help_strings.PRIVATE_KEY)] = settings.PRIVATE_KEY_STRING,
+    private_key_file: Annotated[
+        Optional[Path], typer.Option(help=help_strings.PRIVATE_KEY_FILE)
+    ] = settings.PRIVATE_KEY_FILE,
+    debug: Annotated[bool, typer.Option(help="Enable debug logging")] = False,
 ):
     """Initialize a confidential communication session with the VM"""
 
@@ -1173,18 +1198,22 @@ async def confidential_init_session(
 
 @app.command()
 async def confidential_start(
-    vm_id: str = typer.Argument(..., help="VM item hash to start"),
-    domain: Optional[str] = typer.Option(None, help="CRN domain on which the VM will be started"),
-    chain: Optional[Chain] = typer.Option(None, help=help_strings.PAYMENT_CHAIN_USED, metavar=metavar_valid_chains),
-    firmware_hash: str = typer.Option(
-        settings.DEFAULT_CONFIDENTIAL_FIRMWARE_HASH, help=help_strings.CONFIDENTIAL_FIRMWARE_HASH
-    ),
-    firmware_file: str = typer.Option(None, help=help_strings.CONFIDENTIAL_FIRMWARE_PATH),
-    vm_secret: str = typer.Option(None, help=help_strings.VM_SECRET),
-    private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
-    private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
-    verbose: bool = typer.Option(True),
-    debug: bool = False,
+    vm_id: Annotated[str, typer.Argument(help="VM item hash to start")],
+    domain: Annotated[Optional[str], typer.Option(help="CRN domain on which the VM will be started")] = None,
+    chain: Annotated[
+        Optional[Chain], typer.Option(help=help_strings.PAYMENT_CHAIN_USED, metavar=metavar_valid_chains)
+    ] = None,
+    firmware_hash: Annotated[
+        str, typer.Option(help=help_strings.CONFIDENTIAL_FIRMWARE_HASH)
+    ] = settings.DEFAULT_CONFIDENTIAL_FIRMWARE_HASH,
+    firmware_file: Annotated[Optional[str], typer.Option(help=help_strings.CONFIDENTIAL_FIRMWARE_PATH)] = None,
+    vm_secret: Annotated[Optional[str], typer.Option(help=help_strings.VM_SECRET)] = None,
+    private_key: Annotated[Optional[str], typer.Option(help=help_strings.PRIVATE_KEY)] = settings.PRIVATE_KEY_STRING,
+    private_key_file: Annotated[
+        Optional[Path], typer.Option(help=help_strings.PRIVATE_KEY_FILE)
+    ] = settings.PRIVATE_KEY_FILE,
+    verbose: Annotated[bool, typer.Option(help="Display additional information")] = True,
+    debug: Annotated[bool, typer.Option(help="Enable debug logging")] = False,
 ):
     """Validate the authenticity of the VM and start it"""
 
@@ -1270,61 +1299,60 @@ async def confidential_start(
 
 @app.command(name="confidential")
 async def confidential_create(
-    vm_id: Optional[str] = typer.Argument(default=None, help=help_strings.VM_ID),
-    crn_url: Optional[str] = typer.Option(default=None, help=help_strings.CRN_URL),
-    crn_hash: Optional[str] = typer.Option(default=None, help=help_strings.CRN_HASH),
-    policy: int = typer.Option(default=0x1),
-    confidential_firmware: str = typer.Option(
-        default=settings.DEFAULT_CONFIDENTIAL_FIRMWARE, help=help_strings.CONFIDENTIAL_FIRMWARE
-    ),
-    firmware_hash: str = typer.Option(
-        settings.DEFAULT_CONFIDENTIAL_FIRMWARE_HASH, help=help_strings.CONFIDENTIAL_FIRMWARE_HASH
-    ),
-    firmware_file: Optional[str] = typer.Option(None, help=help_strings.CONFIDENTIAL_FIRMWARE_PATH),
-    keep_session: Optional[bool] = typer.Option(None, help=help_strings.KEEP_SESSION),
-    vm_secret: Optional[str] = typer.Option(None, help=help_strings.VM_SECRET),
-    payment_type: Optional[str] = typer.Option(
-        None,
-        help=help_strings.PAYMENT_TYPE,
-        callback=lambda pt: None if pt is None else pt.lower(),
-        metavar=metavar_valid_payment_types,
-        case_sensitive=False,
-    ),
-    payment_chain: Optional[Chain] = typer.Option(
-        None,
-        help=help_strings.PAYMENT_CHAIN,
-        metavar=metavar_valid_chains,
-        case_sensitive=False,
-    ),
-    name: Optional[str] = typer.Option(None, help=help_strings.INSTANCE_NAME),
-    rootfs: Optional[str] = typer.Option(None, help=help_strings.ROOTFS),
-    compute_units: Optional[int] = typer.Option(None, help=help_strings.COMPUTE_UNITS),
-    vcpus: Optional[int] = typer.Option(None, help=help_strings.VCPUS),
-    memory: Optional[int] = typer.Option(None, help=help_strings.MEMORY),
-    rootfs_size: Optional[int] = typer.Option(None, help=help_strings.ROOTFS_SIZE),
-    timeout_seconds: float = typer.Option(
-        settings.DEFAULT_VM_TIMEOUT,
-        help=help_strings.TIMEOUT_SECONDS,
-    ),
-    ssh_pubkey_file: Path = typer.Option(
-        Path("~/.ssh/id_rsa.pub").expanduser(),
-        help=help_strings.SSH_PUBKEY_FILE,
-    ),
-    address: Optional[str] = typer.Option(None, help=help_strings.ADDRESS_PAYER),
-    gpu: bool = typer.Option(False, help=help_strings.GPU_OPTION),
-    premium: Optional[bool] = typer.Option(None, help=help_strings.GPU_PREMIUM_OPTION),
-    skip_volume: bool = typer.Option(False, help=help_strings.SKIP_VOLUME),
-    persistent_volume: Optional[list[str]] = typer.Option(None, help=help_strings.PERSISTENT_VOLUME),
-    ephemeral_volume: Optional[list[str]] = typer.Option(None, help=help_strings.EPHEMERAL_VOLUME),
-    immutable_volume: Optional[list[str]] = typer.Option(
-        None,
-        help=help_strings.IMMUTABLE_VOLUME,
-    ),
-    crn_auto_tac: bool = typer.Option(False, help=help_strings.CRN_AUTO_TAC),
-    channel: Optional[str] = typer.Option(default=settings.DEFAULT_CHANNEL, help=help_strings.CHANNEL),
-    private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
-    private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
-    debug: bool = False,
+    vm_id: Annotated[Optional[str], typer.Argument(help=help_strings.VM_ID)] = None,
+    crn_url: Annotated[Optional[str], typer.Option(help=help_strings.CRN_URL)] = None,
+    crn_hash: Annotated[Optional[str], typer.Option(help=help_strings.CRN_HASH)] = None,
+    policy: Annotated[int, typer.Option(help="Policy for the confidential session")] = 0x1,
+    confidential_firmware: Annotated[
+        str, typer.Option(help=help_strings.CONFIDENTIAL_FIRMWARE)
+    ] = settings.DEFAULT_CONFIDENTIAL_FIRMWARE,
+    firmware_hash: Annotated[
+        str, typer.Option(help=help_strings.CONFIDENTIAL_FIRMWARE_HASH)
+    ] = settings.DEFAULT_CONFIDENTIAL_FIRMWARE_HASH,
+    firmware_file: Annotated[Optional[str], typer.Option(help=help_strings.CONFIDENTIAL_FIRMWARE_PATH)] = None,
+    keep_session: Annotated[Optional[bool], typer.Option(help=help_strings.KEEP_SESSION)] = None,
+    vm_secret: Annotated[Optional[str], typer.Option(help=help_strings.VM_SECRET)] = None,
+    payment_type: Annotated[
+        Optional[str],
+        typer.Option(
+            help=help_strings.PAYMENT_TYPE,
+            callback=lambda pt: None if pt is None else pt.lower(),
+            metavar=metavar_valid_payment_types,
+            case_sensitive=False,
+        ),
+    ] = None,
+    payment_chain: Annotated[
+        Optional[Chain],
+        typer.Option(
+            help=help_strings.PAYMENT_CHAIN,
+            metavar=metavar_valid_chains,
+            case_sensitive=False,
+        ),
+    ] = None,
+    name: Annotated[Optional[str], typer.Option(help=help_strings.INSTANCE_NAME)] = None,
+    rootfs: Annotated[Optional[str], typer.Option(help=help_strings.ROOTFS)] = None,
+    compute_units: Annotated[Optional[int], typer.Option(help=help_strings.COMPUTE_UNITS)] = None,
+    vcpus: Annotated[Optional[int], typer.Option(help=help_strings.VCPUS)] = None,
+    memory: Annotated[Optional[int], typer.Option(help=help_strings.MEMORY)] = None,
+    rootfs_size: Annotated[Optional[int], typer.Option(help=help_strings.ROOTFS_SIZE)] = None,
+    timeout_seconds: Annotated[float, typer.Option(help=help_strings.TIMEOUT_SECONDS)] = settings.DEFAULT_VM_TIMEOUT,
+    ssh_pubkey_file: Annotated[Path, typer.Option(help=help_strings.SSH_PUBKEY_FILE)] = Path(
+        "~/.ssh/id_rsa.pub"
+    ).expanduser(),
+    address: Annotated[Optional[str], typer.Option(help=help_strings.ADDRESS_PAYER)] = None,
+    gpu: Annotated[bool, typer.Option(help=help_strings.GPU_OPTION)] = False,
+    premium: Annotated[Optional[bool], typer.Option(help=help_strings.GPU_PREMIUM_OPTION)] = None,
+    skip_volume: Annotated[bool, typer.Option(help=help_strings.SKIP_VOLUME)] = False,
+    persistent_volume: Annotated[Optional[list[str]], typer.Option(help=help_strings.PERSISTENT_VOLUME)] = None,
+    ephemeral_volume: Annotated[Optional[list[str]], typer.Option(help=help_strings.EPHEMERAL_VOLUME)] = None,
+    immutable_volume: Annotated[Optional[list[str]], typer.Option(help=help_strings.IMMUTABLE_VOLUME)] = None,
+    crn_auto_tac: Annotated[bool, typer.Option(help=help_strings.CRN_AUTO_TAC)] = False,
+    channel: Annotated[Optional[str], typer.Option(help=help_strings.CHANNEL)] = settings.DEFAULT_CHANNEL,
+    private_key: Annotated[Optional[str], typer.Option(help=help_strings.PRIVATE_KEY)] = settings.PRIVATE_KEY_STRING,
+    private_key_file: Annotated[
+        Optional[Path], typer.Option(help=help_strings.PRIVATE_KEY_FILE)
+    ] = settings.PRIVATE_KEY_FILE,
+    debug: Annotated[bool, typer.Option(help="Enable debug logging")] = False,
 ):
     """Create (optional), start and unlock a confidential VM (all-in-one command)
 
@@ -1439,44 +1467,41 @@ async def confidential_create(
 
 @app.command(name="gpu")
 async def gpu_create(
-    payment_chain: Optional[Chain] = typer.Option(
-        None,
-        help=help_strings.PAYMENT_CHAIN,
-        metavar=metavar_valid_payg_chains,
-        case_sensitive=False,
-    ),
-    name: Optional[str] = typer.Option(None, help=help_strings.INSTANCE_NAME),
-    rootfs: Optional[str] = typer.Option(None, help=help_strings.ROOTFS),
-    compute_units: Optional[int] = typer.Option(None, help=help_strings.COMPUTE_UNITS),
-    vcpus: Optional[int] = typer.Option(None, help=help_strings.VCPUS),
-    memory: Optional[int] = typer.Option(None, help=help_strings.MEMORY),
-    rootfs_size: Optional[int] = typer.Option(None, help=help_strings.ROOTFS_SIZE),
-    premium: Optional[bool] = typer.Option(None, help=help_strings.GPU_PREMIUM_OPTION),
-    timeout_seconds: float = typer.Option(
-        settings.DEFAULT_VM_TIMEOUT,
-        help=help_strings.TIMEOUT_SECONDS,
-    ),
-    ssh_pubkey_file: Path = typer.Option(
-        Path("~/.ssh/id_rsa.pub").expanduser(),
-        help=help_strings.SSH_PUBKEY_FILE,
-    ),
-    address: Optional[str] = typer.Option(None, help=help_strings.ADDRESS_PAYER),
-    crn_hash: Optional[str] = typer.Option(None, help=help_strings.CRN_HASH),
-    crn_url: Optional[str] = typer.Option(None, help=help_strings.CRN_URL),
-    skip_volume: bool = typer.Option(False, help=help_strings.SKIP_VOLUME),
-    persistent_volume: Optional[list[str]] = typer.Option(None, help=help_strings.PERSISTENT_VOLUME),
-    ephemeral_volume: Optional[list[str]] = typer.Option(None, help=help_strings.EPHEMERAL_VOLUME),
-    immutable_volume: Optional[list[str]] = typer.Option(
-        None,
-        help=help_strings.IMMUTABLE_VOLUME,
-    ),
-    crn_auto_tac: bool = typer.Option(False, help=help_strings.CRN_AUTO_TAC),
-    channel: Optional[str] = typer.Option(default=settings.DEFAULT_CHANNEL, help=help_strings.CHANNEL),
-    private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
-    private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
-    print_message: bool = typer.Option(False),
-    verbose: bool = typer.Option(True),
-    debug: bool = False,
+    payment_chain: Annotated[
+        Optional[Chain],
+        typer.Option(
+            help=help_strings.PAYMENT_CHAIN,
+            metavar=metavar_valid_payg_chains,
+            case_sensitive=False,
+        ),
+    ] = None,
+    name: Annotated[Optional[str], typer.Option(help=help_strings.INSTANCE_NAME)] = None,
+    rootfs: Annotated[Optional[str], typer.Option(help=help_strings.ROOTFS)] = None,
+    compute_units: Annotated[Optional[int], typer.Option(help=help_strings.COMPUTE_UNITS)] = None,
+    vcpus: Annotated[Optional[int], typer.Option(help=help_strings.VCPUS)] = None,
+    memory: Annotated[Optional[int], typer.Option(help=help_strings.MEMORY)] = None,
+    rootfs_size: Annotated[Optional[int], typer.Option(help=help_strings.ROOTFS_SIZE)] = None,
+    premium: Annotated[Optional[bool], typer.Option(help=help_strings.GPU_PREMIUM_OPTION)] = None,
+    timeout_seconds: Annotated[float, typer.Option(help=help_strings.TIMEOUT_SECONDS)] = settings.DEFAULT_VM_TIMEOUT,
+    ssh_pubkey_file: Annotated[Path, typer.Option(help=help_strings.SSH_PUBKEY_FILE)] = Path(
+        "~/.ssh/id_rsa.pub"
+    ).expanduser(),
+    address: Annotated[Optional[str], typer.Option(help=help_strings.ADDRESS_PAYER)] = None,
+    crn_hash: Annotated[Optional[str], typer.Option(help=help_strings.CRN_HASH)] = None,
+    crn_url: Annotated[Optional[str], typer.Option(help=help_strings.CRN_URL)] = None,
+    skip_volume: Annotated[bool, typer.Option(help=help_strings.SKIP_VOLUME)] = False,
+    persistent_volume: Annotated[Optional[list[str]], typer.Option(help=help_strings.PERSISTENT_VOLUME)] = None,
+    ephemeral_volume: Annotated[Optional[list[str]], typer.Option(help=help_strings.EPHEMERAL_VOLUME)] = None,
+    immutable_volume: Annotated[Optional[list[str]], typer.Option(help=help_strings.IMMUTABLE_VOLUME)] = None,
+    crn_auto_tac: Annotated[bool, typer.Option(help=help_strings.CRN_AUTO_TAC)] = False,
+    channel: Annotated[Optional[str], typer.Option(help=help_strings.CHANNEL)] = settings.DEFAULT_CHANNEL,
+    private_key: Annotated[Optional[str], typer.Option(help=help_strings.PRIVATE_KEY)] = settings.PRIVATE_KEY_STRING,
+    private_key_file: Annotated[
+        Optional[Path], typer.Option(help=help_strings.PRIVATE_KEY_FILE)
+    ] = settings.PRIVATE_KEY_FILE,
+    print_message: Annotated[bool, typer.Option(help="Print the message after creation")] = False,
+    verbose: Annotated[bool, typer.Option(help="Display additional information")] = True,
+    debug: Annotated[bool, typer.Option(help="Enable debug logging")] = False,
 ):
     """Create and register a new GPU instance on aleph.im"""
 

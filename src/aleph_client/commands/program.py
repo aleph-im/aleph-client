@@ -7,7 +7,7 @@ from base64 import b16decode, b32encode
 from collections.abc import Mapping
 from decimal import Decimal
 from pathlib import Path
-from typing import Any, Optional, cast
+from typing import Annotated, Any, Optional, cast
 from zipfile import BadZipFile
 
 import aiohttp
@@ -59,51 +59,37 @@ app = AsyncTyper(no_args_is_help=True)
 @app.command(name="upload")
 @app.command(name="create")
 async def upload(
-    path: Path = typer.Argument(..., help=help_strings.PROGRAM_PATH),
-    entrypoint: str = typer.Argument(
-        ...,
-        help=help_strings.PROGRAM_ENTRYPOINT,
-    ),
-    name: Optional[str] = typer.Option(None, help="Name for your program"),
-    runtime: str = typer.Option(
-        None,
-        help=help_strings.PROGRAM_RUNTIME.format(runtime_id=settings.DEFAULT_RUNTIME_ID),
-    ),
-    compute_units: Optional[int] = typer.Option(None, help=help_strings.COMPUTE_UNITS),
-    vcpus: Optional[int] = typer.Option(None, help=help_strings.VCPUS),
-    memory: Optional[int] = typer.Option(None, help=help_strings.MEMORY),
-    timeout_seconds: float = typer.Option(
-        settings.DEFAULT_VM_TIMEOUT,
-        help=help_strings.TIMEOUT_SECONDS,
-    ),
-    internet: bool = typer.Option(
-        False,
-        help=help_strings.PROGRAM_INTERNET,
-    ),
-    updatable: bool = typer.Option(False, help=help_strings.PROGRAM_UPDATABLE),
-    beta: bool = typer.Option(
-        False,
-        help=help_strings.PROGRAM_BETA,
-    ),
-    persistent: bool = typer.Option(False, help=help_strings.PROGRAM_PERSISTENT),
-    skip_volume: bool = typer.Option(False, help=help_strings.SKIP_VOLUME),
-    persistent_volume: Optional[list[str]] = typer.Option(None, help=help_strings.PERSISTENT_VOLUME),
-    ephemeral_volume: Optional[list[str]] = typer.Option(None, help=help_strings.EPHEMERAL_VOLUME),
-    immutable_volume: Optional[list[str]] = typer.Option(
-        None,
-        help=help_strings.IMMUTABLE_VOLUME,
-    ),
-    skip_env_var: bool = typer.Option(False, help=help_strings.SKIP_ENV_VAR),
-    env_vars: Optional[str] = typer.Option(None, help=help_strings.ENVIRONMENT_VARIABLES),
-    address: Optional[str] = typer.Option(None, help=help_strings.ADDRESS_PAYER),
-    channel: Optional[str] = typer.Option(default=settings.DEFAULT_CHANNEL, help=help_strings.CHANNEL),
-    private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
-    private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
-    print_messages: bool = typer.Option(False),
-    print_code_message: bool = typer.Option(False),
-    print_program_message: bool = typer.Option(False),
-    verbose: bool = True,
-    debug: bool = False,
+    path: Annotated[Path, typer.Argument(help=help_strings.PROGRAM_PATH)],
+    entrypoint: Annotated[str, typer.Argument(help=help_strings.PROGRAM_ENTRYPOINT)],
+    name: Annotated[Optional[str], typer.Option(help="Name for your program")] = None,
+    runtime: Annotated[
+        Optional[str], typer.Option(help=help_strings.PROGRAM_RUNTIME.format(runtime_id=settings.DEFAULT_RUNTIME_ID))
+    ] = None,
+    compute_units: Annotated[Optional[int], typer.Option(help=help_strings.COMPUTE_UNITS)] = None,
+    vcpus: Annotated[Optional[int], typer.Option(help=help_strings.VCPUS)] = None,
+    memory: Annotated[Optional[int], typer.Option(help=help_strings.MEMORY)] = None,
+    timeout_seconds: Annotated[float, typer.Option(help=help_strings.TIMEOUT_SECONDS)] = settings.DEFAULT_VM_TIMEOUT,
+    internet: Annotated[bool, typer.Option(help=help_strings.PROGRAM_INTERNET)] = False,
+    updatable: Annotated[bool, typer.Option(help=help_strings.PROGRAM_UPDATABLE)] = False,
+    beta: Annotated[bool, typer.Option(help=help_strings.PROGRAM_BETA)] = False,
+    persistent: Annotated[bool, typer.Option(help=help_strings.PROGRAM_PERSISTENT)] = False,
+    skip_volume: Annotated[bool, typer.Option(help=help_strings.SKIP_VOLUME)] = False,
+    persistent_volume: Annotated[Optional[list[str]], typer.Option(help=help_strings.PERSISTENT_VOLUME)] = None,
+    ephemeral_volume: Annotated[Optional[list[str]], typer.Option(help=help_strings.EPHEMERAL_VOLUME)] = None,
+    immutable_volume: Annotated[Optional[list[str]], typer.Option(help=help_strings.IMMUTABLE_VOLUME)] = None,
+    skip_env_var: Annotated[bool, typer.Option(help=help_strings.SKIP_ENV_VAR)] = False,
+    env_vars: Annotated[Optional[str], typer.Option(help=help_strings.ENVIRONMENT_VARIABLES)] = None,
+    address: Annotated[Optional[str], typer.Option(help=help_strings.ADDRESS_PAYER)] = None,
+    channel: Annotated[Optional[str], typer.Option(help=help_strings.CHANNEL)] = settings.DEFAULT_CHANNEL,
+    private_key: Annotated[Optional[str], typer.Option(help=help_strings.PRIVATE_KEY)] = settings.PRIVATE_KEY_STRING,
+    private_key_file: Annotated[
+        Optional[Path], typer.Option(help=help_strings.PRIVATE_KEY_FILE)
+    ] = settings.PRIVATE_KEY_FILE,
+    print_messages: Annotated[bool, typer.Option(help="Print the messages after creation")] = False,
+    print_code_message: Annotated[bool, typer.Option(help="Print the code message after creation")] = False,
+    print_program_message: Annotated[bool, typer.Option(help="Print the program message after creation")] = False,
+    verbose: Annotated[bool, typer.Option(help="Display additional information")] = True,
+    debug: Annotated[bool, typer.Option(help="Enable debug logging")] = False,
 ) -> Optional[str]:
     """Register a program to run on aleph.im (create/upload are aliases)
 
@@ -283,13 +269,15 @@ async def upload(
 
 @app.command()
 async def update(
-    item_hash: str = typer.Argument(..., help="Item hash to update"),
-    path: Path = typer.Argument(..., help=help_strings.PROGRAM_PATH),
-    private_key: Optional[str] = settings.PRIVATE_KEY_STRING,
-    private_key_file: Optional[Path] = settings.PRIVATE_KEY_FILE,
-    print_message: bool = typer.Option(False),
-    verbose: bool = True,
-    debug: bool = False,
+    item_hash: Annotated[str, typer.Argument(help="Item hash to update")],
+    path: Annotated[Path, typer.Argument(help=help_strings.PROGRAM_PATH)],
+    private_key: Annotated[Optional[str], typer.Option(help=help_strings.PRIVATE_KEY)] = settings.PRIVATE_KEY_STRING,
+    private_key_file: Annotated[
+        Optional[Path], typer.Option(help=help_strings.PRIVATE_KEY_FILE)
+    ] = settings.PRIVATE_KEY_FILE,
+    print_message: Annotated[bool, typer.Option(help="Print the message after creation")] = False,
+    verbose: Annotated[bool, typer.Option(help="Display additional information")] = True,
+    debug: Annotated[bool, typer.Option(help="Enable debug logging")] = False,
 ):
     """Update the code of an existing program (item hash will not change)"""
 
@@ -390,14 +378,16 @@ async def update(
 
 @app.command()
 async def delete(
-    item_hash: str = typer.Argument(..., help="Item hash to unpersist"),
-    reason: str = typer.Option("User deletion", help="Reason for deleting the program"),
-    keep_code: bool = typer.Option(False, help=help_strings.PROGRAM_KEEP_CODE),
-    private_key: Optional[str] = settings.PRIVATE_KEY_STRING,
-    private_key_file: Optional[Path] = settings.PRIVATE_KEY_FILE,
-    print_message: bool = typer.Option(False),
-    verbose: bool = True,
-    debug: bool = False,
+    item_hash: Annotated[str, typer.Argument(help="Item hash to unpersist")],
+    reason: Annotated[str, typer.Option(help="Reason for deleting the program")] = "User deletion",
+    keep_code: Annotated[bool, typer.Option(help=help_strings.PROGRAM_KEEP_CODE)] = False,
+    private_key: Annotated[Optional[str], typer.Option(help=help_strings.PRIVATE_KEY)] = settings.PRIVATE_KEY_STRING,
+    private_key_file: Annotated[
+        Optional[Path], typer.Option(help=help_strings.PRIVATE_KEY_FILE)
+    ] = settings.PRIVATE_KEY_FILE,
+    print_message: Annotated[bool, typer.Option(help="Print the message after deletion")] = False,
+    verbose: Annotated[bool, typer.Option(help="Display additional information")] = True,
+    debug: Annotated[bool, typer.Option(help="Enable debug logging")] = False,
 ):
     """Delete a program"""
 
@@ -449,11 +439,13 @@ async def delete(
 
 @app.command(name="list")
 async def list_programs(
-    address: Optional[str] = typer.Option(None, help="Owner address of the programs"),
-    private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
-    private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
-    json: bool = typer.Option(default=False, help="Print as json instead of rich table"),
-    debug: bool = False,
+    address: Annotated[Optional[str], typer.Option(help="Owner address of the programs")] = None,
+    private_key: Annotated[Optional[str], typer.Option(help=help_strings.PRIVATE_KEY)] = settings.PRIVATE_KEY_STRING,
+    private_key_file: Annotated[
+        Optional[Path], typer.Option(help=help_strings.PRIVATE_KEY_FILE)
+    ] = settings.PRIVATE_KEY_FILE,
+    json: Annotated[bool, typer.Option(help="Print as json instead of rich table")] = False,
+    debug: Annotated[bool, typer.Option(help="Enable debug logging")] = False,
 ):
     """List all programs associated to an account"""
 
@@ -574,16 +566,15 @@ async def list_programs(
 
 @app.command()
 async def persist(
-    item_hash: str = typer.Argument(..., help="Item hash to persist"),
-    keep_prev: bool = typer.Option(
-        False,
-        help=help_strings.PROGRAM_KEEP_PREV,
-    ),
-    private_key: Optional[str] = settings.PRIVATE_KEY_STRING,
-    private_key_file: Optional[Path] = settings.PRIVATE_KEY_FILE,
-    print_message: bool = typer.Option(False),
-    verbose: bool = True,
-    debug: bool = False,
+    item_hash: Annotated[str, typer.Argument(help="Item hash to persist")],
+    keep_prev: Annotated[bool, typer.Option(help=help_strings.PROGRAM_KEEP_PREV)] = False,
+    private_key: Annotated[Optional[str], typer.Option(help=help_strings.PRIVATE_KEY)] = settings.PRIVATE_KEY_STRING,
+    private_key_file: Annotated[
+        Optional[Path], typer.Option(help=help_strings.PRIVATE_KEY_FILE)
+    ] = settings.PRIVATE_KEY_FILE,
+    print_message: Annotated[bool, typer.Option(help="Print the message after persisting")] = False,
+    verbose: Annotated[bool, typer.Option(help="Display additional information")] = True,
+    debug: Annotated[bool, typer.Option(help="Enable debug logging")] = False,
 ) -> Optional[str]:
     """
     Recreate a non-persistent program as persistent (item hash will change). The program must be updatable and yours
@@ -669,16 +660,15 @@ async def persist(
 
 @app.command()
 async def unpersist(
-    item_hash: str = typer.Argument(..., help="Item hash to unpersist"),
-    keep_prev: bool = typer.Option(
-        False,
-        help=help_strings.PROGRAM_KEEP_PREV,
-    ),
-    private_key: Optional[str] = settings.PRIVATE_KEY_STRING,
-    private_key_file: Optional[Path] = settings.PRIVATE_KEY_FILE,
-    print_message: bool = typer.Option(False),
-    verbose: bool = True,
-    debug: bool = False,
+    item_hash: Annotated[str, typer.Argument(help="Item hash to unpersist")],
+    keep_prev: Annotated[bool, typer.Option(help=help_strings.PROGRAM_KEEP_PREV)] = False,
+    private_key: Annotated[Optional[str], typer.Option(help=help_strings.PRIVATE_KEY)] = settings.PRIVATE_KEY_STRING,
+    private_key_file: Annotated[
+        Optional[Path], typer.Option(help=help_strings.PRIVATE_KEY_FILE)
+    ] = settings.PRIVATE_KEY_FILE,
+    print_message: Annotated[bool, typer.Option(help="Print the message after unpersisting")] = False,
+    verbose: Annotated[bool, typer.Option(help="Display additional information")] = True,
+    debug: Annotated[bool, typer.Option(help="Enable debug logging")] = False,
 ) -> Optional[str]:
     """
     Recreate a persistent program as non-persistent (item hash will change). The program must be updatable and yours
@@ -764,12 +754,14 @@ async def unpersist(
 
 @app.command()
 async def logs(
-    item_hash: str = typer.Argument(..., help="Item hash of program"),
-    private_key: Optional[str] = settings.PRIVATE_KEY_STRING,
-    private_key_file: Optional[Path] = settings.PRIVATE_KEY_FILE,
-    domain: str = typer.Option(None, help=help_strings.PROMPT_PROGRAM_CRN_URL),
-    chain: Chain = typer.Option(None, help=help_strings.ADDRESS_CHAIN),
-    debug: bool = False,
+    item_hash: Annotated[str, typer.Argument(help="Item hash of program")],
+    private_key: Annotated[Optional[str], typer.Option(help=help_strings.PRIVATE_KEY)] = settings.PRIVATE_KEY_STRING,
+    private_key_file: Annotated[
+        Optional[Path], typer.Option(help=help_strings.PRIVATE_KEY_FILE)
+    ] = settings.PRIVATE_KEY_FILE,
+    domain: Annotated[Optional[str], typer.Option(help=help_strings.PROMPT_PROGRAM_CRN_URL)] = None,
+    chain: Annotated[Optional[Chain], typer.Option(help=help_strings.ADDRESS_CHAIN)] = None,
+    debug: Annotated[bool, typer.Option(help="Enable debug logging")] = False,
 ):
     """Display the logs of a program
 
@@ -778,9 +770,9 @@ async def logs(
     setup_logging(debug)
 
     account = _load_account(private_key, private_key_file, chain=chain)
-    domain = sanitize_url(domain or Prompt.ask(help_strings.PROMPT_PROGRAM_CRN_URL))
+    domain_ = sanitize_url(domain or Prompt.ask(help_strings.PROMPT_PROGRAM_CRN_URL))
 
-    async with VmClient(account, domain) as client:
+    async with VmClient(account, domain_) as client:
         async with client.operate(vm_id=item_hash, operation="logs", method="GET") as response:
             logger.debug("Request %s %s", response.url, response.status)
             if response.status != 200:
@@ -804,11 +796,13 @@ async def logs(
 
 @app.command()
 async def runtime_checker(
-    item_hash: str = typer.Argument(..., help="Item hash of the runtime to check"),
-    private_key: Optional[str] = settings.PRIVATE_KEY_STRING,
-    private_key_file: Optional[Path] = settings.PRIVATE_KEY_FILE,
-    verbose: bool = False,
-    debug: bool = False,
+    item_hash: Annotated[str, typer.Argument(help="Item hash of the runtime to check")],
+    private_key: Annotated[Optional[str], typer.Option(help=help_strings.PRIVATE_KEY)] = settings.PRIVATE_KEY_STRING,
+    private_key_file: Annotated[
+        Optional[Path], typer.Option(help=help_strings.PRIVATE_KEY_FILE)
+    ] = settings.PRIVATE_KEY_FILE,
+    verbose: Annotated[bool, typer.Option(help="Display additional information")] = False,
+    debug: Annotated[bool, typer.Option(help="Enable debug logging")] = False,
 ):
     """Check versions used by a runtime (distribution, python, nodejs, etc)"""
 

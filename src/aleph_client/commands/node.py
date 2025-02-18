@@ -5,7 +5,7 @@ import json as json_lib
 import logging
 import re
 import unicodedata
-from typing import Optional
+from typing import Annotated, Optional
 
 import aiohttp
 import typer
@@ -194,16 +194,16 @@ def _show_core(node_info):
 
 @app.command()
 async def compute(
-    json: bool = typer.Option(default=False, help="Print as json instead of rich table"),
-    active: bool = typer.Option(default=False, help="Only show active nodes"),
-    address: Optional[str] = typer.Option(default=None, help="Owner address to filter by"),
-    payg_receiver: Optional[str] = typer.Option(
-        default=None, help="PAYG (Pay-As-You-Go) receiver address to filter by"
-    ),
-    crn_url: Optional[str] = typer.Option(default=None, help="CRN Url to filter by"),
-    crn_hash: Optional[str] = typer.Option(default=None, help="CRN hash to filter by"),
-    ccn_hash: Optional[str] = typer.Option(default=None, help="Linked CCN hash to filter by"),
-    debug: bool = False,
+    json: Annotated[bool, typer.Option(help="Print as json instead of rich table")] = False,
+    active: Annotated[bool, typer.Option(help="Only show active nodes")] = False,
+    address: Annotated[Optional[str], typer.Option(help="Owner address to filter by")] = None,
+    payg_receiver: Annotated[
+        Optional[str], typer.Option(help="PAYG (Pay-As-You-Go) receiver address to filter by")
+    ] = None,
+    crn_url: Annotated[Optional[str], typer.Option(help="CRN URL to filter by")] = None,
+    crn_hash: Annotated[Optional[str], typer.Option(help="CRN hash to filter by")] = None,
+    ccn_hash: Annotated[Optional[str], typer.Option(help="CCN hash to filter by")] = None,
+    debug: Annotated[bool, typer.Option()] = False,
 ):
     """Get all compute node (CRN) on aleph network"""
 
@@ -228,11 +228,11 @@ async def compute(
 
 @app.command()
 async def core(
-    json: bool = typer.Option(default=False, help="Print as json instead of rich table"),
-    active: bool = typer.Option(default=False, help="Only show active nodes"),
-    address: Optional[str] = typer.Option(default=None, help="Owner address to filter by"),
-    ccn_hash: Optional[str] = typer.Option(default=None, help="CCN hash to filter by"),
-    debug: bool = False,
+    json: Annotated[bool, typer.Option(help="Print as json instead of rich table")] = False,
+    active: Annotated[bool, typer.Option(help="Only show active nodes")] = False,
+    address: Annotated[Optional[str], typer.Option(help="Owner address to filter by")] = None,
+    ccn_hash: Annotated[Optional[str], typer.Option(help="CCN hash to filter by")] = None,
+    debug: Annotated[bool, typer.Option()] = False,
 ):
     """Get all core node (CCN) on aleph"""
     setup_logging(debug)

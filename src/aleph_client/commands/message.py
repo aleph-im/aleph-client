@@ -7,7 +7,7 @@ import subprocess
 import tempfile
 import time
 from pathlib import Path
-from typing import Optional
+from typing import Annotated, Optional
 
 import typer
 from aleph.sdk import AlephHttpClient, AuthenticatedAlephHttpClient
@@ -39,7 +39,7 @@ app = AsyncTyper(no_args_is_help=True)
 
 @app.command()
 async def get(
-    item_hash: str = typer.Argument(..., help="Item hash of the message"),
+    item_hash: Annotated[str, typer.Argument(help="Item hash of the message")],
 ):
     async with AlephHttpClient(api_server=settings.API_HOST) as client:
         message: Optional[AlephMessage] = None
@@ -60,20 +60,20 @@ async def get(
 
 @app.command()
 async def find(
-    pagination: int = 200,
-    page: int = 1,
-    message_types: Optional[str] = None,
-    content_types: Optional[str] = None,
-    content_keys: Optional[str] = None,
-    refs: Optional[str] = None,
-    addresses: Optional[str] = None,
-    tags: Optional[str] = None,
-    hashes: Optional[str] = None,
-    channels: Optional[str] = None,
-    chains: Optional[str] = None,
-    start_date: Optional[str] = None,
-    end_date: Optional[str] = None,
-    ignore_invalid_messages: bool = True,
+    pagination: Annotated[int, typer.Option()] = 200,
+    page: Annotated[int, typer.Option()] = 1,
+    message_types: Annotated[Optional[str], typer.Option()] = None,
+    content_types: Annotated[Optional[str], typer.Option()] = None,
+    content_keys: Annotated[Optional[str], typer.Option()] = None,
+    refs: Annotated[Optional[str], typer.Option()] = None,
+    addresses: Annotated[Optional[str], typer.Option()] = None,
+    tags: Annotated[Optional[str], typer.Option()] = None,
+    hashes: Annotated[Optional[str], typer.Option()] = None,
+    channels: Annotated[Optional[str], typer.Option()] = None,
+    chains: Annotated[Optional[str], typer.Option()] = None,
+    start_date: Annotated[Optional[str], typer.Option()] = None,
+    end_date: Annotated[Optional[str], typer.Option()] = None,
+    ignore_invalid_messages: Annotated[bool, typer.Option()] = True,
 ):
     parsed_message_types = (
         [MessageType(message_type) for message_type in message_types.split(",")] if message_types else None
@@ -114,16 +114,18 @@ async def find(
 
 @app.command()
 async def post(
-    path: Optional[Path] = typer.Option(
-        None,
-        help="Path to the content you want to post. If omitted, you can input your content directly",
-    ),
-    type: str = typer.Option("test", help="Text representing the message object type"),
-    ref: Optional[str] = typer.Option(None, help=help_strings.REF),
-    channel: Optional[str] = typer.Option(default=settings.DEFAULT_CHANNEL, help=help_strings.CHANNEL),
-    private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
-    private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
-    debug: bool = False,
+    path: Annotated[
+        Optional[Path],
+        typer.Option(help="Path to the content you want to post. If omitted, you can input your content directly"),
+    ] = None,
+    type: Annotated[str, typer.Option(help="Text representing the message object type")] = "test",
+    ref: Annotated[Optional[str], typer.Option(help=help_strings.REF)] = None,
+    channel: Annotated[Optional[str], typer.Option(help=help_strings.CHANNEL)] = settings.DEFAULT_CHANNEL,
+    private_key: Annotated[Optional[str], typer.Option(help=help_strings.PRIVATE_KEY)] = settings.PRIVATE_KEY_STRING,
+    private_key_file: Annotated[
+        Optional[Path], typer.Option(help=help_strings.PRIVATE_KEY_FILE)
+    ] = settings.PRIVATE_KEY_FILE,
+    debug: Annotated[bool, typer.Option()] = False,
 ):
     """Post a message on aleph.im."""
 
@@ -168,10 +170,12 @@ async def post(
 
 @app.command()
 async def amend(
-    item_hash: str = typer.Argument(..., help="Hash reference of the message to amend"),
-    private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
-    private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
-    debug: bool = False,
+    item_hash: Annotated[str, typer.Argument(help="Hash reference of the message to amend")],
+    private_key: Annotated[Optional[str], typer.Option(help=help_strings.PRIVATE_KEY)] = settings.PRIVATE_KEY_STRING,
+    private_key_file: Annotated[
+        Optional[Path], typer.Option(help=help_strings.PRIVATE_KEY_FILE)
+    ] = settings.PRIVATE_KEY_FILE,
+    debug: Annotated[bool, typer.Option()] = False,
 ):
     """Amend an existing aleph.im message."""
 
@@ -225,12 +229,16 @@ async def amend(
 
 @app.command()
 async def forget(
-    hashes: str = typer.Argument(..., help="Comma separated list of hash references of messages to forget"),
-    reason: Optional[str] = typer.Option(None, help="A description of why the messages are being forgotten."),
-    channel: Optional[str] = typer.Option(default=settings.DEFAULT_CHANNEL, help=help_strings.CHANNEL),
-    private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
-    private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
-    debug: bool = False,
+    hashes: Annotated[str, typer.Argument(help="Comma separated list of hash references of messages to forget")],
+    reason: Annotated[
+        Optional[str], typer.Option(help="A description of why the messages are being forgotten.")
+    ] = None,
+    channel: Annotated[Optional[str], typer.Option(help=help_strings.CHANNEL)] = settings.DEFAULT_CHANNEL,
+    private_key: Annotated[Optional[str], typer.Option(help=help_strings.PRIVATE_KEY)] = settings.PRIVATE_KEY_STRING,
+    private_key_file: Annotated[
+        Optional[Path], typer.Option(help=help_strings.PRIVATE_KEY_FILE)
+    ] = settings.PRIVATE_KEY_FILE,
+    debug: Annotated[bool, typer.Option()] = False,
 ):
     """Forget an existing aleph.im message."""
 
@@ -245,9 +253,9 @@ async def forget(
 
 @app.command()
 async def watch(
-    ref: str = typer.Argument(..., help="Hash reference of the message to watch"),
-    indent: Optional[int] = typer.Option(None, help="Number of indents to use"),
-    debug: bool = False,
+    ref: Annotated[str, typer.Argument(help="Hash reference of the message to watch")],
+    indent: Annotated[Optional[int], typer.Option(help="Number of indents to use")] = None,
+    debug: Annotated[bool, typer.Option()] = False,
 ):
     """Watch a hash for amends and print amend hashes"""
 
@@ -270,10 +278,12 @@ async def watch(
 
 @app.command()
 def sign(
-    message: Optional[str] = typer.Option(None, help=help_strings.SIGNABLE_MESSAGE),
-    private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
-    private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
-    debug: bool = False,
+    message: Annotated[Optional[str], typer.Option(help=help_strings.SIGNABLE_MESSAGE)] = None,
+    private_key: Annotated[Optional[str], typer.Option(help=help_strings.PRIVATE_KEY)] = settings.PRIVATE_KEY_STRING,
+    private_key_file: Annotated[
+        Optional[Path], typer.Option(help=help_strings.PRIVATE_KEY_FILE)
+    ] = settings.PRIVATE_KEY_FILE,
+    debug: Annotated[bool, typer.Option()] = False,
 ):
     """Sign an aleph message with a private key. If no --message is provided, the message will be read from stdin."""
 
