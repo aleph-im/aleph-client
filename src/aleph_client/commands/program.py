@@ -158,6 +158,7 @@ async def upload(
                 memory=memory or 0,
                 disk=0,
                 selector=True,
+                verbose=verbose,
             ),
         )
         name = name or validated_prompt("Program name", lambda x: x and len(x) < 65)

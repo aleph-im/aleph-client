@@ -98,6 +98,7 @@ class Pricing:
         persistent: Optional[bool] = None,
         selector: bool = False,
         exit_on_error: bool = True,
+        verbose: bool = True,
     ) -> Optional[SelectedTier]:
         """Display pricing table for an entity"""
 
@@ -285,7 +286,7 @@ class Pricing:
         if gpu_models and not tier_data:
             typer.echo(f"No GPU available for {label} at the moment.")
             raise typer.Exit(1)
-        else:
+        elif verbose:
             console = Console()
             console.print(
                 Panel(
