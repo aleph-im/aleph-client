@@ -316,3 +316,16 @@ def test_file_download_only_info():
     )
     assert result.exit_code == 0
     assert result.return_value.dict()["hash"] == FAKE_STORE_HASH_CONTENT_FILE_CID
+
+
+def test_file_list():
+    result = runner.invoke(
+        app,
+        [
+            "file",
+            "list",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert "0x" in result.stdout
