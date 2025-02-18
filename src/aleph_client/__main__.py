@@ -13,6 +13,7 @@ from aleph_client.commands import (
     node,
     pricing,
     program,
+    website,
 )
 from aleph_client.utils import AsyncTyper
 
@@ -28,6 +29,9 @@ app.add_typer(
     aggregate.app, name="aggregate", help="Manage aggregate messages and permissions on aleph.im & twentysix.cloud"
 )
 app.add_typer(files.app, name="file", help="Manage files (upload and pin on IPFS) on aleph.im & twentysix.cloud")
+app.add_typer(
+    website.app, name="website", help="Manage websites (IPFS-hosted Frontend Dapps) on aleph.im & twentysix.cloud"
+)
 app.add_typer(program.app, name="program", help="Manage programs (micro-VMs) on aleph.im & twentysix.cloud")
 app.add_typer(instance.app, name="instance", help="Manage instances (VMs) on aleph.im & twentysix.cloud")
 app.add_typer(domain.app, name="domain", help="Manage custom domain (DNS) on aleph.im & twentysix.cloud")

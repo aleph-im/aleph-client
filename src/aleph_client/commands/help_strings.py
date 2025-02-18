@@ -69,3 +69,6 @@ TARGET_ADDRESS = "Target address. Defaults to current account address"
 AGGREGATE_SECURITY_KEY_PROTECTED = (
     "The aggregate key `security` is protected. Use `aleph aggregate [allow|revoke]` to manage it."
 )
+WEBSITE_PATH = "Path of your static website directory. For framework-based websites, built output directories are usually `out` or `dist`"
+WEBSITE_NAME = "Unique name for your website"
+WEBSITE_CID = "Ipfs CID v0 of your already uploaded static website directory"
