@@ -38,12 +38,13 @@ logger = logging.getLogger(__name__)
 latest_crn_version_link = "https://api.github.com/repos/aleph-im/aleph-vm/releases/latest"
 
 settings_link = (
-    f"{sanitize_url(settings.API_HOST)}/api/v0/"
-    "aggregates/0xFba561a84A537fCaa567bb7A2257e7142701ae2A.json?keys=settings"
+    f"{sanitize_url(settings.API_HOST)}"
+    "/api/v0/aggregates/0xFba561a84A537fCaa567bb7A2257e7142701ae2A.json?keys=settings"
 )
 
 crn_list_link = (
-    "https://ovh.staging.aleph.sh/vm/bec08b08bb9f9685880f3aeb9c1533951ad56abef2a39c97f5a93683bdaa5e30/crns.json"
+    f"{sanitize_url(settings.CRN_URL_FOR_PROGRAMS)}"
+    "/vm/bec08b08bb9f9685880f3aeb9c1533951ad56abef2a39c97f5a93683bdaa5e30/crns.json"
 )
 
 PATH_ABOUT_EXECUTIONS_LIST = "/about/executions/list"
