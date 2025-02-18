@@ -820,15 +820,17 @@ async def runtime_checker(
             entrypoint="main:app",
             name="runtime_checker",
             runtime=item_hash,
-            vcpus=settings.DEFAULT_VM_VCPUS,
-            memory=settings.DEFAULT_VM_MEMORY,
-            timeout_seconds=settings.DEFAULT_VM_TIMEOUT,
+            compute_units=1,
+            vcpus=None,
+            memory=None,
+            timeout_seconds=None,
             internet=False,
             persistent=False,
             updatable=False,
             beta=False,
             skip_volume=True,
             skip_env_var=True,
+            address=None,
             channel=settings.DEFAULT_CHANNEL,
             private_key=private_key,
             private_key_file=private_key_file,
@@ -842,7 +844,7 @@ async def runtime_checker(
             msg = "No program hash"
             raise Exception(msg)
     except Exception as e:
-        echo(f"Failed to deploy the runtime checker program: {e}")
+        echo("Failed to deploy the runtime checker program")
         raise typer.Exit(code=1) from e
 
     program_url = settings.VM_URL_PATH.format(hash=program_hash)
