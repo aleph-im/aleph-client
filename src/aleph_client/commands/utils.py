@@ -17,6 +17,9 @@ from aleph.sdk.exceptions import ForgottenMessageError, MessageNotFoundError
 from aleph.sdk.types import GenericMessage
 from aleph_message.models import AlephMessage, ItemHash
 from aleph_message.status import MessageStatus
+from base58 import b58decode
+from multibase import encode
+from multicodec import add_prefix
 from pygments import highlight
 from pygments.formatters.terminal256 import Terminal256Formatter
 from pygments.lexers import JsonLexer
@@ -362,3 +365,9 @@ def found_gpus_by_model(crn_list: list) -> dict[str, dict[str, dict[str, int]]]:
                         found_gpu_models[model][device]["count"] += details["count"]
                         found_gpu_models[model][device]["on_crns"] += details["on_crns"]
     return found_gpu_models
+
+
+def ipfs_cid_v0_to_v1(cid_v0: str) -> str:  # TODO: Move to SDK?
+    decoded_cid_v0 = b58decode(cid_v0)
+    buffer = b"".join([bytes([1]), add_prefix("dag-pb", decoded_cid_v0)])
+    return encode("base32", buffer).decode()
