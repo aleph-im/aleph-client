@@ -17,7 +17,7 @@ ENVIRONMENT_VARIABLES = "Environment variables to pass. They will be public and 
 ASK_FOR_CONFIRMATION = "Prompt user for confirmation"
 IPFS_CATCH_ALL_PATH = "Choose a relative path to catch all unmatched route or a 404 error"
 PAYMENT_TYPE = "Payment method, either holding tokens, NFTs, or Pay-As-You-Go via token streaming"
-HYPERVISOR = "Hypervisor to use to launch your instance. Defaults to QEMU"
+HYPERVISOR = "Hypervisor to use to launch your instance. Always defaults to QEMU, since Firecracker is now deprecated for instances"
 INSTANCE_NAME = "Name of your new instance"
 ROOTFS = (
     "Hash of the rootfs to use for your instance. Defaults to Ubuntu 22. You can also create your own rootfs and pin it"

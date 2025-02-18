@@ -106,7 +106,7 @@ async def create(
         metavar=metavar_valid_chains,
         case_sensitive=False,
     ),
-    hypervisor: Optional[HypervisorType] = typer.Option(HypervisorType.qemu, help=help_strings.HYPERVISOR),
+    hypervisor: HypervisorType = typer.Option(HypervisorType.qemu, help=help_strings.HYPERVISOR),
     name: Optional[str] = typer.Option(None, help=help_strings.INSTANCE_NAME),
     rootfs: Optional[str] = typer.Option(None, help=help_strings.ROOTFS),
     compute_units: Optional[int] = typer.Option(None, help=help_strings.COMPUTE_UNITS),
@@ -239,40 +239,16 @@ async def create(
             )
         )
 
-    # Checks if Hypervisor is compatible with confidential or with GPU support
-    if confidential or gpu:
-        if hypervisor and hypervisor != HypervisorType.qemu:
-            echo("Only QEMU is supported as an hypervisor for confidential or GPU support")
-            raise typer.Exit(code=1)
-        elif not hypervisor:
-            echo("Using QEMU as hypervisor for confidential or GPU support")
-            hypervisor = HypervisorType.qemu
+    # Ensure hypervisor is compatible
+    if hypervisor != HypervisorType.qemu:
+        console.print("QEMU is now the only supported hypervisor. Firecracker has been deprecated for instances.")
+        raise typer.Exit(code=1)
 
-    available_hypervisors = {
-        HypervisorType.firecracker: {
-            "ubuntu22": settings.UBUNTU_22_ROOTFS_ID,
-            "debian12": settings.DEBIAN_12_ROOTFS_ID,
-            "debian11": settings.DEBIAN_11_ROOTFS_ID,
-        },
-        HypervisorType.qemu: {
-            "ubuntu22": settings.UBUNTU_22_QEMU_ROOTFS_ID,
-            "debian12": settings.DEBIAN_12_QEMU_ROOTFS_ID,
-            "debian11": settings.DEBIAN_11_QEMU_ROOTFS_ID,
-        },
+    os_choices = {
+        "ubuntu22": settings.UBUNTU_22_QEMU_ROOTFS_ID,
+        "ubuntu24": settings.UBUNTU_24_QEMU_ROOTFS_ID,
+        "debian12": settings.DEBIAN_12_QEMU_ROOTFS_ID,
     }
-
-    if hypervisor is None:
-        hypervisor_choice = HypervisorType[
-            Prompt.ask(
-                "Which hypervisor you want to use?",
-                default=settings.DEFAULT_HYPERVISOR.name,
-                choices=[x.name for x in available_hypervisors],
-            )
-        ]
-        hypervisor = HypervisorType(hypervisor_choice)
-
-    is_qemu = hypervisor == HypervisorType.qemu
-    os_choices = available_hypervisors[hypervisor]
 
     # Rootfs selection
     if not rootfs or len(rootfs) != 64:
@@ -416,7 +392,7 @@ async def create(
             crn_table = CRNTable(
                 only_latest_crn_version=True,
                 only_reward_address=is_stream,
-                only_qemu=is_qemu,
+                only_qemu=True,
                 only_confidentials=confidential,
                 only_gpu=gpu,
                 only_gpu_model=gpu_model,
@@ -441,7 +417,7 @@ async def create(
         if is_stream and not stream_reward_address:
             echo("Selected CRN does not have a defined or valid receiver address.")
             raise typer.Exit(1)
-        if is_qemu and not safe_getattr(crn, "qemu_support"):
+        if not safe_getattr(crn, "qemu_support"):
             echo("Selected CRN does not support QEMU hypervisor.")
             raise typer.Exit(1)
         if confidential:
