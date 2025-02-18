@@ -134,7 +134,7 @@ async def test_fetch_crn_info():
         return await fetch_crn_info(url)
 
     # Test with valid node
-    node_url = "https://coco-1.crn.aleph.sh/"
+    node_url = "https://crn-lon04.omega-aleph.com/"  # Always prefer a top score CRN here
     info = await fetch_crn_info_with_mock(node_url)
     assert info
     assert info.machine_usage
