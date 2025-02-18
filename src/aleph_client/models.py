@@ -1,6 +1,7 @@
 from datetime import datetime
-from typing import Optional
+from typing import Any, Optional
 
+from aiohttp import InvalidURL
 from aleph.sdk.types import StoredContent
 from aleph_message.models import ItemHash
 from aleph_message.models.execution.environment import CpuProperties, GpuDeviceClass
@@ -13,6 +14,7 @@ from typer import echo
 
 from aleph_client.commands.files import download
 from aleph_client.commands.node import _escape_and_normalize, _remove_ansi_escape
+from aleph_client.utils import extract_valid_eth_address, sanitize_url
 
 
 class LoadAverage(BaseModel):
@@ -53,10 +55,12 @@ class MachineProperties(BaseModel):
 
 class GpuDevice(BaseModel):
     vendor: str
+    model: str
     device_name: str
     device_class: GpuDeviceClass
     pci_host: str
     device_id: str
+    compatible: bool
 
 
 class GPUProperties(BaseModel):
@@ -127,15 +131,55 @@ class MachineInfo(BaseModel):
 class CRNInfo(BaseModel):
     hash: ItemHash
     name: str
+    owner: str
     url: str
+    ccn_hash: Optional[str]
+    status: Optional[str]
     version: Optional[str]
     score: float
+    reward_address: str
     stream_reward_address: str
     machine_usage: Optional[MachineUsage]
-    qemu_support: Optional[bool]
-    confidential_computing: Optional[bool]
-    gpu_support: Optional[bool]
+    ipv6: bool
+    qemu_support: bool
+    confidential_computing: bool
+    gpu_support: bool
     terms_and_conditions: Optional[str]
+    compatible_available_gpus: Optional[list]
+
+    @staticmethod
+    def from_unsanitized_input(
+        crn: dict[str, Any],
+    ) -> "CRNInfo":
+        payment_receiver_address = crn.get("payment_receiver_address")
+        stream_reward_address = extract_valid_eth_address(payment_receiver_address) if payment_receiver_address else ""
+        system_usage = crn.get("system_usage")
+        machine_usage = MachineUsage.parse_obj(system_usage) if system_usage else None
+        ipv6_check = crn.get("ipv6_check")
+        ipv6 = bool(ipv6_check and all(ipv6_check.values()))
+        try:
+            url = sanitize_url(crn["address"])
+        except InvalidURL:
+            url = ""
+        return CRNInfo(
+            hash=crn["hash"],
+            name=crn["name"],
+            owner=crn["owner"],
+            url=url,
+            version=crn["version"],
+            ccn_hash=crn["parent"],
+            status=crn["status"],
+            score=crn["score"],
+            reward_address=crn["reward"],
+            stream_reward_address=stream_reward_address,
+            machine_usage=machine_usage,
+            ipv6=ipv6,
+            qemu_support=bool(crn["qemu_support"]),
+            confidential_computing=bool(crn["confidential_support"]),
+            gpu_support=bool(crn["gpu_support"]),
+            terms_and_conditions=crn["terms_and_conditions"],
+            compatible_available_gpus=crn["compatible_available_gpus"],
+        )
 
     @property
     def display_cpu(self) -> str:

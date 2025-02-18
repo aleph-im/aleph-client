@@ -82,27 +82,36 @@ def yes_no_input(text: str, default: str | bool) -> bool:
 def prompt_for_volumes():
     while yes_no_input("Add volume?", default=False):
         mount = validated_prompt("Mount path (ex: /opt/data): ", lambda text: len(text) > 0)
-        name = validated_prompt("Name: ", lambda text: len(text) > 0)
-        comment = Prompt.ask("Comment: ")
-        persistent = yes_no_input("Persist on VM host?", default=False)
-        if persistent:
-            size_mib = validated_int_prompt("Size (MiB): ", min_value=1)
-            yield {
-                "comment": comment,
-                "mount": mount,
-                "name": name,
-                "persistence": "host",
-                "size_mib": size_mib,
-            }
-        else:
+        comment = Prompt.ask("Comment (description): ")
+        base_volume = {"mount": mount, "comment": comment}
+
+        if yes_no_input("Use an immutable volume?", default=False):
             ref = validated_prompt("Item hash: ", lambda text: len(text) == 64)
             use_latest = yes_no_input("Use latest version?", default=True)
             yield {
-                "comment": comment,
-                "mount": mount,
-                "name": name,
+                **base_volume,
                 "ref": ref,
                 "use_latest": use_latest,
+            }
+        elif yes_no_input("Persist on VM host?", default=False):
+            parent = None
+            if yes_no_input("Copy from a parent volume?", default=False):
+                parent = {"ref": validated_prompt("Item hash: ", lambda text: len(text) == 64), "use_latest": True}
+            name = validated_prompt("Name: ", lambda text: len(text) > 0)
+            size_mib = validated_int_prompt("Size (MiB): ", min_value=1, max_value=2048000)
+            yield {
+                **base_volume,
+                "parent": parent,
+                "persistence": "host",
+                "name": name,
+                "size_mib": size_mib,
+            }
+        else:  # Ephemeral
+            size_mib = validated_int_prompt("Size (MiB): ", min_value=1, max_value=1024)
+            yield {
+                **base_volume,
+                "ephemeral": True,
+                "size_mib": size_mib,
             }
 
 
@@ -174,7 +183,7 @@ def get_or_prompt_environment_variables(env_vars: Optional[str]) -> Optional[dic
 
 def str_to_datetime(date: Optional[str]) -> Optional[datetime]:
     """
-    Converts a string representation of a date/time to a datetime object.
+    Converts a string representation of a date/time to a datetime object in local time.
 
     The function can accept either a timestamp or an ISO format datetime string as the input.
     """
@@ -182,10 +191,13 @@ def str_to_datetime(date: Optional[str]) -> Optional[datetime]:
         return None
     try:
         date_f = float(date)
-        return datetime.fromtimestamp(date_f, tz=timezone.utc)
+        utc_dt = datetime.fromtimestamp(date_f, tz=timezone.utc)
+        return utc_dt.astimezone()
     except ValueError:
-        pass
-    return datetime.fromisoformat(date)
+        dt = datetime.fromisoformat(date)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt.astimezone()
 
 
 T = TypeVar("T")
@@ -227,7 +239,7 @@ def validated_int_prompt(
     while True:
         try:
             value = IntPrompt.ask(
-                prompt + f" [min: {min_value or '-'}, max: {max_value or '-'}]",
+                prompt + f" [orange1]<min: {min_value or '-'}, max: {max_value or '-'}>[/orange1]",
                 default=default,
             )
         except PromptError:
@@ -324,3 +336,29 @@ def find_sevctl_or_exit() -> Path:
         echo("Instructions for setup https://docs.aleph.im/computing/confidential/requirements/")
         raise Exit(code=1)
     return Path(sevctl_path)
+
+
+def found_gpus_by_model(crn_list: list) -> dict[str, dict[str, dict[str, int]]]:
+    found_gpu_models: dict[str, dict[str, dict[str, int]]] = {}
+    for crn_ in crn_list:
+        found_gpus: dict[str, dict[str, dict[str, int]]] = {}
+        for gpu_ in crn_.compatible_available_gpus:
+            model = gpu_["model"]
+            device = gpu_["device_name"]
+            if model not in found_gpus:
+                found_gpus[model] = {device: {"count": 1, "on_crns": 1}}
+            elif device not in found_gpus[model]:
+                found_gpus[model][device] = {"count": 1, "on_crns": 1}
+            else:
+                found_gpus[model][device]["count"] += 1
+        for model, devices in found_gpus.items():
+            if model not in found_gpu_models:
+                found_gpu_models[model] = devices
+            else:
+                for device, details in devices.items():
+                    if device not in found_gpu_models[model]:
+                        found_gpu_models[model][device] = details
+                    else:
+                        found_gpu_models[model][device]["count"] += details["count"]
+                        found_gpu_models[model][device]["on_crns"] += details["on_crns"]
+    return found_gpu_models

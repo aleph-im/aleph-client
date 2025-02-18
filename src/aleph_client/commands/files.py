@@ -142,7 +142,9 @@ async def download(
 
 @app.command()
 async def forget(
-    item_hash: str = typer.Argument(..., help="Hash to forget"),
+    item_hash: str = typer.Argument(
+        ..., help="Hash(es) to forget. Must be a comma separated list. Example: `123...abc` or `123...abc,456...xyz`"
+    ),
     reason: str = typer.Argument("User deletion", help="reason to forget"),
     channel: Optional[str] = typer.Option(default=settings.DEFAULT_CHANNEL, help=help_strings.CHANNEL),
     private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
@@ -155,8 +157,10 @@ async def forget(
 
     account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
 
+    hashes = [ItemHash(item_hash) for item_hash in item_hash.split(",")]
+
     async with AuthenticatedAlephHttpClient(account=account, api_server=settings.API_HOST) as client:
-        value = await client.forget(hashes=[ItemHash(item_hash)], reason=reason, channel=channel)
+        value = await client.forget(hashes=hashes, reason=reason, channel=channel)
         typer.echo(f"{value[0].json(indent=4)}")
 
 

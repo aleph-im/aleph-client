@@ -9,7 +9,11 @@ from typer.testing import CliRunner
 
 from aleph_client.__main__ import app
 
-from .mocks import FAKE_STORE_HASH, FAKE_STORE_HASH_CONTENT_FILE_CID
+from .mocks import (
+    FAKE_STORE_HASH,
+    FAKE_STORE_HASH_CONTENT_FILE_CID,
+    FAKE_STORE_HASH_PUBLISHER,
+)
 
 runner = CliRunner()
 
@@ -158,11 +162,11 @@ def test_message_get():
         [
             "message",
             "get",
-            "102682ea8bcc0cec9c42f32fbd2660286b4eb31003108440988343726304607a",
+            FAKE_STORE_HASH,
         ],
     )
     assert result.exit_code == 0
-    assert "0x74F82AC22C1EB20dDb9799284FD8D60eaf48A8fb" in result.stdout
+    assert FAKE_STORE_HASH_PUBLISHER in result.stdout
 
 
 def test_message_find():
@@ -175,12 +179,12 @@ def test_message_find():
             "--page=1",
             "--start-date=1234",
             "--chains=ETH",
-            "--hashes=102682ea8bcc0cec9c42f32fbd2660286b4eb31003108440988343726304607a",
+            f"--hashes={FAKE_STORE_HASH}",
         ],
     )
     assert result.exit_code == 0
-    assert "0x74F82AC22C1EB20dDb9799284FD8D60eaf48A8fb" in result.stdout
-    assert "102682ea8bcc0cec9c42f32fbd2660286b4eb31003108440988343726304607a" in result.stdout
+    assert FAKE_STORE_HASH_PUBLISHER in result.stdout
+    assert FAKE_STORE_HASH in result.stdout
 
 
 def test_post_message(env_files):

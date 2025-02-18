@@ -30,8 +30,8 @@ dynamic = [ "version" ]
 dependencies = [
   "aiodns==3.2",
   "aiohttp==3.11.12",
-  "aleph-message>=0.6",
-  "aleph-sdk-python>=1.3,<2",
+  "aleph-message>=0.6.1",
+  "aleph-sdk-python>=1.4,<2",
   "base58==2.1.1",               # Needed now as default with _load_account changement
   "py-sr25519-bindings==0.2",    # Needed for DOT signatures
   "pygments==2.19.1",

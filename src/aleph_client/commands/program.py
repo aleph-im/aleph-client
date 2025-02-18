@@ -5,8 +5,9 @@ import logging
 import re
 from base64 import b16decode, b32encode
 from collections.abc import Mapping
+from decimal import Decimal
 from pathlib import Path
-from typing import Optional, cast
+from typing import Any, Optional, cast
 from zipfile import BadZipFile
 
 import aiohttp
@@ -15,10 +16,15 @@ from aleph.sdk import AlephHttpClient, AuthenticatedAlephHttpClient
 from aleph.sdk.account import _load_account
 from aleph.sdk.client.vm_client import VmClient
 from aleph.sdk.conf import settings
-from aleph.sdk.exceptions import ForgottenMessageError, MessageNotFoundError
+from aleph.sdk.exceptions import (
+    ForgottenMessageError,
+    InsufficientFundsError,
+    MessageNotFoundError,
+)
 from aleph.sdk.query.filters import MessageFilter
-from aleph.sdk.types import AccountFromPrivateKey, StorageEnum
-from aleph.sdk.utils import safe_getattr
+from aleph.sdk.query.responses import PriceResponse
+from aleph.sdk.types import AccountFromPrivateKey, StorageEnum, TokenType
+from aleph.sdk.utils import make_program_content, safe_getattr
 from aleph_message.models import Chain, MessageType, ProgramMessage, StoreMessage
 from aleph_message.models.execution.program import ProgramContent
 from aleph_message.models.item_hash import ItemHash
@@ -32,6 +38,8 @@ from rich.table import Table
 from rich.text import Text
 
 from aleph_client.commands import help_strings
+from aleph_client.commands.account import get_balance
+from aleph_client.commands.pricing import PricingEntity, SelectedTier, fetch_pricing
 from aleph_client.commands.utils import (
     filter_only_valid_messages,
     get_or_prompt_environment_variables,
@@ -56,24 +64,28 @@ async def upload(
         ...,
         help=help_strings.PROGRAM_ENTRYPOINT,
     ),
-    channel: Optional[str] = typer.Option(default=settings.DEFAULT_CHANNEL, help=help_strings.CHANNEL),
-    memory: int = typer.Option(settings.DEFAULT_VM_MEMORY, help=help_strings.MEMORY),
-    vcpus: int = typer.Option(settings.DEFAULT_VM_VCPUS, help=help_strings.VCPUS),
-    timeout_seconds: float = typer.Option(
-        settings.DEFAULT_VM_TIMEOUT,
-        help=help_strings.TIMEOUT_SECONDS,
-    ),
     name: Optional[str] = typer.Option(None, help="Name for your program"),
     runtime: str = typer.Option(
         None,
         help=help_strings.PROGRAM_RUNTIME.format(runtime_id=settings.DEFAULT_RUNTIME_ID),
     ),
+    compute_units: Optional[int] = typer.Option(None, help=help_strings.COMPUTE_UNITS),
+    vcpus: Optional[int] = typer.Option(None, help=help_strings.VCPUS),
+    memory: Optional[int] = typer.Option(None, help=help_strings.MEMORY),
+    timeout_seconds: float = typer.Option(
+        settings.DEFAULT_VM_TIMEOUT,
+        help=help_strings.TIMEOUT_SECONDS,
+    ),
+    internet: bool = typer.Option(
+        False,
+        help=help_strings.PROGRAM_INTERNET,
+    ),
+    updatable: bool = typer.Option(False, help=help_strings.PROGRAM_UPDATABLE),
     beta: bool = typer.Option(
         False,
         help=help_strings.PROGRAM_BETA,
     ),
-    persistent: bool = False,
-    updatable: bool = typer.Option(False, help=help_strings.PROGRAM_UPDATABLE),
+    persistent: bool = typer.Option(False, help=help_strings.PROGRAM_PERSISTENT),
     skip_volume: bool = typer.Option(False, help=help_strings.SKIP_VOLUME),
     persistent_volume: Optional[list[str]] = typer.Option(None, help=help_strings.PERSISTENT_VOLUME),
     ephemeral_volume: Optional[list[str]] = typer.Option(None, help=help_strings.EPHEMERAL_VOLUME),
@@ -83,6 +95,8 @@ async def upload(
     ),
     skip_env_var: bool = typer.Option(False, help=help_strings.SKIP_ENV_VAR),
     env_vars: Optional[str] = typer.Option(None, help=help_strings.ENVIRONMENT_VARIABLES),
+    address: Optional[str] = typer.Option(None, help=help_strings.ADDRESS_PAYER),
+    channel: Optional[str] = typer.Option(default=settings.DEFAULT_CHANNEL, help=help_strings.CHANNEL),
     private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
     private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
     print_messages: bool = typer.Option(False),
@@ -109,32 +123,7 @@ async def upload(
         raise typer.Exit(code=4) from error
 
     account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
-
-    name = name or validated_prompt("Program name", lambda x: len(x) < 65)
-    runtime = runtime or input(f"Ref of runtime? [{settings.DEFAULT_RUNTIME_ID}] ") or settings.DEFAULT_RUNTIME_ID
-
-    volumes = []
-    if not skip_volume:
-        volumes = get_or_prompt_volumes(
-            persistent_volume=persistent_volume,
-            ephemeral_volume=ephemeral_volume,
-            immutable_volume=immutable_volume,
-        )
-
-    environment_variables = None
-    if not skip_env_var:
-        environment_variables = get_or_prompt_environment_variables(env_vars)
-
-    subscriptions: Optional[list[Mapping]] = None
-    if beta and yes_no_input("Subscribe to messages?", default=False):
-        content_raw = input_multiline()
-        try:
-            subscriptions = json.loads(content_raw)
-        except json.decoder.JSONDecodeError as error:
-            typer.echo("Not valid JSON")
-            raise typer.Exit(code=2) from error
-    else:
-        subscriptions = None
+    address = address or settings.ADDRESS_TO_USE or account.get_address()
 
     async with AuthenticatedAlephHttpClient(account=account, api_server=settings.API_HOST) as client:
         # Upload the source code
@@ -153,30 +142,105 @@ async def upload(
                 guess_mime_type=True,
                 ref=None,
             )
-            logger.debug("Upload finished")
+            logger.debug("Code upload finished")
             if print_messages or print_code_message:
                 typer.echo(f"{user_code.json(indent=4)}")
             program_ref = user_code.item_hash
 
-        # Register the program
-        message, status = await client.create_program(
-            program_ref=program_ref,
-            entrypoint=entrypoint,
-            metadata={"name": name},
-            allow_amend=updatable,
-            runtime=runtime,
-            storage_engine=StorageEnum.storage,
-            channel=channel,
-            memory=memory,
-            vcpus=vcpus,
-            timeout_seconds=timeout_seconds,
-            persistent=persistent,
-            encoding=encoding,
-            volumes=volumes,
-            environment_variables=environment_variables,
-            subscriptions=subscriptions,
+        pricing = await fetch_pricing()
+        pricing_entity = PricingEntity.PROGRAM_PERSISTENT if persistent else PricingEntity.PROGRAM
+        tier = cast(  # Safe cast
+            SelectedTier,
+            pricing.display_table_for(
+                pricing_entity,
+                compute_units=compute_units or 0,
+                vcpus=vcpus or 0,
+                memory=memory or 0,
+                disk=0,
+                selector=True,
+                verbose=verbose,
+            ),
         )
-        logger.debug("Upload finished")
+        name = name or validated_prompt("Program name", lambda x: x and len(x) < 65)
+        vcpus = tier.vcpus
+        memory = tier.memory
+        runtime = runtime or input(f"Ref of runtime? [{settings.DEFAULT_RUNTIME_ID}] ") or settings.DEFAULT_RUNTIME_ID
+
+        volumes = []
+        if not skip_volume:
+            volumes = get_or_prompt_volumes(
+                persistent_volume=persistent_volume,
+                ephemeral_volume=ephemeral_volume,
+                immutable_volume=immutable_volume,
+            )
+
+        environment_variables = None
+        if not skip_env_var:
+            environment_variables = get_or_prompt_environment_variables(env_vars)
+
+        subscriptions: Optional[list[Mapping]] = None
+        if beta and yes_no_input("Subscribe to messages?", default=False):
+            content_raw = input_multiline()
+            try:
+                subscriptions = json.loads(content_raw)
+            except json.decoder.JSONDecodeError as error:
+                typer.echo("Not valid JSON")
+                raise typer.Exit(code=2) from error
+        else:
+            subscriptions = None
+
+        content_dict: dict[str, Any] = {
+            "program_ref": program_ref,
+            "entrypoint": entrypoint,
+            "runtime": runtime,
+            "metadata": {"name": name},
+            "address": address,
+            "vcpus": vcpus,
+            "memory": memory,
+            "timeout_seconds": timeout_seconds,
+            "internet": internet,
+            "allow_amend": updatable,
+            "encoding": encoding,
+            "persistent": persistent,
+            "volumes": volumes,
+            "environment_variables": environment_variables,
+            "subscriptions": subscriptions,
+        }
+
+        # Estimate cost and check required balances (Aleph ERC20)
+        required_tokens: Decimal
+        try:
+            content = make_program_content(**content_dict)
+            price: PriceResponse = await client.get_estimated_price(content)
+            required_tokens = Decimal(price.required_tokens)
+        except Exception as e:
+            typer.echo(f"Failed to estimate program cost, error: {e}")
+            raise typer.Exit(code=1) from e
+
+        available_funds = Decimal((await get_balance(address))["available_amount"])
+        try:
+            if available_funds < required_tokens:
+                raise InsufficientFundsError(TokenType.ALEPH, float(required_tokens), float(available_funds))
+        except InsufficientFundsError as e:
+            typer.echo(e)
+            raise typer.Exit(code=1) from e
+
+        # Register the program
+        try:
+            message, status = await client.create_program(
+                **content_dict,
+                channel=channel,
+                storage_engine=StorageEnum.storage,
+                sync=True,
+            )
+        except InsufficientFundsError as e:
+            typer.echo(
+                f"Program creation failed due to insufficient funds.\n"
+                f"{address} has {e.available_funds} ALEPH but needs {e.required_funds} ALEPH."
+            )
+            raise typer.Exit(code=1) from e
+
+        logger.debug("Program upload finished")
         if print_messages or print_program_message:
             typer.echo(f"{message.json(indent=4)}")
 
@@ -287,7 +351,7 @@ async def update(
                 guess_mime_type=True,
                 ref=code_message.item_hash,
             )
-            logger.debug("Upload finished")
+            logger.debug("Code upload finished")
             if print_message:
                 typer.echo(f"{message.json(indent=4)}")
 
@@ -395,9 +459,8 @@ async def list_programs(
 
     setup_logging(debug)
 
-    if address is None:
-        account = _load_account(private_key, private_key_file)
-        address = account.get_address()
+    account = _load_account(private_key, private_key_file)
+    address = address or settings.ADDRESS_TO_USE or account.get_address()
 
     async with AlephHttpClient(api_server=settings.API_HOST) as client:
         resp = await client.get_messages(
@@ -459,6 +522,7 @@ async def list_programs(
                 f"RAM: [magenta3]{message.content.resources.memory / 1_024:.2f} GiB[/magenta3]\n",
                 "HyperV: [magenta3]Firecracker[/magenta3]\n",
                 f"Timeout: [orange3]{message.content.resources.seconds}s[/orange3]\n",
+                f"Internet: {'[green]Yes[/green]' if message.content.environment.internet else '[red]No[/red]'}\n",
                 f"Persistent: {'[green]Yes[/green]' if message.content.on.persistent else '[red]No[/red]'}\n",
                 f"Updatable: {'[green]Yes[/green]' if message.content.allow_amend else '[orange3]Code only[/orange3]'}",
             ]
@@ -494,7 +558,7 @@ async def list_programs(
         console.print(table)
         infos = [
             Text.from_markup(
-                f"[bold]Address:[/bold] [bright_cyan]{messages[0].content.address}[/bright_cyan]\n\nTo access any "
+                f"[bold]Address:[/bold] [bright_cyan]{messages[0].sender}[/bright_cyan]\n\nTo access any "
                 "program's logs, use:\n"
             ),
             Text.from_markup(
@@ -755,17 +819,20 @@ async def runtime_checker(
         program_hash = await upload(
             path=Path(__file__).resolve().parent / "program_utils/runtime_checker.squashfs",
             entrypoint="main:app",
-            channel=settings.DEFAULT_CHANNEL,
-            memory=settings.DEFAULT_VM_MEMORY,
-            vcpus=settings.DEFAULT_VM_VCPUS,
-            timeout_seconds=settings.DEFAULT_VM_TIMEOUT,
             name="runtime_checker",
             runtime=item_hash,
-            beta=False,
+            compute_units=1,
+            vcpus=None,
+            memory=None,
+            timeout_seconds=None,
+            internet=False,
             persistent=False,
             updatable=False,
+            beta=False,
             skip_volume=True,
             skip_env_var=True,
+            address=None,
+            channel=settings.DEFAULT_CHANNEL,
             private_key=private_key,
             private_key_file=private_key_file,
             print_messages=False,
@@ -778,7 +845,7 @@ async def runtime_checker(
             msg = "No program hash"
             raise Exception(msg)
     except Exception as e:
-        echo(f"Failed to deploy the runtime checker program: {e}")
+        echo("Failed to deploy the runtime checker program")
         raise typer.Exit(code=1) from e
 
     program_url = settings.VM_URL_PATH.format(hash=program_hash)

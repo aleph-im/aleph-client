@@ -11,6 +11,7 @@ from aleph_client.commands import (
     instance,
     message,
     node,
+    pricing,
     program,
 )
 from aleph_client.utils import AsyncTyper
@@ -32,6 +33,7 @@ app.add_typer(instance.app, name="instance", help="Manage instances (VMs) on ale
 app.add_typer(domain.app, name="domain", help="Manage custom domain (DNS) on aleph.im & twentysix.cloud")
 app.add_typer(node.app, name="node", help="Get node info on aleph.im & twentysix.cloud")
 app.add_typer(about.app, name="about", help="Display the informations of Aleph CLI")
+app.command("pricing")(pricing.prices_for_service)
 
 if __name__ == "__main__":
     app()
