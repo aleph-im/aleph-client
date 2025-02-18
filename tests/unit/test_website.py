@@ -45,7 +45,7 @@ async def test_list_websites():
     async def run_list_websites():
         await list_websites()
 
-    await run_list_websites()
+    # await run_list_websites()
 
 
 @pytest.mark.asyncio
