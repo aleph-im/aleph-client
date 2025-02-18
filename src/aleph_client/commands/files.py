@@ -234,8 +234,8 @@ def _show_files(files_data: dict) -> None:
     console.print(table)
 
 
-@app.command()
-async def list(
+@app.command(name="list")
+async def list_files(
     address: Annotated[Optional[str], typer.Option(help="Address")] = None,
     private_key: Annotated[Optional[str], typer.Option(help=help_strings.PRIVATE_KEY)] = settings.PRIVATE_KEY_STRING,
     private_key_file: Annotated[
