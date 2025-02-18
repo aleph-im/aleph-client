@@ -570,16 +570,17 @@ async def create(
                 echo("Starting the flows...")
                 fetched_settings = await fetch_settings()
                 community_wallet_address = fetched_settings.get("community_wallet_address")
+                flow_crn_amount = required_tokens * Decimal("0.8")
                 flow_hash_crn = await account.manage_flow(
                     receiver=crn.stream_reward_address,
-                    flow=required_tokens * Decimal("0.8"),
+                    flow=flow_crn_amount,
                     update_type=FlowUpdate.INCREASE,
                 )
                 if flow_hash_crn:
                     await asyncio.sleep(5)  # 2nd flow tx fails if no delay
                     flow_hash_community = await account.manage_flow(
                         receiver=community_wallet_address,
-                        flow=required_tokens * Decimal("0.2"),
+                        flow=required_tokens - flow_crn_amount,
                         update_type=FlowUpdate.INCREASE,
                     )
                 else:
@@ -764,15 +765,19 @@ async def delete(
                     echo(e)
                     raise typer.Exit(code=1) from e
                 echo("Deleting the flows...")
+                flow_crn_percent = Decimal("0.8") if community_wallet_timestamp < creation_time else Decimal("1")
+                flow_com_percent = Decimal("1") - flow_crn_percent
                 flow_hash_crn = await account.manage_flow(
-                    payment.receiver, Decimal(price.required_tokens) * Decimal("0.8"), FlowUpdate.REDUCE
+                    payment.receiver, Decimal(price.required_tokens) * flow_crn_percent, FlowUpdate.REDUCE
                 )
                 if flow_hash_crn:
                     echo(f"CRN flow has been deleted successfully (Tx: {flow_hash_crn})")
-                    if community_wallet_timestamp < creation_time:
+                    if flow_com_percent > Decimal("0"):
                         await asyncio.sleep(5)
                         flow_hash_community = await account.manage_flow(
-                            community_wallet_address, Decimal(price.required_tokens) * Decimal("0.2"), FlowUpdate.REDUCE
+                            community_wallet_address,
+                            Decimal(price.required_tokens) * flow_com_percent,
+                            FlowUpdate.REDUCE,
                         )
                         if flow_hash_community:
                             echo(f"Community flow has been deleted successfully (Tx: {flow_hash_community})")
