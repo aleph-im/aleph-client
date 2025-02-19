@@ -465,7 +465,6 @@ async def test_create_instance(args, expected):
     mock_vm_client_class, mock_vm_client = create_mock_vm_client()
     mock_fetch_latest_crn_version = create_mock_fetch_latest_crn_version()
     mock_fetch_crn_info = create_mock_fetch_crn_info()
-    mock_validated_int_prompt = MagicMock(return_value=1)
     mock_wait_for_processed_instance = AsyncMock()
     mock_wait_for_confirmed_flow = AsyncMock()
 
@@ -476,7 +475,6 @@ async def test_create_instance(args, expected):
     @patch("aleph_client.commands.instance.AuthenticatedAlephHttpClient", mock_auth_client_class)
     @patch("aleph_client.commands.instance.network.fetch_latest_crn_version", mock_fetch_latest_crn_version)
     @patch("aleph_client.commands.instance.fetch_crn_info", mock_fetch_crn_info)
-    @patch("aleph_client.commands.instance.validated_int_prompt", mock_validated_int_prompt)
     @patch("aleph_client.commands.instance.wait_for_processed_instance", mock_wait_for_processed_instance)
     @patch.object(asyncio, "sleep", AsyncMock())
     @patch("aleph_client.commands.instance.wait_for_confirmed_flow", mock_wait_for_confirmed_flow)

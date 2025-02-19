@@ -73,7 +73,6 @@ from aleph_client.commands.utils import (
     setup_logging,
     str_to_datetime,
     validate_ssh_pubkey_file,
-    validated_int_prompt,
     validated_prompt,
     wait_for_confirmed_flow,
     wait_for_processed_instance,
@@ -361,7 +360,7 @@ async def create(
         raise typer.Exit(code=1) from e
 
     stream_reward_address = None
-    crn = None
+    crn, gpu_id = None, None
     if is_stream or confidential or gpu:
         if crn_url:
             try:
@@ -399,10 +398,11 @@ async def create(
                 only_gpu=gpu,
                 only_gpu_model=gpu_model,
             )
-            crn = await crn_table.run_async()
-            if not crn:
+            selection = await crn_table.run_async()
+            if not selection:
                 # User has ctrl-c
                 raise typer.Exit(1)
+            crn, gpu_id = selection
             crn.display_crn_specs()
             if not yes_no_input("Deploy on this node?", default=True):
                 crn = None
@@ -431,28 +431,14 @@ async def create(
             if not safe_getattr(crn, "gpu_support"):
                 echo("Selected CRN does not support GPU computing.")
                 raise typer.Exit(1)
-            if crn.machine_usage and crn.machine_usage.gpu:
-                if len(crn.machine_usage.gpu.available_devices) < 1:
-                    echo("Selected CRN does not have any GPUs available.")
-                    raise typer.Exit(1)
-
-                table = Table(box=box.ROUNDED)
-                table.add_column("Id", style="white", overflow="fold")
-                table.add_column("Vendor", style="blue")
-                table.add_column("Model GPU", style="magenta")
-                available_gpus = crn.machine_usage.gpu.available_devices
-                for index, available_gpu in enumerate(available_gpus):
-                    table.add_row(str(index + 1), available_gpu.vendor, available_gpu.device_name)
-                table.add_section()
-                console.print(table)
-
-                selected_gpu_number = (
-                    validated_int_prompt("GPU Id to use", min_value=1, max_value=len(available_gpus)) - 1
-                )
-                selected_gpu = available_gpus[selected_gpu_number]
+            if not crn.compatible_available_gpus:
+                echo("Selected CRN does not have any GPU available.")
+                raise typer.Exit(1)
+            else:
+                selected_gpu = crn.compatible_available_gpus[gpu_id]
                 gpu_selection = Text.from_markup(
-                    f"[orange3]Vendor[/orange3]: {selected_gpu.vendor}\n[orange3]Model[/orange3]: "
-                    f"{selected_gpu.device_name}"
+                    f"[orange3]Vendor[/orange3]: {selected_gpu['vendor']}\n[orange3]Model[/orange3]: "
+                    f"{selected_gpu['model']}\n[orange3]Device[/orange3]: {selected_gpu['device_name']}"
                 )
                 console.print(
                     Panel(
@@ -465,12 +451,15 @@ async def create(
                 )
                 gpu_requirement = [
                     GpuProperties(
-                        vendor=selected_gpu.vendor,
-                        device_name=selected_gpu.device_name,
-                        device_class=selected_gpu.device_class,
-                        device_id=selected_gpu.device_id,
+                        vendor=selected_gpu["vendor"],
+                        device_name=selected_gpu["device_name"],
+                        device_class=selected_gpu["device_class"],
+                        device_id=selected_gpu["device_id"],
                     )
                 ]
+                if not yes_no_input("Confirm this GPU device?", default=True):
+                    echo("GPU device selection cancelled.")
+                    raise typer.Exit(1)
         if crn.terms_and_conditions:
             tac_accepted = await crn.display_terms_and_conditions(auto_accept=crn_auto_tac)
             if tac_accepted is None:
