@@ -139,10 +139,9 @@ async def upload(
             SelectedTier,
             pricing.display_table_for(
                 pricing_entity,
-                compute_units=compute_units or 0,
-                vcpus=vcpus or 0,
-                memory=memory or 0,
-                disk=0,
+                compute_units=compute_units,
+                vcpus=vcpus,
+                memory=memory,
                 selector=True,
                 verbose=verbose,
             ),

@@ -322,10 +322,9 @@ async def create(
         SelectedTier,
         pricing.display_table_for(
             pricing_entity,
-            compute_units=compute_units or 0,
-            vcpus=vcpus or 0,
-            memory=memory or 0,
-            disk=rootfs_size or 0,
+            compute_units=compute_units,
+            vcpus=vcpus,
+            memory=memory,
             gpu_models=found_gpu_models,
             selector=True,
         ),
@@ -333,7 +332,7 @@ async def create(
     name = name or validated_prompt("Instance name", lambda x: x and len(x) < 65)
     vcpus = tier.vcpus
     memory = tier.memory
-    rootfs_size = tier.disk
+    rootfs_size = tier.disk if not rootfs_size or tier.disk > rootfs_size else rootfs_size
     gpu_model = tier.gpu_model
     volumes = []
     if not skip_volume:
