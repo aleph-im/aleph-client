@@ -796,38 +796,42 @@ async def _show_instances(messages: builtins.list[InstanceMessage]):
     await fetch_crn_list()  # Precache CRN list
     scheduler_responses = dict(await asyncio.gather(*[fetch_vm_info(message) for message in messages]))
     uninitialized_confidential_found = False
-    for message in messages:
-        info = scheduler_responses[message.item_hash]
-        if info["confidential"] and info["ipv6_logs"] == help_strings.VM_NOT_READY:
-            uninitialized_confidential_found = True
-        name = Text(
-            (
-                message.content.metadata["name"]
-                if hasattr(message.content, "metadata")
-                and isinstance(message.content.metadata, dict)
-                and "name" in message.content.metadata
-                else "-"
-            ),
-            style="magenta3",
-        )
-        link = f"https://explorer.aleph.im/address/ETH/{message.sender}/message/INSTANCE/{message.item_hash}"
-        # link = f"{settings.API_HOST}/api/v0/messages/{message.item_hash}"
-        item_hash_link = Text.from_markup(f"[link={link}]{message.item_hash}[/link]", style="bright_cyan")
-        payment = Text.assemble(
-            "Payment: ",
-            Text(
-                info["payment"].capitalize().ljust(12),
-                style="red" if info["payment"] == PaymentType.hold.value else "orange3",
-            ),
-        )
-        confidential = Text.assemble(
-            "Type: ", Text("Confidential", style="green") if info["confidential"] else Text("Regular", style="grey50")
-        )
-        chain = Text.assemble("Chain: ", Text(info["chain"].ljust(14), style="white"))
-        created_at = Text.assemble(
-            "Created at: ", Text(str(str_to_datetime(info["created_at"])).split(".", maxsplit=1)[0], style="orchid")
-        )
-        async with AlephHttpClient(api_server=settings.API_HOST) as client:
+    async with AlephHttpClient(api_server=settings.API_HOST) as client:
+        for message in messages:
+            info = scheduler_responses[message.item_hash]
+            if info["confidential"] and info["ipv6_logs"] == help_strings.VM_NOT_READY:
+                uninitialized_confidential_found = True
+            name = Text(
+                (
+                    message.content.metadata["name"]
+                    if hasattr(message.content, "metadata")
+                    and isinstance(message.content.metadata, dict)
+                    and "name" in message.content.metadata
+                    else "-"
+                ),
+                style="magenta3",
+            )
+            link = f"https://explorer.aleph.im/address/ETH/{message.sender}/message/INSTANCE/{message.item_hash}"
+            # link = f"{settings.API_HOST}/api/v0/messages/{message.item_hash}"
+            item_hash_link = Text.from_markup(f"[link={link}]{message.item_hash}[/link]", style="bright_cyan")
+            payment = Text.assemble(
+                "Payment: ",
+                Text(
+                    info["payment"].capitalize().ljust(12),
+                    style="red" if info["payment"] == PaymentType.hold.value else "orange3",
+                ),
+            )
+            confidential = Text.assemble(
+                "Type: ",
+                Text("Confidential", style="green") if info["confidential"] else Text("Regular", style="grey50"),
+            )
+            chain = Text.assemble("Chain: ", Text(info["chain"].ljust(14), style="white"))
+            created_at = Text.assemble(
+                "Created at: ", Text(str(str_to_datetime(info["created_at"])).split(".", maxsplit=1)[0], style="orchid")
+            )
+            payer: Union[str, Text] = ""
+            if message.sender != message.content.address:
+                payer = Text.assemble("\nPayer: ", Text(str(message.content.address), style="orange1"))
             price: PriceResponse = await client.get_program_price(message.item_hash)
             required_tokens = Decimal(price.required_tokens)
             if price.payment_type == PaymentType.hold.value:
@@ -838,80 +842,81 @@ async def _show_instances(messages: builtins.list[InstanceMessage]):
                 pday = f"{displayable_amount(86400*required_tokens, decimals=3)}/day"
                 pmonth = f"{displayable_amount(2628000*required_tokens, decimals=3)}/month"
                 aleph_price = Text.assemble(psec, " | ", phour, " | ", pday, " | ", pmonth, style="violet")
-        cost = Text.assemble("\n$ALEPH: ", aleph_price)
-        payer: Union[str, Text] = ""
-        if message.sender != message.content.address:
-            payer = Text.assemble("\nPayer: ", Text(str(message.sender), style="orange1"))
-        instance = Text.assemble(
-            "Item Hash ↓\t     Name: ",
-            name,
-            "\n",
-            item_hash_link,
-            "\n",
-            payment,
-            confidential,
-            "\n",
-            chain,
-            created_at,
-            cost,
-            payer,
-        )
-        hypervisor = safe_getattr(message, "content.environment.hypervisor")
-        specs = [
-            f"vCPU: [magenta3]{message.content.resources.vcpus}[/magenta3]\n",
-            f"RAM: [magenta3]{message.content.resources.memory / 1_024:.2f} GiB[/magenta3]\n",
-            f"Disk: [magenta3]{message.content.rootfs.size_mib / 1_024:.2f} GiB[/magenta3]\n",
-            f"HyperV: [magenta3]{hypervisor.capitalize() if hypervisor else 'Firecracker'}[/magenta3]",
-        ]
-        gpus = safe_getattr(message, "content.requirements.gpu")
-        if gpus:
-            specs += [f"\n[bright_yellow]GPU [[green]{len(gpus)}[/green]]:\n"]
-            for gpu in gpus:
-                specs += [f"• [green]{gpu.vendor}, {gpu.device_name}[green]"]
-            specs += ["[/bright_yellow]"]
-        specifications = Text.from_markup("".join(specs))
-        status_column = Text.assemble(
-            Text.assemble(
-                Text("Allocation: ", style="blue"),
-                Text(
-                    info["allocation_type"] + "\n",
-                    style="magenta3" if info["allocation_type"] == help_strings.ALLOCATION_MANUAL else "deep_sky_blue1",
-                ),
-            ),
-            (
+            cost = Text.assemble("\n$ALEPH: ", aleph_price)
+            instance = Text.assemble(
+                "Item Hash ↓\t     Name: ",
+                name,
+                "\n",
+                item_hash_link,
+                "\n",
+                payment,
+                confidential,
+                "\n",
+                chain,
+                created_at,
+                payer,
+                cost,
+            )
+            hypervisor = safe_getattr(message, "content.environment.hypervisor")
+            specs = [
+                f"vCPU: [magenta3]{message.content.resources.vcpus}[/magenta3]\n",
+                f"RAM: [magenta3]{message.content.resources.memory / 1_024:.2f} GiB[/magenta3]\n",
+                f"Disk: [magenta3]{message.content.rootfs.size_mib / 1_024:.2f} GiB[/magenta3]\n",
+                f"HyperV: [magenta3]{hypervisor.capitalize() if hypervisor else 'Firecracker'}[/magenta3]",
+            ]
+            gpus = safe_getattr(message, "content.requirements.gpu")
+            if gpus:
+                specs += [f"\n[bright_yellow]GPU [[green]{len(gpus)}[/green]]:\n"]
+                for gpu in gpus:
+                    specs += [f"• [green]{gpu.vendor}, {gpu.device_name}[green]"]
+                specs += ["[/bright_yellow]"]
+            specifications = Text.from_markup("".join(specs))
+            status_column = Text.assemble(
                 Text.assemble(
-                    Text("CRN Hash: ", style="blue"),
-                    Text(info["crn_hash"] + "\n", style=("bright_cyan")),
-                )
-                if info["crn_hash"]
-                else ""
-            ),
-            Text.assemble(
-                Text("CRN Url: ", style="blue"),
-                Text(
-                    info["crn_url"] + "\n",
-                    style="green1" if info["crn_url"].startswith("http") else "grey50",
-                ),
-            ),
-            Text.assemble(
-                Text("IPv6: ", style="blue"),
-                Text(info["ipv6_logs"]),
-                style="bright_yellow" if len(info["ipv6_logs"].split(":")) == 8 else "dark_orange",
-            ),
-            (
-                Text.assemble(
-                    Text(f"\n[{'✅' if info['tac_accepted'] else '❌'}] Accepted Terms & Conditions: "),
+                    Text("Allocation: ", style="blue"),
                     Text(
-                        f"{info['tac_url']}",
-                        style="orange1",
+                        info["allocation_type"] + "\n",
+                        style=(
+                            "magenta3"
+                            if info["allocation_type"] == help_strings.ALLOCATION_MANUAL
+                            else "deep_sky_blue1"
+                        ),
                     ),
-                )
-                if info["tac_hash"]
-                else ""
-            ),
-        )
-        table.add_row(instance, specifications, status_column)
-        table.add_section()
+                ),
+                (
+                    Text.assemble(
+                        Text("CRN Hash: ", style="blue"),
+                        Text(info["crn_hash"] + "\n", style=("bright_cyan")),
+                    )
+                    if info["crn_hash"]
+                    else ""
+                ),
+                Text.assemble(
+                    Text("CRN Url: ", style="blue"),
+                    Text(
+                        info["crn_url"] + "\n",
+                        style="green1" if info["crn_url"].startswith("http") else "grey50",
+                    ),
+                ),
+                Text.assemble(
+                    Text("IPv6: ", style="blue"),
+                    Text(info["ipv6_logs"]),
+                    style="bright_yellow" if len(info["ipv6_logs"].split(":")) == 8 else "dark_orange",
+                ),
+                (
+                    Text.assemble(
+                        Text(f"\n[{'✅' if info['tac_accepted'] else '❌'}] Accepted Terms & Conditions: "),
+                        Text(
+                            f"{info['tac_url']}",
+                            style="orange1",
+                        ),
+                    )
+                    if info["tac_hash"]
+                    else ""
+                ),
+            )
+            table.add_row(instance, specifications, status_column)
+            table.add_section()
 
     console = Console()
     console.print(table)
