@@ -8,7 +8,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from aiohttp import InvalidURL
-from aleph.sdk.conf import settings
 from aleph_message.models import Chain, ItemHash
 from aleph_message.models.execution.base import Payment, PaymentType
 from aleph_message.models.execution.environment import (
@@ -421,7 +420,6 @@ def create_mock_vm_coco_client():
                 "rootfs": FAKE_STORE_HASH,
                 "crn_url": FAKE_CRN_URL,
                 "confidential": True,
-                "confidential_firmware": FAKE_STORE_HASH,
             },
             (FAKE_VM_HASH, FAKE_CRN_URL, "SOL"),
         ),
@@ -432,7 +430,6 @@ def create_mock_vm_coco_client():
                 "rootfs": FAKE_STORE_HASH,
                 "crn_url": FAKE_CRN_URL,
                 "confidential": True,
-                "confidential_firmware": FAKE_STORE_HASH,
             },
             (FAKE_VM_HASH, FAKE_CRN_URL, "ETH"),
         ),
@@ -443,7 +440,6 @@ def create_mock_vm_coco_client():
                 "rootfs": FAKE_STORE_HASH,
                 "crn_url": FAKE_CRN_URL,
                 "confidential": True,
-                "confidential_firmware": FAKE_STORE_HASH,
             },
             (FAKE_VM_HASH, FAKE_CRN_URL, "BASE"),
         ),
@@ -480,6 +476,7 @@ async def test_create_instance(args, expected):
             "ssh_pubkey_file": FAKE_PUBKEY_FILE,
             "name": "mock_instance",
             "compute_units": 1,
+            "rootfs_size": 0,
             "skip_volume": True,
             "crn_auto_tac": True,
         }
@@ -750,37 +747,14 @@ async def test_confidential_create(args):
     async def coco_create(instance_spec):
         print()  # For better display when pytest -v -s
         all_args = {
-            "vm_id": None,
-            "payment_type": None,
-            "payment_chain": None,
-            "crn_hash": None,
-            "crn_url": None,
             "ssh_pubkey_file": FAKE_PUBKEY_FILE,
-            "address": None,
             "name": "mock_instance",
-            "vm_secret": "fake_secret",
-            "compute_units": None,
-            "vcpus": None,
-            "memory": None,
-            "rootfs_size": None,
-            "timeout_seconds": settings.DEFAULT_VM_TIMEOUT,
-            "gpu": False,
-            "premium": None,
-            "rootfs": None,
+            "compute_units": 1,
+            "rootfs_size": 0,
             "skip_volume": True,
-            "persistent_volume": None,
-            "ephemeral_volume": None,
-            "immutable_volume": None,
             "crn_auto_tac": True,
-            "policy": 0x1,
-            "confidential_firmware": FAKE_STORE_HASH,
-            "firmware_hash": None,
-            "firmware_file": "/fake/file",
             "keep_session": False,
-            "channel": settings.DEFAULT_CHANNEL,
-            "private_key": None,
-            "private_key_file": None,
-            "debug": False,
+            "vm_secret": "fake_secret",
         }
         all_args.update(instance_spec)
         await confidential_create(**all_args)
