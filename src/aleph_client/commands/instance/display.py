@@ -21,10 +21,10 @@ from aleph_client.models import CRNInfo
 logger = logging.getLogger(__name__)
 
 
-class CRNTable(App[CRNInfo]):
+class CRNTable(App[tuple[CRNInfo, int]]):
     table: DataTable
     tasks: set[asyncio.Task] = set()
-    crns: dict[RowKey, CRNInfo] = {}
+    crns: dict[RowKey, tuple[CRNInfo, int]] = {}
     current_crn_version: str
     total_crns: int
     active_crns: int = 0
@@ -85,7 +85,9 @@ class CRNTable(App[CRNInfo]):
         self.table.add_column("Free Disk 💿", key="hdd")
         self.table.add_column("URL", key="url")
         self.table.add_column("Terms & Conditions 📝", key="tac")
-        yield Label("Choose a Compute Resource Node (CRN) to run your instance")
+        yield Label(
+            f"Choose a Compute Resource Node (CRN) {'x GPU ' if self.only_gpu_model else ''}to run your instance"
+        )
         with Horizontal():
             self.loader_label_start = Label(self.label_start)
             yield self.loader_label_start
@@ -103,23 +105,34 @@ class CRNTable(App[CRNInfo]):
         task.add_done_callback(self.tasks.discard)
 
     async def fetch_node_list(self):
-        self.crns: dict[RowKey, CRNInfo] = {RowKey(crn.hash): crn for crn in await fetch_crn_list()}
+        crn_list = await fetch_crn_list()
+        self.crns = (
+            {RowKey(crn.hash): (crn, 0) for crn in crn_list}
+            if not self.only_gpu_model
+            else {
+                RowKey(f"{crn.hash}_{gpu_id}"): (crn, gpu_id)
+                for crn in crn_list
+                for gpu_id in range(len(crn.compatible_available_gpus))
+            }
+        )
         self.current_crn_version = await fetch_latest_crn_version()
 
         # Initialize the progress bar
         self.total_crns = len(self.crns)
         self.progress_bar.total = self.total_crns
-        self.loader_label_start.update(f"Fetching data of {self.total_crns} CRNs ")
+        self.loader_label_start.update(
+            f"Fetching data of {self.total_crns} CRNs {'x GPUs ' if self.only_gpu_model else ''}"
+        )
         self.tasks = set()
 
         # Fetch all CRNs
-        for crn in list(self.crns.values()):
-            task = asyncio.create_task(self.add_crn_info(crn))
+        for crn, gpu_id in list(self.crns.values()):
+            task = asyncio.create_task(self.add_crn_info(crn, gpu_id))
             self.tasks.add(task)
             task.add_done_callback(self.make_progress)
             task.add_done_callback(self.tasks.discard)
 
-    async def add_crn_info(self, crn: CRNInfo):
+    async def add_crn_info(self, crn: CRNInfo, gpu_id: int):
         self.active_crns += 1
         # Skip CRNs with legacy version
         if self.only_latest_crn_version and crn.version < self.current_crn_version:
@@ -153,7 +166,7 @@ class CRNTable(App[CRNInfo]):
         elif (
             self.only_gpu
             and self.only_gpu_model
-            and self.only_gpu_model not in [gpu["model"] for gpu in crn.compatible_available_gpus]
+            and self.only_gpu_model != crn.compatible_available_gpus[gpu_id]["model"]
         ):
             logger.debug(f"Skipping CRN {crn.hash}, no {self.only_gpu_model} GPU support")
             return
@@ -169,13 +182,17 @@ class CRNTable(App[CRNInfo]):
             crn.stream_reward_address,
             "✅" if crn.confidential_computing else "✖",
             # "✅" if crn.qemu_support else "✖", ## Qemu computing enabled by default on crns
-            "✅" if crn.gpu_support else "✖",
+            (
+                crn.compatible_available_gpus[gpu_id]["device_name"]
+                if self.only_gpu_model
+                else "✅" if crn.gpu_support else "✖"
+            ),
             crn.display_cpu,
             crn.display_ram,
             crn.display_hdd,
             crn.url,
             tac.url if tac else "✖",
-            key=crn.hash,
+            key=f"{crn.hash}_{gpu_id}" if self.only_gpu_model else crn.hash,
         )
 
     def make_progress(self, task):
