@@ -347,7 +347,7 @@ async def create(
         disk_size_info = f"Rootfs Size: {round(rootfs_size/1024, 2)} GiB (extended from included storage in tier)"
     echo(disk_size_info)
     volumes = []
-    if not skip_volume:
+    if any([persistent_volume, ephemeral_volume, immutable_volume]) or not skip_volume:
         volumes = get_or_prompt_volumes(
             persistent_volume=persistent_volume,
             ephemeral_volume=ephemeral_volume,
