@@ -74,9 +74,9 @@ async def upload(
     beta: Annotated[bool, typer.Option(help=help_strings.PROGRAM_BETA)] = False,
     persistent: Annotated[bool, typer.Option(help=help_strings.PROGRAM_PERSISTENT)] = False,
     skip_volume: Annotated[bool, typer.Option(help=help_strings.SKIP_VOLUME)] = False,
-    persistent_volume: Annotated[Optional[list[str]], typer.Option(help=help_strings.PERSISTENT_VOLUME)] = None,
-    ephemeral_volume: Annotated[Optional[list[str]], typer.Option(help=help_strings.EPHEMERAL_VOLUME)] = None,
-    immutable_volume: Annotated[Optional[list[str]], typer.Option(help=help_strings.IMMUTABLE_VOLUME)] = None,
+    persistent_volume: Annotated[Optional[str], typer.Option(help=help_strings.PERSISTENT_VOLUME)] = None,
+    ephemeral_volume: Annotated[Optional[str], typer.Option(help=help_strings.EPHEMERAL_VOLUME)] = None,
+    immutable_volume: Annotated[Optional[str], typer.Option(help=help_strings.IMMUTABLE_VOLUME)] = None,
     skip_env_var: Annotated[bool, typer.Option(help=help_strings.SKIP_ENV_VAR)] = False,
     env_vars: Annotated[Optional[str], typer.Option(help=help_strings.ENVIRONMENT_VARIABLES)] = None,
     address: Annotated[Optional[str], typer.Option(help=help_strings.ADDRESS_PAYER)] = None,
@@ -139,10 +139,9 @@ async def upload(
             SelectedTier,
             pricing.display_table_for(
                 pricing_entity,
-                compute_units=compute_units or 0,
-                vcpus=vcpus or 0,
-                memory=memory or 0,
-                disk=0,
+                compute_units=compute_units,
+                vcpus=vcpus,
+                memory=memory,
                 selector=True,
                 verbose=verbose,
             ),
@@ -153,7 +152,7 @@ async def upload(
         runtime = runtime or input(f"Ref of runtime? [{settings.DEFAULT_RUNTIME_ID}] ") or settings.DEFAULT_RUNTIME_ID
 
         volumes = []
-        if not skip_volume:
+        if any([persistent_volume, ephemeral_volume, immutable_volume]) or not skip_volume:
             volumes = get_or_prompt_volumes(
                 persistent_volume=persistent_volume,
                 ephemeral_volume=ephemeral_volume,

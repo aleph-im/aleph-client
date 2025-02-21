@@ -90,10 +90,9 @@ class Pricing:
     def display_table_for(
         self,
         pricing_entity: Optional[PricingEntity] = None,
-        compute_units: int = 0,
-        vcpus: int = 0,
-        memory: int = 0,
-        disk: int = 0,
+        compute_units: Optional[int] = 0,
+        vcpus: Optional[int] = 0,
+        memory: Optional[int] = 0,
         gpu_models: Optional[dict[str, dict[str, dict[str, int]]]] = None,
         persistent: Optional[bool] = None,
         selector: bool = False,
@@ -101,6 +100,13 @@ class Pricing:
         verbose: bool = True,
     ) -> Optional[SelectedTier]:
         """Display pricing table for an entity"""
+
+        if not compute_units:
+            compute_units = 0
+        if not vcpus:
+            vcpus = 0
+        if not memory:
+            memory = 0
 
         if not pricing_entity:
             if persistent is not None:
@@ -130,7 +136,7 @@ class Pricing:
 
         displayable_group = None
         tier_data: dict[int, SelectedTier] = {}
-        auto_selected = (compute_units or vcpus or memory or disk) and not gpu_models
+        auto_selected = (compute_units or vcpus or memory) and not gpu_models
         if tiers:
             if auto_selected:
                 tiers = [
@@ -139,7 +145,6 @@ class Pricing:
                     if compute_units <= tier["compute_units"]
                     and vcpus <= unit_vcpus * tier["compute_units"]
                     and memory <= unit_memory * tier["compute_units"]
-                    and disk <= unit_disk * tier["compute_units"]
                 ]
                 if tiers:
                     tiers = tiers[:1]
@@ -151,8 +156,6 @@ class Pricing:
                         requirements.append(f"vcpus>={vcpus}")
                     if memory:
                         requirements.append(f"memory>={memory}")
-                    if disk:
-                        requirements.append(f"disk>={disk}")
                     typer.echo(
                         f"Minimum tier with required {' & '.join(requirements)}"
                         f" not found for {pricing_entity.value}"
