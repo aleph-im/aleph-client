@@ -601,9 +601,9 @@ async def create(
                             f" | {displayable_amount(3600*required_tokens, decimals=3)}/hour"
                             f" | {displayable_amount(86400*required_tokens, decimals=3)}/day"
                             f" | {displayable_amount(2628000*required_tokens, decimals=3)}/month[/violet]",
-                            "Flow Distribution": "\n[bright_cyan]80% -> CRN wallet[/bright_cyan]"
+                            "Flow Distribution": "\n[bright_cyan]80% ➜ CRN wallet[/bright_cyan]"
                             f"\n  Address: {crn.stream_reward_address}\n  Tx: {flow_hash_crn}"
-                            f"\n[bright_cyan]20% -> Community wallet[/bright_cyan]"
+                            f"\n[bright_cyan]20% ➜ Community wallet[/bright_cyan]"
                             f"\n  Address: {community_wallet_address}\n  Tx: {flow_hash_community}",
                         }.items()
                     )

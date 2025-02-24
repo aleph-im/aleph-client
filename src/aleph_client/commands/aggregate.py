@@ -94,7 +94,7 @@ async def forget(
             if print_message:
                 typer.echo(dumped_content)
             if verbose:
-                label_subkeys = f" -> {subkeys}" if subkeys else ""
+                label_subkeys = f" ➜ {subkeys}" if subkeys else ""
                 typer.echo(f"Aggregate `{key}{label_subkeys}` has been deleted")
             return True
         elif verbose:
@@ -165,7 +165,7 @@ async def post(
             if print_message:
                 typer.echo(content)
             if verbose:
-                label_subkey = f" -> {subkey}" if subkey else ""
+                label_subkey = f" ➜ {subkey}" if subkey else ""
                 typer.echo(f"Aggregate `{key}{label_subkey}` has been created/updated")
             return True
         elif verbose:
