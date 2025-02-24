@@ -8,7 +8,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from aiohttp import InvalidURL
-from aleph.sdk.conf import settings
 from aleph_message.models import Chain, ItemHash
 from aleph_message.models.execution.base import Payment, PaymentType
 from aleph_message.models.execution.environment import (
@@ -26,6 +25,7 @@ from aleph_client.commands.instance import (
     confidential_start,
     create,
     delete,
+    gpu_create,
     list_instances,
     logs,
     reboot,
@@ -121,7 +121,7 @@ def dict_to_ci_multi_dict_proxy(d: dict) -> CIMultiDictProxy:
 
 
 def create_mock_fetch_latest_crn_version():
-    return AsyncMock(return_value="123.420.69")
+    return AsyncMock(return_value="0.0.0")
 
 
 @pytest.mark.asyncio
@@ -242,29 +242,35 @@ def create_mock_validate_ssh_pubkey_file():
     )
 
 
-def create_mock_fetch_crn_info():
+def mock_crn_info():
     mock_machine_info = dummy_machine_info()
-    return AsyncMock(
-        return_value=CRNInfo(
-            hash=ItemHash(FAKE_CRN_HASH),
-            name="Mock CRN",
-            owner=FAKE_ADDRESS_EVM,
-            url=FAKE_CRN_URL,
-            ccn_hash=FAKE_CRN_HASH,
-            status="linked",
-            version="123.420.69",
-            score=0.9,
-            reward_address=FAKE_ADDRESS_EVM,
-            stream_reward_address=mock_machine_info.reward_address,
-            machine_usage=mock_machine_info.machine_usage,
-            ipv6=True,
-            qemu_support=True,
-            confidential_computing=True,
-            gpu_support=True,
-            terms_and_conditions=FAKE_STORE_HASH,
-            compatible_available_gpus=[dummy_gpu_device()],
-        )
+    return CRNInfo(
+        hash=ItemHash(FAKE_CRN_HASH),
+        name="Mock CRN",
+        owner=FAKE_ADDRESS_EVM,
+        url=FAKE_CRN_URL,
+        ccn_hash=FAKE_CRN_HASH,
+        status="linked",
+        version="123.420.69",
+        score=0.9,
+        reward_address=FAKE_ADDRESS_EVM,
+        stream_reward_address=mock_machine_info.reward_address,
+        machine_usage=mock_machine_info.machine_usage,
+        ipv6=True,
+        qemu_support=True,
+        confidential_computing=True,
+        gpu_support=True,
+        terms_and_conditions=FAKE_STORE_HASH,
+        compatible_available_gpus=[gpu.dict() for gpu in mock_machine_info.machine_usage.gpu.available_devices],
     )
+
+
+def create_mock_fetch_crn_info():
+    return AsyncMock(return_value=mock_crn_info())
+
+
+def create_mock_crn_table():
+    return MagicMock(return_value=MagicMock(run_async=AsyncMock(return_value=(mock_crn_info(), 0))))
 
 
 def create_mock_fetch_vm_info():
@@ -364,20 +370,6 @@ def create_mock_vm_coco_client():
     return mock_vm_coco_client_class, mock_vm_coco_client
 
 
-# TODO: GPU test requires a rework
-""" (  # gpu_superfluid_evm
-            {
-                "payment_type": "superfluid",
-                "payment_chain": "BASE",
-                "rootfs": "debian12",
-                "crn_hash": FAKE_CRN_HASH,
-                "crn_url": FAKE_CRN_URL,
-                "gpu": True,
-            },
-            (FAKE_VM_HASH, FAKE_CRN_URL, "BASE"),
-        ), """
-
-
 @pytest.mark.parametrize(
     ids=[
         "regular_hold_evm",
@@ -386,7 +378,7 @@ def create_mock_vm_coco_client():
         "coco_hold_sol",
         "coco_hold_evm",
         "coco_superfluid_evm",
-        # "gpu_superfluid_evm",
+        "gpu_superfluid_evm",
     ],
     argnames="args, expected",
     argvalues=[
@@ -403,7 +395,6 @@ def create_mock_vm_coco_client():
                 "payment_type": "superfluid",
                 "payment_chain": "AVAX",
                 "rootfs": "debian12",
-                "crn_hash": FAKE_CRN_HASH,
                 "crn_url": FAKE_CRN_URL,
             },
             (FAKE_VM_HASH, FAKE_CRN_URL, "AVAX"),
@@ -421,10 +412,8 @@ def create_mock_vm_coco_client():
                 "payment_type": "hold",
                 "payment_chain": "SOL",
                 "rootfs": FAKE_STORE_HASH,
-                "crn_hash": FAKE_CRN_HASH,
                 "crn_url": FAKE_CRN_URL,
                 "confidential": True,
-                "confidential_firmware": FAKE_STORE_HASH,
             },
             (FAKE_VM_HASH, FAKE_CRN_URL, "SOL"),
         ),
@@ -433,10 +422,8 @@ def create_mock_vm_coco_client():
                 "payment_type": "hold",
                 "payment_chain": "ETH",
                 "rootfs": FAKE_STORE_HASH,
-                "crn_hash": FAKE_CRN_HASH,
                 "crn_url": FAKE_CRN_URL,
                 "confidential": True,
-                "confidential_firmware": FAKE_STORE_HASH,
             },
             (FAKE_VM_HASH, FAKE_CRN_URL, "ETH"),
         ),
@@ -445,10 +432,18 @@ def create_mock_vm_coco_client():
                 "payment_type": "superfluid",
                 "payment_chain": "BASE",
                 "rootfs": FAKE_STORE_HASH,
-                "crn_hash": FAKE_CRN_HASH,
                 "crn_url": FAKE_CRN_URL,
                 "confidential": True,
-                "confidential_firmware": FAKE_STORE_HASH,
+            },
+            (FAKE_VM_HASH, FAKE_CRN_URL, "BASE"),
+        ),
+        (  # gpu_superfluid_evm
+            {
+                "payment_type": "superfluid",
+                "payment_chain": "BASE",
+                "rootfs": "debian12",
+                "crn_url": FAKE_CRN_URL,
+                "gpu": True,
             },
             (FAKE_VM_HASH, FAKE_CRN_URL, "BASE"),
         ),
@@ -463,9 +458,11 @@ async def test_create_instance(args, expected):
     mock_client_class, mock_client = create_mock_client(payment_type=args["payment_type"])
     mock_auth_client_class, mock_auth_client = create_mock_auth_client(mock_account, payment_type=args["payment_type"])
     mock_vm_client_class, mock_vm_client = create_mock_vm_client()
+    mock_validated_prompt = MagicMock(return_value="1")
     mock_fetch_latest_crn_version = create_mock_fetch_latest_crn_version()
     mock_fetch_crn_info = create_mock_fetch_crn_info()
-    mock_validated_int_prompt = MagicMock(return_value=1)
+    mock_crn_table = create_mock_crn_table()
+    mock_yes_no_input = MagicMock(side_effect=[False, True, True])
     mock_wait_for_processed_instance = AsyncMock()
     mock_wait_for_confirmed_flow = AsyncMock()
 
@@ -474,9 +471,11 @@ async def test_create_instance(args, expected):
     @patch("aleph_client.commands.instance.get_balance", mock_get_balance)
     @patch("aleph_client.commands.instance.AlephHttpClient", mock_client_class)
     @patch("aleph_client.commands.instance.AuthenticatedAlephHttpClient", mock_auth_client_class)
+    @patch("aleph_client.commands.pricing.validated_prompt", mock_validated_prompt)
     @patch("aleph_client.commands.instance.network.fetch_latest_crn_version", mock_fetch_latest_crn_version)
     @patch("aleph_client.commands.instance.fetch_crn_info", mock_fetch_crn_info)
-    @patch("aleph_client.commands.instance.validated_int_prompt", mock_validated_int_prompt)
+    @patch("aleph_client.commands.instance.CRNTable", mock_crn_table)
+    @patch("aleph_client.commands.instance.yes_no_input", mock_yes_no_input)
     @patch("aleph_client.commands.instance.wait_for_processed_instance", mock_wait_for_processed_instance)
     @patch.object(asyncio, "sleep", AsyncMock())
     @patch("aleph_client.commands.instance.wait_for_confirmed_flow", mock_wait_for_confirmed_flow)
@@ -486,28 +485,10 @@ async def test_create_instance(args, expected):
         all_args = {
             "ssh_pubkey_file": FAKE_PUBKEY_FILE,
             "name": "mock_instance",
-            "hypervisor": HypervisorType.qemu,
             "compute_units": 1,
-            "vcpus": None,
-            "memory": None,
-            "rootfs_size": None,
-            "timeout_seconds": settings.DEFAULT_VM_TIMEOUT,
+            "rootfs_size": 0,
             "skip_volume": True,
-            "persistent_volume": None,
-            "ephemeral_volume": None,
-            "immutable_volume": None,
             "crn_auto_tac": True,
-            "channel": settings.DEFAULT_CHANNEL,
-            "address": None,
-            "crn_hash": None,
-            "crn_url": None,
-            "confidential": False,
-            "gpu": False,
-            "premium": None,
-            "private_key": None,
-            "private_key_file": None,
-            "print_message": False,
-            "debug": False,
         }
         all_args.update(instance_spec)
         return await create(**all_args)
@@ -527,7 +508,10 @@ async def test_create_instance(args, expected):
     # CRN related assertions
     if args["payment_type"] == "superfluid" or args.get("confidential") or args.get("gpu"):
         mock_fetch_latest_crn_version.assert_called()
-        mock_fetch_crn_info.assert_called_once()
+        if not args.get("gpu"):
+            mock_fetch_crn_info.assert_called_once()
+        else:
+            mock_crn_table.return_value.run_async.assert_called_once()
         mock_wait_for_processed_instance.assert_called_once()
         mock_vm_client.start_instance.assert_called_once()
     assert returned == expected
@@ -551,12 +535,7 @@ async def test_list_instances():
     @patch("aleph_client.commands.instance.filter_only_valid_messages", mock_instance_messages)
     async def list_instance():
         print()  # For better display when pytest -v -s
-        await list_instances(
-            address=mock_account.get_address(),
-            chain=Chain.ETH,
-            json=False,
-            debug=False,
-        )
+        await list_instances(address=mock_account.get_address())
         mock_instance_messages.assert_called_once()
         mock_fetch_latest_crn_version.assert_called()
         mock_auth_client.get_messages.assert_called_once()
@@ -582,12 +561,7 @@ async def test_delete_instance():
     @patch.object(asyncio, "sleep", AsyncMock())
     async def delete_instance():
         print()  # For better display when pytest -v -s
-        await delete(
-            FAKE_VM_HASH,
-            domain=None,
-            print_message=False,
-            debug=False,
-        )
+        await delete(FAKE_VM_HASH)
         mock_auth_client.get_message.assert_called_once()
         mock_vm_client.erase_instance.assert_called_once()
         assert mock_account.manage_flow.call_count == 2
@@ -610,12 +584,7 @@ async def test_reboot_instance():
     @patch("aleph_client.commands.instance.VmClient", mock_vm_client_class)
     async def reboot_instance():
         print()  # For better display when pytest -v -s
-        await reboot(
-            FAKE_VM_HASH,
-            domain=None,
-            chain=Chain.AVAX,
-            debug=False,
-        )
+        await reboot(FAKE_VM_HASH)
         mock_auth_client.get_message.assert_called_once()
         mock_vm_client.reboot_instance.assert_called_once()
 
@@ -636,12 +605,7 @@ async def test_allocate_instance():
     @patch("aleph_client.commands.instance.VmClient", mock_vm_client_class)
     async def allocate_instance():
         print()  # For better display when pytest -v -s
-        await allocate(
-            FAKE_VM_HASH,
-            domain=None,
-            chain=Chain.AVAX,
-            debug=False,
-        )
+        await allocate(FAKE_VM_HASH)
         mock_auth_client.get_message.assert_called_once()
         mock_vm_client.start_instance.assert_called_once()
 
@@ -662,12 +626,7 @@ async def test_logs_instance(capsys):
     @patch("aleph_client.commands.instance.VmClient", mock_vm_client_class)
     async def logs_instance():
         print()  # For better display when pytest -v -s
-        await logs(
-            FAKE_VM_HASH,
-            domain=None,
-            chain=Chain.AVAX,
-            debug=False,
-        )
+        await logs(FAKE_VM_HASH)
         mock_auth_client.get_message.assert_called_once()
         mock_vm_client.get_logs.assert_called_once()
 
@@ -690,12 +649,7 @@ async def test_stop_instance():
     @patch("aleph_client.commands.instance.VmClient", mock_vm_client_class)
     async def stop_instance():
         print()  # For better display when pytest -v -s
-        await stop(
-            FAKE_VM_HASH,
-            domain=None,
-            chain=Chain.AVAX,
-            debug=False,
-        )
+        await stop(FAKE_VM_HASH)
         mock_auth_client.get_message.assert_called_once()
         mock_vm_client.stop_instance.assert_called_once()
 
@@ -720,14 +674,7 @@ async def test_confidential_init_session():
     @patch("aleph_client.commands.instance.VmConfidentialClient", mock_vm_coco_client_class)
     async def coco_init_session():
         print()  # For better display when pytest -v -s
-        await confidential_init_session(
-            FAKE_VM_HASH,
-            domain=None,
-            chain=Chain.AVAX,
-            policy=0x1,
-            keep_session=False,
-            debug=False,
-        )
+        await confidential_init_session(FAKE_VM_HASH, keep_session=False)
         mock_shutil.which.assert_called_once()
         mock_auth_client.get_message.assert_called_once()
         mock_vm_coco_client.get_certificates.assert_called_once()
@@ -759,15 +706,7 @@ async def test_confidential_start():
     @patch("aleph_client.commands.instance.calculate_firmware_hash", mock_calculate_firmware_hash)
     async def coco_start():
         print()  # For better display when pytest -v -s
-        await confidential_start(
-            FAKE_VM_HASH,
-            domain=None,
-            chain=Chain.AVAX,
-            firmware_hash=None,
-            firmware_file="/fake/file",
-            vm_secret="fake_secret",
-            debug=False,
-        )
+        await confidential_start(FAKE_VM_HASH, firmware_file="/fake/file", vm_secret="fake_secret")
         mock_auth_client.get_message.assert_called_once()
         mock_vm_coco_client.measurement.assert_called_once()
         mock_calculate_firmware_hash.assert_called_once()
@@ -789,7 +728,6 @@ async def test_confidential_start():
         {  # coco_from_scratch
             "payment_type": "superfluid",
             "payment_chain": "AVAX",
-            "crn_hash": FAKE_CRN_HASH,
             "crn_url": FAKE_CRN_URL,
             "rootfs": FAKE_STORE_HASH,
             "compute_units": 1,
@@ -822,37 +760,14 @@ async def test_confidential_create(args):
     async def coco_create(instance_spec):
         print()  # For better display when pytest -v -s
         all_args = {
-            "vm_id": None,
-            "payment_type": None,
-            "payment_chain": None,
-            "crn_hash": None,
-            "crn_url": None,
             "ssh_pubkey_file": FAKE_PUBKEY_FILE,
-            "address": None,
             "name": "mock_instance",
-            "vm_secret": "fake_secret",
-            "compute_units": None,
-            "vcpus": None,
-            "memory": None,
-            "rootfs_size": None,
-            "timeout_seconds": settings.DEFAULT_VM_TIMEOUT,
-            "gpu": False,
-            "premium": None,
-            "rootfs": None,
+            "compute_units": 1,
+            "rootfs_size": 0,
             "skip_volume": True,
-            "persistent_volume": None,
-            "ephemeral_volume": None,
-            "immutable_volume": None,
             "crn_auto_tac": True,
-            "policy": 0x1,
-            "confidential_firmware": FAKE_STORE_HASH,
-            "firmware_hash": None,
-            "firmware_file": "/fake/file",
             "keep_session": False,
-            "channel": settings.DEFAULT_CHANNEL,
-            "private_key": None,
-            "private_key_file": None,
-            "debug": False,
+            "vm_secret": "fake_secret",
         }
         all_args.update(instance_spec)
         await confidential_create(**all_args)
@@ -868,3 +783,16 @@ async def test_confidential_create(args):
         mock_allocate.assert_called_once()
     mock_confidential_init_session.assert_called_once()
     mock_confidential_start.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_gpu_create():
+    mock_create = AsyncMock(return_value=[FAKE_VM_HASH, FAKE_CRN_URL, "AVAX"])
+
+    @patch("aleph_client.commands.instance.create", mock_create)
+    async def gpu_instance():
+        print()  # For better display when pytest -v -s
+        await gpu_create()
+        mock_create.assert_called_once()
+
+    await gpu_instance()
