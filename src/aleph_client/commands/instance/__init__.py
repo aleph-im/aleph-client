@@ -45,6 +45,7 @@ from aleph_message.models.execution.environment import (
     NodeRequirements,
     TrustedExecutionEnvironment,
 )
+from aleph_message.models.execution.volume import PersistentVolumeSizeMib
 from aleph_message.models.item_hash import ItemHash
 from click import echo
 from rich import box
@@ -73,6 +74,7 @@ from aleph_client.commands.utils import (
     setup_logging,
     str_to_datetime,
     validate_ssh_pubkey_file,
+    validated_int_prompt,
     validated_prompt,
     wait_for_confirmed_flow,
     wait_for_processed_instance,
@@ -115,7 +117,9 @@ async def create(
     compute_units: Annotated[Optional[int], typer.Option(help=help_strings.COMPUTE_UNITS)] = None,
     vcpus: Annotated[Optional[int], typer.Option(help=help_strings.VCPUS)] = None,
     memory: Annotated[Optional[int], typer.Option(help=help_strings.MEMORY)] = None,
-    rootfs_size: Annotated[Optional[int], typer.Option(help=help_strings.ROOTFS_SIZE)] = None,
+    rootfs_size: Annotated[
+        Optional[int], typer.Option(help=help_strings.ROOTFS_SIZE, max=PersistentVolumeSizeMib.le)
+    ] = None,
     timeout_seconds: Annotated[float, typer.Option(help=help_strings.TIMEOUT_SECONDS)] = settings.DEFAULT_VM_TIMEOUT,
     ssh_pubkey_file: Annotated[Path, typer.Option(help=help_strings.SSH_PUBKEY_FILE)] = Path(
         "~/.ssh/id_rsa.pub"
@@ -321,10 +325,9 @@ async def create(
         SelectedTier,
         pricing.display_table_for(
             pricing_entity,
-            compute_units=compute_units or 0,
-            vcpus=vcpus or 0,
-            memory=memory or 0,
-            disk=rootfs_size or 0,
+            compute_units=compute_units,
+            vcpus=vcpus,
+            memory=memory,
             gpu_models=found_gpu_models,
             selector=True,
         ),
@@ -332,10 +335,19 @@ async def create(
     name = name or validated_prompt("Instance name", lambda x: x and len(x) < 65)
     vcpus = tier.vcpus
     memory = tier.memory
-    rootfs_size = tier.disk
+    disk_size = tier.disk
     gpu_model = tier.gpu_model
+    disk_size_info = f"Rootfs Size: {round(disk_size/1024, 2)} GiB (defaulted to included storage in tier)"
+    if not isinstance(rootfs_size, int):
+        rootfs_size = validated_int_prompt(
+            "Custom Rootfs Size (MiB)", min_value=disk_size, max_value=PersistentVolumeSizeMib.le, default=disk_size
+        )
+    if rootfs_size > disk_size:
+        disk_size = rootfs_size
+        disk_size_info = f"Rootfs Size: {round(rootfs_size/1024, 2)} GiB (extended from included storage in tier)"
+    echo(disk_size_info)
     volumes = []
-    if not skip_volume:
+    if any([persistent_volume, ephemeral_volume, immutable_volume]) or not skip_volume:
         volumes = get_or_prompt_volumes(
             persistent_volume=persistent_volume,
             ephemeral_volume=ephemeral_volume,
@@ -487,7 +499,7 @@ async def create(
     content_dict: dict[str, Any] = {
         "address": address,
         "rootfs": rootfs,
-        "rootfs_size": rootfs_size,
+        "rootfs_size": disk_size,
         "metadata": {"name": name},
         "memory": memory,
         "vcpus": vcpus,
@@ -1328,7 +1340,9 @@ async def confidential_create(
     compute_units: Annotated[Optional[int], typer.Option(help=help_strings.COMPUTE_UNITS)] = None,
     vcpus: Annotated[Optional[int], typer.Option(help=help_strings.VCPUS)] = None,
     memory: Annotated[Optional[int], typer.Option(help=help_strings.MEMORY)] = None,
-    rootfs_size: Annotated[Optional[int], typer.Option(help=help_strings.ROOTFS_SIZE)] = None,
+    rootfs_size: Annotated[
+        Optional[int], typer.Option(help=help_strings.ROOTFS_SIZE, max=PersistentVolumeSizeMib.le)
+    ] = None,
     timeout_seconds: Annotated[float, typer.Option(help=help_strings.TIMEOUT_SECONDS)] = settings.DEFAULT_VM_TIMEOUT,
     ssh_pubkey_file: Annotated[Path, typer.Option(help=help_strings.SSH_PUBKEY_FILE)] = Path(
         "~/.ssh/id_rsa.pub"
@@ -1474,7 +1488,9 @@ async def gpu_create(
     compute_units: Annotated[Optional[int], typer.Option(help=help_strings.COMPUTE_UNITS)] = None,
     vcpus: Annotated[Optional[int], typer.Option(help=help_strings.VCPUS)] = None,
     memory: Annotated[Optional[int], typer.Option(help=help_strings.MEMORY)] = None,
-    rootfs_size: Annotated[Optional[int], typer.Option(help=help_strings.ROOTFS_SIZE)] = None,
+    rootfs_size: Annotated[
+        Optional[int], typer.Option(help=help_strings.ROOTFS_SIZE, max=PersistentVolumeSizeMib.le)
+    ] = None,
     premium: Annotated[Optional[bool], typer.Option(help=help_strings.GPU_PREMIUM_OPTION)] = None,
     timeout_seconds: Annotated[float, typer.Option(help=help_strings.TIMEOUT_SECONDS)] = settings.DEFAULT_VM_TIMEOUT,
     ssh_pubkey_file: Annotated[Path, typer.Option(help=help_strings.SSH_PUBKEY_FILE)] = Path(
