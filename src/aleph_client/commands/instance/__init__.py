@@ -808,12 +808,19 @@ async def _show_instances(messages: builtins.list[InstanceMessage]):
 
     await fetch_crn_list()  # Precache CRN list
     scheduler_responses = dict(await asyncio.gather(*[fetch_vm_info(message) for message in messages]))
-    uninitialized_confidential_found = False
+    uninitialized_confidential_found = []
+    unallocated_payg_found = []
     async with AlephHttpClient(api_server=settings.API_HOST) as client:
         for message in messages:
             info = scheduler_responses[message.item_hash]
+
+            is_hold = info["payment"] == PaymentType.hold.value
+            if not is_hold and info["ipv6_logs"] == help_strings.VM_NOT_READY:
+                unallocated_payg_found.append(message.item_hash)
             if info["confidential"] and info["ipv6_logs"] == help_strings.VM_NOT_READY:
-                uninitialized_confidential_found = True
+                uninitialized_confidential_found.append(message.item_hash)
+
+            # 1st Column
             name = Text(
                 (
                     message.content.metadata["name"]
@@ -831,7 +838,7 @@ async def _show_instances(messages: builtins.list[InstanceMessage]):
                 "Payment: ",
                 Text(
                     info["payment"].capitalize().ljust(12),
-                    style="red" if info["payment"] == PaymentType.hold.value else "orange3",
+                    style="red" if is_hold else "orange3",
                 ),
             )
             confidential = Text.assemble(
@@ -847,7 +854,7 @@ async def _show_instances(messages: builtins.list[InstanceMessage]):
                 payer = Text.assemble("\nPayer: ", Text(str(message.content.address), style="orange1"))
             price: PriceResponse = await client.get_program_price(message.item_hash)
             required_tokens = Decimal(price.required_tokens)
-            if price.payment_type == PaymentType.hold.value:
+            if is_hold:
                 aleph_price = Text(f"{displayable_amount(required_tokens, decimals=3)} (fixed)", style="violet")
             else:
                 psec = f"{displayable_amount(required_tokens, decimals=8)}/sec"
@@ -856,6 +863,7 @@ async def _show_instances(messages: builtins.list[InstanceMessage]):
                 pmonth = f"{displayable_amount(2628000*required_tokens, decimals=3)}/month"
                 aleph_price = Text.assemble(psec, " | ", phour, " | ", pday, " | ", pmonth, style="violet")
             cost = Text.assemble("\n$ALEPH: ", aleph_price)
+
             instance = Text.assemble(
                 "Item Hash ↓\t     Name: ",
                 name,
@@ -870,6 +878,8 @@ async def _show_instances(messages: builtins.list[InstanceMessage]):
                 payer,
                 cost,
             )
+
+            # 2nd Column
             hypervisor = safe_getattr(message, "content.environment.hypervisor")
             specs = [
                 f"vCPU: [magenta3]{message.content.resources.vcpus}[/magenta3]\n",
@@ -884,6 +894,8 @@ async def _show_instances(messages: builtins.list[InstanceMessage]):
                     specs += [f"• [green]{gpu.vendor}, {gpu.device_name}[green]"]
                 specs += ["[/bright_yellow]"]
             specifications = Text.from_markup("".join(specs))
+
+            # 3rd Column
             status_column = Text.assemble(
                 Text.assemble(
                     Text("Allocation: ", style="blue"),
@@ -936,12 +948,25 @@ async def _show_instances(messages: builtins.list[InstanceMessage]):
     console.print(table)
 
     infos = [Text.from_markup(f"[bold]Address:[/bold] [bright_cyan]{messages[0].sender}[/bright_cyan]")]
-    if uninitialized_confidential_found:
+    if unallocated_payg_found:
+        unallocated_payg_found_str = "\n".join(unallocated_payg_found)
         infos += [
             Text.assemble(
-                "\n\nBoot uninitialized/unstarted confidential instances with:\n",
+                Text.from_markup("\n\nYou have unallocated/unstarted instance(s) with active flows:\n"),
+                Text.from_markup(f"[bright_red]{unallocated_payg_found_str}[/bright_red]"),
                 Text.from_markup(
-                    "↳  aleph instance confidential [bright_cyan]<vm-item-hash>[/bright_cyan]", style="italic"
+                    "\n[italic]↳[/italic] [orange3]Recommended action:[/orange3] allocate + start, or delete them."
+                ),
+            )
+        ]
+    if uninitialized_confidential_found:
+        uninitialized_confidential_found_str = "\n".join(uninitialized_confidential_found)
+        infos += [
+            Text.assemble(
+                "\n\nBoot unallocated/unstarted confidential instance(s):\n",
+                Text.from_markup(f"[grey50]{uninitialized_confidential_found_str}[/grey50]"),
+                Text.from_markup(
+                    "\n↳ aleph instance confidential [bright_cyan]<vm-item-hash>[/bright_cyan]", style="italic"
                 ),
             )
         ]
@@ -949,7 +974,7 @@ async def _show_instances(messages: builtins.list[InstanceMessage]):
         Text.assemble(
             "\n\nConnect to an instance with:\n",
             Text.from_markup(
-                "↳  ssh root@[yellow]<ipv6-address>[/yellow] [-i [orange3]<ssh-private-key-file>[/orange3]]",
+                "↳ ssh root@[yellow]<ipv6-address>[/yellow] [-i [orange3]<ssh-private-key-file>[/orange3]]",
                 style="italic",
             ),
         )
