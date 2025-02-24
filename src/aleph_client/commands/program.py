@@ -7,7 +7,7 @@ from base64 import b16decode, b32encode
 from collections.abc import Mapping
 from decimal import Decimal
 from pathlib import Path
-from typing import Annotated, Any, Optional, cast
+from typing import Annotated, Any, Optional, Union, cast
 from zipfile import BadZipFile
 
 import aiohttp
@@ -15,7 +15,8 @@ import typer
 from aleph.sdk import AlephHttpClient, AuthenticatedAlephHttpClient
 from aleph.sdk.account import _load_account
 from aleph.sdk.client.vm_client import VmClient
-from aleph.sdk.conf import settings
+from aleph.sdk.conf import load_main_configuration, settings
+from aleph.sdk.evm_utils import get_chains_with_holding
 from aleph.sdk.exceptions import (
     ForgottenMessageError,
     InsufficientFundsError,
@@ -24,8 +25,15 @@ from aleph.sdk.exceptions import (
 from aleph.sdk.query.filters import MessageFilter
 from aleph.sdk.query.responses import PriceResponse
 from aleph.sdk.types import AccountFromPrivateKey, StorageEnum, TokenType
-from aleph.sdk.utils import make_program_content, safe_getattr
-from aleph_message.models import Chain, MessageType, ProgramMessage, StoreMessage
+from aleph.sdk.utils import displayable_amount, make_program_content, safe_getattr
+from aleph_message.models import (
+    Chain,
+    MessageType,
+    Payment,
+    PaymentType,
+    ProgramMessage,
+    StoreMessage,
+)
 from aleph_message.models.execution.program import ProgramContent
 from aleph_message.models.item_hash import ItemHash
 from aleph_message.status import MessageStatus
@@ -55,6 +63,9 @@ from aleph_client.utils import AsyncTyper, create_archive, sanitize_url
 logger = logging.getLogger(__name__)
 app = AsyncTyper(no_args_is_help=True)
 
+hold_chains = [*get_chains_with_holding(), Chain.SOL]
+metavar_valid_chains = f"[{'|'.join(hold_chains)}]"
+
 
 @app.command(name="upload")
 @app.command(name="create")
@@ -80,6 +91,14 @@ async def upload(
     skip_env_var: Annotated[bool, typer.Option(help=help_strings.SKIP_ENV_VAR)] = False,
     env_vars: Annotated[Optional[str], typer.Option(help=help_strings.ENVIRONMENT_VARIABLES)] = None,
     address: Annotated[Optional[str], typer.Option(help=help_strings.ADDRESS_PAYER)] = None,
+    payment_chain: Annotated[
+        Optional[Chain],
+        typer.Option(
+            help=help_strings.PAYMENT_CHAIN_PROGRAM,
+            metavar=metavar_valid_chains,
+            case_sensitive=False,
+        ),
+    ] = None,
     channel: Annotated[Optional[str], typer.Option(help=help_strings.CHANNEL)] = settings.DEFAULT_CHANNEL,
     private_key: Annotated[Optional[str], typer.Option(help=help_strings.PRIVATE_KEY)] = settings.PRIVATE_KEY_STRING,
     private_key_file: Annotated[
@@ -96,7 +115,7 @@ async def upload(
     For more information, see https://docs.aleph.im/computing"""
 
     setup_logging(debug)
-
+    console = Console()
     path = path.absolute()
 
     try:
@@ -108,8 +127,24 @@ async def upload(
         typer.echo("No such file or directory")
         raise typer.Exit(code=4) from error
 
-    account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
+    account: AccountFromPrivateKey = _load_account(private_key, private_key_file, chain=payment_chain)
     address = address or settings.ADDRESS_TO_USE or account.get_address()
+
+    # Loads default configuration if no chain is set
+    if payment_chain is None:
+        config = load_main_configuration(settings.CONFIG_FILE)
+        if config is not None:
+            payment_chain = config.chain
+            console.print(f"Preset to default chain: [green]{payment_chain}[/green]")
+        else:
+            payment_chain = Chain.ETH
+            console.print("No active chain selected in configuration. Fallback to ETH")
+
+    payment = Payment(
+        chain=payment_chain,
+        receiver=None,
+        type=PaymentType.hold,
+    )
 
     async with AuthenticatedAlephHttpClient(account=account, api_server=settings.API_HOST) as client:
         # Upload the source code
@@ -181,6 +216,7 @@ async def upload(
             "runtime": runtime,
             "metadata": {"name": name},
             "address": address,
+            "payment": payment,
             "vcpus": vcpus,
             "memory": memory,
             "timeout_seconds": timeout_seconds,
@@ -235,8 +271,6 @@ async def upload(
             hash_base32 = b32encode(b16decode(item_hash.upper())).strip(b"=").lower().decode()
             func_url_1 = f"{settings.VM_URL_PATH.format(hash=item_hash)}"
             func_url_2 = f"{settings.VM_URL_HOST.format(hash_base32=hash_base32)}"
-
-            console = Console()
             infos = [
                 Text.from_markup(f"Your program [bright_cyan]{item_hash}[/bright_cyan] has been uploaded on aleph.im."),
                 Text.assemble(
@@ -271,6 +305,9 @@ async def upload(
 async def update(
     item_hash: Annotated[str, typer.Argument(help="Item hash to update")],
     path: Annotated[Path, typer.Argument(help=help_strings.PROGRAM_PATH)],
+    chain: Annotated[
+        Optional[Chain], typer.Option(help=help_strings.PAYMENT_CHAIN_PROGRAM_USED, metavar=metavar_valid_chains)
+    ] = None,
     private_key: Annotated[Optional[str], typer.Option(help=help_strings.PRIVATE_KEY)] = settings.PRIVATE_KEY_STRING,
     private_key_file: Annotated[
         Optional[Path], typer.Option(help=help_strings.PRIVATE_KEY_FILE)
@@ -294,7 +331,7 @@ async def update(
         typer.echo("No such file or directory")
         raise typer.Exit(code=4) from error
 
-    account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
+    account: AccountFromPrivateKey = _load_account(private_key, private_key_file, chain=chain)
 
     async with AuthenticatedAlephHttpClient(account=account, api_server=settings.API_HOST) as client:
         try:
@@ -381,6 +418,9 @@ async def delete(
     item_hash: Annotated[str, typer.Argument(help="Item hash to unpersist")],
     reason: Annotated[str, typer.Option(help="Reason for deleting the program")] = "User deletion",
     keep_code: Annotated[bool, typer.Option(help=help_strings.PROGRAM_KEEP_CODE)] = False,
+    chain: Annotated[
+        Optional[Chain], typer.Option(help=help_strings.PAYMENT_CHAIN_PROGRAM_USED, metavar=metavar_valid_chains)
+    ] = None,
     private_key: Annotated[Optional[str], typer.Option(help=help_strings.PRIVATE_KEY)] = settings.PRIVATE_KEY_STRING,
     private_key_file: Annotated[
         Optional[Path], typer.Option(help=help_strings.PRIVATE_KEY_FILE)
@@ -393,7 +433,7 @@ async def delete(
 
     setup_logging(debug)
 
-    account = _load_account(private_key, private_key_file)
+    account = _load_account(private_key, private_key_file, chain=chain)
 
     async with AuthenticatedAlephHttpClient(account=account, api_server=settings.API_HOST) as client:
         try:
@@ -440,6 +480,9 @@ async def delete(
 @app.command(name="list")
 async def list_programs(
     address: Annotated[Optional[str], typer.Option(help="Owner address of the programs")] = None,
+    chain: Annotated[
+        Optional[Chain], typer.Option(help=help_strings.ADDRESS_CHAIN, metavar=metavar_valid_chains)
+    ] = None,
     private_key: Annotated[Optional[str], typer.Option(help=help_strings.PRIVATE_KEY)] = settings.PRIVATE_KEY_STRING,
     private_key_file: Annotated[
         Optional[Path], typer.Option(help=help_strings.PRIVATE_KEY_FILE)
@@ -451,7 +494,7 @@ async def list_programs(
 
     setup_logging(debug)
 
-    account = _load_account(private_key, private_key_file)
+    account = _load_account(private_key, private_key_file, chain=chain)
     address = address or settings.ADDRESS_TO_USE or account.get_address()
 
     async with AlephHttpClient(api_server=settings.API_HOST) as client:
@@ -493,21 +536,67 @@ async def list_programs(
             )
             msg_link = f"https://explorer.aleph.im/address/ETH/{message.sender}/message/PROGRAM/{message.item_hash}"
             item_hash_link = Text.from_markup(f"[link={msg_link}]{message.item_hash}[/link]", style="bright_cyan")
+            payment_type = safe_getattr(message.content, "payment.type", PaymentType.hold)
+            payment = Text.assemble(
+                "Payment: ",
+                Text(
+                    payment_type.capitalize().ljust(12),
+                    style="red" if payment_type == PaymentType.hold else "orange3",
+                ),
+            )
+            persistent = Text.assemble(
+                "Type: ",
+                (
+                    Text("Persistent", style="green")
+                    if message.content.on.persistent
+                    else Text("Ephemeral", style="grey50")
+                ),
+            )
+            payment_chain = str(safe_getattr(message.content, "payment.chain.value") or Chain.ETH.value)
+            if payment_chain != Chain.SOL.value:
+                payment_chain = "EVM"
+            pay_chain = Text.assemble("Chain: ", Text(payment_chain.ljust(14), style="white"))
             created_at = Text.assemble(
-                "URLs ↓\t     Created at: ",
+                "Created at: ",
                 Text(
                     str(str_to_datetime(str(safe_getattr(message, "content.time")))).split(".", maxsplit=1)[0],
                     style="orchid",
                 ),
             )
+            payer: Union[str, Text] = ""
+            if message.sender != message.content.address:
+                payer = Text.assemble("\nPayer: ", Text(str(message.content.address), style="orange1"))
+            price: PriceResponse = await client.get_program_price(message.item_hash)
+            required_tokens = Decimal(price.required_tokens)
+            if price.payment_type == PaymentType.hold.value:
+                aleph_price = Text(
+                    f"{displayable_amount(required_tokens, decimals=3)} (fixed)".ljust(13), style="violet"
+                )
+            else:
+                # PAYG not implemented yet for programs
+                aleph_price = Text("")
+            cost = Text.assemble("\n$ALEPH: ", aleph_price)
             hash_base32 = b32encode(b16decode(message.item_hash.upper())).strip(b"=").lower().decode()
             func_url_1 = settings.VM_URL_PATH.format(hash=message.item_hash)
             func_url_2 = settings.VM_URL_HOST.format(hash_base32=hash_base32)
             urls = Text.from_markup(
-                f"[bright_yellow][link={func_url_1}]{func_url_1}[/link][/bright_yellow]\n[dark_olive_green2][link={func_url_2}]{func_url_2}[/link][/dark_olive_green2]"
+                f"URLs ↓\n[bright_yellow][link={func_url_1}]{func_url_1}[/link][/bright_yellow]"
+                f"\n[dark_olive_green2][link={func_url_2}]{func_url_2}[/link][/dark_olive_green2]"
             )
             program = Text.assemble(
-                "Item Hash ↓\t     Name: ", name, "\n", item_hash_link, "\n", created_at, "\n", urls
+                "Item Hash ↓\t     Name: ",
+                name,
+                "\n",
+                item_hash_link,
+                "\n",
+                payment,
+                persistent,
+                "\n",
+                pay_chain,
+                created_at,
+                payer,
+                cost,
+                urls,
             )
             specs = [
                 f"vCPU: [magenta3]{message.content.resources.vcpus}[/magenta3]\n",
@@ -515,7 +604,6 @@ async def list_programs(
                 "HyperV: [magenta3]Firecracker[/magenta3]\n",
                 f"Timeout: [orange3]{message.content.resources.seconds}s[/orange3]\n",
                 f"Internet: {'[green]Yes[/green]' if message.content.environment.internet else '[red]No[/red]'}\n",
-                f"Persistent: {'[green]Yes[/green]' if message.content.on.persistent else '[red]No[/red]'}\n",
                 f"Updatable: {'[green]Yes[/green]' if message.content.allow_amend else '[orange3]Code only[/orange3]'}",
             ]
             specifications = Text.from_markup("".join(specs))
@@ -568,6 +656,9 @@ async def list_programs(
 async def persist(
     item_hash: Annotated[str, typer.Argument(help="Item hash to persist")],
     keep_prev: Annotated[bool, typer.Option(help=help_strings.PROGRAM_KEEP_PREV)] = False,
+    chain: Annotated[
+        Optional[Chain], typer.Option(help=help_strings.PAYMENT_CHAIN_PROGRAM_USED, metavar=metavar_valid_chains)
+    ] = None,
     private_key: Annotated[Optional[str], typer.Option(help=help_strings.PRIVATE_KEY)] = settings.PRIVATE_KEY_STRING,
     private_key_file: Annotated[
         Optional[Path], typer.Option(help=help_strings.PRIVATE_KEY_FILE)
@@ -582,7 +673,7 @@ async def persist(
 
     setup_logging(debug)
 
-    account = _load_account(private_key, private_key_file)
+    account = _load_account(private_key, private_key_file, chain=chain)
 
     async with AuthenticatedAlephHttpClient(account=account, api_server=settings.API_HOST) as client:
         try:
@@ -662,6 +753,9 @@ async def persist(
 async def unpersist(
     item_hash: Annotated[str, typer.Argument(help="Item hash to unpersist")],
     keep_prev: Annotated[bool, typer.Option(help=help_strings.PROGRAM_KEEP_PREV)] = False,
+    chain: Annotated[
+        Optional[Chain], typer.Option(help=help_strings.PAYMENT_CHAIN_PROGRAM_USED, metavar=metavar_valid_chains)
+    ] = None,
     private_key: Annotated[Optional[str], typer.Option(help=help_strings.PRIVATE_KEY)] = settings.PRIVATE_KEY_STRING,
     private_key_file: Annotated[
         Optional[Path], typer.Option(help=help_strings.PRIVATE_KEY_FILE)
@@ -676,7 +770,7 @@ async def unpersist(
 
     setup_logging(debug)
 
-    account = _load_account(private_key, private_key_file)
+    account = _load_account(private_key, private_key_file, chain=chain)
 
     async with AuthenticatedAlephHttpClient(account=account, api_server=settings.API_HOST) as client:
         try:
@@ -755,12 +849,14 @@ async def unpersist(
 @app.command()
 async def logs(
     item_hash: Annotated[str, typer.Argument(help="Item hash of program")],
+    chain: Annotated[
+        Optional[Chain], typer.Option(help=help_strings.PAYMENT_CHAIN_PROGRAM_USED, metavar=metavar_valid_chains)
+    ] = None,
     private_key: Annotated[Optional[str], typer.Option(help=help_strings.PRIVATE_KEY)] = settings.PRIVATE_KEY_STRING,
     private_key_file: Annotated[
         Optional[Path], typer.Option(help=help_strings.PRIVATE_KEY_FILE)
     ] = settings.PRIVATE_KEY_FILE,
     domain: Annotated[Optional[str], typer.Option(help=help_strings.PROMPT_PROGRAM_CRN_URL)] = None,
-    chain: Annotated[Optional[Chain], typer.Option(help=help_strings.ADDRESS_CHAIN)] = None,
     debug: Annotated[bool, typer.Option(help="Enable debug logging")] = False,
 ):
     """Display the logs of a program
@@ -797,6 +893,9 @@ async def logs(
 @app.command()
 async def runtime_checker(
     item_hash: Annotated[str, typer.Argument(help="Item hash of the runtime to check")],
+    chain: Annotated[
+        Optional[Chain], typer.Option(help=help_strings.ADDRESS_CHAIN, metavar=metavar_valid_chains)
+    ] = None,
     private_key: Annotated[Optional[str], typer.Option(help=help_strings.PRIVATE_KEY)] = settings.PRIVATE_KEY_STRING,
     private_key_file: Annotated[
         Optional[Path], typer.Option(help=help_strings.PRIVATE_KEY_FILE)
@@ -826,6 +925,7 @@ async def runtime_checker(
             skip_volume=True,
             skip_env_var=True,
             address=None,
+            payment_chain=chain,
             channel=settings.DEFAULT_CHANNEL,
             private_key=private_key,
             private_key_file=private_key_file,
