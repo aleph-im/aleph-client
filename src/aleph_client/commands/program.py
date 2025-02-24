@@ -49,6 +49,7 @@ from aleph_client.commands import help_strings
 from aleph_client.commands.account import get_balance
 from aleph_client.commands.pricing import PricingEntity, SelectedTier, fetch_pricing
 from aleph_client.commands.utils import (
+    display_mounted_volumes,
     filter_only_valid_messages,
     get_or_prompt_environment_variables,
     get_or_prompt_volumes,
@@ -606,20 +607,6 @@ async def list_programs(
                 f"Updatable: {'[green]Yes[/green]' if message.content.allow_amend else '[orange3]Code only[/orange3]'}",
             ]
             specifications = Text.from_markup("".join(specs))
-            volumes = ""
-            for volume in message.content.volumes:
-                if safe_getattr(volume, "ref"):
-                    volumes += (
-                        f"\n• [orchid]{volume.mount}[/orchid]: [bright_cyan]"
-                        f"[link={settings.API_HOST}/api/v0/messages/{volume.ref}]{volume.ref}[/link][/bright_cyan]"
-                    )
-                elif safe_getattr(volume, "ephemeral"):
-                    volumes += f"\n• [orchid]{volume.mount}[/orchid]: [bright_red]ephemeral[/bright_red]"
-                else:
-                    volumes += (
-                        f"\n• [orchid]{volume.mount}[/orchid]: [orange3]persistent on {volume.persistence.value}"
-                        "[/orange3]"
-                    )
             config = Text.assemble(
                 Text.from_markup(
                     f"Runtime: [bright_cyan][link={settings.API_HOST}/api/v0/messages/{message.content.runtime.ref}]"
@@ -628,7 +615,7 @@ async def list_programs(
                     f"{message.content.code.ref}[/link][/bright_cyan]\n"
                     f"↳ Entrypoint: [orchid]{message.content.code.entrypoint}[/orchid]\n"
                 ),
-                Text.from_markup(f"Mounted Volumes: {volumes if volumes else '-'}"),
+                Text.from_markup(display_mounted_volumes(message)),
             )
             table.add_row(program, specifications, config)
             table.add_section()

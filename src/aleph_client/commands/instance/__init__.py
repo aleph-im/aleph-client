@@ -67,6 +67,7 @@ from aleph_client.commands.instance.network import (
 )
 from aleph_client.commands.pricing import PricingEntity, SelectedTier, fetch_pricing
 from aleph_client.commands.utils import (
+    display_mounted_volumes,
     filter_only_valid_messages,
     find_sevctl_or_exit,
     found_gpus_by_model,
@@ -926,6 +927,7 @@ async def _show_instances(messages: builtins.list[InstanceMessage]):
                     if info["tac_hash"]
                     else ""
                 ),
+                Text.from_markup(display_mounted_volumes(message)),
             )
             table.add_row(instance, specifications, status_column)
             table.add_section()
