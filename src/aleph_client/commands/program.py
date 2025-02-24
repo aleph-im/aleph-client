@@ -174,10 +174,9 @@ async def upload(
             SelectedTier,
             pricing.display_table_for(
                 pricing_entity,
-                compute_units=compute_units or 0,
-                vcpus=vcpus or 0,
-                memory=memory or 0,
-                disk=0,
+                compute_units=compute_units,
+                vcpus=vcpus,
+                memory=memory,
                 selector=True,
                 verbose=verbose,
             ),
@@ -188,7 +187,7 @@ async def upload(
         runtime = runtime or input(f"Ref of runtime? [{settings.DEFAULT_RUNTIME_ID}] ") or settings.DEFAULT_RUNTIME_ID
 
         volumes = []
-        if not skip_volume:
+        if any([persistent_volume, ephemeral_volume, immutable_volume]) or not skip_volume:
             volumes = get_or_prompt_volumes(
                 persistent_volume=persistent_volume,
                 ephemeral_volume=ephemeral_volume,
