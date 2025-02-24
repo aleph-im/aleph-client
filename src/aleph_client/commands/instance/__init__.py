@@ -1513,7 +1513,9 @@ async def gpu_create(
     verbose: Annotated[bool, typer.Option(help="Display additional information")] = True,
     debug: Annotated[bool, typer.Option(help="Enable debug logging")] = False,
 ):
-    """Create and register a new GPU instance on aleph.im"""
+    """Create and register a new GPU instance on aleph.im
+
+    Only compatible with Pay-As-You-Go"""
 
     await create(
         payment_type=PaymentType.superfluid,
