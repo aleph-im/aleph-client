@@ -708,7 +708,7 @@ async def persist(
             infos = [
                 Text.from_markup("Your program is now [green]persistent[/green]. It implies a new item hash."),
                 Text.from_markup(
-                    f"\n\n[{prev_color}]- Prev non-persistent program: {item_hash} -> {prev_label}[/{prev_color}]\n"
+                    f"\n\n[{prev_color}]- Prev non-persistent program: {item_hash} ➜ {prev_label}[/{prev_color}]\n"
                     f"[green]- New persistent program: {message.item_hash}[/green]."
                 ),
                 Text.assemble(
@@ -805,7 +805,7 @@ async def unpersist(
             infos = [
                 Text.from_markup("Your program is now [red]unpersistent[/red]. It implies a new item hash."),
                 Text.from_markup(
-                    f"\n\n[{prev_color}]- Prev persistent program: {item_hash} -> {prev_label}[/{prev_color}]\n[green]-"
+                    f"\n\n[{prev_color}]- Prev persistent program: {item_hash} ➜ {prev_label}[/{prev_color}]\n[green]-"
                     f" New non-persistent program: {message.item_hash}[/green]."
                 ),
                 Text.assemble(

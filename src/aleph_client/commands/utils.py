@@ -187,17 +187,17 @@ def display_mounted_volumes(message: Union[InstanceMessage, ProgramMessage]) -> 
             size_mib = safe_getattr(volume, "size_mib")
             if ref:
                 volumes += (
-                    f"\n[deep_sky_blue1]• {volume.mount} -> immutable: [/deep_sky_blue1][bright_cyan]"
+                    f"\n[deep_sky_blue1]• {volume.mount} ➜ immutable: [/deep_sky_blue1][bright_cyan]"
                     f"[link={settings.API_HOST}/api/v0/messages/{ref}]{ref}[/link][/bright_cyan]"
                 )
             elif safe_getattr(volume, "ephemeral"):
                 volumes += (
-                    f"\n[deep_sky_blue1]• {volume.mount} -> [/deep_sky_blue1]"
+                    f"\n[deep_sky_blue1]• {volume.mount} ➜ [/deep_sky_blue1]"
                     f"[orange3]ephemeral: {size_mib} MiB[/orange3]"
                 )
             else:
                 volumes += (
-                    f"\n[deep_sky_blue1]• {volume.mount} -> [/deep_sky_blue1]"
+                    f"\n[deep_sky_blue1]• {volume.mount} ➜ [/deep_sky_blue1]"
                     f"[orchid]persistent: {size_mib} MiB[/orchid]"
                 )
     return f"\nMounted Volumes: {volumes if volumes else '-'}"
