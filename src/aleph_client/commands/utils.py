@@ -15,7 +15,8 @@ from aleph.sdk.chains.ethereum import ETHAccount
 from aleph.sdk.conf import settings
 from aleph.sdk.exceptions import ForgottenMessageError, MessageNotFoundError
 from aleph.sdk.types import GenericMessage
-from aleph_message.models import AlephMessage, ItemHash
+from aleph.sdk.utils import safe_getattr
+from aleph_message.models import AlephMessage, InstanceMessage, ItemHash, ProgramMessage
 from aleph_message.models.execution.volume import (
     EphemeralVolumeSize,
     PersistentVolumeSizeMib,
@@ -176,6 +177,30 @@ def get_or_prompt_volumes(
                 if immutable_volume_dict:
                     volumes.append(immutable_volume_dict)
     return volumes
+
+
+def display_mounted_volumes(message: Union[InstanceMessage, ProgramMessage]) -> str:
+    volumes = ""
+    if message.content.volumes:
+        for volume in message.content.volumes:
+            ref = safe_getattr(volume, "ref")
+            size_mib = safe_getattr(volume, "size_mib")
+            if ref:
+                volumes += (
+                    f"\n[deep_sky_blue1]• {volume.mount} -> immutable: [/deep_sky_blue1][bright_cyan]"
+                    f"[link={settings.API_HOST}/api/v0/messages/{ref}]{ref}[/link][/bright_cyan]"
+                )
+            elif safe_getattr(volume, "ephemeral"):
+                volumes += (
+                    f"\n[deep_sky_blue1]• {volume.mount} -> [/deep_sky_blue1]"
+                    f"[orange3]ephemeral: {size_mib} MiB[/orange3]"
+                )
+            else:
+                volumes += (
+                    f"\n[deep_sky_blue1]• {volume.mount} -> [/deep_sky_blue1]"
+                    f"[orchid]persistent: {size_mib} MiB[/orchid]"
+                )
+    return f"\nMounted Volumes: {volumes if volumes else '-'}"
 
 
 def env_vars_to_dict(env_vars: Optional[str]) -> dict[str, str]:
