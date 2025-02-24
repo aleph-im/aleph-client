@@ -52,6 +52,7 @@ def create_mock_program_message(
             type="vm-function",
             address=mock_account.get_address(),
             time=1734037086.2333803,
+            payment=Dict(chain=Chain.ETH, receiver=None, type="hold"),
             metadata={
                 "name": f"mock_program{'_internet' if internet else ''}"
                 f"{'_persistent' if persistent else ''}"
@@ -97,6 +98,12 @@ def create_mock_auth_client(mock_account, swap_persistent=False):
         forget=AsyncMock(return_value=(MagicMock(), 200)),
         submit=AsyncMock(return_value=[mock_response_get_message_2, 200, MagicMock()]),
         get_estimated_price=AsyncMock(
+            return_value=MagicMock(
+                required_tokens=1000,
+                payment_type="hold",
+            )
+        ),
+        get_program_price=AsyncMock(
             return_value=MagicMock(
                 required_tokens=1000,
                 payment_type="hold",
@@ -169,23 +176,9 @@ async def test_upload_program():
             name="mock_program",
             runtime=settings.DEFAULT_RUNTIME_ID,
             compute_units=1,
-            vcpus=None,
-            memory=None,
-            timeout_seconds=None,
-            internet=False,
             updatable=True,
-            beta=False,
-            persistent=False,
             skip_volume=True,
             skip_env_var=True,
-            channel=settings.DEFAULT_CHANNEL,
-            private_key=None,
-            private_key_file=None,
-            print_messages=False,
-            print_code_message=False,
-            print_program_message=False,
-            verbose=True,
-            debug=False,
         )
         mock_load_account.assert_called_once()
         mock_auth_client.create_store.assert_called_once()
@@ -209,15 +202,7 @@ async def test_update_program():
     @patch("aleph_client.commands.program.open", MagicMock())
     async def update_program():
         print()  # For better display when pytest -v -s
-        await update(
-            item_hash=FAKE_PROGRAM_HASH,
-            path=Path("/fake/file.squashfs"),
-            private_key=None,
-            private_key_file=None,
-            print_message=False,
-            verbose=True,
-            debug=False,
-        )
+        await update(item_hash=FAKE_PROGRAM_HASH, path=Path("/fake/file.squashfs"))
         mock_load_account.assert_called_once()
         assert mock_auth_client.get_message.call_count == 2
         mock_auth_client.create_store.assert_called_once()
@@ -235,15 +220,7 @@ async def test_delete_program():
     @patch("aleph_client.commands.program.AuthenticatedAlephHttpClient", mock_auth_client_class)
     async def delete_program():
         print()  # For better display when pytest -v -s
-        await delete(
-            item_hash=FAKE_PROGRAM_HASH,
-            keep_code=False,
-            private_key=None,
-            private_key_file=None,
-            print_message=False,
-            verbose=True,
-            debug=False,
-        )
+        await delete(item_hash=FAKE_PROGRAM_HASH)
         mock_load_account.assert_called_once()
         assert mock_auth_client.get_message.call_count == 2
         assert mock_auth_client.forget.call_count == 2
@@ -263,15 +240,10 @@ async def test_list_programs():
     @patch("aleph_client.commands.program.filter_only_valid_messages", mock_program_messages)
     async def list_program():
         print()  # For better display when pytest -v -s
-        await list_programs(
-            address=mock_account.get_address(),
-            private_key=None,
-            private_key_file=None,
-            json=False,
-            debug=False,
-        )
+        await list_programs(address=mock_account.get_address())
         mock_program_messages.assert_called_once()
         mock_auth_client.get_messages.assert_called_once()
+        assert mock_auth_client.get_program_price.call_count == 4
 
     await list_program()
 
@@ -286,15 +258,7 @@ async def test_persist_program():
     @patch("aleph_client.commands.program.AuthenticatedAlephHttpClient", mock_auth_client_class)
     async def persist_program():
         print()  # For better display when pytest -v -s
-        returned = await persist(
-            item_hash=FAKE_PROGRAM_HASH,
-            keep_prev=False,
-            private_key=None,
-            private_key_file=None,
-            print_message=False,
-            verbose=True,
-            debug=False,
-        )
+        returned = await persist(item_hash=FAKE_PROGRAM_HASH)
         mock_load_account.assert_called_once()
         mock_auth_client.get_message.assert_called_once()
         mock_auth_client.submit.assert_called_once()
@@ -314,15 +278,7 @@ async def test_unpersist_program():
     @patch("aleph_client.commands.program.AuthenticatedAlephHttpClient", mock_auth_client_class)
     async def unpersist_program():
         print()  # For better display when pytest -v -s
-        returned = await unpersist(
-            item_hash=FAKE_PROGRAM_HASH,
-            keep_prev=False,
-            private_key=None,
-            private_key_file=None,
-            print_message=False,
-            verbose=True,
-            debug=False,
-        )
+        returned = await unpersist(item_hash=FAKE_PROGRAM_HASH)
         mock_load_account.assert_called_once()
         mock_auth_client.get_message.assert_called_once()
         mock_auth_client.submit.assert_called_once()
@@ -345,7 +301,6 @@ async def test_logs_program(capsys):
             FAKE_VM_HASH,
             domain="https://crn.example.com",
             chain=Chain.ETH,
-            debug=False,
         )
 
     await logs_program()
@@ -363,13 +318,7 @@ async def test_runtime_checker_program():
     @patch("aleph_client.commands.program.delete", mock_delete)
     async def runtime_checker_program():
         print()  # For better display when pytest -v -s
-        await runtime_checker(
-            item_hash=FAKE_STORE_HASH,
-            private_key=None,
-            private_key_file=None,
-            verbose=True,
-            debug=False,
-        )
+        await runtime_checker(item_hash=FAKE_STORE_HASH)
         mock_upload.assert_called_once()
         mock_delete.assert_called_once()
 
