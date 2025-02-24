@@ -25,6 +25,7 @@ from aleph_client.commands.instance import (
     confidential_start,
     create,
     delete,
+    gpu_create,
     list_instances,
     logs,
     reboot,
@@ -120,7 +121,7 @@ def dict_to_ci_multi_dict_proxy(d: dict) -> CIMultiDictProxy:
 
 
 def create_mock_fetch_latest_crn_version():
-    return AsyncMock(return_value="123.420.69")
+    return AsyncMock(return_value="0.0.0")
 
 
 @pytest.mark.asyncio
@@ -241,29 +242,35 @@ def create_mock_validate_ssh_pubkey_file():
     )
 
 
-def create_mock_fetch_crn_info():
+def mock_crn_info():
     mock_machine_info = dummy_machine_info()
-    return AsyncMock(
-        return_value=CRNInfo(
-            hash=ItemHash(FAKE_CRN_HASH),
-            name="Mock CRN",
-            owner=FAKE_ADDRESS_EVM,
-            url=FAKE_CRN_URL,
-            ccn_hash=FAKE_CRN_HASH,
-            status="linked",
-            version="123.420.69",
-            score=0.9,
-            reward_address=FAKE_ADDRESS_EVM,
-            stream_reward_address=mock_machine_info.reward_address,
-            machine_usage=mock_machine_info.machine_usage,
-            ipv6=True,
-            qemu_support=True,
-            confidential_computing=True,
-            gpu_support=True,
-            terms_and_conditions=FAKE_STORE_HASH,
-            compatible_available_gpus=[dummy_gpu_device()],
-        )
+    return CRNInfo(
+        hash=ItemHash(FAKE_CRN_HASH),
+        name="Mock CRN",
+        owner=FAKE_ADDRESS_EVM,
+        url=FAKE_CRN_URL,
+        ccn_hash=FAKE_CRN_HASH,
+        status="linked",
+        version="123.420.69",
+        score=0.9,
+        reward_address=FAKE_ADDRESS_EVM,
+        stream_reward_address=mock_machine_info.reward_address,
+        machine_usage=mock_machine_info.machine_usage,
+        ipv6=True,
+        qemu_support=True,
+        confidential_computing=True,
+        gpu_support=True,
+        terms_and_conditions=FAKE_STORE_HASH,
+        compatible_available_gpus=[gpu.dict() for gpu in mock_machine_info.machine_usage.gpu.available_devices],
     )
+
+
+def create_mock_fetch_crn_info():
+    return AsyncMock(return_value=mock_crn_info())
+
+
+def create_mock_crn_table():
+    return MagicMock(return_value=MagicMock(run_async=AsyncMock(return_value=(mock_crn_info(), 0))))
 
 
 def create_mock_fetch_vm_info():
@@ -363,19 +370,6 @@ def create_mock_vm_coco_client():
     return mock_vm_coco_client_class, mock_vm_coco_client
 
 
-# TODO: GPU test requires a rework
-""" (  # gpu_superfluid_evm
-            {
-                "payment_type": "superfluid",
-                "payment_chain": "BASE",
-                "rootfs": "debian12",
-                "crn_url": FAKE_CRN_URL,
-                "gpu": True,
-            },
-            (FAKE_VM_HASH, FAKE_CRN_URL, "BASE"),
-        ), """
-
-
 @pytest.mark.parametrize(
     ids=[
         "regular_hold_evm",
@@ -384,7 +378,7 @@ def create_mock_vm_coco_client():
         "coco_hold_sol",
         "coco_hold_evm",
         "coco_superfluid_evm",
-        # "gpu_superfluid_evm",
+        "gpu_superfluid_evm",
     ],
     argnames="args, expected",
     argvalues=[
@@ -443,6 +437,16 @@ def create_mock_vm_coco_client():
             },
             (FAKE_VM_HASH, FAKE_CRN_URL, "BASE"),
         ),
+        (  # gpu_superfluid_evm
+            {
+                "payment_type": "superfluid",
+                "payment_chain": "BASE",
+                "rootfs": "debian12",
+                "crn_url": FAKE_CRN_URL,
+                "gpu": True,
+            },
+            (FAKE_VM_HASH, FAKE_CRN_URL, "BASE"),
+        ),
     ],
 )
 @pytest.mark.asyncio
@@ -454,8 +458,11 @@ async def test_create_instance(args, expected):
     mock_client_class, mock_client = create_mock_client(payment_type=args["payment_type"])
     mock_auth_client_class, mock_auth_client = create_mock_auth_client(mock_account, payment_type=args["payment_type"])
     mock_vm_client_class, mock_vm_client = create_mock_vm_client()
+    mock_validated_prompt = MagicMock(return_value="1")
     mock_fetch_latest_crn_version = create_mock_fetch_latest_crn_version()
     mock_fetch_crn_info = create_mock_fetch_crn_info()
+    mock_crn_table = create_mock_crn_table()
+    mock_yes_no_input = MagicMock(side_effect=[False, True, True])
     mock_wait_for_processed_instance = AsyncMock()
     mock_wait_for_confirmed_flow = AsyncMock()
 
@@ -464,8 +471,11 @@ async def test_create_instance(args, expected):
     @patch("aleph_client.commands.instance.get_balance", mock_get_balance)
     @patch("aleph_client.commands.instance.AlephHttpClient", mock_client_class)
     @patch("aleph_client.commands.instance.AuthenticatedAlephHttpClient", mock_auth_client_class)
+    @patch("aleph_client.commands.pricing.validated_prompt", mock_validated_prompt)
     @patch("aleph_client.commands.instance.network.fetch_latest_crn_version", mock_fetch_latest_crn_version)
     @patch("aleph_client.commands.instance.fetch_crn_info", mock_fetch_crn_info)
+    @patch("aleph_client.commands.instance.CRNTable", mock_crn_table)
+    @patch("aleph_client.commands.instance.yes_no_input", mock_yes_no_input)
     @patch("aleph_client.commands.instance.wait_for_processed_instance", mock_wait_for_processed_instance)
     @patch.object(asyncio, "sleep", AsyncMock())
     @patch("aleph_client.commands.instance.wait_for_confirmed_flow", mock_wait_for_confirmed_flow)
@@ -498,7 +508,10 @@ async def test_create_instance(args, expected):
     # CRN related assertions
     if args["payment_type"] == "superfluid" or args.get("confidential") or args.get("gpu"):
         mock_fetch_latest_crn_version.assert_called()
-        mock_fetch_crn_info.assert_called_once()
+        if not args.get("gpu"):
+            mock_fetch_crn_info.assert_called_once()
+        else:
+            mock_crn_table.return_value.run_async.assert_called_once()
         mock_wait_for_processed_instance.assert_called_once()
         mock_vm_client.start_instance.assert_called_once()
     assert returned == expected
@@ -770,3 +783,16 @@ async def test_confidential_create(args):
         mock_allocate.assert_called_once()
     mock_confidential_init_session.assert_called_once()
     mock_confidential_start.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_gpu_create():
+    mock_create = AsyncMock(return_value=[FAKE_VM_HASH, FAKE_CRN_URL, "AVAX"])
+
+    @patch("aleph_client.commands.instance.create", mock_create)
+    async def gpu_instance():
+        print()  # For better display when pytest -v -s
+        await gpu_create()
+        mock_create.assert_called_once()
+
+    await gpu_instance()
