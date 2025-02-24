@@ -16,6 +16,10 @@ from aleph.sdk.conf import settings
 from aleph.sdk.exceptions import ForgottenMessageError, MessageNotFoundError
 from aleph.sdk.types import GenericMessage
 from aleph_message.models import AlephMessage, ItemHash
+from aleph_message.models.execution.volume import (
+    EphemeralVolumeSize,
+    PersistentVolumeSizeMib,
+)
 from aleph_message.status import MessageStatus
 from pygments import highlight
 from pygments.formatters.terminal256 import Terminal256Formatter
@@ -79,14 +83,18 @@ def yes_no_input(text: str, default: str | bool) -> bool:
     )
 
 
+def is_valid_mount_path(mount: str) -> bool:
+    return mount.startswith("/") and len(mount) > 1
+
+
 def prompt_for_volumes():
     while yes_no_input("Add volume?", default=False):
-        mount = validated_prompt("Mount path (ex: /opt/data): ", lambda text: len(text) > 0)
-        comment = Prompt.ask("Comment (description): ")
+        mount = validated_prompt("Mount path (must be absolute, ex: /opt/data)", is_valid_mount_path)
+        comment = Prompt.ask("Comment (description)")
         base_volume = {"mount": mount, "comment": comment}
 
         if yes_no_input("Use an immutable volume?", default=False):
-            ref = validated_prompt("Item hash: ", lambda text: len(text) == 64)
+            ref = validated_prompt("Item hash", lambda text: len(text) == 64)
             use_latest = yes_no_input("Use latest version?", default=True)
             yield {
                 **base_volume,
@@ -96,9 +104,13 @@ def prompt_for_volumes():
         elif yes_no_input("Persist on VM host?", default=False):
             parent = None
             if yes_no_input("Copy from a parent volume?", default=False):
-                parent = {"ref": validated_prompt("Item hash: ", lambda text: len(text) == 64), "use_latest": True}
-            name = validated_prompt("Name: ", lambda text: len(text) > 0)
-            size_mib = validated_int_prompt("Size (MiB): ", min_value=1, max_value=2048000)
+                parent = {"ref": validated_prompt("Item hash", lambda text: len(text) == 64), "use_latest": True}
+            name = validated_prompt("Name", lambda text: len(text) > 0)
+            size_mib = validated_int_prompt(
+                "Size (MiB)",
+                min_value=PersistentVolumeSizeMib.gt + 1,
+                max_value=PersistentVolumeSizeMib.le,
+            )
             yield {
                 **base_volume,
                 "parent": parent,
@@ -107,7 +119,9 @@ def prompt_for_volumes():
                 "size_mib": size_mib,
             }
         else:  # Ephemeral
-            size_mib = validated_int_prompt("Size (MiB): ", min_value=1, max_value=1024)
+            size_mib = validated_int_prompt(
+                "Size (MiB)", min_value=EphemeralVolumeSize.gt + 1, max_value=EphemeralVolumeSize.le
+            )
             yield {
                 **base_volume,
                 "ephemeral": True,
@@ -115,48 +129,52 @@ def prompt_for_volumes():
             }
 
 
-def volume_to_dict(volume: list[str]) -> Optional[dict[str, Union[str, int]]]:
+def volume_to_dict(volume: Optional[str]) -> Optional[dict[str, Union[str, int]]]:
     if not volume:
         return None
     dict_store: dict[str, Union[str, int]] = {}
-    for word in volume:
-        split_values = word.split(",")
-        for param in split_values:
-            p = param.split("=")
-            if p[1].isdigit():
-                dict_store[p[0]] = int(p[1])
-            elif p[1].lower() in ["true", "false"]:
-                dict_store[p[0]] = bool(p[1].capitalize())
-            else:
-                dict_store[p[0]] = p[1]
-    if "mount" not in dict_store:
-        echo(f"Missing 'mount' in volume: {volume}")
-        dict_store["mount"] = validated_prompt("Mount path (ex: /opt/data): ", lambda text: len(text) > 0)
-    if "name" not in dict_store:
-        echo(f"Missing 'name' in volume: {volume}")
-        dict_store["name"] = validated_prompt("Name: ", lambda text: len(text) > 0)
+    split_values = volume.split(",")
+    for param in split_values:
+        p = param.split("=")
+        if p[1].isdigit():
+            dict_store[p[0]] = int(p[1])
+        elif p[1].lower() in ["true", "false"]:
+            dict_store[p[0]] = bool(p[1].capitalize())
+        else:
+            dict_store[p[0]] = p[1]
+    if "mount" not in dict_store or not is_valid_mount_path(str(dict_store["mount"])):
+        echo(f"Missing or invalid 'mount' path in volume: {volume}")
+        dict_store["mount"] = validated_prompt("Mount path (must be absolute, ex: /opt/data)", is_valid_mount_path)
     return dict_store
 
 
-def get_or_prompt_volumes(ephemeral_volume, immutable_volume, persistent_volume):
+def get_or_prompt_volumes(
+    ephemeral_volume: Optional[list[str]], immutable_volume: Optional[list[str]], persistent_volume: Optional[list[str]]
+):
     volumes = []
     # Check if the volumes are empty
     if not any([persistent_volume, ephemeral_volume, immutable_volume]):
         for volume in prompt_for_volumes():
             volumes.append(volume)
-            echo("\n")
 
     # else parse all the volumes that have passed as the cli parameters and put it into volume list
     else:
         if persistent_volume:
-            persistent_volume_dict = volume_to_dict(volume=persistent_volume)
-            volumes.append(persistent_volume_dict)
+            for volume in persistent_volume:
+                persistent_volume_dict = volume_to_dict(volume=volume)
+                if persistent_volume_dict:
+                    persistent_volume_dict.update({"persistence": "host"})
+                    volumes.append(persistent_volume_dict)
         if ephemeral_volume:
-            ephemeral_volume_dict = volume_to_dict(volume=ephemeral_volume)
-            volumes.append(ephemeral_volume_dict)
+            for volume in ephemeral_volume:
+                ephemeral_volume_dict = volume_to_dict(volume=volume)
+                if ephemeral_volume_dict:
+                    volumes.append(ephemeral_volume_dict)
         if immutable_volume:
-            immutable_volume_dict = volume_to_dict(volume=immutable_volume)
-            volumes.append(immutable_volume_dict)
+            for volume in immutable_volume:
+                immutable_volume_dict = volume_to_dict(volume=volume)
+                if immutable_volume_dict:
+                    volumes.append(immutable_volume_dict)
     return volumes
 
 
