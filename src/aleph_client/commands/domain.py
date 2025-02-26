@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from time import sleep
-from typing import Dict, Optional, cast
+from typing import Annotated, Optional, cast
 
 import typer
 from aleph.sdk.account import _load_account
@@ -27,6 +28,8 @@ from rich.table import Table
 from aleph_client.commands import help_strings
 from aleph_client.commands.utils import is_environment_interactive
 from aleph_client.utils import AsyncTyper
+
+logger = logging.getLogger(__name__)
 
 app = AsyncTyper(no_args_is_help=True)
 
@@ -107,7 +110,7 @@ async def attach_resource(
 
         async with AuthenticatedAlephHttpClient(account=account, api_server=settings.API_HOST) as client:
 
-            options: Optional[Dict] = None
+            options: Optional[dict] = None
             if catch_all_path and catch_all_path.startswith("/"):
                 options = {"catch_all_path": catch_all_path}
 
@@ -173,13 +176,15 @@ async def detach_resource(account: AccountFromPrivateKey, fqdn: Hostname, intera
 
 @app.command()
 async def add(
-    private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
-    private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
-    fqdn: str = typer.Argument(..., help=help_strings.CUSTOM_DOMAIN_NAME),
-    target: Optional[TargetType] = typer.Option(None, help=help_strings.CUSTOM_DOMAIN_TARGET_TYPES),
-    item_hash: Optional[str] = typer.Option(None, help=help_strings.CUSTOM_DOMAIN_ITEM_HASH),
-    owner: Optional[str] = typer.Option(None, help=help_strings.CUSTOM_DOMAIN_OWNER_ADDRESS),
-    ask: bool = typer.Option(default=True, help=help_strings.ASK_FOR_CONFIRMATION),
+    fqdn: Annotated[str, typer.Argument(help=help_strings.CUSTOM_DOMAIN_NAME)],
+    target: Annotated[Optional[TargetType], typer.Option(help=help_strings.CUSTOM_DOMAIN_TARGET_TYPES)] = None,
+    item_hash: Annotated[Optional[str], typer.Option(help=help_strings.CUSTOM_DOMAIN_ITEM_HASH)] = None,
+    owner: Annotated[Optional[str], typer.Option(help=help_strings.CUSTOM_DOMAIN_OWNER_ADDRESS)] = None,
+    ask: Annotated[bool, typer.Option(help=help_strings.ASK_FOR_CONFIRMATION)] = True,
+    private_key: Annotated[Optional[str], typer.Option(help=help_strings.PRIVATE_KEY)] = settings.PRIVATE_KEY_STRING,
+    private_key_file: Annotated[
+        Optional[Path], typer.Option(help=help_strings.PRIVATE_KEY_FILE)
+    ] = settings.PRIVATE_KEY_FILE,
 ):
     """Add and link a Custom Domain."""
     account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
@@ -257,12 +262,14 @@ async def add(
 
 @app.command()
 async def attach(
-    private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
-    private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
-    fqdn: str = typer.Argument(..., help=help_strings.CUSTOM_DOMAIN_NAME),
-    item_hash: Optional[str] = typer.Option(None, help=help_strings.CUSTOM_DOMAIN_ITEM_HASH),
-    catch_all_path: str = typer.Option(default=None, help=help_strings.IPFS_CATCH_ALL_PATH),
-    ask: bool = typer.Option(default=True, help=help_strings.ASK_FOR_CONFIRMATION),
+    fqdn: Annotated[str, typer.Argument(help=help_strings.CUSTOM_DOMAIN_NAME)],
+    item_hash: Annotated[Optional[str], typer.Option(help=help_strings.CUSTOM_DOMAIN_ITEM_HASH)] = None,
+    catch_all_path: Annotated[Optional[str], typer.Option(help=help_strings.IPFS_CATCH_ALL_PATH)] = None,
+    ask: Annotated[bool, typer.Option(help=help_strings.ASK_FOR_CONFIRMATION)] = True,
+    private_key: Annotated[Optional[str], typer.Option(help=help_strings.PRIVATE_KEY)] = settings.PRIVATE_KEY_STRING,
+    private_key_file: Annotated[
+        Optional[Path], typer.Option(help=help_strings.PRIVATE_KEY_FILE)
+    ] = settings.PRIVATE_KEY_FILE,
 ):
     """Attach resource to a Custom Domain."""
     account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
@@ -279,10 +286,12 @@ async def attach(
 
 @app.command()
 async def detach(
-    private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
-    private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
-    fqdn: str = typer.Argument(..., help=help_strings.CUSTOM_DOMAIN_NAME),
-    ask: bool = typer.Option(default=True, help=help_strings.ASK_FOR_CONFIRMATION),
+    fqdn: Annotated[str, typer.Argument(help=help_strings.CUSTOM_DOMAIN_NAME)],
+    ask: Annotated[bool, typer.Option(help=help_strings.ASK_FOR_CONFIRMATION)] = True,
+    private_key: Annotated[Optional[str], typer.Option(help=help_strings.PRIVATE_KEY)] = settings.PRIVATE_KEY_STRING,
+    private_key_file: Annotated[
+        Optional[Path], typer.Option(help=help_strings.PRIVATE_KEY_FILE)
+    ] = settings.PRIVATE_KEY_FILE,
 ):
     """Unlink Custom Domain."""
     account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
@@ -293,9 +302,11 @@ async def detach(
 
 @app.command()
 async def info(
-    private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
-    private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
-    fqdn: str = typer.Argument(..., help=help_strings.CUSTOM_DOMAIN_NAME),
+    fqdn: Annotated[str, typer.Argument(help=help_strings.CUSTOM_DOMAIN_NAME)],
+    private_key: Annotated[Optional[str], typer.Option(help=help_strings.PRIVATE_KEY)] = settings.PRIVATE_KEY_STRING,
+    private_key_file: Annotated[
+        Optional[Path], typer.Option(help=help_strings.PRIVATE_KEY_FILE)
+    ] = settings.PRIVATE_KEY_FILE,
 ):
     """Show Custom Domain Details."""
     account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
@@ -318,7 +329,7 @@ async def info(
     options = domain_info["info"].get("options")
     if resource_type == TargetType.IPFS and options and "catch_all_path" in options:
         table.add_column("Catch all path", justify="right", style="cyan", no_wrap=True)
-        print(domain_info)
+        logger.debug(domain_info)
         table_values.append(domain_info["info"]["options"]["catch_all_path"])
     elif resource_type == TargetType.PROGRAM:
         table.add_column("Target resource", justify="right", style="cyan", no_wrap=True)

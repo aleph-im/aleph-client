@@ -15,7 +15,7 @@ Documentation can be found on https://docs.aleph.im/tools/aleph-client/
 Some cryptographic functionalities use curve secp256k1 and require
 installing [libsecp256k1](https://github.com/bitcoin-core/secp256k1).
 
-> apt-get install -y python3-pip libsecp256k1-dev
+> apt-get install -y python3-pip libsecp256k1-dev squashfs-tools
 
 ### macOs
 
@@ -24,8 +24,7 @@ installing [libsecp256k1](https://github.com/bitcoin-core/secp256k1).
 
 ### Windows
 
-The software is not tested on Windows, but should work using 
-the Windows Subsystem for Linux (WSL).
+We recommend using [WSL](https://learn.microsoft.com/en-us/windows/wsl/install) (Windows Subsystem for Linux).
 
 ## Installation
 
@@ -85,28 +84,15 @@ To install from source and still be able to modify the source code:
 
 ## Updating the User Documentation
 
-The user documentation for Aleph is maintained in the `aleph-docs` repository. When releasing a new version, it's
-important to update the documentation as part of the release process.
-
-### Steps for Updating Documentation
-
-Documentation is generated using the `typer` command.
+The user documentation for Aleph is maintained in the [aleph-docs](https://github.com/aleph-im/aleph-docs) repository. The CLI page is generated using the `typer` command. When releasing a new version, it's important to update the documentation as part of the release process.
 
 If you have the `aleph-docs` repository cloned as a sibling folder to your current directory, you can use the following
 command to generate updated documentation:
 
 ```shell
-./scripts/gendoc.py   src/aleph_client/__main__.py docs --name aleph --title 'Aleph CLI Documentation' --output ../aleph-docs/docs/tools/aleph-client/usage.md
+./scripts/gendoc.py src/aleph_client/__main__.py docs \
+    --name aleph --title 'Aleph CLI Documentation' \
+    --output ../aleph-docs/docs/tools/aleph-client/usage.md
 ```
 
-After generating the documentation, you may need to update the path for the private key, as this depends on the user
-configuration. This can be fixed manually using the `sed` command. For example:
-
-```shell
-sed -i 's#/home/olivier/.aleph-im/private-keys/sol2.key#~/.aleph-im/private-keys/ethereum.key#' ../aleph-docs/docs/tools/aleph-client/usage.md
-```
-
-This command replaces any hardcoded private key paths with the correct configuration path (
-`~/.aleph-im/private-keys/ethereum.key`).
-
-Once the documentation is updated, open a Pull Request (PR) on the `aleph-docs` repository with your changes.
+Then, open a Pull Request (PR) on the [aleph-docs](https://github.com/aleph-im/aleph-docs/pulls) repository with your changes.

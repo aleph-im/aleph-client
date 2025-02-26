@@ -1,4 +1,5 @@
 import json
+import os
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 
@@ -7,6 +8,12 @@ from aleph.sdk.conf import settings
 from typer.testing import CliRunner
 
 from aleph_client.__main__ import app
+
+from .mocks import (
+    FAKE_STORE_HASH,
+    FAKE_STORE_HASH_CONTENT_FILE_CID,
+    FAKE_STORE_HASH_PUBLISHER,
+)
 
 runner = CliRunner()
 
@@ -136,9 +143,7 @@ def test_account_balance(env_files):
         app, ["account", "balance", "--address", "0xCAfEcAfeCAfECaFeCaFecaFecaFECafECafeCaFe", "--chain", "ETH"]
     )
     assert result.exit_code == 0
-    assert result.stdout.startswith(
-        "Failed to retrieve balance for address 0xCAfEcAfeCAfECaFeCaFecaFecaFECafECafeCaFe. Status code: 404"
-    )
+    assert result.stdout.startswith("╭─ Account Infos")
 
 
 def test_account_config(env_files):
@@ -157,11 +162,11 @@ def test_message_get():
         [
             "message",
             "get",
-            "bd79839bf96e595a06da5ac0b6ba51dea6f7e2591bb913deccded04d831d29f4",
+            FAKE_STORE_HASH,
         ],
     )
     assert result.exit_code == 0
-    assert "0x101d8D16372dBf5f1614adaE95Ee5CCE61998Fc9" in result.stdout
+    assert FAKE_STORE_HASH_PUBLISHER in result.stdout
 
 
 def test_message_find():
@@ -174,12 +179,12 @@ def test_message_find():
             "--page=1",
             "--start-date=1234",
             "--chains=ETH",
-            "--hashes=bd79839bf96e595a06da5ac0b6ba51dea6f7e2591bb913deccded04d831d29f4",
+            f"--hashes={FAKE_STORE_HASH}",
         ],
     )
     assert result.exit_code == 0
-    assert "0x101d8D16372dBf5f1614adaE95Ee5CCE61998Fc9" in result.stdout
-    assert "bd79839bf96e595a06da5ac0b6ba51dea6f7e2591bb913deccded04d831d29f4" in result.stdout
+    assert FAKE_STORE_HASH_PUBLISHER in result.stdout
+    assert FAKE_STORE_HASH in result.stdout
 
 
 def test_post_message(env_files):
@@ -282,14 +287,45 @@ def test_file_upload():
 
 
 def test_file_download():
-    # Test download a file to aleph network
+    # Test download a file from aleph network
+    ipfs_cid = "QmeomffUNfmQy76CQGy9NdmqEnnHU9soCexBnGU3ezPHVH"
     result = runner.invoke(
         app,
         [
             "file",
             "download",
-            "QmeomffUNfmQy76CQGy9NdmqEnnHU9soCexBnGU3ezPHVH",
+            ipfs_cid,
         ],  # 5 bytes file
     )
     assert result.exit_code == 0
     assert result.stdout is not None
+    os.remove(ipfs_cid)
+
+
+def test_file_download_only_info():
+    # Test retrieve the underlying content cid
+    result = runner.invoke(
+        app,
+        [
+            "file",
+            "download",
+            FAKE_STORE_HASH,
+            "--only-info",
+        ],
+        standalone_mode=False,
+    )
+    assert result.exit_code == 0
+    assert result.return_value.dict()["hash"] == FAKE_STORE_HASH_CONTENT_FILE_CID
+
+
+def test_file_list():
+    result = runner.invoke(
+        app,
+        [
+            "file",
+            "list",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert "0x" in result.stdout

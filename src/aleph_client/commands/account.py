@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from pathlib import Path
-from typing import Optional
+from typing import Annotated, Optional
 
 import aiohttp
 import typer
@@ -21,11 +21,13 @@ from aleph.sdk.evm_utils import (
     get_chains_with_super_token,
     get_compatible_chains,
 )
-from aleph.sdk.utils import bytes_from_hex
+from aleph.sdk.utils import bytes_from_hex, displayable_amount
 from aleph_message.models import Chain
 from rich.console import Console
+from rich.panel import Panel
 from rich.prompt import Prompt
 from rich.table import Table
+from rich.text import Text
 from typer.colors import GREEN, RED
 
 from aleph_client.commands import help_strings
@@ -44,12 +46,12 @@ console = Console()
 
 @app.command()
 async def create(
-    private_key: Optional[str] = typer.Option(None, help=help_strings.PRIVATE_KEY),
-    private_key_file: Optional[Path] = typer.Option(None, help=help_strings.PRIVATE_KEY_FILE),
-    chain: Optional[Chain] = typer.Option(default=None, help=help_strings.ORIGIN_CHAIN),
-    replace: bool = typer.Option(default=False, help=help_strings.CREATE_REPLACE),
-    active: bool = typer.Option(default=True, help=help_strings.CREATE_ACTIVE),
-    debug: bool = False,
+    private_key: Annotated[Optional[str], typer.Option(help=help_strings.PRIVATE_KEY)] = None,
+    private_key_file: Annotated[Optional[Path], typer.Option(help=help_strings.PRIVATE_KEY_FILE)] = None,
+    chain: Annotated[Optional[Chain], typer.Option(help=help_strings.ORIGIN_CHAIN)] = None,
+    replace: Annotated[bool, typer.Option(help=help_strings.CREATE_REPLACE)] = False,
+    active: Annotated[bool, typer.Option(help=help_strings.CREATE_ACTIVE)] = True,
+    debug: Annotated[bool, typer.Option()] = False,
 ):
     """Create or import a private key."""
 
@@ -118,8 +120,10 @@ async def create(
 
 @app.command(name="address")
 def display_active_address(
-    private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
-    private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
+    private_key: Annotated[Optional[str], typer.Option(help=help_strings.PRIVATE_KEY)] = settings.PRIVATE_KEY_STRING,
+    private_key_file: Annotated[
+        Optional[Path], typer.Option(help=help_strings.PRIVATE_KEY_FILE)
+    ] = settings.PRIVATE_KEY_FILE,
 ):
     """
     Display your public address(es).
@@ -136,8 +140,8 @@ def display_active_address(
 
     console.print(
         "✉  [bold italic blue]Addresses for Active Account[/bold italic blue] ✉\n\n"
-        + f"[italic]EVM[/italic]: [cyan]{evm_address}[/cyan]\n"
-        + f"[italic]SOL[/italic]: [magenta]{sol_address}[/magenta]\n"
+        f"[italic]EVM[/italic]: [cyan]{evm_address}[/cyan]\n"
+        f"[italic]SOL[/italic]: [magenta]{sol_address}[/magenta]\n"
     )
 
 
@@ -154,7 +158,7 @@ def display_active_chain():
         active_chain = config.chain
 
     compatible_chains = get_compatible_chains()
-    hold_chains = get_chains_with_holding() + [Chain.SOL.value]
+    hold_chains = [*get_chains_with_holding(), Chain.SOL.value]
     payg_chains = get_chains_with_super_token()
 
     chain = f"[bold green]{active_chain}[/bold green]" if active_chain else "[red]Not Selected[/red]"
@@ -181,8 +185,10 @@ def path_directory():
 
 @app.command()
 def show(
-    private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
-    private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
+    private_key: Annotated[Optional[str], typer.Option(help=help_strings.PRIVATE_KEY)] = settings.PRIVATE_KEY_STRING,
+    private_key_file: Annotated[
+        Optional[Path], typer.Option(help=help_strings.PRIVATE_KEY_FILE)
+    ] = settings.PRIVATE_KEY_FILE,
 ):
     """Display current configuration."""
 
@@ -192,8 +198,8 @@ def show(
 
 @app.command()
 def export_private_key(
-    private_key: Optional[str] = typer.Option(None, help=help_strings.PRIVATE_KEY),
-    private_key_file: Optional[Path] = typer.Option(None, help=help_strings.PRIVATE_KEY_FILE),
+    private_key: Annotated[Optional[str], typer.Option(help=help_strings.PRIVATE_KEY)] = None,
+    private_key_file: Annotated[Optional[Path], typer.Option(help=help_strings.PRIVATE_KEY_FILE)] = None,
 ):
     """
     Display your private key.
@@ -210,19 +216,21 @@ def export_private_key(
 
     console.print(
         "⚠️  [bold italic red]Private Keys for Active Account[/bold italic red] ⚠️\n\n"
-        + f"[italic]EVM[/italic]: [cyan]{evm_pk}[/cyan]\n"
-        + f"[italic]SOL[/italic]: [magenta]{sol_pk}[/magenta]\n\n"
-        + "[bold italic red]Note: Aleph.im team will NEVER ask for them.[/bold italic red]"
+        f"[italic]EVM[/italic]: [cyan]{evm_pk}[/cyan]\n"
+        f"[italic]SOL[/italic]: [magenta]{sol_pk}[/magenta]\n\n"
+        "[bold italic red]Note: Aleph.im team will NEVER ask for them.[/bold italic red]"
     )
 
 
 @app.command("sign-bytes")
 def sign_bytes(
-    message: Optional[str] = typer.Option(None, help="Message to sign"),
-    private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
-    private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
-    chain: Optional[Chain] = typer.Option(None, help=help_strings.ADDRESS_CHAIN),
-    debug: bool = False,
+    message: Annotated[Optional[str], typer.Option(help="Message to sign")] = None,
+    private_key: Annotated[Optional[str], typer.Option(help=help_strings.PRIVATE_KEY)] = settings.PRIVATE_KEY_STRING,
+    private_key_file: Annotated[
+        Optional[Path], typer.Option(help=help_strings.PRIVATE_KEY_FILE)
+    ] = settings.PRIVATE_KEY_FILE,
+    chain: Annotated[Optional[Chain], typer.Option(help=help_strings.ADDRESS_CHAIN)] = None,
+    debug: Annotated[bool, typer.Option()] = False,
 ):
     """Sign a message using your private key."""
 
@@ -233,17 +241,34 @@ def sign_bytes(
     if not message:
         message = input_multiline()
 
-    coroutine = account.sign_raw(message.encode())
+    assert message is not None  # to please mypy
+    coroutine = account.sign_raw(str(message).encode())
     signature = asyncio.run(coroutine)
     typer.echo("\nSignature: " + f"0x{signature.hex()}")
 
 
+async def get_balance(address: str) -> dict:
+    balance_data: dict = {}
+    uri = f"{settings.API_HOST}/api/v0/addresses/{address}/balance"
+    async with aiohttp.ClientSession() as session:
+        response = await session.get(uri)
+        if response.status == 200:
+            balance_data = await response.json()
+            balance_data["available_amount"] = balance_data["balance"] - balance_data["locked_amount"]
+        else:
+            error = f"Failed to retrieve balance for address {address}. Status code: {response.status}"
+            raise Exception(error)
+    return balance_data
+
+
 @app.command()
 async def balance(
-    address: Optional[str] = typer.Option(None, help="Address"),
-    private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
-    private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
-    chain: Optional[Chain] = typer.Option(None, help=help_strings.ADDRESS_CHAIN),
+    address: Annotated[Optional[str], typer.Option(help="Address")] = None,
+    private_key: Annotated[Optional[str], typer.Option(help=help_strings.PRIVATE_KEY)] = settings.PRIVATE_KEY_STRING,
+    private_key_file: Annotated[
+        Optional[Path], typer.Option(help=help_strings.PRIVATE_KEY_FILE)
+    ] = settings.PRIVATE_KEY_FILE,
+    chain: Annotated[Optional[Chain], typer.Option(help=help_strings.ADDRESS_CHAIN)] = None,
 ):
     """Display your ALEPH balance."""
     account = _load_account(private_key, private_key_file, chain=chain)
@@ -252,25 +277,46 @@ async def balance(
         address = account.get_address()
 
     if address:
-        uri = f"{settings.API_HOST}/api/v0/addresses/{address}/balance"
-
-        async with aiohttp.ClientSession() as session:
-            response = await session.get(uri)
-            if response.status == 200:
-                balance_data = await response.json()
-                balance_data["available_amount"] = balance_data["balance"] - balance_data["locked_amount"]
-                typer.echo(
-                    "\n"
-                    + f"Address: {balance_data['address']}\n"
-                    + f"Balance: {balance_data['balance']:.2f}".rstrip("0").rstrip(".")
-                    + "\n"
-                    + f" - Locked: {balance_data['locked_amount']:.2f}".rstrip("0").rstrip(".")
-                    + "\n"
-                    + f" - Available: {balance_data['available_amount']:.2f}".rstrip("0").rstrip(".")
-                    + "\n"
+        try:
+            balance_data = await get_balance(address)
+            infos = [
+                Text.from_markup(f"Address: [bright_cyan]{balance_data['address']}[/bright_cyan]"),
+                Text.from_markup(
+                    f"\nBalance: [bright_cyan]{displayable_amount(balance_data['balance'], decimals=2)}[/bright_cyan]"
+                ),
+            ]
+            details = balance_data.get("details")
+            if details:
+                infos += [Text("\n ↳ Details")]
+                for chain_, chain_balance in details.items():
+                    infos += [
+                        Text.from_markup(
+                            f"\n    {chain_}: [orange3]{displayable_amount(chain_balance, decimals=2)}[/orange3]"
+                        )
+                    ]
+            available_color = "bright_cyan" if balance_data["available_amount"] >= 0 else "red"
+            infos += [
+                Text.from_markup(
+                    f"\n - Locked: [bright_cyan]{displayable_amount(balance_data['locked_amount'], decimals=2)}"
+                    "[/bright_cyan]"
+                ),
+                Text.from_markup(
+                    f"\n - Available: [{available_color}]"
+                    f"{displayable_amount(balance_data['available_amount'], decimals=2)}"
+                    f"[/{available_color}]"
+                ),
+            ]
+            console.print(
+                Panel(
+                    Text.assemble(*infos),
+                    title="Account Infos",
+                    border_style="bright_cyan",
+                    expand=False,
+                    title_align="left",
                 )
-            else:
-                typer.echo(f"Failed to retrieve balance for address {address}. Status code: {response.status}")
+            )
+        except Exception as e:
+            typer.echo(e)
     else:
         typer.echo("Error: Please provide either a private key, private key file, or an address.")
 
@@ -294,7 +340,8 @@ async def list_accounts():
         table.add_row(config.path.stem, str(config.path), "[bold green]*[/bold green]")
     else:
         console.print(
-            "[red]No private key path selected in the config file.[/red]\nTo set it up, use: [bold italic cyan]aleph account config[/bold italic cyan]\n"
+            "[red]No private key path selected in the config file.[/red]\nTo set it up, use: [bold "
+            "italic cyan]aleph account config[/bold italic cyan]\n"
         )
 
     if unlinked_keys:
@@ -302,7 +349,7 @@ async def list_accounts():
             if key_file.stem != "default":
                 table.add_row(key_file.stem, str(key_file), "[bold red]-[/bold red]")
 
-    hold_chains = get_chains_with_holding() + [Chain.SOL.value]
+    hold_chains = [*get_chains_with_holding(), Chain.SOL.value]
     payg_chains = get_chains_with_super_token()
 
     active_address = None
@@ -312,10 +359,10 @@ async def list_accounts():
 
     console.print(
         "🌐  [bold italic blue]Chain Infos[/bold italic blue] 🌐\n"
-        + f"[italic]Chains with Signing[/italic]: [blue]{', '.join(list(Chain))}[/blue]\n"
-        + f"[italic]Chains with Hold-tier[/italic]: [blue]{', '.join(hold_chains)}[/blue]\n"
-        + f"[italic]Chains with Pay-As-You-Go[/italic]: [blue]{', '.join(payg_chains)}[/blue]\n\n"
-        + "🗃️  [bold italic green]Current Configuration[/bold italic green] 🗃️\n"
+        f"[italic]Chains with Signing[/italic]: [blue]{', '.join(list(Chain))}[/blue]\n"
+        f"[italic]Chains with Hold-tier[/italic]: [blue]{', '.join(hold_chains)}[/blue]\n"
+        f"[italic]Chains with Pay-As-You-Go[/italic]: [blue]{', '.join(payg_chains)}[/blue]\n\n"
+        "🗃️  [bold italic green]Current Configuration[/bold italic green] 🗃️\n"
         + (f"[italic]Active Address[/italic]: [bright_cyan]{active_address}[/bright_cyan]" if active_address else "")
     )
     display_active_chain()
@@ -324,8 +371,8 @@ async def list_accounts():
 
 @app.command(name="config")
 async def configure(
-    private_key_file: Optional[Path] = typer.Option(None, help="New path to the private key file"),
-    chain: Optional[Chain] = typer.Option(None, help="New active chain"),
+    private_key_file: Annotated[Optional[Path], typer.Option(help="New path to the private key file")] = None,
+    chain: Annotated[Optional[Chain], typer.Option(help="New active chain")] = None,
 ):
     """Configure current private key file and active chain (default selection)"""
 
@@ -346,7 +393,8 @@ async def configure(
     # Configures active private key file
     if not private_key_file and config and hasattr(config, "path") and Path(config.path).exists():
         if not yes_no_input(
-            f"Active private key file: [bright_cyan]{config.path}[/bright_cyan]\n[yellow]Keep current active private key?[/yellow]",
+            f"Active private key file: [bright_cyan]{config.path}[/bright_cyan]\n[yellow]Keep current active private "
+            "key?[/yellow]",
             default="y",
         ):
             unlinked_keys = list(filter(lambda key_file: key_file.stem != "default", unlinked_keys))
@@ -397,9 +445,10 @@ async def configure(
         config = MainConfiguration(path=private_key_file, chain=chain)
         save_main_configuration(settings.CONFIG_FILE, config)
         console.print(
-            f"New Default Configuration: [italic bright_cyan]{config.path}[/italic bright_cyan] with [italic bright_cyan]{config.chain}[/italic bright_cyan]",
+            f"New Default Configuration: [italic bright_cyan]{config.path}[/italic bright_cyan] with [italic "
+            f"bright_cyan]{config.chain}[/italic bright_cyan]",
             style=typer.colors.GREEN,
         )
     except ValueError as e:
         typer.secho(f"Error: {e}", fg=typer.colors.RED)
-        raise typer.Exit(1)
+        raise typer.Exit(1) from e

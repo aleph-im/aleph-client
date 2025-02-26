@@ -16,11 +16,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-13, macos-14, ubuntu-20.04, ubuntu-22.04, ubuntu-24.04]
+        os: [macos-13, macos-14, ubuntu-22.04, ubuntu-24.04]
     runs-on: ${{matrix.os}}
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
 
       - name: Workaround github issue https://github.com/actions/runner-images/issues/7192
         if: startsWith(matrix.os, 'ubuntu-')
@@ -35,7 +35,7 @@ jobs:
 
       - name: Set up Python for macOS
         if: startsWith(matrix.os, 'macos')
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v5
         with:
           python-version: 3.11
 

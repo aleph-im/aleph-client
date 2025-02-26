@@ -4,10 +4,11 @@ import asyncio
 import json
 import logging
 import os
+import shutil
 import sys
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, TypeVar, Union
+from typing import Any, Callable, Optional, TypeVar, Union
 
 from aiohttp import ClientSession
 from aleph.sdk import AlephHttpClient
@@ -15,13 +16,18 @@ from aleph.sdk.chains.ethereum import ETHAccount
 from aleph.sdk.conf import settings
 from aleph.sdk.exceptions import ForgottenMessageError, MessageNotFoundError
 from aleph.sdk.types import GenericMessage
-from aleph_message.models import AlephMessage, ItemHash
+from aleph.sdk.utils import safe_getattr
+from aleph_message.models import AlephMessage, InstanceMessage, ItemHash, ProgramMessage
+from aleph_message.models.execution.volume import (
+    EphemeralVolumeSize,
+    PersistentVolumeSizeMib,
+)
 from aleph_message.status import MessageStatus
 from pygments import highlight
 from pygments.formatters.terminal256 import Terminal256Formatter
 from pygments.lexers import JsonLexer
 from rich.prompt import IntPrompt, Prompt, PromptError
-from typer import colors, echo, style
+from typer import Exit, colors, echo, style
 
 from aleph_client.utils import fetch_json
 
@@ -79,81 +85,149 @@ def yes_no_input(text: str, default: str | bool) -> bool:
     )
 
 
+def is_valid_mount_path(mount: str) -> bool:
+    return mount.startswith("/") and len(mount) > 1
+
+
 def prompt_for_volumes():
-    while yes_no_input("Add volume ?", default=False):
-        mount = validated_prompt("Mount path (ex: /opt/data): ", lambda text: len(text) > 0)
-        name = validated_prompt("Name: ", lambda text: len(text) > 0)
-        comment = Prompt.ask("Comment: ")
-        persistent = yes_no_input("Persist on VM host?", default=False)
-        if persistent:
-            size_mib = validated_int_prompt("Size (MiB): ", min_value=1)
+    while yes_no_input("Add volume?", default=False):
+        mount = validated_prompt("Mount path (must be absolute, ex: /opt/data)", is_valid_mount_path)
+        comment = Prompt.ask("Comment (description)")
+        base_volume = {"mount": mount, "comment": comment}
+
+        if yes_no_input("Use an immutable volume?", default=False):
+            ref = validated_prompt("Item hash", lambda text: len(text) == 64)
+            use_latest = yes_no_input("Use latest version?", default=True)
             yield {
-                "comment": comment,
-                "mount": mount,
-                "name": name,
-                "persistence": "host",
-                "size_mib": size_mib,
-            }
-        else:
-            ref = validated_prompt("Item hash: ", lambda text: len(text) == 64)
-            use_latest = yes_no_input("Use latest version ?", default=True)
-            yield {
-                "comment": comment,
-                "mount": mount,
-                "name": name,
+                **base_volume,
                 "ref": ref,
                 "use_latest": use_latest,
             }
+        elif yes_no_input("Persist on VM host?", default=False):
+            parent = None
+            if yes_no_input("Copy from a parent volume?", default=False):
+                parent = {"ref": validated_prompt("Item hash", lambda text: len(text) == 64), "use_latest": True}
+            name = validated_prompt("Name", lambda text: len(text) > 0)
+            size_mib = validated_int_prompt(
+                "Size (MiB)",
+                min_value=PersistentVolumeSizeMib.gt + 1,
+                max_value=PersistentVolumeSizeMib.le,
+            )
+            yield {
+                **base_volume,
+                "parent": parent,
+                "persistence": "host",
+                "name": name,
+                "size_mib": size_mib,
+            }
+        else:  # Ephemeral
+            size_mib = validated_int_prompt(
+                "Size (MiB)", min_value=EphemeralVolumeSize.gt + 1, max_value=EphemeralVolumeSize.le
+            )
+            yield {
+                **base_volume,
+                "ephemeral": True,
+                "size_mib": size_mib,
+            }
 
 
-def volume_to_dict(volume: List[str]) -> Optional[Dict[str, Union[str, int]]]:
+def volume_to_dict(volume: Optional[str]) -> Optional[dict[str, Union[str, int]]]:
     if not volume:
         return None
-    dict_store: Dict[str, Union[str, int]] = {}
-    for word in volume:
-        split_values = word.split(",")
-        for param in split_values:
-            p = param.split("=")
-            if p[1].isdigit():
-                dict_store[p[0]] = int(p[1])
-            elif p[1].lower() in ["true", "false"]:
-                dict_store[p[0]] = bool(p[1].capitalize())
-            else:
-                dict_store[p[0]] = p[1]
-    if "mount" not in dict_store:
-        echo(f"Missing 'mount' in volume: {volume}")
-        dict_store["mount"] = validated_prompt("Mount path (ex: /opt/data): ", lambda text: len(text) > 0)
-    if "name" not in dict_store:
-        echo(f"Missing 'name' in volume: {volume}")
-        dict_store["name"] = validated_prompt("Name: ", lambda text: len(text) > 0)
+    dict_store: dict[str, Union[str, int]] = {}
+    split_values = volume.split(",")
+    for param in split_values:
+        p = param.split("=")
+        if p[1].isdigit():
+            dict_store[p[0]] = int(p[1])
+        elif p[1].lower() in ["true", "false"]:
+            dict_store[p[0]] = bool(p[1].capitalize())
+        else:
+            dict_store[p[0]] = p[1]
+    if "mount" not in dict_store or not is_valid_mount_path(str(dict_store["mount"])):
+        echo(f"Missing or invalid 'mount' path in volume: {volume}")
+        dict_store["mount"] = validated_prompt("Mount path (must be absolute, ex: /opt/data)", is_valid_mount_path)
     return dict_store
 
 
-def get_or_prompt_volumes(ephemeral_volume, immutable_volume, persistent_volume):
+def get_or_prompt_volumes(
+    ephemeral_volume: Optional[list[str]], immutable_volume: Optional[list[str]], persistent_volume: Optional[list[str]]
+):
     volumes = []
     # Check if the volumes are empty
     if not any([persistent_volume, ephemeral_volume, immutable_volume]):
         for volume in prompt_for_volumes():
             volumes.append(volume)
-            echo("\n")
 
     # else parse all the volumes that have passed as the cli parameters and put it into volume list
     else:
         if persistent_volume:
-            persistent_volume_dict = volume_to_dict(volume=persistent_volume)
-            volumes.append(persistent_volume_dict)
+            for volume in persistent_volume:
+                persistent_volume_dict = volume_to_dict(volume=volume)
+                if persistent_volume_dict:
+                    persistent_volume_dict.update({"persistence": "host"})
+                    volumes.append(persistent_volume_dict)
         if ephemeral_volume:
-            ephemeral_volume_dict = volume_to_dict(volume=ephemeral_volume)
-            volumes.append(ephemeral_volume_dict)
+            for volume in ephemeral_volume:
+                ephemeral_volume_dict = volume_to_dict(volume=volume)
+                if ephemeral_volume_dict:
+                    volumes.append(ephemeral_volume_dict)
         if immutable_volume:
-            immutable_volume_dict = volume_to_dict(volume=immutable_volume)
-            volumes.append(immutable_volume_dict)
+            for volume in immutable_volume:
+                immutable_volume_dict = volume_to_dict(volume=volume)
+                if immutable_volume_dict:
+                    volumes.append(immutable_volume_dict)
     return volumes
+
+
+def display_mounted_volumes(message: Union[InstanceMessage, ProgramMessage]) -> str:
+    volumes = ""
+    if message.content.volumes:
+        for volume in message.content.volumes:
+            ref = safe_getattr(volume, "ref")
+            size_mib = safe_getattr(volume, "size_mib")
+            if ref:
+                volumes += (
+                    f"\n[deep_sky_blue1]• {volume.mount} ➜ immutable: [/deep_sky_blue1][bright_cyan]"
+                    f"[link={settings.API_HOST}/api/v0/messages/{ref}]{ref}[/link][/bright_cyan]"
+                )
+            elif safe_getattr(volume, "ephemeral"):
+                volumes += (
+                    f"\n[deep_sky_blue1]• {volume.mount} ➜ [/deep_sky_blue1]"
+                    f"[orange3]ephemeral: {size_mib} MiB[/orange3]"
+                )
+            else:
+                volumes += (
+                    f"\n[deep_sky_blue1]• {volume.mount} ➜ [/deep_sky_blue1]"
+                    f"[orchid]persistent: {size_mib} MiB[/orchid]"
+                )
+    return f"\nMounted Volumes: {volumes if volumes else '-'}"
+
+
+def env_vars_to_dict(env_vars: Optional[str]) -> dict[str, str]:
+    dict_store: dict[str, str] = {}
+    if env_vars:
+        for env_var in env_vars.split(","):
+            label, value = env_var.split("=", 1)
+            dict_store[label.strip()] = value.strip()
+    return dict_store
+
+
+def get_or_prompt_environment_variables(env_vars: Optional[str]) -> Optional[dict[str, str]]:
+    environment_variables: dict[str, str] = {}
+    if not env_vars:
+        while yes_no_input("Add environment variable?", default=False):
+            label = validated_prompt("Label: ", lambda text: len(text) > 0)
+            value = validated_prompt("Value: ", lambda text: len(text) > 0)
+            environment_variables[label] = value
+    else:
+        environment_variables = env_vars_to_dict(env_vars)
+    return environment_variables if environment_variables else None
 
 
 def str_to_datetime(date: Optional[str]) -> Optional[datetime]:
     """
-    Converts a string representation of a date/time to a datetime object.
+    Converts a string representation of a date/time to a datetime object in local time.
 
     The function can accept either a timestamp or an ISO format datetime string as the input.
     """
@@ -161,10 +235,13 @@ def str_to_datetime(date: Optional[str]) -> Optional[datetime]:
         return None
     try:
         date_f = float(date)
-        return datetime.fromtimestamp(date_f)
+        utc_dt = datetime.fromtimestamp(date_f, tz=timezone.utc)
+        return utc_dt.astimezone()
     except ValueError:
-        pass
-    return datetime.fromisoformat(date)
+        dt = datetime.fromisoformat(date)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt.astimezone()
 
 
 T = TypeVar("T")
@@ -206,7 +283,7 @@ def validated_int_prompt(
     while True:
         try:
             value = IntPrompt.ask(
-                prompt + f" [min: {min_value or '-'}, max: {max_value or '-'}]",
+                prompt + f" [orange1]<min: {min_value or '-'}, max: {max_value or '-'}>[/orange1]",
                 default=default,
             )
         except PromptError:
@@ -240,14 +317,6 @@ def is_environment_interactive() -> bool:
     )
 
 
-def safe_getattr(obj, attr, default=None):
-    for part in attr.split("."):
-        obj = getattr(obj, part, default)
-        if obj is default:
-            break
-    return obj
-
-
 async def wait_for_processed_instance(session: ClientSession, item_hash: ItemHash):
     """Wait for a message to be processed by CCN"""
     while True:
@@ -259,7 +328,8 @@ async def wait_for_processed_instance(session: ClientSession, item_hash: ItemHas
             echo(f"Message {item_hash} is still pending, waiting 10sec...")
             await asyncio.sleep(10)
         elif message["status"] == "rejected":
-            raise Exception(f"Message {item_hash} has been rejected")
+            msg = f"Message {item_hash} has been rejected"
+            raise Exception(msg)
 
 
 async def wait_for_confirmed_flow(account: ETHAccount, receiver: str):
@@ -272,7 +342,7 @@ async def wait_for_confirmed_flow(account: ETHAccount, receiver: str):
         await asyncio.sleep(10)
 
 
-async def filter_only_valid_messages(messages: List[AlephMessage]):
+async def filter_only_valid_messages(messages: list[AlephMessage]):
     """Iteratively check the status of each message from the API and only return
     messages whose status is processed.
     """
@@ -294,7 +364,45 @@ def validate_ssh_pubkey_file(file: Union[str, Path]) -> Path:
     if isinstance(file, str):
         file = Path(file).expanduser()
     if not file.exists():
-        raise ValueError(f"{file} does not exist")
+        msg = f"{file} does not exist"
+        raise ValueError(msg)
     if not file.is_file():
-        raise ValueError(f"{file} is not a file")
+        msg = f"{file} is not a file"
+        raise ValueError(msg)
     return file
+
+
+def find_sevctl_or_exit() -> Path:
+    "Find sevctl in path, exit with message if not available"
+    sevctl_path = shutil.which("sevctl")
+    if sevctl_path is None:
+        echo("sevctl binary is not available. Please install sevctl, ensure it is in the PATH and try again.")
+        echo("Instructions for setup https://docs.aleph.im/computing/confidential/requirements/")
+        raise Exit(code=1)
+    return Path(sevctl_path)
+
+
+def found_gpus_by_model(crn_list: list) -> dict[str, dict[str, dict[str, int]]]:
+    found_gpu_models: dict[str, dict[str, dict[str, int]]] = {}
+    for crn_ in crn_list:
+        found_gpus: dict[str, dict[str, dict[str, int]]] = {}
+        for gpu_ in crn_.compatible_available_gpus:
+            model = gpu_["model"]
+            device = gpu_["device_name"]
+            if model not in found_gpus:
+                found_gpus[model] = {device: {"count": 1, "on_crns": 1}}
+            elif device not in found_gpus[model]:
+                found_gpus[model][device] = {"count": 1, "on_crns": 1}
+            else:
+                found_gpus[model][device]["count"] += 1
+        for model, devices in found_gpus.items():
+            if model not in found_gpu_models:
+                found_gpu_models[model] = devices
+            else:
+                for device, details in devices.items():
+                    if device not in found_gpu_models[model]:
+                        found_gpu_models[model][device] = details
+                    else:
+                        found_gpu_models[model][device]["count"] += details["count"]
+                        found_gpu_models[model][device]["on_crns"] += details["on_crns"]
+    return found_gpu_models

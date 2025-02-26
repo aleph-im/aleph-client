@@ -4,17 +4,17 @@ import asyncio
 import json
 import os.path
 import subprocess
-import sys
 import tempfile
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Annotated, Optional
 
 import typer
 from aleph.sdk import AlephHttpClient, AuthenticatedAlephHttpClient
 from aleph.sdk.account import _load_account
 from aleph.sdk.conf import settings
+from aleph.sdk.exceptions import ForgottenMessageError, MessageNotFoundError
 from aleph.sdk.query.filters import MessageFilter
 from aleph.sdk.query.responses import MessagesResponse
 from aleph.sdk.types import AccountFromPrivateKey, StorageEnum
@@ -40,34 +40,41 @@ app = AsyncTyper(no_args_is_help=True)
 
 @app.command()
 async def get(
-    item_hash: str = typer.Argument(..., help="Item hash of the message"),
+    item_hash: Annotated[str, typer.Argument(help="Item hash of the message")],
 ):
     async with AlephHttpClient(api_server=settings.API_HOST) as client:
-        message, status = await client.get_message(item_hash=ItemHash(item_hash), with_status=True)
-        typer.echo(f"Message Status: {colorized_status(status)}")
-        if status == MessageStatus.REJECTED:
-            reason = await client.get_message_error(item_hash=ItemHash(item_hash))
-            typer.echo(colorful_json(json.dumps(reason, indent=4, default=extended_json_encoder)))
-        else:
-            typer.echo(colorful_json(json.dumps(message, indent=4, default=extended_json_encoder)))
+        message: Optional[AlephMessage] = None
+        try:
+            message, status = await client.get_message(item_hash=ItemHash(item_hash), with_status=True)
+        except MessageNotFoundError:
+            typer.echo("Message does not exist on aleph.im")
+        except ForgottenMessageError:
+            typer.echo("Message has been forgotten on aleph.im")
+        if message:
+            typer.echo(f"Message Status: {colorized_status(status)}")
+            if status == MessageStatus.REJECTED:
+                reason = await client.get_message_error(item_hash=ItemHash(item_hash))
+                typer.echo(colorful_json(json.dumps(reason, indent=4)))
+            else:
+                typer.echo(colorful_message_json(message))
 
 
 @app.command()
 async def find(
-    pagination: int = 200,
-    page: int = 1,
-    message_types: Optional[str] = None,
-    content_types: Optional[str] = None,
-    content_keys: Optional[str] = None,
-    refs: Optional[str] = None,
-    addresses: Optional[str] = None,
-    tags: Optional[str] = None,
-    hashes: Optional[str] = None,
-    channels: Optional[str] = None,
-    chains: Optional[str] = None,
-    start_date: Optional[str] = None,
-    end_date: Optional[str] = None,
-    ignore_invalid_messages: bool = True,
+    pagination: Annotated[int, typer.Option()] = 200,
+    page: Annotated[int, typer.Option()] = 1,
+    message_types: Annotated[Optional[str], typer.Option()] = None,
+    content_types: Annotated[Optional[str], typer.Option()] = None,
+    content_keys: Annotated[Optional[str], typer.Option()] = None,
+    refs: Annotated[Optional[str], typer.Option()] = None,
+    addresses: Annotated[Optional[str], typer.Option()] = None,
+    tags: Annotated[Optional[str], typer.Option()] = None,
+    hashes: Annotated[Optional[str], typer.Option()] = None,
+    channels: Annotated[Optional[str], typer.Option()] = None,
+    chains: Annotated[Optional[str], typer.Option()] = None,
+    start_date: Annotated[Optional[str], typer.Option()] = None,
+    end_date: Annotated[Optional[str], typer.Option()] = None,
+    ignore_invalid_messages: Annotated[bool, typer.Option()] = True,
 ):
     parsed_message_types = (
         [MessageType(message_type) for message_type in message_types.split(",")] if message_types else None
@@ -110,16 +117,18 @@ async def find(
 
 @app.command()
 async def post(
-    path: Optional[Path] = typer.Option(
-        None,
-        help="Path to the content you want to post. If omitted, you can input your content directly",
-    ),
-    type: str = typer.Option("test", help="Text representing the message object type"),
-    ref: Optional[str] = typer.Option(None, help=help_strings.REF),
-    channel: Optional[str] = typer.Option(default=settings.DEFAULT_CHANNEL, help=help_strings.CHANNEL),
-    private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
-    private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
-    debug: bool = False,
+    path: Annotated[
+        Optional[Path],
+        typer.Option(help="Path to the content you want to post. If omitted, you can input your content directly"),
+    ] = None,
+    type: Annotated[str, typer.Option(help="Text representing the message object type")] = "test",
+    ref: Annotated[Optional[str], typer.Option(help=help_strings.REF)] = None,
+    channel: Annotated[Optional[str], typer.Option(help=help_strings.CHANNEL)] = settings.DEFAULT_CHANNEL,
+    private_key: Annotated[Optional[str], typer.Option(help=help_strings.PRIVATE_KEY)] = settings.PRIVATE_KEY_STRING,
+    private_key_file: Annotated[
+        Optional[Path], typer.Option(help=help_strings.PRIVATE_KEY_FILE)
+    ] = settings.PRIVATE_KEY_FILE,
+    debug: Annotated[bool, typer.Option()] = False,
 ):
     """Post a message on aleph.im."""
 
@@ -127,7 +136,7 @@ async def post(
 
     account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
     storage_engine: StorageEnum
-    content: Dict
+    content: dict
 
     if path:
         if not path.is_file():
@@ -137,7 +146,7 @@ async def post(
         file_size = os.path.getsize(path)
         storage_engine = StorageEnum.ipfs if file_size > 4 * 1024 * 1024 else StorageEnum.storage
 
-        with open(path, "r", encoding="utf-8") as fd:
+        with open(path, encoding="utf-8") as fd:
             content = json.load(fd)
 
     else:
@@ -145,9 +154,9 @@ async def post(
         storage_engine = StorageEnum.ipfs if len(content_raw) > 4 * 1024 * 1024 else StorageEnum.storage
         try:
             content = json.loads(content_raw)
-        except json.decoder.JSONDecodeError:
+        except json.decoder.JSONDecodeError as e:
             typer.echo("Not valid JSON")
-            raise typer.Exit(code=2)
+            raise typer.Exit(code=2) from e
 
     async with AuthenticatedAlephHttpClient(account=account, api_server=settings.API_HOST) as client:
         result, status = await client.create_post(
@@ -164,10 +173,12 @@ async def post(
 
 @app.command()
 async def amend(
-    item_hash: str = typer.Argument(..., help="Hash reference of the message to amend"),
-    private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
-    private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
-    debug: bool = False,
+    item_hash: Annotated[str, typer.Argument(help="Hash reference of the message to amend")],
+    private_key: Annotated[Optional[str], typer.Option(help=help_strings.PRIVATE_KEY)] = settings.PRIVATE_KEY_STRING,
+    private_key_file: Annotated[
+        Optional[Path], typer.Option(help=help_strings.PRIVATE_KEY_FILE)
+    ] = settings.PRIVATE_KEY_FILE,
+    debug: Annotated[bool, typer.Option()] = False,
 ):
     """Amend an existing aleph.im message."""
 
@@ -176,57 +187,67 @@ async def amend(
     account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
 
     async with AlephHttpClient(api_server=settings.API_HOST) as client:
-        existing_message: AlephMessage = await client.get_message(item_hash=item_hash)
+        existing_message: Optional[AlephMessage] = None
+        try:
+            existing_message = await client.get_message(item_hash=item_hash)
+        except MessageNotFoundError:
+            typer.echo("Message does not exist on aleph.im")
+        except ForgottenMessageError:
+            typer.echo("Message has been forgotten on aleph.im")
+        if existing_message:
+            editor: str = os.getenv("EDITOR", default="nano")
+            with tempfile.NamedTemporaryFile(suffix="json") as fd:
+                # Fill in message template
+                fd.write(existing_message.content.json(indent=4).encode())
+                fd.seek(0)
 
-    editor: str = os.getenv("EDITOR", default="nano")
-    with tempfile.NamedTemporaryFile(suffix="json") as fd:
-        # Fill in message template
-        fd.write(existing_message.content.model_dump_json(indent=4).encode())
-        fd.seek(0)
+                # Launch editor
+                subprocess.run([editor, fd.name], check=True)
 
-        # Launch editor
-        subprocess.run([editor, fd.name], check=True)
+                # Read new message
+                fd.seek(0)
+                new_content_json = fd.read()
 
-        # Read new message
-        fd.seek(0)
-        new_content_json = fd.read()
+            content_type = type(existing_message).__annotations__["content"]
+            new_content_dict = json.loads(new_content_json)
+            new_content = content_type(**new_content_dict)
 
-    content_type = type(existing_message).__annotations__["content"]
-    new_content_dict = json.loads(new_content_json)
-    new_content = content_type(**new_content_dict)
+            if isinstance(existing_message, ProgramMessage):
+                new_content.replaces = existing_message.item_hash
+            else:
+                new_content.ref = existing_message.item_hash
 
-    if isinstance(existing_message, ProgramMessage):
-        new_content.replaces = existing_message.item_hash
-    else:
-        new_content.ref = existing_message.item_hash
+            new_content.time = time.time()
+            new_content.type = "amend"
 
-    new_content.time = time.time()
-    new_content.type = "amend"
-
-    typer.echo(new_content)
-    async with AuthenticatedAlephHttpClient(account=account, api_server=settings.API_HOST) as client:
-        message, status, response = await client.submit(
-            content=new_content.model_dump(),
-            message_type=existing_message.type,
-            channel=existing_message.channel,
-        )
-    typer.echo(f"{message.model_dump_json(indent=4)}")
+            typer.echo(new_content)
+            async with AuthenticatedAlephHttpClient(account=account, api_server=settings.API_HOST) as account_client:
+                message, status, response = await account_client.submit(
+                    content=new_content.dict(),
+                    message_type=existing_message.type,
+                    channel=existing_message.channel,
+                )
+            typer.echo(f"{message.json(indent=4)}")
 
 
 @app.command()
 async def forget(
-    hashes: str = typer.Argument(..., help="Comma separated list of hash references of messages to forget"),
-    reason: Optional[str] = typer.Option(None, help="A description of why the messages are being forgotten."),
-    channel: Optional[str] = typer.Option(default=settings.DEFAULT_CHANNEL, help=help_strings.CHANNEL),
-    private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
-    private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
-    debug: bool = False,
+    hashes: Annotated[str, typer.Argument(help="Comma separated list of hash references of messages to forget")],
+    reason: Annotated[
+        Optional[str], typer.Option(help="A description of why the messages are being forgotten.")
+    ] = None,
+    channel: Annotated[Optional[str], typer.Option(help=help_strings.CHANNEL)] = settings.DEFAULT_CHANNEL,
+    private_key: Annotated[Optional[str], typer.Option(help=help_strings.PRIVATE_KEY)] = settings.PRIVATE_KEY_STRING,
+    private_key_file: Annotated[
+        Optional[Path], typer.Option(help=help_strings.PRIVATE_KEY_FILE)
+    ] = settings.PRIVATE_KEY_FILE,
+    debug: Annotated[bool, typer.Option()] = False,
 ):
     """Forget an existing aleph.im message."""
 
     setup_logging(debug)
 
-    hash_list: List[ItemHash] = [ItemHash(h) for h in hashes.split(",")]
+    hash_list: list[ItemHash] = [ItemHash(h) for h in hashes.split(",")]
 
     account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
     async with AuthenticatedAlephHttpClient(account=account, api_server=settings.API_HOST) as client:
@@ -235,28 +256,37 @@ async def forget(
 
 @app.command()
 async def watch(
-    ref: str = typer.Argument(..., help="Hash reference of the message to watch"),
-    indent: Optional[int] = typer.Option(None, help="Number of indents to use"),
-    debug: bool = False,
+    ref: Annotated[str, typer.Argument(help="Hash reference of the message to watch")],
+    indent: Annotated[Optional[int], typer.Option(help="Number of indents to use")] = None,
+    debug: Annotated[bool, typer.Option()] = False,
 ):
     """Watch a hash for amends and print amend hashes"""
 
     setup_logging(debug)
 
     async with AlephHttpClient(api_server=settings.API_HOST) as client:
-        original: AlephMessage = await client.get_message(item_hash=ref)
-        async for message in client.watch_messages(
-            message_filter=MessageFilter(refs=[ref], addresses=[original.content.address])
-        ):
-            typer.echo(f"{message.model_dump_json(indent=indent)}")
+        original: Optional[AlephMessage] = None
+        try:
+            original = await client.get_message(item_hash=ref)
+        except MessageNotFoundError:
+            typer.echo("Message does not exist on aleph.im")
+        except ForgottenMessageError:
+            typer.echo("Message has been forgotten on aleph.im")
+        if original:
+            async for message in client.watch_messages(
+                message_filter=MessageFilter(refs=[ref], addresses=[original.content.address])
+            ):
+                typer.echo(f"{message.model_dump_json(indent=indent)}")
 
 
 @app.command()
 def sign(
-    message: Optional[str] = typer.Option(None, help=help_strings.SIGNABLE_MESSAGE),
-    private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
-    private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
-    debug: bool = False,
+    message: Annotated[Optional[str], typer.Option(help=help_strings.SIGNABLE_MESSAGE)] = None,
+    private_key: Annotated[Optional[str], typer.Option(help=help_strings.PRIVATE_KEY)] = settings.PRIVATE_KEY_STRING,
+    private_key_file: Annotated[
+        Optional[Path], typer.Option(help=help_strings.PRIVATE_KEY_FILE)
+    ] = settings.PRIVATE_KEY_FILE,
+    debug: Annotated[bool, typer.Option()] = False,
 ):
     """Sign an aleph message with a private key. If no --message is provided, the message will be read from stdin."""
 
@@ -268,9 +298,9 @@ def sign(
         message = input_multiline()
     try:
         data = json.loads(message)
-    except json.JSONDecodeError:
-        typer.echo(f"Error: Message isn't a valid JSON")
-        raise typer.Exit(code=1)
+    except json.JSONDecodeError as error:
+        typer.echo("Error: Message isn't a valid JSON")
+        raise typer.Exit(code=1) from error
 
     coroutine = account.sign_message(data)
     signed_message = asyncio.run(coroutine)

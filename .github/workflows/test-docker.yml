@@ -16,7 +16,7 @@ jobs:
     runs-on: ubuntu-22.04
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
 
       # Use GitHub's Docker registry to cache intermediate layers
       - run: echo ${{ secrets.GITHUB_TOKEN }} | docker login docker.pkg.github.com
@@ -41,8 +41,8 @@ jobs:
 
       - name: Pytest in the Docker image
         run: |
-          docker run --entrypoint /opt/venv/bin/pytest aleph-client:${GITHUB_REF##*/} /opt/aleph-client/
+          docker run -w /opt/aleph-client --entrypoint /opt/venv/bin/hatch aleph-client:${GITHUB_REF##*/} run testing:test
 
       - name: MyPy in the Docker image
         run: |-
-          docker run --entrypoint /opt/venv/bin/mypy aleph-client:${GITHUB_REF##*/} --config-file /opt/aleph-client/mypy.ini /opt/aleph-client/src/ /opt/aleph-client/tests/
+          docker run -w /opt/aleph-client --entrypoint /opt/venv/bin/hatch aleph-client:${GITHUB_REF##*/} run linting:all

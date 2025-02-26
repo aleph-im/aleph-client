@@ -4,14 +4,15 @@ import json as json_lib
 import logging
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
+from typing import Annotated, Optional
 
 import aiohttp
 import typer
 from aleph.sdk import AlephHttpClient, AuthenticatedAlephHttpClient
 from aleph.sdk.account import _load_account
 from aleph.sdk.conf import settings
-from aleph.sdk.types import AccountFromPrivateKey, StorageEnum
+from aleph.sdk.types import AccountFromPrivateKey, StorageEnum, StoredContent
+from aleph.sdk.utils import safe_getattr
 from aleph_message.models import ItemHash, StoreMessage
 from aleph_message.status import MessageStatus
 from pydantic import BaseModel, Field
@@ -29,12 +30,14 @@ app = AsyncTyper(no_args_is_help=True)
 
 @app.command()
 async def pin(
-    item_hash: str = typer.Argument(..., help="IPFS hash to pin on aleph.im"),
-    channel: Optional[str] = typer.Option(default=settings.DEFAULT_CHANNEL, help=help_strings.CHANNEL),
-    private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
-    private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
-    ref: Optional[str] = typer.Option(None, help=help_strings.REF),
-    debug: bool = False,
+    item_hash: Annotated[str, typer.Argument(help="IPFS hash to pin on aleph.im")],
+    channel: Annotated[Optional[str], typer.Option(help=help_strings.CHANNEL)] = settings.DEFAULT_CHANNEL,
+    private_key: Annotated[Optional[str], typer.Option(help=help_strings.PRIVATE_KEY)] = settings.PRIVATE_KEY_STRING,
+    private_key_file: Annotated[
+        Optional[Path], typer.Option(help=help_strings.PRIVATE_KEY_FILE)
+    ] = settings.PRIVATE_KEY_FILE,
+    ref: Annotated[Optional[str], typer.Option(help=help_strings.REF)] = None,
+    debug: Annotated[bool, typer.Option()] = False,
 ):
     """Persist a file from IPFS on aleph.im."""
 
@@ -57,12 +60,14 @@ async def pin(
 
 @app.command()
 async def upload(
-    path: Path = typer.Argument(..., help="Path of the file to upload"),
-    channel: Optional[str] = typer.Option(default=settings.DEFAULT_CHANNEL, help=help_strings.CHANNEL),
-    private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
-    private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
-    ref: Optional[str] = typer.Option(None, help=help_strings.REF),
-    debug: bool = False,
+    path: Annotated[Path, typer.Argument(help="Path of the file to upload")],
+    channel: Annotated[Optional[str], typer.Option(help=help_strings.CHANNEL)] = settings.DEFAULT_CHANNEL,
+    private_key: Annotated[Optional[str], typer.Option(help=help_strings.PRIVATE_KEY)] = settings.PRIVATE_KEY_STRING,
+    private_key_file: Annotated[
+        Optional[Path], typer.Option(help=help_strings.PRIVATE_KEY_FILE)
+    ] = settings.PRIVATE_KEY_FILE,
+    ref: Annotated[Optional[str], typer.Option(help=help_strings.REF)] = None,
+    debug: Annotated[bool, typer.Option()] = False,
 ):
     """Upload and store a file on aleph.im."""
 
@@ -96,49 +101,72 @@ async def upload(
 
 @app.command()
 async def download(
-    hash: str = typer.Argument(..., help="hash to download from aleph."),
-    use_ipfs: bool = typer.Option(default=False, help="Download using IPFS instead of storage"),
-    output_path: Path = typer.Option(Path("."), help="Output directory path"),
-    file_name: str = typer.Option(None, help="Output file name (without extension)"),
-    file_extension: str = typer.Option(None, help="Output file extension"),
-    debug: bool = False,
-):
-    """Download a file on aleph.im."""
+    hash: Annotated[str, typer.Argument(help="hash to download from aleph.")],
+    use_ipfs: Annotated[bool, typer.Option(help="Download using IPFS instead of storage")] = False,
+    output_path: Annotated[Path, typer.Option(help="Output directory path")] = Path("."),
+    file_name: Annotated[Optional[str], typer.Option(help="Output file name (without extension)")] = None,
+    file_extension: Annotated[Optional[str], typer.Option(help="Output file extension")] = None,
+    only_info: Annotated[bool, typer.Option()] = False,
+    verbose: Annotated[bool, typer.Option()] = True,
+    debug: Annotated[bool, typer.Option()] = False,
+) -> Optional[StoredContent]:
+    """Download a file from aleph.im or display related infos."""
 
     setup_logging(debug)
 
-    output_path.mkdir(parents=True, exist_ok=True)
+    if not only_info:
+        output_path.mkdir(parents=True, exist_ok=True)
 
-    file_name = file_name if file_name else hash
-    file_extension = file_extension if file_extension else ""
+        file_name = file_name if file_name else hash
+        file_extension = file_extension if file_extension else ""
 
-    output_file_path = output_path / f"{file_name}{file_extension}"
+        output_file_path = output_path / f"{file_name}{file_extension}"
 
-    async with AlephHttpClient(api_server=settings.API_HOST) as client:
-        logger.info(f"Downloading {hash} ...")
-        with open(output_file_path, "wb") as fd:
-            if not use_ipfs:
-                await client.download_file_to_buffer(hash, fd)
-            else:
-                await client.download_file_ipfs_to_buffer(hash, fd)
+        async with AlephHttpClient(api_server=settings.API_HOST) as client:
+            logger.info(f"Downloading {hash} ...")
+            with open(output_file_path, "wb") as fd:
+                if not use_ipfs:
+                    await client.download_file_to_buffer(hash, fd)
+                else:
+                    await client.download_file_ipfs_to_buffer(hash, fd)
 
-        logger.debug("File downloaded successfully.")
+            logger.debug("File downloaded successfully.")
+    else:
+        async with AlephHttpClient(api_server=settings.API_HOST) as client:
+            content = await client.get_stored_content(hash)
+            if verbose:
+                typer.echo(
+                    f"Filename: {content.filename}\nHash: {content.hash}\nURL: {content.url}"
+                    if safe_getattr(content, "url")
+                    else safe_getattr(content, "error")
+                )
+            return content
+    return None
 
 
 @app.command()
 async def forget(
-    item_hash: str = typer.Argument(..., help="Hash to forget"),
-    reason: str = typer.Argument("User deletion", help="reason to forget"),
-    channel: Optional[str] = typer.Option(default=settings.DEFAULT_CHANNEL, help=help_strings.CHANNEL),
-    private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
-    private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
-    debug: bool = False,
+    item_hash: Annotated[
+        str,
+        typer.Argument(
+            help="Hash(es) to forget. Must be a comma separated list. Example: `123...abc` or `123...abc,456...xyz`"
+        ),
+    ],
+    reason: Annotated[str, typer.Argument(help="reason to forget")] = "User deletion",
+    channel: Annotated[Optional[str], typer.Option(help=help_strings.CHANNEL)] = settings.DEFAULT_CHANNEL,
+    private_key: Annotated[Optional[str], typer.Option(help=help_strings.PRIVATE_KEY)] = settings.PRIVATE_KEY_STRING,
+    private_key_file: Annotated[
+        Optional[Path], typer.Option(help=help_strings.PRIVATE_KEY_FILE)
+    ] = settings.PRIVATE_KEY_FILE,
+    debug: Annotated[bool, typer.Option()] = False,
 ):
     """forget a file and his message on aleph.im."""
 
     setup_logging(debug)
 
     account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
+
+    hashes = [ItemHash(item_hash) for item_hash in item_hash.split(",")]
 
     async with AuthenticatedAlephHttpClient(account=account, api_server=settings.API_HOST) as client:
         value = await client.forget(hashes=[ItemHash(item_hash)], reason=reason, channel=channel)
@@ -154,7 +182,9 @@ class GetAccountFilesQueryParams(BaseModel):
     page: int = Field(default=1, ge=1, description="Offset in pages. Starts at 1.")
     sort_order: int = Field(
         default=-1,
-        description="Order in which files should be listed: -1 means most recent messages first, 1 means older messages first.",
+        description=(
+            "Order in which files should be listed: -1 means most recent messages first, 1 means older messages first."
+        ),
     )
 
 
@@ -204,18 +234,23 @@ def _show_files(files_data: dict) -> None:
     console.print(table)
 
 
-@app.command()
-async def list(
-    address: Optional[str] = typer.Option(None, help="Address"),
-    private_key: Optional[str] = typer.Option(settings.PRIVATE_KEY_STRING, help=help_strings.PRIVATE_KEY),
-    private_key_file: Optional[Path] = typer.Option(settings.PRIVATE_KEY_FILE, help=help_strings.PRIVATE_KEY_FILE),
-    pagination: int = typer.Option(100, help="Maximum number of files to return."),
-    page: int = typer.Option(1, help="Offset in pages."),
-    sort_order: int = typer.Option(
-        -1,
-        help="Order in which files should be listed: -1 means most recent messages first, 1 means older messages first.",
-    ),
-    json: bool = typer.Option(default=False, help="Print as json instead of rich table"),
+@app.command(name="list")
+async def list_files(
+    address: Annotated[Optional[str], typer.Option(help="Address")] = None,
+    private_key: Annotated[Optional[str], typer.Option(help=help_strings.PRIVATE_KEY)] = settings.PRIVATE_KEY_STRING,
+    private_key_file: Annotated[
+        Optional[Path], typer.Option(help=help_strings.PRIVATE_KEY_FILE)
+    ] = settings.PRIVATE_KEY_FILE,
+    pagination: Annotated[int, typer.Option(help="Maximum number of files to return.")] = 100,
+    page: Annotated[int, typer.Option(help="Offset in pages.")] = 1,
+    sort_order: Annotated[
+        int,
+        typer.Option(
+            help="Order in which files should be listed: -1 means most recent messages first,"
+            " 1 means older messages first."
+        ),
+    ] = -1,
+    json: Annotated[bool, typer.Option(help="Print as json instead of rich table")] = False,
 ):
     """List all files for a given address"""
     account: AccountFromPrivateKey = _load_account(private_key, private_key_file)

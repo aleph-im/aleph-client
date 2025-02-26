@@ -5,10 +5,13 @@ import inspect
 import logging
 import os
 import re
-from functools import partial, wraps
+import subprocess
+import sys
+from asyncio import ensure_future
+from functools import lru_cache, partial, wraps
 from pathlib import Path
 from shutil import make_archive
-from typing import List, Optional, Tuple, Type, Union
+from typing import Optional, Union
 from urllib.parse import ParseResult, urlparse
 from zipfile import BadZipFile, ZipFile
 
@@ -35,16 +38,17 @@ def try_open_zip(path: Path) -> None:
     with open(path, "rb") as archive_file:
         with ZipFile(archive_file, "r") as archive:
             if not archive.namelist():
-                raise BadZipFile("No file in the archive.")
+                msg = "No file in the archive."
+                raise BadZipFile(msg)
 
 
-def create_archive(path: Path) -> Tuple[Path, Encoding]:
+def create_archive(path: Path) -> tuple[Path, Encoding]:
     """Create a zip archive from a directory"""
     if os.path.isdir(path):
         if settings.CODE_USES_SQUASHFS:
             logger.debug("Creating squashfs archive...")
             archive_path = Path(f"{path}.squashfs")
-            os.system(f"mksquashfs {path} {archive_path} -noappend")
+            subprocess.check_call(["/usr/bin/mksquashfs", path, archive_path, "-noappend"])
             assert archive_path.is_file()
             return archive_path, Encoding.squashfs
         else:
@@ -59,10 +63,11 @@ def create_archive(path: Path) -> Tuple[Path, Encoding]:
             try_open_zip(Path(path))
             return path, Encoding.zip
     else:
-        raise FileNotFoundError("No file or directory to create the archive from")
+        msg = "No file or directory to create the archive from"
+        raise FileNotFoundError(msg)
 
 
-def get_message_type_value(message_type: Type[GenericMessage]) -> MessageType:
+def get_message_type_value(message_type: type[GenericMessage]) -> MessageType:
     """Returns the value of the 'type' field of a message type class."""
     type_literal = message_type.__annotations__["type"]
     return type_literal.__args__[0]  # Get the value from a Literal
@@ -106,7 +111,7 @@ def extract_valid_eth_address(address: str) -> str:
     return ""
 
 
-async def list_unlinked_keys() -> Tuple[List[Path], Optional[MainConfiguration]]:
+async def list_unlinked_keys() -> tuple[list[Path], Optional[MainConfiguration]]:
     """
     List private key files that are not linked to any chain type and return the active MainConfiguration.
 
@@ -123,7 +128,7 @@ async def list_unlinked_keys() -> Tuple[List[Path], Optional[MainConfiguration]]
 
     all_private_key_files = list(private_key_dir.glob("*.key"))
 
-    config: Optional[MainConfiguration] = load_main_configuration(Path(settings.CONFIG_FILE))
+    config: MainConfiguration | None = load_main_configuration(Path(settings.CONFIG_FILE))
 
     if not config:
         logger.warning("No config file found.")
@@ -131,7 +136,7 @@ async def list_unlinked_keys() -> Tuple[List[Path], Optional[MainConfiguration]]
 
     active_key_path = config.path
 
-    unlinked_keys: List[Path] = [key_file for key_file in all_private_key_files if key_file != active_key_path]
+    unlinked_keys: list[Path] = [key_file for key_file in all_private_key_files if key_file != active_key_path]
 
     return unlinked_keys, config
 
@@ -162,14 +167,26 @@ def sanitize_url(url: str) -> str:
         Sanitized URL.
     """
     if not url:
-        raise aiohttp.InvalidURL("Empty URL")
+        msg = "Empty URL"
+        raise aiohttp.InvalidURL(msg)
     parsed_url: ParseResult = urlparse(url)
     if parsed_url.scheme not in ["http", "https"]:
-        raise aiohttp.InvalidURL(f"Invalid URL scheme: {parsed_url.scheme}")
+        msg = f"Invalid URL scheme: {parsed_url.scheme}"
+        raise aiohttp.InvalidURL(msg)
     if parsed_url.hostname in FORBIDDEN_HOSTS:
         logger.debug(
             f"Invalid URL {url} hostname {parsed_url.hostname} is in the forbidden host list "
             f"({', '.join(FORBIDDEN_HOSTS)})"
         )
-        raise aiohttp.InvalidURL("Invalid URL host")
-    return url
+        msg = "Invalid URL host"
+        raise aiohttp.InvalidURL(msg)
+    return url.strip("/")
+
+
+def async_lru_cache(async_function):
+
+    @lru_cache(maxsize=0 if "pytest" in sys.modules else 1)
+    def cached_async_function(*args, **kwargs):
+        return ensure_future(async_function(*args, **kwargs))
+
+    return cached_async_function
