@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import os
 import shutil
@@ -56,7 +57,7 @@ def colorized_status(status: MessageStatus) -> str:
 
 def colorful_message_json(message: GenericMessage):
     """Render a message in JSON with colors."""
-    return colorful_json(message.json(sort_keys=True, indent=4))
+    return colorful_json(json.dumps(message.model_dump(), sort_keys=True, indent=4))
 
 
 def input_multiline() -> str:

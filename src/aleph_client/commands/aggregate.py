@@ -159,7 +159,7 @@ async def post(
             inline=inline,
             address=address,
         )
-        content = f"{message.json(indent=4)}"
+        content = f"{message.model_dump_json(indent=4)}"
 
         if status != MessageStatus.REJECTED:
             if print_message:

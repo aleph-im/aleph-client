@@ -6,6 +6,7 @@ import os.path
 import subprocess
 import tempfile
 import time
+from datetime import datetime
 from pathlib import Path
 from typing import Annotated, Optional
 
@@ -18,7 +19,7 @@ from aleph.sdk.query.filters import MessageFilter
 from aleph.sdk.query.responses import MessagesResponse
 from aleph.sdk.types import AccountFromPrivateKey, StorageEnum
 from aleph.sdk.utils import extended_json_encoder
-from aleph_message.models import AlephMessage, ProgramMessage
+from aleph_message.models import AlephMessage, ProgramMessage, StoreMessage
 from aleph_message.models.base import MessageType
 from aleph_message.models.item_hash import ItemHash
 from aleph_message.status import MessageStatus
@@ -109,7 +110,9 @@ async def find(
             ),
             ignore_invalid_messages=ignore_invalid_messages,
         )
-    typer.echo(colorful_json(response.json(sort_keys=True, indent=4)))
+    typer.echo(
+        colorful_json(json.dumps(response.model_dump(), sort_keys=True, indent=4, default=extended_json_encoder))
+    )
 
 
 @app.command()
@@ -165,7 +168,7 @@ async def post(
             storage_engine=storage_engine,
         )
 
-        typer.echo(json.dumps(result.dict(), indent=4, default=extended_json_encoder))
+        typer.echo(json.dumps(result.model_dump(), indent=4, default=extended_json_encoder))
 
 
 @app.command()
@@ -273,7 +276,7 @@ async def watch(
             async for message in client.watch_messages(
                 message_filter=MessageFilter(refs=[ref], addresses=[original.content.address])
             ):
-                typer.echo(f"{message.json(indent=indent)}")
+                typer.echo(f"{message.model_dump_json(indent=indent)}")
 
 
 @app.command()
