@@ -71,3 +71,4 @@ TARGET_ADDRESS = "Target address. Defaults to current account address"
 AGGREGATE_SECURITY_KEY_PROTECTED = (
     "The aggregate key `security` is protected. Use `aleph aggregate [allow|revoke]` to manage it."
 )
+INVALID_KEY_FORMAT = "Invalid key format: {}"

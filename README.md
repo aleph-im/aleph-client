@@ -62,7 +62,7 @@ or
 
 ### Formatting code
 
-> hatch run linting:format
+> hatch run linting:fmt
 
 ### Checking types
 
