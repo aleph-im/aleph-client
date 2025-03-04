@@ -6,7 +6,6 @@ from datetime import datetime
 from pathlib import Path
 from typing import Annotated, Optional
 
-import aiohttp
 import typer
 from aleph.sdk import AlephHttpClient, AuthenticatedAlephHttpClient
 from aleph.sdk.account import _load_account
@@ -263,7 +262,9 @@ async def list_files(
         query_params = GetAccountFilesQueryParams(pagination=pagination, page=page, sort_order=sort_order)
 
         uri = f"{settings.API_HOST}/api/v0/addresses/{address}/files"
-        async with aiohttp.ClientSession() as session:
+        from aiohttp.client import ClientSession
+
+        async with ClientSession() as session:
             response = await session.get(uri, params=query_params.dict())
             if response.status == 200:
                 files_data = await response.json()

@@ -1,11 +1,3 @@
-from importlib.metadata import PackageNotFoundError, version
-
-try:
-    # Change here if project is renamed and does not equal the package name
-    __version__ = version("aleph-client")
-except PackageNotFoundError:
-    __version__ = "unknown"
-
 # Deprecation check
 moved_types = ["__version__", "AlephClient", "AuthenticatedAlephClient", "synchronous", "asynchronous"]
 

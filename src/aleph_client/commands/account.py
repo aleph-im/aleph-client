@@ -1,28 +1,10 @@
 from __future__ import annotations
 
-import asyncio
 import logging
 from pathlib import Path
 from typing import Annotated, Optional
 
-import aiohttp
 import typer
-from aleph.sdk.account import _load_account
-from aleph.sdk.chains.common import generate_key
-from aleph.sdk.chains.solana import parse_private_key as parse_solana_private_key
-from aleph.sdk.conf import (
-    MainConfiguration,
-    load_main_configuration,
-    save_main_configuration,
-    settings,
-)
-from aleph.sdk.evm_utils import (
-    get_chains_with_holding,
-    get_chains_with_super_token,
-    get_compatible_chains,
-)
-from aleph.sdk.utils import bytes_from_hex, displayable_amount
-from aleph_message.models import Chain
 from rich.console import Console
 from rich.panel import Panel
 from rich.prompt import Prompt
@@ -30,13 +12,8 @@ from rich.table import Table
 from rich.text import Text
 from typer.colors import GREEN, RED
 
+from aleph_message.models.base import Chain
 from aleph_client.commands import help_strings
-from aleph_client.commands.utils import (
-    input_multiline,
-    setup_logging,
-    validated_prompt,
-    yes_no_input,
-)
 from aleph_client.utils import AsyncTyper, list_unlinked_keys
 
 logger = logging.getLogger(__name__)
@@ -54,6 +31,10 @@ async def create(
     debug: Annotated[bool, typer.Option()] = False,
 ):
     """Create or import a private key."""
+    from aleph.sdk.conf import MainConfiguration, save_main_configuration, settings
+    from aleph_message.models import Chain
+
+    from aleph_client.commands.utils import setup_logging, validated_prompt
 
     setup_logging(debug)
 
@@ -82,10 +63,18 @@ async def create(
                 )
             )
         if chain == Chain.SOL:
+            from aleph.sdk.chains.solana import (
+                parse_private_key as parse_solana_private_key,
+            )
+
             private_key_bytes = parse_solana_private_key(private_key)
         else:
+            from aleph.sdk.utils import bytes_from_hex
+
             private_key_bytes = bytes_from_hex(private_key)
     else:
+        from aleph.sdk.chains.common import generate_key
+
         private_key_bytes = generate_key()
     if not private_key_bytes:
         typer.secho("An unexpected error occurred!", fg=RED)
@@ -120,20 +109,25 @@ async def create(
 
 @app.command(name="address")
 def display_active_address(
-    private_key: Annotated[Optional[str], typer.Option(help=help_strings.PRIVATE_KEY)] = settings.PRIVATE_KEY_STRING,
-    private_key_file: Annotated[
-        Optional[Path], typer.Option(help=help_strings.PRIVATE_KEY_FILE)
-    ] = settings.PRIVATE_KEY_FILE,
+    private_key: Annotated[Optional[str], typer.Option(help=help_strings.PRIVATE_KEY)] = None,
+    private_key_file: Annotated[Optional[Path], typer.Option(help=help_strings.PRIVATE_KEY_FILE)] = None,
 ):
     """
     Display your public address(es).
     """
+    from aleph.sdk.conf import settings
+    from aleph_message.models import Chain
+
+    private_key = private_key or settings.PRIVATE_KEY_STRING
+    private_key_file = private_key_file or settings.PRIVATE_KEY_FILE
 
     if private_key is not None:
         private_key_file = None
     elif private_key_file and not private_key_file.exists():
         typer.secho("No private key available", fg=RED)
         raise typer.Exit(code=1)
+
+    from aleph.sdk.account import _load_account
 
     evm_address = _load_account(private_key, private_key_file, chain=Chain.ETH).get_address()
     sol_address = _load_account(private_key, private_key_file, chain=Chain.SOL).get_address()
@@ -150,6 +144,13 @@ def display_active_chain():
     """
     Display the currently active chain.
     """
+    from aleph.sdk.conf import load_main_configuration, settings
+    from aleph.sdk.evm_utils import (
+        get_chains_with_holding,
+        get_chains_with_super_token,
+        get_compatible_chains,
+    )
+    from aleph_message.models import Chain
 
     config_file_path = Path(settings.CONFIG_FILE)
     config = load_main_configuration(config_file_path)
@@ -180,17 +181,22 @@ def display_active_chain():
 @app.command(name="path")
 def path_directory():
     """Display the directory path where your private keys, config file, and other settings are stored."""
+    from aleph.sdk.conf import settings
+
     console.print(f"Aleph Home directory: [yellow]{settings.CONFIG_HOME}[/yellow]")
 
 
 @app.command()
 def show(
-    private_key: Annotated[Optional[str], typer.Option(help=help_strings.PRIVATE_KEY)] = settings.PRIVATE_KEY_STRING,
-    private_key_file: Annotated[
-        Optional[Path], typer.Option(help=help_strings.PRIVATE_KEY_FILE)
-    ] = settings.PRIVATE_KEY_FILE,
+    private_key: Annotated[Optional[str], typer.Option(help=help_strings.PRIVATE_KEY)] = None,
+    private_key_file: Annotated[Optional[Path], typer.Option(help=help_strings.PRIVATE_KEY_FILE)] = None,
 ):
     """Display current configuration."""
+
+    from aleph.sdk.conf import settings
+
+    private_key = private_key or settings.PRIVATE_KEY_STRING
+    private_key_file = private_key_file or settings.PRIVATE_KEY_FILE
 
     display_active_address(private_key=private_key, private_key_file=private_key_file)
     display_active_chain()
@@ -204,12 +210,15 @@ def export_private_key(
     """
     Display your private key.
     """
+    from aleph_message.models import Chain
 
     if private_key:
         private_key_file = None
     elif private_key_file and not private_key_file.exists():
         typer.secho("No private key available", fg=RED)
         raise typer.Exit(code=1)
+
+    from aleph.sdk.account import _load_account
 
     evm_pk = _load_account(private_key, private_key_file, chain=Chain.ETH).export_private_key()
     sol_pk = _load_account(private_key, private_key_file, chain=Chain.SOL).export_private_key()
@@ -225,14 +234,22 @@ def export_private_key(
 @app.command("sign-bytes")
 def sign_bytes(
     message: Annotated[Optional[str], typer.Option(help="Message to sign")] = None,
-    private_key: Annotated[Optional[str], typer.Option(help=help_strings.PRIVATE_KEY)] = settings.PRIVATE_KEY_STRING,
-    private_key_file: Annotated[
-        Optional[Path], typer.Option(help=help_strings.PRIVATE_KEY_FILE)
-    ] = settings.PRIVATE_KEY_FILE,
+    private_key: Annotated[Optional[str], typer.Option(help=help_strings.PRIVATE_KEY)] = None,
+    private_key_file: Annotated[Optional[Path], typer.Option(help=help_strings.PRIVATE_KEY_FILE)] = None,
     chain: Annotated[Optional[Chain], typer.Option(help=help_strings.ADDRESS_CHAIN)] = None,
     debug: Annotated[bool, typer.Option()] = False,
 ):
     """Sign a message using your private key."""
+
+    import asyncio
+
+    from aleph.sdk.account import _load_account
+    from aleph.sdk.conf import settings
+
+    from aleph_client.commands.utils import input_multiline, setup_logging
+
+    private_key = private_key or settings.PRIVATE_KEY_STRING
+    private_key_file = private_key_file or settings.PRIVATE_KEY_FILE
 
     setup_logging(debug)
 
@@ -248,9 +265,13 @@ def sign_bytes(
 
 
 async def get_balance(address: str) -> dict:
+    from aleph.sdk.conf import settings
+
     balance_data: dict = {}
     uri = f"{settings.API_HOST}/api/v0/addresses/{address}/balance"
-    async with aiohttp.ClientSession() as session:
+    from aiohttp import ClientSession
+
+    async with ClientSession() as session:
         response = await session.get(uri)
         if response.status == 200:
             balance_data = await response.json()
@@ -264,19 +285,25 @@ async def get_balance(address: str) -> dict:
 @app.command()
 async def balance(
     address: Annotated[Optional[str], typer.Option(help="Address")] = None,
-    private_key: Annotated[Optional[str], typer.Option(help=help_strings.PRIVATE_KEY)] = settings.PRIVATE_KEY_STRING,
-    private_key_file: Annotated[
-        Optional[Path], typer.Option(help=help_strings.PRIVATE_KEY_FILE)
-    ] = settings.PRIVATE_KEY_FILE,
+    private_key: Annotated[Optional[str], typer.Option(help=help_strings.PRIVATE_KEY)] = None,
+    private_key_file: Annotated[Optional[Path], typer.Option(help=help_strings.PRIVATE_KEY_FILE)] = None,
     chain: Annotated[Optional[Chain], typer.Option(help=help_strings.ADDRESS_CHAIN)] = None,
 ):
     """Display your ALEPH balance."""
+    from aleph.sdk.account import _load_account
+    from aleph.sdk.conf import settings
+
+    private_key = private_key or settings.PRIVATE_KEY_STRING
+    private_key_file = private_key_file or settings.PRIVATE_KEY_FILE
+
     account = _load_account(private_key, private_key_file, chain=chain)
 
     if account and not address:
         address = account.get_address()
 
     if address:
+        from aleph.sdk.utils import displayable_amount
+
         try:
             balance_data = await get_balance(address)
             infos = [
@@ -325,6 +352,9 @@ async def balance(
 async def list_accounts():
     """Display available private keys, along with currenlty active chain and account (from config file)."""
 
+    from aleph.sdk.conf import load_main_configuration, settings
+    from aleph.sdk.evm_utils import get_chains_with_holding, get_chains_with_super_token
+
     config_file_path = Path(settings.CONFIG_FILE)
     config = load_main_configuration(config_file_path)
     unlinked_keys, _ = await list_unlinked_keys()
@@ -354,6 +384,8 @@ async def list_accounts():
 
     active_address = None
     if config and config.path and active_chain:
+        from aleph.sdk.account import _load_account
+
         account = _load_account(private_key_path=config.path, chain=active_chain)
         active_address = account.get_address()
 
@@ -375,6 +407,9 @@ async def configure(
     chain: Annotated[Optional[Chain], typer.Option(help="New active chain")] = None,
 ):
     """Configure current private key file and active chain (default selection)"""
+    from aleph.sdk.conf import MainConfiguration, save_main_configuration, settings
+
+    from aleph_client.commands.utils import yes_no_input
 
     unlinked_keys, config = await list_unlinked_keys()
 
@@ -423,6 +458,8 @@ async def configure(
 
     # Configure active chain
     if not chain and config and hasattr(config, "chain"):
+        from aleph_message.models import Chain
+
         if not yes_no_input(
             f"Active chain: [bright_cyan]{config.chain}[/bright_cyan]\n[yellow]Keep current active chain?[/yellow]",
             default="y",

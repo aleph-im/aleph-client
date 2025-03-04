@@ -1,13 +1,12 @@
 from __future__ import annotations
 
-import asyncio
 import inspect
 import logging
 import os
 import re
 import subprocess
 import sys
-from asyncio import ensure_future
+import typing
 from functools import lru_cache, partial, wraps
 from pathlib import Path
 from shutil import make_archive
@@ -15,21 +14,16 @@ from typing import Optional, Union
 from urllib.parse import ParseResult, urlparse
 from zipfile import BadZipFile, ZipFile
 
-import aiohttp
 import typer
-from aiohttp import ClientSession
-from aleph.sdk.conf import MainConfiguration, load_main_configuration, settings
-from aleph.sdk.types import GenericMessage
-from aleph_message.models.base import MessageType
-from aleph_message.models.execution.base import Encoding
+
+if typing.TYPE_CHECKING:
+    from aiohttp.client import ClientSession
+    from aleph.sdk.conf import MainConfiguration
+    from aleph.sdk.types import GenericMessage
+    from aleph_message.models.base import MessageType
+    from aleph_message.models.execution.base import Encoding
 
 logger = logging.getLogger(__name__)
-
-try:
-    import magic
-except ImportError:
-    logger.info("Could not import library 'magic', MIME type detection disabled")
-    magic = None  # type:ignore
 
 
 def try_open_zip(path: Path) -> None:
@@ -44,7 +38,11 @@ def try_open_zip(path: Path) -> None:
 
 def create_archive(path: Path) -> tuple[Path, Encoding]:
     """Create a zip archive from a directory"""
+    from aleph_message.models.execution.base import Encoding
+
     if os.path.isdir(path):
+        from aleph.sdk.conf import settings
+
         if settings.CODE_USES_SQUASHFS:
             logger.debug("Creating squashfs archive...")
             archive_path = Path(f"{path}.squashfs")
@@ -57,6 +55,9 @@ def create_archive(path: Path) -> tuple[Path, Encoding]:
             archive_path = Path(f"{path}.zip")
             return archive_path, Encoding.zip
     elif os.path.isfile(path):
+        from aleph.sdk.utils import import_magic
+
+        magic = import_magic()
         if path.suffix == ".squashfs" or (magic and magic.from_file(path).startswith("Squashfs filesystem")):
             return path, Encoding.squashfs
         else:
@@ -77,6 +78,7 @@ class AsyncTyper(typer.Typer):
     @staticmethod
     def maybe_run_async(decorator, f):
         if inspect.iscoroutinefunction(f):
+            import asyncio
 
             @wraps(f)
             def runner(*args, **kwargs):
@@ -120,6 +122,8 @@ async def list_unlinked_keys() -> tuple[list[Path], Optional[MainConfiguration]]
             - A list of unlinked private key files as Path objects.
             - The active MainConfiguration object (the single account in the config file).
     """
+    from aleph.sdk.conf import load_main_configuration, settings
+
     config_home: Union[str, Path] = settings.CONFIG_HOME if settings.CONFIG_HOME else Path.home()
     private_key_dir = Path(config_home, "private-keys")
 
@@ -158,6 +162,16 @@ FORBIDDEN_HOSTS = [
 ]
 
 
+def raise_invalid_url(msg: str) -> None:
+    """
+    Raise an InvalidURL exception with the given message.
+    Imports aiohttp lazily to improve response time when the URL is valid.
+    """
+    from aiohttp.client_exceptions import InvalidURL
+
+    raise InvalidURL(msg)
+
+
 def sanitize_url(url: str) -> str:
     """Ensure that the URL is valid and not obviously irrelevant.
 
@@ -168,22 +182,23 @@ def sanitize_url(url: str) -> str:
     """
     if not url:
         msg = "Empty URL"
-        raise aiohttp.InvalidURL(msg)
+        raise_invalid_url(msg)
     parsed_url: ParseResult = urlparse(url)
     if parsed_url.scheme not in ["http", "https"]:
         msg = f"Invalid URL scheme: {parsed_url.scheme}"
-        raise aiohttp.InvalidURL(msg)
+        raise_invalid_url(msg)
     if parsed_url.hostname in FORBIDDEN_HOSTS:
         logger.debug(
             f"Invalid URL {url} hostname {parsed_url.hostname} is in the forbidden host list "
             f"({', '.join(FORBIDDEN_HOSTS)})"
         )
         msg = "Invalid URL host"
-        raise aiohttp.InvalidURL(msg)
+        raise_invalid_url(msg)
     return url.strip("/")
 
 
 def async_lru_cache(async_function):
+    from asyncio import ensure_future
 
     @lru_cache(maxsize=0 if "pytest" in sys.modules else 1)
     def cached_async_function(*args, **kwargs):

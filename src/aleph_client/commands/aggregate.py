@@ -7,10 +7,7 @@ from pathlib import Path
 from typing import Annotated, Optional
 
 import typer
-from aiohttp import ClientResponseError, ClientSession
-from aleph.sdk.account import _load_account
-from aleph.sdk.client import AuthenticatedAlephHttpClient
-from aleph.sdk.conf import settings
+# from aleph.sdk.conf import settings
 from aleph.sdk.types import AccountFromPrivateKey
 from aleph.sdk.utils import extended_json_encoder
 from aleph_message.models import Chain, MessageType
@@ -57,8 +54,11 @@ async def forget(
 ) -> bool:
     """Delete an aggregate by key or subkeys"""
 
+    from aleph.sdk.client import AuthenticatedAlephHttpClient
+
     setup_logging(debug)
 
+    from aleph.sdk.account import _load_account
     account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
     address = account.get_address() if address is None else address
 
@@ -129,9 +129,11 @@ async def post(
     debug: bool = False,
 ) -> bool:
     """Create or update an aggregate by key or subkey"""
+    from aleph.sdk.client import AuthenticatedAlephHttpClient
 
     setup_logging(debug)
 
+    from aleph.sdk.account import _load_account
     account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
     address = account.get_address() if address is None else address
 
@@ -191,6 +193,9 @@ async def get(
     debug: bool = False,
 ) -> Optional[dict]:
     """Fetch an aggregate by key or subkeys"""
+    from aiohttp.client_exceptions import ClientResponseError
+    from aleph.sdk.account import _load_account
+    from aleph.sdk.client import AuthenticatedAlephHttpClient
 
     setup_logging(debug)
 
@@ -227,6 +232,8 @@ async def list_aggregates(
     debug: bool = False,
 ) -> Optional[dict]:
     """Display all aggregates associated to an account"""
+    from aiohttp.client import ClientSession
+    from aleph.sdk.account import _load_account
 
     setup_logging(debug)
 
@@ -302,6 +309,7 @@ async def authorize(
 ):
     """Grant specific publishing permissions to an address to act on behalf of this account"""
 
+    from aleph.sdk.account import _load_account
     setup_logging(debug)
 
     account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
@@ -376,6 +384,7 @@ async def revoke(
 ):
     """Revoke all publishing permissions from an address acting on behalf of this account"""
 
+    from aleph.sdk.account import _load_account
     setup_logging(debug)
 
     account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
@@ -431,6 +440,7 @@ async def permissions(
 ) -> Optional[dict]:
     """Display all permissions emitted by an account"""
 
+    from aleph.sdk.account import _load_account
     setup_logging(debug)
 
     account: AccountFromPrivateKey = _load_account(private_key, private_key_file)

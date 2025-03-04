@@ -1,15 +1,15 @@
 from __future__ import annotations
 
-import asyncio
 import logging
+import typing
 from typing import Optional
 
+if typing.TYPE_CHECKING:
+    from textual.widgets import DataTable, Label, ProgressBar
+    from textual.widgets._data_table import RowKey
+
 from textual.app import App
-from textual.containers import Horizontal
-from textual.css.query import NoMatches
 from textual.reactive import reactive
-from textual.widgets import DataTable, Footer, Label, ProgressBar
-from textual.widgets._data_table import RowKey
 
 from aleph_client.commands.instance.network import (
     fetch_crn_list,
@@ -72,6 +72,9 @@ class CRNTable(App[CRNInfo]):
 
     def compose(self):
         """Create child widgets for the app."""
+        from textual.containers import Horizontal
+        from textual.widgets import DataTable, Footer, Label, ProgressBar
+
         self.table = DataTable(cursor_type="row", name="Select CRN")
         self.table.add_column("Score", key="score")
         self.table.add_column("Name", key="name")
@@ -98,6 +101,7 @@ class CRNTable(App[CRNInfo]):
 
     async def on_mount(self):
         self.table.styles.height = "95%"
+        import asyncio
         task = asyncio.create_task(self.fetch_node_list())
         self.tasks.add(task)
         task.add_done_callback(self.tasks.discard)
@@ -113,6 +117,7 @@ class CRNTable(App[CRNInfo]):
         self.tasks = set()
 
         # Fetch all CRNs
+        import asyncio
         for crn in list(self.crns.values()):
             task = asyncio.create_task(self.add_crn_info(crn))
             self.tasks.add(task)
@@ -180,6 +185,8 @@ class CRNTable(App[CRNInfo]):
 
     def make_progress(self, task):
         """Called automatically to advance the progress bar."""
+        from textual.css.query import NoMatches
+
         try:
             self.progress_bar.advance(1)
             self.loader_label_end.update(f"    Available: {self.active_crns}    Match: {self.filtered_crns}")
@@ -203,6 +210,8 @@ class CRNTable(App[CRNInfo]):
         return reverse
 
     def sort_by(self, column, sort_func=lambda row: row.lower(), invert=False):
+        from textual.widgets import DataTable
+
         table = self.query_one(DataTable)
         reverse = self.sort_reverse(column)
         table.sort(

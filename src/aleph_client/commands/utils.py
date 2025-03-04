@@ -1,15 +1,17 @@
 from __future__ import annotations
 
-import asyncio
 import logging
 import os
 import shutil
 import sys
+import typing
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Optional, TypeVar, Union
 
-from aiohttp import ClientSession
+if typing.TYPE_CHECKING:
+    from aiohttp import ClientSession
+
 from aleph.sdk import AlephHttpClient
 from aleph.sdk.chains.ethereum import ETHAccount
 from aleph.sdk.conf import settings
@@ -275,6 +277,8 @@ def is_environment_interactive() -> bool:
 
 async def wait_for_processed_instance(session: ClientSession, item_hash: ItemHash):
     """Wait for a message to be processed by CCN"""
+    import asyncio
+
     while True:
         url = f"{settings.API_HOST.rstrip('/')}/api/v0/messages/{item_hash}"
         message = await fetch_json(session, url)
@@ -290,10 +294,13 @@ async def wait_for_processed_instance(session: ClientSession, item_hash: ItemHas
 
 async def wait_for_confirmed_flow(account: ETHAccount, receiver: str):
     """Wait for a flow to be confirmed on-chain"""
+    import asyncio
+
     while True:
         flow = await account.get_flow(receiver)
         if flow:
             return
+
         echo("Flow transaction is still pending, waiting 10sec...")
         await asyncio.sleep(10)
 

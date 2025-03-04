@@ -5,7 +5,6 @@ from decimal import Decimal
 from enum import Enum
 from typing import Annotated, Optional
 
-import aiohttp
 import typer
 from aleph.sdk.conf import settings
 from aleph.sdk.utils import displayable_amount, safe_getattr
@@ -310,7 +309,9 @@ class Pricing:
 async def fetch_pricing() -> Pricing:
     """Fetch pricing aggregate and format it as Pricing"""
 
-    async with aiohttp.ClientSession() as session:
+    from aiohttp.client import ClientSession
+
+    async with ClientSession() as session:
         async with session.get(pricing_link) as resp:
             if resp.status != 200:
                 logger.error("Unable to fetch pricing aggregate")

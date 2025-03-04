@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from importlib.metadata import version as importlib_version
-
 import typer
 
 from aleph_client.utils import AsyncTyper
@@ -10,6 +8,8 @@ app = AsyncTyper(no_args_is_help=True)
 
 
 def get_version(value: bool):
+    from importlib.metadata import version as importlib_version
+
     __version__ = "NaN"
     dist_name = "aleph-client"
     if value:

@@ -7,7 +7,6 @@ import re
 import unicodedata
 from typing import Annotated, Optional
 
-import aiohttp
 import typer
 from aleph.sdk.conf import settings
 from rich import text
@@ -38,7 +37,9 @@ class NodeInfo:
 
 async def _fetch_nodes() -> NodeInfo:
     """Fetch node aggregates and format it as NodeInfo"""
-    async with aiohttp.ClientSession() as session:
+    from aiohttp.client import ClientSession
+
+    async with ClientSession() as session:
         async with session.get(node_link) as resp:
             if resp.status != 200:
                 logger.error("Unable to fetch node information")

@@ -5,13 +5,6 @@ from ipaddress import IPv6Interface
 from json import JSONDecodeError
 from typing import Optional
 
-from aiohttp import (
-    ClientConnectorError,
-    ClientResponseError,
-    ClientSession,
-    ClientTimeout,
-    InvalidURL,
-)
 from aleph.sdk import AlephHttpClient
 from aleph.sdk.conf import settings
 from aleph.sdk.exceptions import ForgottenMessageError, MessageNotFoundError
@@ -57,6 +50,12 @@ async def call_program_crn_list() -> Optional[dict]:
     Returns:
         dict: Dictionary containing the compute resource node list.
     """
+    from aiohttp.client import ClientSession, ClientTimeout
+    from aiohttp.client_exceptions import (
+        ClientConnectorError,
+        ClientResponseError,
+        InvalidURL,
+    )
 
     try:
         async with ClientSession(timeout=ClientTimeout(total=60)) as session:
@@ -88,6 +87,7 @@ async def fetch_latest_crn_version() -> str:
     Returns:
         str: Latest crn version as x.x.x.
     """
+    from aiohttp.client import ClientSession
 
     async with ClientSession() as session:
         try:
@@ -172,6 +172,7 @@ async def fetch_vm_info(message: InstanceMessage) -> tuple[str, dict[str, str]]:
     Returns:
         VM information.
     """
+    from aiohttp.client import ClientSession
 
     async with ClientSession() as session:
         chain = safe_getattr(message, "content.payment.chain.value")
@@ -198,6 +199,8 @@ async def fetch_vm_info(message: InstanceMessage) -> tuple[str, dict[str, str]]:
             "tac_url": "",
             "tac_accepted": "",
         }
+        from aiohttp.client_exceptions import ClientConnectorError, ClientResponseError
+
         try:
             # Fetch from the scheduler API directly if no payment or no receiver (hold-tier non-confidential)
             if is_hold and not is_confidential and not has_gpu:
@@ -275,6 +278,7 @@ async def fetch_settings() -> dict:
     Returns:
         dict: Dictionary containing the settings.
     """
+    from aiohttp.client import ClientSession
 
     async with ClientSession() as session:
         try:

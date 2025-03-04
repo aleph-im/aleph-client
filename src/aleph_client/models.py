@@ -1,7 +1,6 @@
 from datetime import datetime
 from typing import Any, Optional
 
-from aiohttp import InvalidURL
 from aleph.sdk.types import StoredContent
 from aleph_message.models import ItemHash
 from aleph_message.models.execution.environment import CpuProperties, GpuDeviceClass
@@ -157,6 +156,8 @@ class CRNInfo(BaseModel):
         machine_usage = MachineUsage.parse_obj(system_usage) if system_usage else None
         ipv6_check = crn.get("ipv6_check")
         ipv6 = bool(ipv6_check and all(ipv6_check.values()))
+        from aiohttp.client_exceptions import InvalidURL
+
         try:
             url = sanitize_url(crn["address"])
         except InvalidURL:

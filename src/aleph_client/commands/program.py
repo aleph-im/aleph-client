@@ -10,7 +10,6 @@ from pathlib import Path
 from typing import Annotated, Any, Optional, cast
 from zipfile import BadZipFile
 
-import aiohttp
 import typer
 from aleph.sdk import AlephHttpClient, AuthenticatedAlephHttpClient
 from aleph.sdk.account import _load_account
@@ -845,9 +844,12 @@ async def runtime_checker(
     program_url = settings.VM_URL_PATH.format(hash=program_hash)
     versions: dict
     echo("Query runtime checker to retrieve versions...")
+
+    from aiohttp.client import ClientSession, ClientTimeout
+
     try:
-        timeout = aiohttp.ClientTimeout(total=settings.HTTP_REQUEST_TIMEOUT)
-        async with aiohttp.ClientSession(timeout=timeout) as session:
+        timeout = ClientTimeout(total=settings.HTTP_REQUEST_TIMEOUT)
+        async with ClientSession(timeout=timeout) as session:
             async with session.get(program_url) as resp:
                 resp.raise_for_status()
                 versions = await resp.json()

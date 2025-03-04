@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 import builtins
 import json
 import logging
@@ -9,7 +8,6 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Annotated, Any, Optional, Union, cast
 
-import aiohttp
 import typer
 from aleph.sdk import AlephHttpClient, AuthenticatedAlephHttpClient
 from aleph.sdk.account import _load_account
@@ -56,7 +54,6 @@ from rich.text import Text
 
 from aleph_client.commands import help_strings
 from aleph_client.commands.account import get_balance
-from aleph_client.commands.instance.display import CRNTable
 from aleph_client.commands.instance.network import (
     fetch_crn_info,
     fetch_crn_list,
@@ -364,9 +361,11 @@ async def create(
     crn = None
     if is_stream or confidential or gpu:
         if crn_url:
+            from aiohttp.client_exceptions import InvalidURL
+
             try:
                 crn_url = sanitize_url(crn_url)
-            except aiohttp.InvalidURL as e:
+            except InvalidURL as e:
                 echo(f"Invalid URL provided: {crn_url}")
                 raise typer.Exit(1) from e
 
@@ -389,6 +388,8 @@ async def create(
                     raise typer.Exit(1)
             except Exception as e:
                 raise typer.Exit(1) from e
+
+        from aleph_client.commands.instance.display import CRNTable
 
         while not crn:
             crn_table = CRNTable(
@@ -563,7 +564,9 @@ async def create(
                 return item_hash, crn_url, payment_chain
 
             # Wait for the instance message to be processed
-            async with aiohttp.ClientSession() as session:
+            from aiohttp.client import ClientSession
+
+            async with ClientSession() as session:
                 await wait_for_processed_instance(session, item_hash)
 
             # Pay-As-You-Go
@@ -579,6 +582,7 @@ async def create(
                     update_type=FlowUpdate.INCREASE,
                 )
                 if flow_hash_crn:
+                    import asyncio
                     await asyncio.sleep(5)  # 2nd flow tx fails if no delay
                     flow_hash_community = await account.manage_flow(
                         receiver=community_wallet_address,
@@ -779,6 +783,7 @@ async def delete(
                 if flow_hash_crn:
                     echo(f"CRN flow has been deleted successfully (Tx: {flow_hash_crn})")
                     if flow_com_percent > Decimal("0"):
+                        import asyncio
                         await asyncio.sleep(5)
                         flow_hash_community = await account.manage_flow(
                             community_wallet_address,
@@ -805,6 +810,7 @@ async def _show_instances(messages: builtins.list[InstanceMessage]):
     table.add_column("Logs", style="blue", overflow="fold")
 
     await fetch_crn_list()  # Precache CRN list
+    import asyncio
     scheduler_responses = dict(await asyncio.gather(*[fetch_vm_info(message) for message in messages]))
     uninitialized_confidential_found = False
     for message in messages:
@@ -1078,15 +1084,17 @@ async def logs(
 
     account = _load_account(private_key, private_key_file, chain=chain)
 
+    from aiohttp.client_exceptions import ClientConnectorError, ClientResponseError
+
     async with VmClient(account, domain) as manager:
         try:
             async for log in manager.get_logs(vm_id=vm_id):
                 log_data = json.loads(log)
                 if "message" in log_data:
                     echo(log_data["message"])
-        except aiohttp.ClientConnectorError as e:
+        except ClientConnectorError as e:
             echo(f"Unable to connect to domain: {domain}\nError: {e}")
-        except aiohttp.ClientResponseError:
+        except ClientResponseError:
             echo(f"No VM associated with {vm_id} are currently running on {domain}")
 
 
@@ -1448,6 +1456,7 @@ async def confidential_create(
         return 1
 
     # Safe delay to ensure instance is starting and is ready
+    import asyncio
     echo("Waiting 10sec before to start...")
     await asyncio.sleep(10)
 

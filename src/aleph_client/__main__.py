@@ -16,7 +16,7 @@ from aleph_client.commands import (
 )
 from aleph_client.utils import AsyncTyper
 
-app = AsyncTyper(no_args_is_help=True)
+app = AsyncTyper(no_args_is_help=True, pretty_exceptions_enable=False)
 
 app.add_typer(account.app, name="account", help="Manage accounts")
 app.add_typer(

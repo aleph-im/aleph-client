@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 import json
 import os.path
 import subprocess
@@ -24,14 +23,6 @@ from aleph_message.models.item_hash import ItemHash
 from aleph_message.status import MessageStatus
 
 from aleph_client.commands import help_strings
-from aleph_client.commands.utils import (
-    colorful_json,
-    colorful_message_json,
-    colorized_status,
-    input_multiline,
-    setup_logging,
-    str_to_datetime,
-)
 from aleph_client.utils import AsyncTyper
 
 app = AsyncTyper(no_args_is_help=True)
@@ -41,6 +32,12 @@ app = AsyncTyper(no_args_is_help=True)
 async def get(
     item_hash: Annotated[str, typer.Argument(help="Item hash of the message")],
 ):
+    from aleph_client.commands.utils import (
+        colorful_json,
+        colorful_message_json,
+        colorized_status,
+    )
+
     async with AlephHttpClient(api_server=settings.API_HOST) as client:
         message: Optional[AlephMessage] = None
         try:
@@ -75,6 +72,8 @@ async def find(
     end_date: Annotated[Optional[str], typer.Option()] = None,
     ignore_invalid_messages: Annotated[bool, typer.Option()] = True,
 ):
+    from aleph_client.commands.utils import colorful_json, str_to_datetime
+
     parsed_message_types = (
         [MessageType(message_type) for message_type in message_types.split(",")] if message_types else None
     )
@@ -129,6 +128,8 @@ async def post(
 ):
     """Post a message on aleph.im."""
 
+    from aleph_client.commands.utils import input_multiline, setup_logging
+
     setup_logging(debug)
 
     account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
@@ -178,6 +179,8 @@ async def amend(
     debug: Annotated[bool, typer.Option()] = False,
 ):
     """Amend an existing aleph.im message."""
+
+    from aleph_client.commands.utils import setup_logging
 
     setup_logging(debug)
 
@@ -242,6 +245,8 @@ async def forget(
 ):
     """Forget an existing aleph.im message."""
 
+    from aleph_client.commands.utils import setup_logging
+
     setup_logging(debug)
 
     hash_list: list[ItemHash] = [ItemHash(h) for h in hashes.split(",")]
@@ -258,6 +263,8 @@ async def watch(
     debug: Annotated[bool, typer.Option()] = False,
 ):
     """Watch a hash for amends and print amend hashes"""
+
+    from aleph_client.commands.utils import setup_logging
 
     setup_logging(debug)
 
@@ -286,6 +293,10 @@ def sign(
     debug: Annotated[bool, typer.Option()] = False,
 ):
     """Sign an aleph message with a private key. If no --message is provided, the message will be read from stdin."""
+
+    import asyncio
+
+    from aleph_client.commands.utils import input_multiline, setup_logging
 
     setup_logging(debug)
 
