@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 import logging
+from enum import Enum
 from pathlib import Path
 from typing import Annotated, Optional
 
@@ -31,6 +33,7 @@ from rich.text import Text
 from typer.colors import GREEN, RED
 
 from aleph_client.commands import help_strings
+from aleph_client.commands.help_strings import INVALID_KEY_FORMAT
 from aleph_client.commands.utils import (
     input_multiline,
     setup_logging,
@@ -44,6 +47,25 @@ app = AsyncTyper(no_args_is_help=True)
 console = Console()
 
 
+class KeyEncoding(str, Enum):
+    HEXADECIMAL = "hexadecimal"
+    BASE32 = "base32"
+    BASE64 = "base64"
+
+
+def decode_private_key(private_key: str, encoding: KeyEncoding) -> bytes:
+    """Decode a private key from a string via the specified encoding."""
+    if encoding == KeyEncoding.HEXADECIMAL:
+        return bytes_from_hex(private_key)
+    elif encoding == KeyEncoding.BASE32:
+        # Base32 keys are always uppercase
+        return base64.b32decode(private_key.upper())
+    elif encoding == KeyEncoding.BASE64:
+        return base64.b64decode(private_key)
+    else:
+        raise ValueError(INVALID_KEY_FORMAT.format(encoding))
+
+
 @app.command()
 async def create(
     private_key: Annotated[Optional[str], typer.Option(help=help_strings.PRIVATE_KEY)] = None,
@@ -52,6 +74,7 @@ async def create(
     replace: Annotated[bool, typer.Option(help=help_strings.CREATE_REPLACE)] = False,
     active: Annotated[bool, typer.Option(help=help_strings.CREATE_ACTIVE)] = True,
     debug: Annotated[bool, typer.Option()] = False,
+    key_format: Annotated[KeyEncoding, typer.Option(help="Encoding of the private key")] = KeyEncoding.HEXADECIMAL,
 ):
     """Create or import a private key."""
 
@@ -84,7 +107,7 @@ async def create(
         if chain == Chain.SOL:
             private_key_bytes = parse_solana_private_key(private_key)
         else:
-            private_key_bytes = bytes_from_hex(private_key)
+            private_key_bytes = decode_private_key(private_key, key_format)
     else:
         private_key_bytes = generate_key()
     if not private_key_bytes:
