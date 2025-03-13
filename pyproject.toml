@@ -34,6 +34,7 @@ dependencies = [
   "aleph-sdk-python @ git+https://github.com/aleph-im/aleph-sdk-python@177-upgrade-pydantic-version#egg=aleph-sdk-python", # Change the version after the release
   "base58==2.1.1",                                                                                                         # Needed now as default with _load_account changement
   "py-sr25519-bindings==0.2",                                                                                              # Needed for DOT signatures
+  "pydantic>=2",
   "pygments==2.19.1",
   "pynacl==1.5",                                                                                                           # Needed now as default with _load_account changement
   "python-magic==0.4.27",
