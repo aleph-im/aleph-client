@@ -6,7 +6,6 @@ import os.path
 import subprocess
 import tempfile
 import time
-from datetime import datetime
 from pathlib import Path
 from typing import Annotated, Optional
 
@@ -19,7 +18,7 @@ from aleph.sdk.query.filters import MessageFilter
 from aleph.sdk.query.responses import MessagesResponse
 from aleph.sdk.types import AccountFromPrivateKey, StorageEnum
 from aleph.sdk.utils import extended_json_encoder
-from aleph_message.models import AlephMessage, ProgramMessage, StoreMessage
+from aleph_message.models import AlephMessage, ProgramMessage
 from aleph_message.models.base import MessageType
 from aleph_message.models.item_hash import ItemHash
 from aleph_message.status import MessageStatus
@@ -27,7 +26,6 @@ from aleph_message.status import MessageStatus
 from aleph_client.commands import help_strings
 from aleph_client.commands.utils import (
     colorful_json,
-    colorful_message_json,
     colorized_status,
     input_multiline,
     setup_logging,
@@ -53,10 +51,9 @@ async def get(
         if message:
             typer.echo(f"Message Status: {colorized_status(status)}")
             if status == MessageStatus.REJECTED:
-                reason = await client.get_message_error(item_hash=ItemHash(item_hash))
-                typer.echo(colorful_json(json.dumps(reason, indent=4)))
+                typer.echo(colorful_json(json.dumps(message.model_dump(), indent=4, default=extended_json_encoder)))
             else:
-                typer.echo(colorful_message_json(message))
+                typer.echo(colorful_json(json.dumps(message.model_dump(), indent=4, default=extended_json_encoder)))
 
 
 @app.command()

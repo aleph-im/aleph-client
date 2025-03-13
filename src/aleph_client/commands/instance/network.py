@@ -20,7 +20,7 @@ from aleph_message.models import InstanceMessage
 from aleph_message.models.execution.base import PaymentType
 from aleph_message.models.item_hash import ItemHash
 from click import echo
-from pydantic import ValidationError, field_validator
+from pydantic import ValidationError
 from typer import Exit
 
 from aleph_client.commands import help_strings
