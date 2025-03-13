@@ -18,11 +18,10 @@ from aleph.sdk.exceptions import ForgottenMessageError, MessageNotFoundError
 from aleph.sdk.types import GenericMessage
 from aleph.sdk.utils import safe_getattr
 from aleph_message.models import AlephMessage, InstanceMessage, ItemHash, ProgramMessage
-from aleph_message.models.execution.volume import (
-    EphemeralVolumeSize,
-    PersistentVolumeSizeMib,
-)
+from aleph_message.models.execution.volume import EphemeralVolume, PersistentVolume
 from aleph_message.status import MessageStatus
+from aleph_message.utils import Gigabytes
+from pydantic import BaseModel
 from pygments import highlight
 from pygments.formatters.terminal256 import Terminal256Formatter
 from pygments.lexers import JsonLexer
@@ -89,6 +88,14 @@ def is_valid_mount_path(mount: str) -> bool:
     return mount.startswith("/") and len(mount) > 1
 
 
+def get_field_constraints(model: type[BaseModel], field_name: str, default_min: int, default_max: int):
+    """Get the constraints for a field in a model"""
+    field_metadata = model.model_fields[field_name].metadata
+    max_value = next((meta.le for meta in field_metadata if hasattr(meta, "le")), default_max)
+    min_value = next((meta.gt for meta in field_metadata if hasattr(meta, "gt")), default_min)
+    return min_value, max_value
+
+
 def prompt_for_volumes():
     while yes_no_input("Add volume?", default=False):
         mount = validated_prompt("Mount path (must be absolute, ex: /opt/data)", is_valid_mount_path)
@@ -108,10 +115,11 @@ def prompt_for_volumes():
             if yes_no_input("Copy from a parent volume?", default=False):
                 parent = {"ref": validated_prompt("Item hash", lambda text: len(text) == 64), "use_latest": True}
             name = validated_prompt("Name", lambda text: len(text) > 0)
+            min_size, max_size = get_field_constraints(PersistentVolume, "size_mib", Gigabytes(2048), 0)
             size_mib = validated_int_prompt(
                 "Size (MiB)",
-                min_value=PersistentVolumeSizeMib.gt + 1,
-                max_value=PersistentVolumeSizeMib.le,
+                min_value=max_size,
+                max_value=min_size,
             )
             yield {
                 **base_volume,
@@ -121,9 +129,8 @@ def prompt_for_volumes():
                 "size_mib": size_mib,
             }
         else:  # Ephemeral
-            size_mib = validated_int_prompt(
-                "Size (MiB)", min_value=EphemeralVolumeSize.gt + 1, max_value=EphemeralVolumeSize.le
-            )
+            min_size, max_size = get_field_constraints(EphemeralVolume, "size_mib", Gigabytes(1), 0)
+            size_mib = validated_int_prompt("Size (MiB)", min_value=min_size + 1, max_value=max_size)
             yield {
                 **base_volume,
                 "ephemeral": True,
