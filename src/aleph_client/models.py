@@ -118,7 +118,7 @@ class MachineInfo(BaseModel):
         version = _remove_ansi_escape(_escape_and_normalize(raw_version)) if raw_version else None
 
         return cls(
-            machine_usage=MachineUsage.parse_obj(machine_usage),
+            machine_usage=MachineUsage.model_validate(machine_usage),
             score=score,
             name=node_name,
             version=version,
@@ -154,7 +154,7 @@ class CRNInfo(BaseModel):
         payment_receiver_address = crn.get("payment_receiver_address")
         stream_reward_address = extract_valid_eth_address(payment_receiver_address) if payment_receiver_address else ""
         system_usage = crn.get("system_usage")
-        machine_usage = MachineUsage.parse_obj(system_usage) if system_usage else None
+        machine_usage = MachineUsage.model_validate(system_usage) if system_usage else None
         ipv6_check = crn.get("ipv6_check")
         ipv6 = bool(ipv6_check and all(ipv6_check.values()))
         try:

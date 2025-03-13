@@ -681,12 +681,12 @@ async def persist(
             return None
 
         # Update content
-        content: ProgramContent = message.content.copy()
+        content: ProgramContent = message.content.model_copy()
         content.on.persistent = True
         content.replaces = message.item_hash
 
         message, _status, _ = await client.submit(
-            content=content.dict(exclude_none=True),
+            content=content.model_dump(exclude_none=True),
             message_type=message.type,
             channel=message.channel,
         )
@@ -778,12 +778,12 @@ async def unpersist(
             return None
 
         # Update content
-        content: ProgramContent = message.content.copy()
+        content: ProgramContent = message.content.model_copy()
         content.on.persistent = False
         content.replaces = message.item_hash
 
         message, _status, _ = await client.submit(
-            content=content.dict(exclude_none=True),
+            content=content.model_dump(exclude_none=True),
             message_type=message.type,
             channel=message.channel,
         )
