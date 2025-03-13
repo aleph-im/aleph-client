@@ -261,7 +261,7 @@ def mock_crn_info():
         confidential_computing=True,
         gpu_support=True,
         terms_and_conditions=FAKE_STORE_HASH,
-        compatible_available_gpus=[gpu.dict() for gpu in mock_machine_info.machine_usage.gpu.available_devices],
+        compatible_available_gpus=[gpu.model_dump() for gpu in mock_machine_info.machine_usage.gpu.available_devices],
     )
 
 
