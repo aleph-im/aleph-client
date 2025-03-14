@@ -67,6 +67,76 @@ def test_account_import_evm(env_files):
     assert new_key != old_key
 
 
+def test_account_import_evm_base32(env_files):
+    settings.CONFIG_FILE = env_files[1]
+    old_key = env_files[0].read_bytes()
+    result = runner.invoke(
+        app,
+        [
+            "account",
+            "create",
+            "--replace",
+            "--private-key-file",
+            str(env_files[0]),
+            "--chain",
+            "ETH",
+            "--private-key",
+            "JXINYIKE2QOUXCZRAFA2FG4AMYYPEOLS4OIGEZ2WK4WCQDWYSAMQ====",
+            "--key-format",
+            "base32",
+        ],
+    )
+    assert result.exit_code == 0, result.stdout
+    new_key = env_files[0].read_bytes()
+    assert new_key != old_key
+
+
+def test_account_import_evm_base64(env_files):
+    settings.CONFIG_FILE = env_files[1]
+    old_key = env_files[0].read_bytes()
+    result = runner.invoke(
+        app,
+        [
+            "account",
+            "create",
+            "--replace",
+            "--private-key-file",
+            str(env_files[0]),
+            "--chain",
+            "ETH",
+            "--private-key",
+            "TdDcIUTUHUuLMQFBopuAZjDyOXLjkGJnVlcsKA7YkBk=",
+            "--key-format",
+            "base64",
+        ],
+    )
+    assert result.exit_code == 0, result.stdout
+    new_key = env_files[0].read_bytes()
+    assert new_key != old_key
+
+
+def test_account_import_evm_format_invalid(env_files):
+    """Test that an invalid key format raises an error."""
+    settings.CONFIG_FILE = env_files[1]
+    result = runner.invoke(
+        app,
+        [
+            "account",
+            "create",
+            "--replace",
+            "--private-key-file",
+            str(env_files[0]),
+            "--chain",
+            "ETH",
+            "--private-key",
+            "TdDcIUTUHUuLMQFBopuAZjDyOXLjkGJnVlcsKA7YkBk=",
+            "--key-format",
+            "invalid",
+        ],
+    )
+    assert result.exit_code != 0, result.stdout
+
+
 def test_account_import_sol(env_files):
     settings.CONFIG_FILE = env_files[1]
     old_key = env_files[0].read_bytes()
