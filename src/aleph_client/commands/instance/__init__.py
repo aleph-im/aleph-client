@@ -864,6 +864,17 @@ async def _show_instances(messages: builtins.list[InstanceMessage]):
                 aleph_price = Text.assemble(psec, " | ", phour, " | ", pday, " | ", pmonth, style="violet")
             cost = Text.assemble("\n$ALEPH: ", aleph_price)
 
+            additional_infos = []
+            if is_hold:
+                # XXX error management
+                async with aiohttp.ClientSession() as session:
+                    request = await session.get("http://[2a01:240:ad00:2:be24:11ff:fece:9d3d]/api/v0/decisions")
+                    decisions = await request.json()
+                    decision = decisions["tasks_decisions"][str(item_hash_link)]["decision"]
+                    description = decisions["tasks_decisions"][str(item_hash_link)]["description"]
+                    decision_text = Text.assemble(f"[{decision}] {description}", style="yellow")
+                    additional_infos.append(Text.assemble("\nScheduler: ", decision_text))
+
             instance = Text.assemble(
                 "Item Hash ↓\t     Name: ",
                 name,
@@ -877,6 +888,7 @@ async def _show_instances(messages: builtins.list[InstanceMessage]):
                 created_at,
                 payer,
                 cost,
+                *additional_infos,
             )
 
             # 2nd Column
