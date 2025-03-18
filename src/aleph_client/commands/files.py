@@ -166,10 +166,10 @@ async def forget(
 
     account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
 
-    # hashes = [ItemHash(item_hash) for item_hash in item_hash.split(",")]
+    hashes = [ItemHash(item_hash) for item_hash in item_hash.split(",")]
 
     async with AuthenticatedAlephHttpClient(account=account, api_server=settings.API_HOST) as client:
-        value = await client.forget(hashes=[ItemHash(item_hash)], reason=reason, channel=channel)
+        value = await client.forget(hashes=hashes, reason=reason, channel=channel)
         typer.echo(f"{value[0].model_dump_json(indent=4)}")
 
 
