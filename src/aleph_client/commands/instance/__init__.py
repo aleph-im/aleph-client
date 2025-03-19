@@ -875,6 +875,22 @@ async def _show_instances(messages: builtins.list[InstanceMessage]):
                     decision_text = Text.assemble(f"[{decision}] {description}", style="yellow")
                     additional_infos.append(Text.assemble("\nScheduler: ", decision_text))
 
+            async with aiohttp.ClientSession() as session:
+                request = await session.get(f'{info["crn_url"]}/about/executions/records')
+                running_instances = await request.json()
+                for running_instance in running_instances:
+                    if running_instance.get("vm_hash") == item_hash_link.plain:
+                        additional_infos.append(
+                            Text.assemble(
+                                "\nCRN: ", Text.assemble(f"started at {running_instance['time_started']}", style="blue")
+                            )
+                        )
+                        break
+                else:
+                    additional_infos.append(
+                        Text.assemble("\nCRN: ", Text.assemble("not listed on the CRN", style="orange1"))
+                    )
+
             instance = Text.assemble(
                 "Item Hash ↓\t     Name: ",
                 name,
