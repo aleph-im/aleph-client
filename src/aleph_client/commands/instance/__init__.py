@@ -345,6 +345,16 @@ async def create(
             selector=True,
         ),
     )
+    if (tier.compute_units > 4 or confidential) and payment_type == PaymentType.hold:
+        console.print("VM with more than 4 Compute unit and/or confidential can't run using HOLD.", style="red")
+        if payment_chain in super_token_chains:
+            payment_type = PaymentType.superfluid
+            console.print("Switching payment type to PAY-As-You-Go (superfluid).", style="green")
+        else:
+            console.print("The current chain is not compatible with PAYG. Aborting instance creation.", style="red")
+            console.print(f"Compatible Chain : {super_token_chains}")
+            raise typer.Exit(code=1)
+
     name = name or validated_prompt("Instance name", lambda x: x and len(x) < 65)
     vcpus = tier.vcpus
     memory = tier.memory

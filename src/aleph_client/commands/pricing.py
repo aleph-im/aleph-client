@@ -211,9 +211,13 @@ class Pricing:
                 if "vram" in tier:
                     row.append(f"{tier['vram'] / 1024:.0f}")
                 if "holding" in price_unit:
-                    row.append(
-                        f"{displayable_amount(Decimal(price_unit['holding']) * current_units, decimals=3)} tokens"
-                    )
+                    # If the pricing entity is confidential or compute units > 4, display "Not Available"
+                    if pricing_entity == PricingEntity.INSTANCE_CONFIDENTIAL or current_units > 4:
+                        row.append("Not Available")
+                    else:
+                        row.append(
+                            f"{displayable_amount(Decimal(price_unit['holding']) * current_units, decimals=3)} tokens"
+                        )
                 if "payg" in price_unit and pricing_entity in PAYG_GROUP:
                     payg_hourly = Decimal(price_unit["payg"]) * current_units
                     row.append(
