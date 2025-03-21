@@ -7,6 +7,7 @@ from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+import typer
 from aiohttp import InvalidURL
 from aleph_message.models import Chain, ItemHash
 from aleph_message.models.execution.base import Payment, PaymentType
@@ -380,7 +381,7 @@ def create_mock_vm_coco_client():
         "coco_superfluid_evm",
         "gpu_superfluid_evm",
     ],
-    argnames="args, expected",
+    argnames="args, expected, should_raise",
     argvalues=[
         (  # regular_hold_evm
             {
@@ -392,6 +393,7 @@ def create_mock_vm_coco_client():
                 "immutable_volume": [f"mount=/opt/packages,ref={FAKE_STORE_HASH}"],
             },
             (FAKE_VM_HASH, None, "ETH"),
+            False,
         ),
         (  # regular_superfluid_evm
             {
@@ -401,6 +403,7 @@ def create_mock_vm_coco_client():
                 "crn_url": FAKE_CRN_URL,
             },
             (FAKE_VM_HASH, FAKE_CRN_URL, "AVAX"),
+            False,
         ),
         (  # regular_hold_sol
             {
@@ -409,6 +412,7 @@ def create_mock_vm_coco_client():
                 "rootfs": "debian12",
             },
             (FAKE_VM_HASH, None, "SOL"),
+            False,
         ),
         (  # coco_hold_sol
             {
@@ -418,7 +422,8 @@ def create_mock_vm_coco_client():
                 "crn_url": FAKE_CRN_URL,
                 "confidential": True,
             },
-            (FAKE_VM_HASH, FAKE_CRN_URL, "SOL"),
+            None,
+            True,
         ),
         (  # coco_hold_evm
             {
@@ -428,7 +433,8 @@ def create_mock_vm_coco_client():
                 "crn_url": FAKE_CRN_URL,
                 "confidential": True,
             },
-            (FAKE_VM_HASH, FAKE_CRN_URL, "ETH"),
+            None,
+            True,
         ),
         (  # coco_superfluid_evm
             {
@@ -439,6 +445,7 @@ def create_mock_vm_coco_client():
                 "confidential": True,
             },
             (FAKE_VM_HASH, FAKE_CRN_URL, "BASE"),
+            False,
         ),
         (  # gpu_superfluid_evm
             {
@@ -449,11 +456,12 @@ def create_mock_vm_coco_client():
                 "gpu": True,
             },
             (FAKE_VM_HASH, FAKE_CRN_URL, "BASE"),
+            False,
         ),
     ],
 )
 @pytest.mark.asyncio
-async def test_create_instance(args, expected):
+async def test_create_instance(args, expected, should_raise):
     mock_validate_ssh_pubkey_file = create_mock_validate_ssh_pubkey_file()
     mock_load_account = create_mock_load_account()
     mock_account = mock_load_account.return_value
@@ -496,28 +504,34 @@ async def test_create_instance(args, expected):
         all_args.update(instance_spec)
         return await create(**all_args)
 
-    returned = await create_instance(args)
-    # Basic assertions for all cases
-    mock_load_account.assert_called_once()
-    mock_validate_ssh_pubkey_file.return_value.read_text.assert_called_once()
-    mock_client.get_estimated_price.assert_called_once()
-    mock_auth_client.create_instance.assert_called_once()
-    # Payment type specific assertions
-    if args["payment_type"] == "hold":
-        mock_get_balance.assert_called_once()
-    elif args["payment_type"] == "superfluid":
-        assert mock_account.manage_flow.call_count == 2
-        assert mock_wait_for_confirmed_flow.call_count == 2
-    # CRN related assertions
-    if args["payment_type"] == "superfluid" or args.get("confidential") or args.get("gpu"):
-        mock_fetch_latest_crn_version.assert_called()
-        if not args.get("gpu"):
-            mock_fetch_crn_info.assert_called_once()
-        else:
-            mock_crn_table.return_value.run_async.assert_called_once()
-        mock_wait_for_processed_instance.assert_called_once()
-        mock_vm_client.start_instance.assert_called_once()
-    assert returned == expected
+    if should_raise:
+        with pytest.raises(typer.Exit) as exc_info:
+            await create_instance(args)
+        assert exc_info.value.exit_code == 1
+
+    else:
+        returned = await create_instance(args)
+        # Basic assertions for all cases
+        mock_load_account.assert_called_once()
+        mock_validate_ssh_pubkey_file.return_value.read_text.assert_called_once()
+        mock_client.get_estimated_price.assert_called_once()
+        mock_auth_client.create_instance.assert_called_once()
+        # Payment type specific assertions
+        if args["payment_type"] == "hold":
+            mock_get_balance.assert_called_once()
+        elif args["payment_type"] == "superfluid":
+            assert mock_account.manage_flow.call_count == 2
+            assert mock_wait_for_confirmed_flow.call_count == 2
+        # CRN related assertions
+        if args["payment_type"] == "superfluid" or args.get("confidential") or args.get("gpu"):
+            mock_fetch_latest_crn_version.assert_called()
+            if not args.get("gpu"):
+                mock_fetch_crn_info.assert_called_once()
+            else:
+                mock_crn_table.return_value.run_async.assert_called_once()
+            mock_wait_for_processed_instance.assert_called_once()
+            mock_vm_client.start_instance.assert_called_once()
+        assert returned == expected
 
 
 @pytest.mark.asyncio
