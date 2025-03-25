@@ -182,6 +182,14 @@ async def upload(
                 verbose=verbose,
             ),
         )
+        if (tier.compute_units > 4) and payment.type == PaymentType.hold:
+            console.print(
+                "Programs using more than 4 Compute Units require PAYG, which is not yet available. Please use HOLD "
+                "for programs with up to 4 Compute Units.",
+                style="red",
+            )
+            raise typer.Exit(code=1)
+
         name = name or validated_prompt("Program name", lambda x: x and len(x) < 65)
         vcpus = tier.vcpus
         memory = tier.memory
