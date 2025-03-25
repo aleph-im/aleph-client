@@ -506,9 +506,11 @@ async def test_create_instance(args, expected, should_raise):
 
     if should_raise:
         with pytest.raises(typer.Exit) as exc_info:
-            await create_instance(args)
-        assert exc_info.value.exit_code == 1
+            returned = await create_instance(args)
+            mock_load_account.assert_called_once()
+            mock_validate_ssh_pubkey_file.return_value.read_text.assert_called_once()
 
+        assert exc_info.value.exit_code == 1
     else:
         returned = await create_instance(args)
         # Basic assertions for all cases
