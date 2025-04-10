@@ -211,8 +211,8 @@ class Pricing:
                 if "vram" in tier:
                     row.append(f"{tier['vram'] / 1024:.0f}")
                 if "holding" in price_unit:
-                    # If the pricing entity is confidential or compute units > 4, display "Not Available"
-                    if pricing_entity == PricingEntity.INSTANCE_CONFIDENTIAL or current_units > 4:
+                    # If the pricing entity is confidential, display "Not Available"
+                    if pricing_entity == PricingEntity.INSTANCE_CONFIDENTIAL:
                         row.append("Not Available")
                     else:
                         row.append(
