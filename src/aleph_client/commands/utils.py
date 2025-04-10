@@ -8,7 +8,7 @@ import shutil
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Annotated, Any, Callable, Optional, TypeVar, Union, get_args
+from typing import Any, Callable, Optional, TypeVar, Union, get_args
 
 from aiohttp import ClientSession
 from aleph.sdk import AlephHttpClient
@@ -18,9 +18,11 @@ from aleph.sdk.exceptions import ForgottenMessageError, MessageNotFoundError
 from aleph.sdk.types import GenericMessage
 from aleph.sdk.utils import safe_getattr
 from aleph_message.models import AlephMessage, InstanceMessage, ItemHash, ProgramMessage
-from aleph_message.models.execution.volume import EphemeralVolumeSize, PersistentVolumeSizeMib
+from aleph_message.models.execution.volume import (
+    EphemeralVolumeSize,
+    PersistentVolumeSizeMib,
+)
 from aleph_message.status import MessageStatus
-from aleph_message.utils import Gigabytes
 from pydantic.fields import FieldInfo
 from pygments import highlight
 from pygments.formatters.terminal256 import Terminal256Formatter
@@ -88,15 +90,18 @@ def is_valid_mount_path(mount: str) -> bool:
     return mount.startswith("/") and len(mount) > 1
 
 
-def extract_gt_le_from_annotated(annotated_type: Annotated) -> tuple[int | None, int | None] | None:
+def get_annotated_constraint(annotated_type: type, constraint_name: str) -> Any | None:
     """
-    Extract the (gt, le) values from a pydantic Field inside an Annotated type.
+    Extract the constraint values from annotated types.
     """
-    for arg in get_args(annotated_type):
+    args = get_args(annotated_type)
+    if not args:
+        return None
+
+    for arg in args:
         if isinstance(arg, FieldInfo):
-            gt = arg.json_schema_extra.get('gt') if arg.json_schema_extra else None
-            le = arg.json_schema_extra.get('le') if arg.json_schema_extra else None
-            return gt, le
+            value = getattr(arg, constraint_name, None)
+            return value
     return None
 
 
@@ -119,11 +124,12 @@ def prompt_for_volumes():
             if yes_no_input("Copy from a parent volume?", default=False):
                 parent = {"ref": validated_prompt("Item hash", lambda text: len(text) == 64), "use_latest": True}
             name = validated_prompt("Name", lambda text: len(text) > 0)
-            min_size, max_size = extract_gt_le_from_annotated(PersistentVolumeSizeMib)
+            min_size = get_annotated_constraint(PersistentVolumeSizeMib, "gt") or 0
+            max_size = get_annotated_constraint(PersistentVolumeSizeMib, "le") or 0
             size_mib = validated_int_prompt(
                 "Size (MiB)",
-                min_value=max_size + 1,
-                max_value=min_size,
+                min_value=min_size + 1,
+                max_value=max_size,
             )
             yield {
                 **base_volume,
@@ -133,7 +139,8 @@ def prompt_for_volumes():
                 "size_mib": size_mib,
             }
         else:  # Ephemeral
-            min_size, max_size = extract_gt_le_from_annotated(EphemeralVolumeSize)
+            min_size = get_annotated_constraint(EphemeralVolumeSize, "gt") or 0
+            max_size = get_annotated_constraint(EphemeralVolumeSize, "le") or 0
             size_mib = validated_int_prompt("Size (MiB)", min_value=min_size + 1, max_value=max_size)
             yield {
                 **base_volume,

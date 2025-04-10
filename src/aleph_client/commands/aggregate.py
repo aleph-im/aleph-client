@@ -88,7 +88,7 @@ async def forget(
             inline=inline,
             address=address,
         )
-        dumped_content = f"{message.json(indent=4)}"
+        dumped_content = f"{message.model_dump_json(indent=4)}"
 
         if status != MessageStatus.REJECTED:
             if print_message:

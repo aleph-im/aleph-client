@@ -196,7 +196,7 @@ async def amend(
             editor: str = os.getenv("EDITOR", default="nano")
             with tempfile.NamedTemporaryFile(suffix="json") as fd:
                 # Fill in message template
-                fd.write(existing_message.content.json(indent=4).encode())
+                fd.write(existing_message.content.model_dump_json(indent=4).encode())
                 fd.seek(0)
 
                 # Launch editor
@@ -225,7 +225,7 @@ async def amend(
                     message_type=existing_message.type,
                     channel=existing_message.channel,
                 )
-            typer.echo(f"{message.json(indent=4)}")
+            typer.echo(f"{message.model_dump_json(indent=4)}")
 
 
 @app.command()
