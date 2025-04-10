@@ -30,7 +30,7 @@ dynamic = [ "version" ]
 dependencies = [
   "aiodns==3.2",
   "aiohttp==3.11.13",
-  "aleph-message @ git+https://github.com/aleph-im/aleph-message@108-upgrade-pydantic-version#egg=aleph-message",          # Change the version after the release
+  "aleph-message>=1",
   "aleph-sdk-python @ git+https://github.com/aleph-im/aleph-sdk-python@177-upgrade-pydantic-version#egg=aleph-sdk-python", # Change the version after the release
   "base58==2.1.1",                                                                                                         # Needed now as default with _load_account changement
   "py-sr25519-bindings==0.2",                                                                                              # Needed for DOT signatures
