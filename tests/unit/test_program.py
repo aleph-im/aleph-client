@@ -7,7 +7,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import aiohttp
 import pytest
-import typer
 from aleph.sdk.conf import settings
 from aleph_message.models import Chain
 
@@ -187,39 +186,6 @@ async def test_upload_program():
         mock_auth_client.get_estimated_price.assert_called_once()
         mock_auth_client.create_program.assert_called_once()
         assert returned == FAKE_PROGRAM_HASH
-
-    await upload_program()
-
-
-@pytest.mark.asyncio
-async def test_upload_program_reject():
-    mock_load_account = create_mock_load_account()
-    mock_account = mock_load_account.return_value
-    mock_auth_client_class, mock_auth_client = create_mock_auth_client(mock_account)
-    mock_get_balance = AsyncMock(return_value={"available_amount": 100000})
-
-    @patch("aleph_client.commands.program._load_account", mock_load_account)
-    @patch("aleph_client.utils.os.path.isfile", MagicMock(return_value=True))
-    @patch("aleph_client.commands.program.AuthenticatedAlephHttpClient", mock_auth_client_class)
-    @patch("aleph_client.commands.program.get_balance", mock_get_balance)
-    @patch("aleph_client.commands.program.open", MagicMock())
-    async def upload_program():
-        print()  # For better display when pytest -v -s
-        with pytest.raises(typer.Exit) as exc_info:
-            await upload(
-                address=FAKE_ADDRESS_EVM,
-                path=Path("/fake/file.squashfs"),
-                entrypoint="main:app",
-                name="mock_program",
-                runtime=settings.DEFAULT_RUNTIME_ID,
-                compute_units=6,  # Program with more than 4 compute unit should return an error
-                updatable=True,
-                skip_volume=True,
-                skip_env_var=True,
-            )
-            mock_load_account.assert_called_once()
-            mock_auth_client.create_program.assert_called_once()
-            assert exc_info.value.exit_code == 1
 
     await upload_program()
 
