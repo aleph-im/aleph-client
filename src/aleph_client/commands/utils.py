@@ -8,7 +8,7 @@ import shutil
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Callable, Optional, TypeVar, Union
+from typing import Annotated, Any, Callable, Optional, TypeVar, Union, get_args
 
 from aiohttp import ClientSession
 from aleph.sdk import AlephHttpClient
@@ -18,10 +18,10 @@ from aleph.sdk.exceptions import ForgottenMessageError, MessageNotFoundError
 from aleph.sdk.types import GenericMessage
 from aleph.sdk.utils import safe_getattr
 from aleph_message.models import AlephMessage, InstanceMessage, ItemHash, ProgramMessage
-from aleph_message.models.execution.volume import EphemeralVolume, PersistentVolume
+from aleph_message.models.execution.volume import EphemeralVolumeSize, PersistentVolumeSizeMib
 from aleph_message.status import MessageStatus
 from aleph_message.utils import Gigabytes
-from pydantic import BaseModel
+from pydantic.fields import FieldInfo
 from pygments import highlight
 from pygments.formatters.terminal256 import Terminal256Formatter
 from pygments.lexers import JsonLexer
@@ -88,12 +88,16 @@ def is_valid_mount_path(mount: str) -> bool:
     return mount.startswith("/") and len(mount) > 1
 
 
-def get_field_constraints(model: type[BaseModel], field_name: str, default_min: int, default_max: int):
-    """Get the constraints for a field in a model"""
-    field_metadata = model.model_fields[field_name].metadata
-    max_value = next((meta.le for meta in field_metadata if hasattr(meta, "le")), default_max)
-    min_value = next((meta.gt for meta in field_metadata if hasattr(meta, "gt")), default_min)
-    return min_value, max_value
+def extract_gt_le_from_annotated(annotated_type: Annotated) -> tuple[int | None, int | None] | None:
+    """
+    Extract the (gt, le) values from a pydantic Field inside an Annotated type.
+    """
+    for arg in get_args(annotated_type):
+        if isinstance(arg, FieldInfo):
+            gt = arg.json_schema_extra.get('gt') if arg.json_schema_extra else None
+            le = arg.json_schema_extra.get('le') if arg.json_schema_extra else None
+            return gt, le
+    return None
 
 
 def prompt_for_volumes():
@@ -115,10 +119,10 @@ def prompt_for_volumes():
             if yes_no_input("Copy from a parent volume?", default=False):
                 parent = {"ref": validated_prompt("Item hash", lambda text: len(text) == 64), "use_latest": True}
             name = validated_prompt("Name", lambda text: len(text) > 0)
-            min_size, max_size = get_field_constraints(PersistentVolume, "size_mib", Gigabytes(2048), 0)
+            min_size, max_size = extract_gt_le_from_annotated(PersistentVolumeSizeMib)
             size_mib = validated_int_prompt(
                 "Size (MiB)",
-                min_value=max_size,
+                min_value=max_size + 1,
                 max_value=min_size,
             )
             yield {
@@ -129,7 +133,7 @@ def prompt_for_volumes():
                 "size_mib": size_mib,
             }
         else:  # Ephemeral
-            min_size, max_size = get_field_constraints(EphemeralVolume, "size_mib", Gigabytes(1), 0)
+            min_size, max_size = extract_gt_le_from_annotated(EphemeralVolumeSize)
             size_mib = validated_int_prompt("Size (MiB)", min_value=min_size + 1, max_value=max_size)
             yield {
                 **base_volume,

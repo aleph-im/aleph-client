@@ -51,7 +51,8 @@ async def get(
         if message:
             typer.echo(f"Message Status: {colorized_status(status)}")
             if status == MessageStatus.REJECTED:
-                typer.echo(colorful_json(json.dumps(message.model_dump(), indent=4, default=extended_json_encoder)))
+                reason = await client.get_message_error(item_hash=ItemHash(item_hash))
+                typer.echo(colorful_json(json.dumps(reason, indent=4)))
             else:
                 typer.echo(colorful_json(json.dumps(message.model_dump(), indent=4, default=extended_json_encoder)))
 
