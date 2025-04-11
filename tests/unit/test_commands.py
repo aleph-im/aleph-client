@@ -385,7 +385,7 @@ def test_file_download_only_info():
         standalone_mode=False,
     )
     assert result.exit_code == 0
-    assert result.return_value.dict()["hash"] == FAKE_STORE_HASH_CONTENT_FILE_CID
+    assert result.return_value.model_dump()["hash"] == FAKE_STORE_HASH_CONTENT_FILE_CID
 
 
 def test_file_list():

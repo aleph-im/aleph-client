@@ -55,7 +55,7 @@ async def pin(
             ref=ref,
         )
         logger.debug("Upload finished")
-        typer.echo(f"{result.json(indent=4)}")
+        typer.echo(f"{result.model_dump_json(indent=4)}")
 
 
 @app.command()
@@ -96,7 +96,7 @@ async def upload(
                 ref=ref,
             )
             logger.debug("Upload finished")
-            typer.echo(f"{result.json(indent=4)}")
+            typer.echo(f"{result.model_dump_json(indent=4)}")
 
 
 @app.command()
@@ -170,7 +170,7 @@ async def forget(
 
     async with AuthenticatedAlephHttpClient(account=account, api_server=settings.API_HOST) as client:
         value = await client.forget(hashes=hashes, reason=reason, channel=channel)
-        typer.echo(f"{value[0].json(indent=4)}")
+        typer.echo(f"{value[0].model_dump_json(indent=4)}")
 
 
 class GetAccountFilesQueryParams(BaseModel):
@@ -264,7 +264,7 @@ async def list_files(
 
         uri = f"{settings.API_HOST}/api/v0/addresses/{address}/files"
         async with aiohttp.ClientSession() as session:
-            response = await session.get(uri, params=query_params.dict())
+            response = await session.get(uri, params=query_params.model_dump())
             if response.status == 200:
                 files_data = await response.json()
                 formatted_files_data = json_lib.dumps(files_data, indent=4)

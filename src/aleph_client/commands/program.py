@@ -166,7 +166,7 @@ async def upload(
             )
             logger.debug("Code upload finished")
             if print_messages or print_code_message:
-                typer.echo(f"{user_code.json(indent=4)}")
+                typer.echo(f"{user_code.model_dump_json(indent=4)}")
             program_ref = user_code.item_hash
 
         pricing = await fetch_pricing()
@@ -264,7 +264,7 @@ async def upload(
 
         logger.debug("Program upload finished")
         if print_messages or print_program_message:
-            typer.echo(f"{message.json(indent=4)}")
+            typer.echo(f"{message.model_dump_json(indent=4)}")
 
         item_hash: ItemHash = message.item_hash
         if verbose:
@@ -378,7 +378,7 @@ async def update(
             )
             logger.debug("Code upload finished")
             if print_message:
-                typer.echo(f"{message.json(indent=4)}")
+                typer.echo(f"{message.model_dump_json(indent=4)}")
 
         if verbose:
             hash_base32 = b32encode(b16decode(item_hash.upper())).strip(b"=").lower().decode()
@@ -681,12 +681,12 @@ async def persist(
             return None
 
         # Update content
-        content: ProgramContent = message.content.copy()
+        content: ProgramContent = message.content.model_copy()
         content.on.persistent = True
         content.replaces = message.item_hash
 
         message, _status, _ = await client.submit(
-            content=content.dict(exclude_none=True),
+            content=content.model_dump(exclude_none=True),
             message_type=message.type,
             channel=message.channel,
         )
@@ -778,12 +778,12 @@ async def unpersist(
             return None
 
         # Update content
-        content: ProgramContent = message.content.copy()
+        content: ProgramContent = message.content.model_copy()
         content.on.persistent = False
         content.replaces = message.item_hash
 
         message, _status, _ = await client.submit(
-            content=content.dict(exclude_none=True),
+            content=content.model_dump(exclude_none=True),
             message_type=message.type,
             channel=message.channel,
         )

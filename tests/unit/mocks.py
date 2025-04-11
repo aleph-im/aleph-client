@@ -1,9 +1,10 @@
 from decimal import Decimal
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 from aleph.sdk.chains.evm import EVMAccount
 from aleph.sdk.conf import settings
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 from aleph_client.commands.node import NodeInfo
 
@@ -30,8 +31,14 @@ FAKE_FLOW_HASH = "0xfake_flow_hash"
 
 
 class Dict(BaseModel):
-    class Config:
-        extra = "allow"
+    model_config = ConfigDict(extra="allow")
+
+    def __init__(self, **data: Any):
+        """Allow any key-value pair to be passed to the model."""
+        super().__init__(**data)
+
+    def to_dict(self) -> dict[str, Any]:
+        return self.model_dump()
 
 
 def create_test_account() -> EVMAccount:

@@ -267,7 +267,7 @@ def sign_bytes(
     assert message is not None  # to please mypy
     coroutine = account.sign_raw(str(message).encode())
     signature = asyncio.run(coroutine)
-    typer.echo("\nSignature: " + signature.hex())
+    typer.echo("\nSignature: " + f"0x{signature.hex()}")
 
 
 async def get_balance(address: str) -> dict:

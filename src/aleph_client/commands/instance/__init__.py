@@ -71,6 +71,7 @@ from aleph_client.commands.utils import (
     filter_only_valid_messages,
     find_sevctl_or_exit,
     found_gpus_by_model,
+    get_annotated_constraint,
     get_or_prompt_volumes,
     setup_logging,
     str_to_datetime,
@@ -91,6 +92,7 @@ hold_chains = [*get_chains_with_holding(), Chain.SOL]
 metavar_valid_chains = f"[{'|'.join(hold_chains)}]"
 super_token_chains = get_chains_with_super_token()
 metavar_valid_payg_chains = f"[{'|'.join(super_token_chains)}]"
+max_persistent_volume_size = get_annotated_constraint(PersistentVolumeSizeMib, "le")
 
 
 @app.command()
@@ -119,7 +121,7 @@ async def create(
     vcpus: Annotated[Optional[int], typer.Option(help=help_strings.VCPUS)] = None,
     memory: Annotated[Optional[int], typer.Option(help=help_strings.MEMORY)] = None,
     rootfs_size: Annotated[
-        Optional[int], typer.Option(help=help_strings.ROOTFS_SIZE, max=PersistentVolumeSizeMib.le)
+        Optional[int], typer.Option(help=help_strings.ROOTFS_SIZE, max=max_persistent_volume_size)
     ] = None,
     timeout_seconds: Annotated[float, typer.Option(help=help_strings.TIMEOUT_SECONDS)] = settings.DEFAULT_VM_TIMEOUT,
     ssh_pubkey_file: Annotated[Path, typer.Option(help=help_strings.SSH_PUBKEY_FILE)] = Path(
@@ -341,7 +343,10 @@ async def create(
     disk_size_info = f"Rootfs Size: {round(disk_size/1024, 2)} GiB (defaulted to included storage in tier)"
     if not isinstance(rootfs_size, int):
         rootfs_size = validated_int_prompt(
-            "Custom Rootfs Size (MiB)", min_value=disk_size, max_value=PersistentVolumeSizeMib.le, default=disk_size
+            "Custom Rootfs Size (MiB)",
+            min_value=disk_size,
+            max_value=max_persistent_volume_size,
+            default=disk_size,
         )
     if rootfs_size > disk_size:
         disk_size = rootfs_size
@@ -551,7 +556,7 @@ async def create(
             echo(f"Instance creation failed:\n{e}")
             raise typer.Exit(code=1) from e
         if print_message:
-            echo(f"{message.json(indent=4)}")
+            echo(f"{message.model_dump_json(indent=4)}")
 
         item_hash: ItemHash = message.item_hash
         infos = []
@@ -796,7 +801,7 @@ async def delete(
 
         message, status = await client.forget(hashes=[ItemHash(item_hash)], reason=reason)
         if print_message:
-            echo(f"{message.json(indent=4)}")
+            echo(f"{message.model_dump_json(indent=4)}")
         echo(f"Instance {item_hash} has been deleted.")
 
 
@@ -1018,7 +1023,7 @@ async def list_instances(
             raise typer.Exit(code=1)
         if json:
             for message in messages:
-                echo(message.json(indent=4))
+                echo(message.model_dump_json(indent=4))
         else:
             # Since we filtered on message type, we can safely cast as InstanceMessage.
             messages = cast(builtins.list[InstanceMessage], messages)
@@ -1197,7 +1202,6 @@ async def confidential_init_session(
 
     # Generate sessions certificate files
     if not ((session_dir / "vm_godh.b64").exists() and keep_session):
-
         code, platform_file = await client.get_certificates()
         if code != 200:
             echo(
@@ -1368,7 +1372,7 @@ async def confidential_create(
     vcpus: Annotated[Optional[int], typer.Option(help=help_strings.VCPUS)] = None,
     memory: Annotated[Optional[int], typer.Option(help=help_strings.MEMORY)] = None,
     rootfs_size: Annotated[
-        Optional[int], typer.Option(help=help_strings.ROOTFS_SIZE, max=PersistentVolumeSizeMib.le)
+        Optional[int], typer.Option(help=help_strings.ROOTFS_SIZE, max=max_persistent_volume_size)
     ] = None,
     timeout_seconds: Annotated[float, typer.Option(help=help_strings.TIMEOUT_SECONDS)] = settings.DEFAULT_VM_TIMEOUT,
     ssh_pubkey_file: Annotated[Path, typer.Option(help=help_strings.SSH_PUBKEY_FILE)] = Path(
@@ -1516,7 +1520,7 @@ async def gpu_create(
     vcpus: Annotated[Optional[int], typer.Option(help=help_strings.VCPUS)] = None,
     memory: Annotated[Optional[int], typer.Option(help=help_strings.MEMORY)] = None,
     rootfs_size: Annotated[
-        Optional[int], typer.Option(help=help_strings.ROOTFS_SIZE, max=PersistentVolumeSizeMib.le)
+        Optional[int], typer.Option(help=help_strings.ROOTFS_SIZE, max=max_persistent_volume_size)
     ] = None,
     premium: Annotated[Optional[bool], typer.Option(help=help_strings.GPU_PREMIUM_OPTION)] = None,
     timeout_seconds: Annotated[float, typer.Option(help=help_strings.TIMEOUT_SECONDS)] = settings.DEFAULT_VM_TIMEOUT,

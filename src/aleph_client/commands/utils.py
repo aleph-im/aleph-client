@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import os
 import shutil
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Callable, Optional, TypeVar, Union
+from typing import Any, Callable, Optional, TypeVar, Union, get_args
 
 from aiohttp import ClientSession
 from aleph.sdk import AlephHttpClient
@@ -22,6 +23,7 @@ from aleph_message.models.execution.volume import (
     PersistentVolumeSizeMib,
 )
 from aleph_message.status import MessageStatus
+from pydantic.fields import FieldInfo
 from pygments import highlight
 from pygments.formatters.terminal256 import Terminal256Formatter
 from pygments.lexers import JsonLexer
@@ -56,7 +58,7 @@ def colorized_status(status: MessageStatus) -> str:
 
 def colorful_message_json(message: GenericMessage):
     """Render a message in JSON with colors."""
-    return colorful_json(message.json(sort_keys=True, indent=4))
+    return colorful_json(json.dumps(message.model_dump(), sort_keys=True, indent=4))
 
 
 def input_multiline() -> str:
@@ -88,6 +90,21 @@ def is_valid_mount_path(mount: str) -> bool:
     return mount.startswith("/") and len(mount) > 1
 
 
+def get_annotated_constraint(annotated_type: type, constraint_name: str) -> Any | None:
+    """
+    Extract the constraint values from annotated types.
+    """
+    args = get_args(annotated_type)
+    if not args:
+        return None
+
+    for arg in args:
+        if isinstance(arg, FieldInfo):
+            value = getattr(arg, constraint_name, None)
+            return value
+    return None
+
+
 def prompt_for_volumes():
     while yes_no_input("Add volume?", default=False):
         mount = validated_prompt("Mount path (must be absolute, ex: /opt/data)", is_valid_mount_path)
@@ -107,10 +124,12 @@ def prompt_for_volumes():
             if yes_no_input("Copy from a parent volume?", default=False):
                 parent = {"ref": validated_prompt("Item hash", lambda text: len(text) == 64), "use_latest": True}
             name = validated_prompt("Name", lambda text: len(text) > 0)
+            min_size = get_annotated_constraint(PersistentVolumeSizeMib, "gt") or 0
+            max_size = get_annotated_constraint(PersistentVolumeSizeMib, "le") or 0
             size_mib = validated_int_prompt(
                 "Size (MiB)",
-                min_value=PersistentVolumeSizeMib.gt + 1,
-                max_value=PersistentVolumeSizeMib.le,
+                min_value=min_size + 1,
+                max_value=max_size,
             )
             yield {
                 **base_volume,
@@ -120,9 +139,9 @@ def prompt_for_volumes():
                 "size_mib": size_mib,
             }
         else:  # Ephemeral
-            size_mib = validated_int_prompt(
-                "Size (MiB)", min_value=EphemeralVolumeSize.gt + 1, max_value=EphemeralVolumeSize.le
-            )
+            min_size = get_annotated_constraint(EphemeralVolumeSize, "gt") or 0
+            max_size = get_annotated_constraint(EphemeralVolumeSize, "le") or 0
+            size_mib = validated_int_prompt("Size (MiB)", min_value=min_size + 1, max_value=max_size)
             yield {
                 **base_volume,
                 "ephemeral": True,
