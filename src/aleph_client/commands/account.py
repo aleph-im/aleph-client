@@ -104,7 +104,7 @@ async def create(
                     default=Chain.ETH.value,
                 )
             )
-        if chain == Chain.SOL:
+        if chain in (Chain.SOL, Chain.ECLIPSE):
             private_key_bytes = parse_solana_private_key(private_key)
         else:
             private_key_bytes = decode_private_key(private_key, key_format)
