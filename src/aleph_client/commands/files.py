@@ -8,6 +8,7 @@ from typing import Annotated, Optional
 
 import aiohttp
 import typer
+from aiohttp import ClientResponseError
 from aleph.sdk import AlephHttpClient, AuthenticatedAlephHttpClient
 from aleph.sdk.account import _load_account
 from aleph.sdk.conf import settings
@@ -88,15 +89,23 @@ async def upload(
             logger.debug("Uploading file")
             result: StoreMessage
             status: MessageStatus
-            result, status = await client.create_store(
-                file_content=file_content,
-                storage_engine=storage_engine,
-                channel=channel,
-                guess_mime_type=True,
-                ref=ref,
-            )
-            logger.debug("Upload finished")
-            typer.echo(f"{result.model_dump_json(indent=4)}")
+            try:
+                result, status = await client.create_store(
+                    file_content=file_content,
+                    storage_engine=storage_engine,
+                    channel=channel,
+                    guess_mime_type=True,
+                    ref=ref,
+                )
+                logger.debug("Upload finished")
+                typer.echo(f"{result.model_dump_json(indent=4)}")
+            except ClientResponseError as e:
+                typer.echo(f"{e}")
+
+                if e.status == 413:
+                    typer.echo("File is too large to be uploaded. Please use aleph file pin")
+                else:
+                    typer.echo(f"Error uploading file\nstatus: {e.status}\nmessage: {e.message}")
 
 
 @app.command()
