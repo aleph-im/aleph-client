@@ -2,6 +2,8 @@ from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from aleph.sdk.chains.ethereum import get_fallback_account as eth_fallback
+from aleph.sdk.chains.solana import get_fallback_account as sol_fallback
 from aleph.sdk.query.responses import Post, PostsResponse
 from aleph_message.models import Chain
 
@@ -11,7 +13,6 @@ from aleph_client.voucher import (
     VoucherManager,
     VoucherMetadata,
 )
-from tests.unit.mocks import create_test_account
 
 # Test data
 MOCK_ADDRESS = "0x1234567890123456789012345678901234567890"
@@ -42,16 +43,16 @@ MOCK_SOLANA_REGISTRY = {
 
 @pytest.fixture
 def mock_account():
-    account = create_test_account()
-    account.get_address = MagicMock(return_value=MOCK_ADDRESS)
-    return account
+    account = eth_fallback()
+    with patch.object(account, "get_address", return_value=MOCK_ADDRESS):
+        yield account
 
 
 @pytest.fixture
 def mock_solana_account():
-    account = create_test_account()
-    account.get_address = MagicMock(return_value=MOCK_SOLANA_ADDRESS)
-    return account
+    account = sol_fallback()
+    with patch.object(account, "get_address", return_value=MOCK_SOLANA_ADDRESS):
+        yield account
 
 
 @pytest.fixture
