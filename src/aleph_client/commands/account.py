@@ -41,6 +41,7 @@ from aleph_client.commands.utils import (
     yes_no_input,
 )
 from aleph_client.utils import AsyncTyper, list_unlinked_keys
+from aleph_client.voucher import VoucherManager
 
 logger = logging.getLogger(__name__)
 app = AsyncTyper(no_args_is_help=True)
@@ -293,11 +294,13 @@ async def balance(
     ] = settings.PRIVATE_KEY_FILE,
     chain: Annotated[Optional[Chain], typer.Option(help=help_strings.ADDRESS_CHAIN)] = None,
 ):
-    """Display your ALEPH balance."""
+    """Display your ALEPH balance and basic voucher information."""
     account = _load_account(private_key, private_key_file, chain=chain)
 
     if account and not address:
         address = account.get_address()
+
+    voucher_manager = VoucherManager(account=account, chain=chain)
 
     if address:
         try:
@@ -329,6 +332,16 @@ async def balance(
                     f"[/{available_color}]"
                 ),
             ]
+
+            # Get vouchers and add them to Account Info panel
+            vouchers = await voucher_manager.get_all(address=address)
+            if vouchers:
+                voucher_names = [voucher.name for voucher in vouchers]
+                infos += [
+                    Text("\n\nVouchers:"),
+                    Text.from_markup(f"\n [bright_cyan]{', '.join(voucher_names)}[/bright_cyan]"),
+                ]
+
             console.print(
                 Panel(
                     Text.assemble(*infos),
@@ -338,6 +351,7 @@ async def balance(
                     title_align="left",
                 )
             )
+
         except Exception as e:
             typer.echo(e)
     else:
