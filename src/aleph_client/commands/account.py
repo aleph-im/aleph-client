@@ -25,6 +25,7 @@ from aleph.sdk.evm_utils import (
 )
 from aleph.sdk.utils import bytes_from_hex, displayable_amount
 from aleph_message.models import Chain
+from rich import box
 from rich.console import Console
 from rich.panel import Panel
 from rich.prompt import Prompt
@@ -41,6 +42,7 @@ from aleph_client.commands.utils import (
     yes_no_input,
 )
 from aleph_client.utils import AsyncTyper, list_unlinked_keys
+from aleph_client.voucher import VoucherManager
 
 logger = logging.getLogger(__name__)
 app = AsyncTyper(no_args_is_help=True)
@@ -293,11 +295,13 @@ async def balance(
     ] = settings.PRIVATE_KEY_FILE,
     chain: Annotated[Optional[Chain], typer.Option(help=help_strings.ADDRESS_CHAIN)] = None,
 ):
-    """Display your ALEPH balance."""
+    """Display your ALEPH balance and basic voucher information."""
     account = _load_account(private_key, private_key_file, chain=chain)
 
     if account and not address:
         address = account.get_address()
+
+    voucher_manager = VoucherManager(account=account, chain=chain)
 
     if address:
         try:
@@ -329,6 +333,16 @@ async def balance(
                     f"[/{available_color}]"
                 ),
             ]
+
+            # Get vouchers and add them to Account Info panel
+            vouchers = await voucher_manager.get_all(address=address)
+            if vouchers:
+                voucher_names = [voucher.name for voucher in vouchers]
+                infos += [
+                    Text("\n\nVouchers:"),
+                    Text.from_markup(f"\n [bright_cyan]{', '.join(voucher_names)}[/bright_cyan]"),
+                ]
+
             console.print(
                 Panel(
                     Text.assemble(*infos),
@@ -338,6 +352,7 @@ async def balance(
                     title_align="left",
                 )
             )
+
         except Exception as e:
             typer.echo(e)
     else:
@@ -390,6 +405,64 @@ async def list_accounts():
     )
     display_active_chain()
     console.print(table)
+
+
+@app.command(name="vouchers")
+async def vouchers(
+    address: Annotated[Optional[str], typer.Option(help="Address")] = None,
+    private_key: Annotated[Optional[str], typer.Option(help=help_strings.PRIVATE_KEY)] = settings.PRIVATE_KEY_STRING,
+    private_key_file: Annotated[
+        Optional[Path], typer.Option(help=help_strings.PRIVATE_KEY_FILE)
+    ] = settings.PRIVATE_KEY_FILE,
+    chain: Annotated[Optional[Chain], typer.Option(help=help_strings.ADDRESS_CHAIN)] = None,
+):
+    """Display detailed information about your vouchers."""
+    account = _load_account(private_key, private_key_file, chain=chain)
+
+    if account and not address:
+        address = account.get_address()
+
+    voucher_manager = VoucherManager(account=account, chain=chain)
+
+    if address:
+        try:
+            vouchers = await voucher_manager.get_all(address=address)
+            if vouchers:
+                voucher_table = Table(title="", show_header=True, box=box.ROUNDED)
+                voucher_table.add_column("Name", style="bright_cyan")
+                voucher_table.add_column("Description", style="green")
+                voucher_table.add_column("Attributes", style="magenta")
+
+                for voucher in vouchers:
+                    attr_text = ""
+                    for attr in voucher.attributes:
+                        attr_text += f"{attr.trait_type}: {attr.value}\n"
+
+                    voucher_table.add_row(voucher.name, voucher.description, attr_text.strip())
+
+                console.print(
+                    Panel(
+                        voucher_table,
+                        title="Vouchers",
+                        border_style="bright_cyan",
+                        expand=False,
+                        title_align="left",
+                    )
+                )
+            else:
+                console.print(
+                    Panel(
+                        "No vouchers found for this address",
+                        title="Vouchers",
+                        border_style="bright_cyan",
+                        expand=False,
+                        title_align="left",
+                    )
+                )
+        except Exception as e:
+            typer.echo(e)
+    else:
+        typer.echo("Error: Please provide either a private key, private key file, or an address.")
 
 
 @app.command(name="config")
