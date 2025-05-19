@@ -380,6 +380,9 @@ def create_mock_vm_coco_client():
         "coco_hold_evm",
         "coco_superfluid_evm",
         "gpu_superfluid_evm",
+        "large_vm_hold_evm",
+        "large_vm_hold_avax",
+        "large_vm_hold_sol",
     ],
     argnames="args, expected, should_raise",
     argvalues=[
@@ -457,6 +460,36 @@ def create_mock_vm_coco_client():
             },
             (FAKE_VM_HASH, FAKE_CRN_URL, "BASE"),
             False,
+        ),
+        (  # large_vm_hold_evm - over 4 CU with HOLD on ETH should fail
+            {
+                "payment_type": "hold",
+                "payment_chain": "ETH",
+                "rootfs": "debian12",
+                "compute_units": 5,
+            },
+            None,
+            True,
+        ),
+        (  # large_vm_hold_avax - over 4 CU with HOLD on AVAX should switch to superfluid
+            {
+                "payment_type": "hold",
+                "payment_chain": "AVAX",
+                "rootfs": "debian12",
+                "compute_units": 5,
+            },
+            (FAKE_VM_HASH, None, "AVAX"),  # The chain remains AVAX but payment_type gets switched
+            False,
+        ),
+        (  # large_vm_hold_sol - over 4 CU with HOLD on SOL (no superfluid) should fail
+            {
+                "payment_type": "hold",
+                "payment_chain": "SOL",
+                "rootfs": "debian12",
+                "compute_units": 5,
+            },
+            None,
+            True,
         ),
     ],
 )
