@@ -9,6 +9,9 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import aiohttp
 import pytest
 from aiohttp import InvalidURL
+from aleph.sdk.exceptions import InsufficientFundsError
+from aleph.sdk.types import TokenType
+from aleph_message.models import Chain, ItemHash
 from aleph_message.models import Chain
 from aleph_message.models.execution.base import Payment, PaymentType
 from aleph_message.models.execution.environment import (
@@ -17,6 +20,7 @@ from aleph_message.models.execution.environment import (
     HypervisorType,
 )
 from multidict import CIMultiDict, CIMultiDictProxy
+from typer import Exit
 
 from aleph_client.commands.instance import (
     allocate,
@@ -635,6 +639,12 @@ async def test_delete_instance(mock_api_response):
     mock_account = mock_load_account.return_value
     mock_auth_client_class, mock_auth_client = create_mock_auth_client(mock_account, mock_crn_list=[])
     mock_vm_client_class, mock_vm_client = create_mock_vm_client()
+    mock_fetch_settings = AsyncMock(
+        return_value={
+            "community_wallet_timestamp": 900000,  # Before creation time
+            "community_wallet_address": "0xcommunity",
+        }
+    )
 
     # Mock port forwarder
     mock_auth_client.port_forwarder = MagicMock(
@@ -647,6 +657,7 @@ async def test_delete_instance(mock_api_response):
     @patch("aleph_client.commands.instance._load_account", mock_load_account)
     @patch("aleph_client.commands.instance.AuthenticatedAlephHttpClient", mock_auth_client_class)
     @patch("aleph_client.commands.instance.VmClient", mock_vm_client_class)
+    @patch("aleph_client.commands.instance.fetch_settings", mock_fetch_settings)
     @patch.object(asyncio, "sleep", AsyncMock())
     @patch.object(aiohttp.ClientSession, "get")
     async def delete_instance(mock_get):
@@ -658,6 +669,46 @@ async def test_delete_instance(mock_api_response):
         mock_auth_client.forget.assert_called_once()
 
     await delete_instance()  # type: ignore[call-arg]
+
+
+@pytest.mark.asyncio
+async def test_delete_instance_with_insufficient_funds():
+
+    mock_load_account = create_mock_load_account()
+    mock_account = mock_load_account.return_value
+
+    # Configure manage_flow to raise InsufficientFundsError
+    insufficient_funds_error = InsufficientFundsError(
+        token_type=TokenType.GAS, required_funds=10.0, available_funds=5.0
+    )
+    mock_account.manage_flow = AsyncMock(side_effect=insufficient_funds_error)
+
+    mock_auth_client_class, mock_auth_client = create_mock_auth_client(mock_account)
+    mock_fetch_vm_info = create_mock_fetch_vm_info()
+    mock_vm_client_class, mock_vm_client = create_mock_vm_client()
+    mock_fetch_settings = AsyncMock(
+        return_value={
+            "community_wallet_timestamp": 900000,  # Before creation time
+            "community_wallet_address": "0xcommunity",
+        }
+    )
+
+    @patch("aleph_client.commands.instance._load_account", mock_load_account)
+    @patch("aleph_client.commands.instance.AuthenticatedAlephHttpClient", mock_auth_client_class)
+    @patch("aleph_client.commands.instance.fetch_vm_info", mock_fetch_vm_info)
+    @patch("aleph_client.commands.instance.VmClient", mock_vm_client_class)
+    @patch("aleph_client.commands.instance.fetch_settings", mock_fetch_settings)
+    @patch.object(asyncio, "sleep", AsyncMock())
+    async def delete_instance_with_insufficient_funds():
+        print()  # For better display when pytest -v -s
+        with pytest.raises(Exit):  # We expect Exit to be raised
+            await delete(FAKE_VM_HASH)
+        mock_auth_client.get_message.assert_called_once()
+        mock_vm_client.erase_instance.assert_called_once()
+        mock_account.manage_flow.assert_called_once()  # First manage_flow call raises the error
+        mock_auth_client.forget.assert_not_called()  # This should not be called as we exit early
+
+    await delete_instance_with_insufficient_funds()
 
 
 @pytest.mark.asyncio
