@@ -31,10 +31,8 @@ settings_link = (
     "/api/v0/aggregates/0xFba561a84A537fCaa567bb7A2257e7142701ae2A.json?keys=settings"
 )
 
-crn_list_link = (
-    f"{sanitize_url(settings.CRN_URL_FOR_PROGRAMS)}"
-    "/vm/bec08b08bb9f9685880f3aeb9c1533951ad56abef2a39c97f5a93683bdaa5e30/crns.json"
-)
+crn_list_vm = "bec08b08bb9f9685880f3aeb9c1533951ad56abef2a39c97f5a93683bdaa5e30"
+crn_list_link = f"{settings.VM_URL_PATH.format(hash=crn_list_vm).rstrip('/')}/crns.json"
 
 PATH_ABOUT_EXECUTIONS_LIST = "/about/executions/list"
 
