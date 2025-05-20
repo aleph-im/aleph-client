@@ -33,6 +33,7 @@ dependencies = [
   "aleph-message>=1",
   "aleph-sdk-python>=2,<3",
   "base58==2.1.1",               # Needed now as default with _load_account changement
+  "click<8.2",
   "py-sr25519-bindings==0.2",    # Needed for DOT signatures
   "pydantic>=2",
   "pygments==2.19.1",
