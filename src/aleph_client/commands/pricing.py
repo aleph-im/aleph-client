@@ -229,8 +229,10 @@ class Pricing:
                     row.append(internet_cell)
                 table.add_row(*row)
 
-                tier_data[tier_id] = SelectedTier(
-                    tier=tier_id,
+                # Convert tier_id to int to ensure consistent typing
+                tier_id_int = int(tier_id)
+                tier_data[tier_id_int] = SelectedTier(
+                    tier=tier_id_int,
                     compute_units=current_units,
                     vcpus=unit_vcpus * current_units,
                     memory=unit_memory * current_units,
@@ -302,9 +304,16 @@ class Pricing:
             )
 
         if selector and pricing_entity not in [PricingEntity.STORAGE, PricingEntity.WEB3_HOSTING]:
+            # Make sure tier_data has at least one element before proceeding
+            if not tier_data:
+                typer.echo(f"No valid tiers found for {pricing_entity.value}")
+                raise typer.Exit(1)
+
             if not auto_selected:
-                tier_id = validated_prompt("Select a tier by index", lambda tier_id: tier_id in tier_data)
-            return next(iter(tier_data.values())) if auto_selected else tier_data[tier_id]
+                tier_id = validated_prompt("Select a tier by index", lambda tier_id: int(tier_id) in tier_data)
+                # Convert tier_id to integer since we store it as integer keys in tier_data
+                return tier_data[int(tier_id)]
+            return next(iter(tier_data.values()))
 
         return None
 
