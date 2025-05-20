@@ -1008,3 +1008,57 @@ async def test_gpu_create():
         mock_create.assert_called_once()
 
     await gpu_instance()
+
+
+@pytest.mark.asyncio
+async def test_gpu_create_no_gpus_available():
+    """Test creating a GPU instance when no GPUs are available on the network.
+
+    This test verifies that typer.Exit is raised when no GPUs are available,
+    ensuring we get a clean exit instead of an unhandled exception.
+    """
+    mock_crn_table = create_mock_crn_table(with_gpu=False)
+    mock_load_account = create_mock_load_account()
+    mock_validate_ssh_pubkey_file = create_mock_validate_ssh_pubkey_file()
+    mock_get_balance = AsyncMock(return_value={"available_amount": 100000})
+    mock_client_class, mock_client = create_mock_client(payment_type="superfluid")
+    mock_fetch_latest_crn_version = create_mock_fetch_latest_crn_version()
+    mock_validated_prompt = MagicMock(return_value="1")
+
+    # Mock for GPU-specific functions - deliberately return empty list to simulate no GPUs available
+    async def mock_fetch_crn_list_no_gpu_impl(*args, **kwargs):
+        await mock_fetch_latest_crn_version()
+        return [{"gpu": True, "compatible_available_gpus": []}]
+
+    mock_fetch_crn_list = AsyncMock(side_effect=mock_fetch_crn_list_no_gpu_impl)
+    mock_found_gpus_by_model = MagicMock(return_value={})
+
+    @patch("aleph_client.commands.instance._load_account", mock_load_account)
+    @patch("aleph_client.commands.instance.validate_ssh_pubkey_file", mock_validate_ssh_pubkey_file)
+    @patch("aleph_client.commands.instance.get_balance", mock_get_balance)
+    @patch("aleph_client.commands.instance.AlephHttpClient", mock_client_class)
+    @patch("aleph_client.commands.instance.CRNTable", mock_crn_table)
+    @patch("aleph_client.commands.pricing.validated_prompt", mock_validated_prompt)
+    @patch("aleph_client.commands.instance.network.fetch_latest_crn_version", mock_fetch_latest_crn_version)
+    @patch("aleph_client.commands.instance.fetch_crn_list", mock_fetch_crn_list)
+    @patch("aleph_client.commands.instance.found_gpus_by_model", mock_found_gpus_by_model)
+    @patch.object(typer, "prompt", MagicMock(return_value="y"))
+    async def gpu_instance_no_gpus():
+        print()  # For better display when pytest -v -s
+        with pytest.raises(typer.Exit):
+            # We expect Exit to be raised when no GPUs are available
+            await create(
+                ssh_pubkey_file=FAKE_PUBKEY_FILE,
+                payment_type="superfluid",
+                payment_chain="BASE",
+                rootfs="debian12",
+                crn_url=FAKE_CRN_URL,
+                gpu=True,
+                name="mock_instance",
+                compute_units=1,
+                rootfs_size=0,
+                skip_volume=True,
+                crn_auto_tac=True,
+            )
+
+    await gpu_instance_no_gpus()
