@@ -149,6 +149,20 @@ async def test_fetch_crn_info(mock_crn_list):
     assert not (await fetch_crn_info(mock_crn_list, invalid_node_url))
 
 
+def test_crn_list_vm_path_construction():
+    """Test the CRN list VM path construction in network.py"""
+    from aleph.sdk.conf import settings
+
+    from aleph_client.commands.instance.network import crn_list_link, crn_list_vm
+
+    # Verify the path is constructed correctly using settings.VM_URL_PATH
+    expected_format = settings.VM_URL_PATH.format(hash=crn_list_vm).rstrip("/") + "/crns.json"
+    assert crn_list_link == expected_format
+
+    # Verify the hash being used is the correct one
+    assert crn_list_vm == "bec08b08bb9f9685880f3aeb9c1533951ad56abef2a39c97f5a93683bdaa5e30"
+
+
 def test_sanitize_url_with_empty_url():
     with pytest.raises(InvalidURL, match="Empty URL"):
         sanitize_url("")
@@ -786,6 +800,50 @@ async def test_delete_instance_with_insufficient_funds():
         mock_auth_client.forget.assert_not_called()  # This should not be called as we exit early
 
     await delete_instance_with_insufficient_funds()
+
+
+@pytest.mark.asyncio
+async def test_delete_instance_with_detailed_insufficient_funds_error(capsys):
+    """Test improved error handling for InsufficientFundsError with detailed information in instance/__init__.py"""
+    mock_load_account = create_mock_load_account()
+    mock_account = mock_load_account.return_value
+
+    # Configure manage_flow to raise InsufficientFundsError with ALEPH token type (added in PR)
+    insufficient_funds_error = InsufficientFundsError(
+        token_type=TokenType.ALEPH, required_funds=10.0, available_funds=5.0
+    )
+    mock_account.manage_flow = AsyncMock(side_effect=insufficient_funds_error)
+
+    mock_auth_client_class, mock_auth_client = create_mock_auth_client(mock_account)
+    mock_fetch_vm_info = create_mock_fetch_vm_info()
+    mock_vm_client_class, mock_vm_client = create_mock_vm_client()
+    mock_fetch_settings = AsyncMock(
+        return_value={
+            "community_wallet_timestamp": 900000,  # Before creation time
+            "community_wallet_address": "0xcommunity",
+        }
+    )
+
+    @patch("aleph_client.commands.instance._load_account", mock_load_account)
+    @patch("aleph_client.commands.instance.AuthenticatedAlephHttpClient", mock_auth_client_class)
+    @patch("aleph_client.commands.instance.fetch_vm_info", mock_fetch_vm_info)
+    @patch("aleph_client.commands.instance.VmClient", mock_vm_client_class)
+    @patch("aleph_client.commands.instance.fetch_settings", mock_fetch_settings)
+    @patch.object(asyncio, "sleep", AsyncMock())
+    async def delete_instance_with_detailed_error():
+        print()  # For better display when pytest -v -s
+        with pytest.raises(Exit):
+            await delete(FAKE_VM_HASH)
+
+        # We'll check the output in the main test function using capsys
+
+    await delete_instance_with_detailed_error()
+
+    # Verify the error details are echoed in the stdout - these are the new message components added in the PR
+    captured = capsys.readouterr()
+    assert "Error missing token type" in captured.out
+    assert "Required" in captured.out
+    assert "Available" in captured.out
 
 
 @pytest.mark.asyncio
