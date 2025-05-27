@@ -133,26 +133,32 @@ async def test_fetch_crn_info():
     mock_fetch_latest_crn_version = create_mock_fetch_latest_crn_version()
 
     @patch("aleph_client.commands.instance.network.fetch_latest_crn_version", mock_fetch_latest_crn_version)
-    @patch("aleph_client.commands.instance.network.call_program_crn_list", 
-           AsyncMock(return_value={"crns": [
-               {
-                   "hash": FAKE_CRN_HASH,
-                   "name": "Mock CRN",
-                   "owner": FAKE_ADDRESS_EVM,
-                   "url": "https://crn-lon04.omega-aleph.com/",
-                   "ccn_hash": FAKE_CRN_HASH,
-                   "status": "linked",
-                   "version": "123.420.69",
-                   "score": 0.9,
-                   "payment_receiver_address": FAKE_ADDRESS_EVM,
-                   "ipv6_check": {"has_ipv6": True},
-                   "machine_usage": dummy_machine_info().machine_usage.model_dump(),
-                   "qemu_support": True,
-                   "confidential_support": True,
-                   "gpu_support": True,
-                   "compatible_available_gpus": [dummy_gpu_device().model_dump()]
-               }
-           ]}))
+    @patch(
+        "aleph_client.commands.instance.network.call_program_crn_list",
+        AsyncMock(
+            return_value={
+                "crns": [
+                    {
+                        "hash": FAKE_CRN_HASH,
+                        "name": "Mock CRN",
+                        "owner": FAKE_ADDRESS_EVM,
+                        "url": "https://crn-lon04.omega-aleph.com/",
+                        "ccn_hash": FAKE_CRN_HASH,
+                        "status": "linked",
+                        "version": "123.420.69",
+                        "score": 0.9,
+                        "payment_receiver_address": FAKE_ADDRESS_EVM,
+                        "ipv6_check": {"has_ipv6": True},
+                        "machine_usage": dummy_machine_info().machine_usage.model_dump(),
+                        "qemu_support": True,
+                        "confidential_support": True,
+                        "gpu_support": True,
+                        "compatible_available_gpus": [dummy_gpu_device().model_dump()],
+                    }
+                ]
+            }
+        ),
+    )
     async def fetch_crn_info_with_mock(url):
         print()  # For better display when pytest -v -s
         return await fetch_crn_info(url)
