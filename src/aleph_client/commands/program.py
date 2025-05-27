@@ -182,6 +182,7 @@ async def upload(
                 verbose=verbose,
             ),
         )
+
         name = name or validated_prompt("Program name", lambda x: x and len(x) < 65)
         vcpus = tier.vcpus
         memory = tier.memory
