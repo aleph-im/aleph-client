@@ -29,7 +29,7 @@ classifiers = [
 dynamic = [ "version" ]
 dependencies = [
   "aiodns==3.2",
-  "aiohttp==3.11.13",
+  "aiohttp==3.12.9",
   "aleph-message>=1.0.1",
   "aleph-sdk-python @ git+https://github.com/aleph-im/aleph-sdk-python@andres-feature-implement_unichain_network",
   "base58==2.1.1",                                                                                                 # Needed now as default with _load_account changement
