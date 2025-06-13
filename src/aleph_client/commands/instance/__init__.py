@@ -1395,3 +1395,7 @@ async def gpu_create(
         verbose=verbose,
         debug=debug,
     )
+
+
+# Add port-forwarder sub-command
+app.add_typer(port_forwarder_app, name="port-forwarder", help="Manage port forwarding for instances")
