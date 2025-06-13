@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-import builtins
 import json
 import logging
 import shutil
@@ -14,6 +13,7 @@ import typer
 from aleph.sdk import AlephHttpClient, AuthenticatedAlephHttpClient
 from aleph.sdk.account import _load_account
 from aleph.sdk.chains.ethereum import ETHAccount
+from aleph.sdk.client.service.port_forwarder import PortFlags, Ports
 from aleph.sdk.client.vm_client import VmClient
 from aleph.sdk.client.vm_confidential_client import VmConfidentialClient
 from aleph.sdk.conf import load_main_configuration, settings
@@ -27,16 +27,22 @@ from aleph.sdk.exceptions import (
     InsufficientFundsError,
     MessageNotFoundError,
 )
-from aleph.sdk.query.filters import MessageFilter
 from aleph.sdk.query.responses import PriceResponse
-from aleph.sdk.types import StorageEnum, TokenType
+from aleph.sdk.types import (
+    CrnExecutionV1,
+    CrnExecutionV2,
+    InstanceAllocationsInfo,
+    InstanceWithScheduler,
+    StorageEnum,
+    TokenType,
+)
 from aleph.sdk.utils import (
     calculate_firmware_hash,
     displayable_amount,
     make_instance_content,
     safe_getattr,
 )
-from aleph_message.models import Chain, InstanceMessage, MessageType, StoreMessage
+from aleph_message.models import Chain, InstanceMessage, StoreMessage
 from aleph_message.models.execution.base import Payment, PaymentType
 from aleph_message.models.execution.environment import (
     GpuProperties,
@@ -48,33 +54,28 @@ from aleph_message.models.execution.environment import (
 from aleph_message.models.execution.volume import PersistentVolumeSizeMib
 from aleph_message.models.item_hash import ItemHash
 from click import echo
-from rich import box
 from rich.console import Console
 from rich.panel import Panel
 from rich.prompt import Prompt
-from rich.table import Table
 from rich.text import Text
 
 from aleph_client.commands import help_strings
 from aleph_client.commands.account import get_balance
-from aleph_client.commands.instance.display import CRNTable
+from aleph_client.commands.instance.display import CRNTable, show_instances
 from aleph_client.commands.instance.network import (
     fetch_crn_info,
     fetch_crn_list,
     fetch_settings,
-    fetch_vm_info,
     find_crn_of_vm,
 )
+from aleph_client.commands.instance.port_forwarder import app as port_forwarder_app
 from aleph_client.commands.pricing import PricingEntity, SelectedTier, fetch_pricing
 from aleph_client.commands.utils import (
-    display_mounted_volumes,
-    filter_only_valid_messages,
     find_sevctl_or_exit,
     found_gpus_by_model,
     get_annotated_constraint,
     get_or_prompt_volumes,
     setup_logging,
-    str_to_datetime,
     validate_ssh_pubkey_file,
     validated_int_prompt,
     validated_prompt,
@@ -398,11 +399,12 @@ async def create(
                 raise typer.Exit(1) from e
 
         echo("Fetching compute resource node's list...")
-        crn_list = await fetch_crn_list()  # Precache CRN list
+        async with AlephHttpClient() as client:
+            crn_list = (await client.crn.get_crns_list()).get("crns")
 
         if (crn_url or crn_hash) and not gpu:
             try:
-                crn = await fetch_crn_info(crn_url, crn_hash)
+                crn = await fetch_crn_info(crn_list, crn_url, crn_hash)
                 if crn:
                     if (crn_hash and crn_hash != crn.hash) or (crn_url and crn_url != crn.url):
                         echo(
@@ -556,6 +558,13 @@ async def create(
                 storage_engine=StorageEnum.storage,
                 sync=True,
             )
+
+            port_flags = PortFlags(tcp=True, udp=False)
+            ports = Ports(ports={22: port_flags})
+
+            message_port, status_port = await client.port_forwarder.create_port(
+                item_hash=message.item_hash, ports=ports
+            )
         except InsufficientFundsError as e:
             echo(
                 f"Instance creation failed due to insufficient funds.\n"
@@ -648,7 +657,7 @@ async def create(
                 if not confidential:
                     infos += [
                         Text.assemble(
-                            "\n\nTo get your instance's IPv6, check out:\n",
+                            "\n\nTo get your instance's IPv6 / IPv4, check out:\n",
                             Text.assemble(
                                 "↳ aleph instance list",
                                 style="italic",
@@ -676,13 +685,13 @@ async def create(
             infos += [
                 Text.from_markup(
                     f"Your instance [bright_cyan]{item_hash}[/bright_cyan] is registered to be deployed on aleph.im.\n"
-                    "The scheduler usually takes a few minutes to set it up and start it."
+                    "The scheduler usually takes a few minutes to set it up and start it.\n"
                 )
             ]
             if verbose:
                 infos += [
                     Text.assemble(
-                        "\n\nTo get your instance's IPv6, check out:\n",
+                        "\n\nTo get your instance's IPv6 / IPv4, check out:\n",
                         Text.assemble(
                             "↳ aleph instance list",
                             style="italic",
@@ -741,6 +750,11 @@ async def delete(
             echo("You are not the owner of this instance")
             raise typer.Exit(code=1)
 
+        try:
+            await client.port_forwarder.delete_ports(item_hash=ItemHash(item_hash))
+        except aiohttp.ClientResponseError:
+            echo("No ports found")
+
         # If PAYG, retrieve creation time & flow price
         creation_time: float = existing_message.content.time
         payment: Optional[Payment] = existing_message.content.payment
@@ -752,27 +766,29 @@ async def delete(
         chain = existing_message.content.payment.chain  # type: ignore
 
         # Check status of the instance and eventually erase associated VM
-        _, info = await fetch_vm_info(existing_message)
-        auto_scheduled = info["allocation_type"] == help_strings.ALLOCATION_AUTO
-        crn_url = (info["crn_url"] not in [help_strings.CRN_PENDING, help_strings.CRN_UNKNOWN] and info["crn_url"]) or (
-            domain and sanitize_url(domain)
-        )
-        if not auto_scheduled:
-            if not crn_url:
-                echo("CRN domain not found or invalid. Skipping...")
-            else:
-                try:
-                    async with VmClient(account, crn_url) as manager:
-                        status, _ = await manager.erase_instance(vm_id=item_hash)
-                        if status == 200:
-                            echo(f"VM erased on CRN: {crn_url}")
-                        else:
-                            echo(f"No associated VM on {crn_url}. Skipping...")
-                except Exception as e:
-                    logger.debug(f"Error while deleting associated VM on {crn_url}: {e!s}")
-                    echo(f"Failed to erase associated VM on {crn_url}. Skipping...")
-        else:
+        info: InstanceAllocationsInfo = await client.utils.get_instances_allocations([existing_message])
+        instance_info = info.root.get(existing_message.item_hash)
+
+        if isinstance(instance_info, InstanceWithScheduler):
             echo(f"Instance {item_hash} was auto-scheduled, VM will be erased automatically.")
+        elif instance_info is not None and hasattr(instance_info, "crn_url") and instance_info.crn_url:
+            execution: Optional[Union[CrnExecutionV1, CrnExecutionV2]] = await client.crn.get_vm(
+                instance_info.crn_url, item_hash=ItemHash(item_hash)
+            )
+            if not execution:
+                echo("VM is not running or CRN not accessible, Skipping ...")
+            try:
+                async with VmClient(account, instance_info.crn_url) as manager:
+                    status, _ = await manager.erase_instance(vm_id=item_hash)
+                    if status == 200:
+                        echo(f"VM erased on CRN: {instance_info.crn_url}")
+                    else:
+                        echo(f"No associated VM on {instance_info.crn_url}. Skipping...")
+            except Exception as e:
+                logger.debug(f"Error while deleting associated VM on {instance_info.crn_url}: {e!s}")
+                echo(f"Failed to erase associated VM on {instance_info.crn_url}. Skipping...")
+        else:
+            echo("No CRN information available for this instance. Skipping VM erasure.")
 
         # Check for streaming payment and eventually stop it
         if payment and payment.type == PaymentType.superfluid and payment.receiver and isinstance(account, ETHAccount):
