@@ -1,30 +1,19 @@
 from __future__ import annotations
 
 import logging
-from ipaddress import IPv6Interface
 from json import JSONDecodeError
 from typing import Optional
 
-from aiohttp import (
-    ClientConnectorError,
-    ClientResponseError,
-    ClientSession,
-    ClientTimeout,
-    InvalidURL,
-)
+from aiohttp import ClientConnectorError, ClientResponseError, ClientSession, InvalidURL
 from aleph.sdk import AlephHttpClient
 from aleph.sdk.conf import settings
 from aleph.sdk.exceptions import ForgottenMessageError, MessageNotFoundError
-from aleph.sdk.utils import safe_getattr
 from aleph_message.models import InstanceMessage
-from aleph_message.models.execution.base import PaymentType
 from aleph_message.models.item_hash import ItemHash
 from click import echo
 from pydantic import ValidationError
 from typer import Exit
 
-from aleph_client.commands import help_strings
-from aleph_client.commands.files import download
 from aleph_client.models import CRNInfo
 from aleph_client.utils import (
     async_lru_cache,
@@ -51,21 +40,12 @@ PATH_ABOUT_EXECUTIONS_LIST = "/about/executions/list"
 
 
 @async_lru_cache
-async def call_program_crn_list() -> Optional[dict]:
-    """Call program to fetch the compute resource node list.
-
-    Returns:
-        dict: Dictionary containing the compute resource node list.
-    """
-
+async def call_program_crn_list() -> dict:
+    """Call program to fetch the compute resource node list."""
+    error = None
     try:
-        async with ClientSession(timeout=ClientTimeout(total=60)) as session:
-            logger.debug("Fetching crn list...")
-            async with session.get(crn_list_link) as resp:
-                if resp.status != 200:
-                    error = "Unable to fetch crn list from program"
-                    raise Exception(error)
-                return await resp.json()
+        async with AlephHttpClient() as client:
+            return await client.crn.get_crns_list(False)
     except InvalidURL as e:
         error = f"Invalid URL: {crn_list_link}: {e}"
     except TimeoutError as e:
@@ -78,7 +58,7 @@ async def call_program_crn_list() -> Optional[dict]:
         error = f"Error when decoding JSON: {crn_list_link}: {e}"
     except Exception as e:
         error = f"Unexpected error while fetching: {crn_list_link}: {e}"
-    raise Exception(error)
+    raise RuntimeError(error)
 
 
 @async_lru_cache
@@ -146,102 +126,25 @@ async def fetch_crn_list(
     return crns
 
 
-async def fetch_crn_info(crn_url: Optional[str] = None, crn_hash: Optional[str] = None) -> Optional[CRNInfo]:
+async def fetch_crn_info(
+    crn_list: list, crn_url: Optional[str] = None, crn_hash: Optional[str] = None
+) -> Optional[CRNInfo]:
     """Retrieve a compute resource node by URL.
 
     Args:
+        crn_list (list): List of compute resource nodes.
         crn_url (Optional[str]): URL of the compute resource node.
         crn_hash (Optional[str]): Hash of the compute resource node.
     Returns:
         Union[CRNInfo, None]: The compute resource node or None if not found.
     """
 
-    crn_url = sanitize_url(crn_url)
-    crn_list = await fetch_crn_list()
+    if crn_url:
+        crn_url = sanitize_url(crn_url)
     for crn in crn_list:
-        if crn.url == crn_url or crn.hash == crn_hash:
-            return crn
+        if (crn_url and crn.get("url", None) == crn_url) or (crn_hash and crn.get("hash", None) == crn_hash):
+            return CRNInfo.from_unsanitized_input(crn)
     return None
-
-
-async def fetch_vm_info(message: InstanceMessage) -> tuple[str, dict[str, str]]:
-    """Fetches VM information given an instance message.
-
-    Args:
-        message: Instance message.
-    Returns:
-        VM information.
-    """
-
-    async with ClientSession() as session:
-        chain = safe_getattr(message, "content.payment.chain.value")
-        hold = safe_getattr(message, "content.payment.type.value")
-        crn_hash = safe_getattr(message, "content.requirements.node.node_hash")
-        created_at = safe_getattr(message, "content.time")
-
-        is_hold = hold == PaymentType.hold.value
-        firmware = safe_getattr(message, "content.environment.trusted_execution.firmware")
-        is_confidential = firmware and len(firmware) == 64
-        has_gpu = safe_getattr(message, "content.requirements.gpu")
-        tac_hash = safe_getattr(message, "content.requirements.node.terms_and_conditions")
-
-        info = {
-            "crn_hash": str(crn_hash) if crn_hash else "",
-            "created_at": str(created_at),
-            "payment": str(hold),
-            "chain": str(chain),
-            "confidential": str(firmware) if is_confidential else "",
-            "allocation_type": "",
-            "ipv6_logs": "",
-            "crn_url": "",
-            "tac_hash": str(tac_hash) if tac_hash else "",
-            "tac_url": "",
-            "tac_accepted": "",
-        }
-        try:
-            # Fetch from the scheduler API directly if no payment or no receiver (hold-tier non-confidential)
-            if is_hold and not is_confidential and not has_gpu:
-                try:
-                    url = f"https://scheduler.api.aleph.cloud/api/v0/allocation/{message.item_hash}"
-                    info["allocation_type"] = help_strings.ALLOCATION_AUTO
-                    allocation = await fetch_json(session, url)
-                    url = "https://scheduler.api.aleph.cloud/api/v0/nodes"
-                    nodes = await fetch_json(session, url)
-                    info["ipv6_logs"] = allocation["vm_ipv6"]
-                    for node in nodes["nodes"]:
-                        if node["ipv6"].split("::")[0] == ":".join(str(info["ipv6_logs"]).split(":")[:4]):
-                            info["crn_url"] = sanitize_url(node["url"])
-                            break
-                except (ClientResponseError, ClientConnectorError) as e:
-                    info["crn_url"] = help_strings.CRN_PENDING
-                    info["ipv6_logs"] = help_strings.VM_SCHEDULED
-                    logger.debug(f"Error while calling Scheduler API ({url}): {e}")
-            else:
-                # Fetch from the CRN program endpoint if PAYG-tier or confidential or GPU
-                info["allocation_type"] = help_strings.ALLOCATION_MANUAL
-                node_list = await fetch_crn_list()
-                for node in node_list:
-                    if node.hash == crn_hash:
-                        info["crn_url"] = node.url
-                        break
-                if info["crn_url"]:
-                    path = f"{info['crn_url']}{PATH_ABOUT_EXECUTIONS_LIST}"
-                    executions = await fetch_json(session, path)
-                    if message.item_hash in executions:
-                        interface = IPv6Interface(executions[message.item_hash]["networking"]["ipv6"])
-                        info["ipv6_logs"] = str(interface.ip + 1)
-                else:
-                    info["crn_url"] = help_strings.CRN_UNKNOWN
-                if not info["ipv6_logs"]:
-                    info["ipv6_logs"] = help_strings.VM_NOT_READY
-                # Terms and conditions
-                if tac_hash:
-                    tac = await download(tac_hash, only_info=True, verbose=False)
-                    tac_url = safe_getattr(tac, "url") or f"missing → {tac_hash}"
-                    info.update({"tac_url": tac_url, "tac_accepted": "Yes"})
-        except (ClientResponseError, ClientConnectorError) as e:
-            info["ipv6_logs"] = f"Not available. Server error: {e}"
-        return message.item_hash, info
 
 
 async def find_crn_of_vm(vm_id: str) -> Optional[str]:
@@ -257,15 +160,33 @@ async def find_crn_of_vm(vm_id: str) -> Optional[str]:
         message: Optional[InstanceMessage] = None
         try:
             message = await client.get_message(item_hash=ItemHash(vm_id), message_type=InstanceMessage)
+            if not message:
+                raise Exit(code=1)
+
+            allocations = await client.utils.get_instances_allocations(messages_list=[message])
+            # Make sure to await the result if it's a coroutine
+            if hasattr(allocations, "__await__"):
+                allocations = await allocations
+
+            if not allocations:
+                return None
+
+            info = allocations.root.get(vm_id, None)
+            if not info:
+                return None
+
+            # Check by type name, which will work with mocks in tests
+            if getattr(info.__class__, "__name__", "") == "InstanceManual":
+                return info.crn_url
+            else:
+                # This is InstanceWithScheduler
+                return info.allocations.node.url
         except MessageNotFoundError:
             echo("Instance does not exist on aleph.im")
         except ForgottenMessageError:
             echo("Instance has been deleted on aleph.im")
-        if not message:
-            raise Exit(code=1)
-        _, info = await fetch_vm_info(message)
-        is_valid = info["crn_url"] not in [help_strings.CRN_PENDING, help_strings.CRN_UNKNOWN]
-        return str(info["crn_url"]) if is_valid else None
+
+        return None
 
 
 @async_lru_cache
