@@ -399,8 +399,7 @@ async def create(
                 echo(f"Invalid URL provided: {crn_url}")
                 raise typer.Exit(1) from e
 
-
-        if (crn_url or crn_hash):
+        if crn_url or crn_hash:
             if not gpu:
                 echo("Fetching compute resource node's list...")
 
@@ -469,6 +468,9 @@ async def create(
                 echo("Selected CRN does not have any GPU available.")
                 raise typer.Exit(1)
             else:
+                # If gpu_id is None, default to the first available GPU
+                if gpu_id is None:
+                    gpu_id = 0
                 selected_gpu = crn.compatible_available_gpus[gpu_id]
                 gpu_selection = Text.from_markup(
                     f"[orange3]Vendor[/orange3]: {selected_gpu['vendor']}\n[orange3]Model[/orange3]: "
