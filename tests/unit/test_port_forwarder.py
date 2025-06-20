@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from aiohttp import ClientResponseError
-from aleph.sdk.client.service.port_forwarder import PortFlags, Ports
+from aleph.sdk.types import PortFlags
 from aleph_message.models import InstanceMessage, ItemHash
 from aleph_message.status import MessageStatus
 
@@ -16,39 +16,7 @@ from aleph_client.commands.instance.port_forwarder import (
     update,
 )
 
-from .mocks import FAKE_CRN_URL, FAKE_VM_HASH, create_mock_load_account
-
-
-def test_port_flags():
-    """Test the PortFlags class"""
-    tcp_only = PortFlags(tcp=True, udp=False)
-    assert tcp_only.tcp is True
-    assert tcp_only.udp is False
-
-    udp_only = PortFlags(tcp=False, udp=True)
-    assert udp_only.tcp is False
-    assert udp_only.udp is True
-
-    both = PortFlags(tcp=True, udp=True)
-    assert both.tcp is True
-    assert both.udp is True
-
-
-def test_ports():
-    """Test the Ports class"""
-    tcp_flags = PortFlags(tcp=True, udp=False)
-    udp_flags = PortFlags(tcp=False, udp=True)
-    both_flags = PortFlags(tcp=True, udp=True)
-
-    ports = Ports(ports={22: tcp_flags, 53: udp_flags, 80: both_flags})
-
-    assert len(ports.ports) == 3
-    assert ports.ports[22].tcp is True
-    assert ports.ports[22].udp is False
-    assert ports.ports[53].tcp is False
-    assert ports.ports[53].udp is True
-    assert ports.ports[80].tcp is True
-    assert ports.ports[80].udp is True
+from .mocks import FAKE_CRN_BASIC_URL, FAKE_VM_HASH, create_mock_load_account
 
 
 @pytest.mark.asyncio
@@ -69,7 +37,7 @@ async def test_list_ports():
     # Mock the client
     mock_client = AsyncMock()
     mock_client.port_forwarder = AsyncMock(get_ports=AsyncMock(return_value=mock_port_config))
-    mock_client.utils = AsyncMock(get_name_of_executable=AsyncMock(return_value="test-instance"))
+    mock_client.instance = AsyncMock(get_name_of_executable=AsyncMock(return_value="test-instance"))
 
     mock_client_class = MagicMock()
     mock_client_class.return_value.__aenter__ = AsyncMock(return_value=mock_client)
@@ -99,7 +67,6 @@ async def test_list_ports():
         request_info=MagicMock(), history=(), status=404
     )
 
-    # This mock is needed to provide the correct address
     mock_account = MagicMock()
     mock_account.get_address.return_value = "0x941B13FE26aF62C288108224FcD6fE03F71E189F"
     mock_load_account.return_value = mock_account
@@ -113,7 +80,6 @@ async def test_list_ports():
         # Test with specific item_hash
         await list_ports(item_hash=FAKE_VM_HASH)
 
-        # Check function calls
         mock_client.port_forwarder.get_ports.assert_called_once()
         mock_echo.assert_called_with("No port forwards found for address: 0x941B13FE26aF62C288108224FcD6fE03F71E189F")
 
@@ -301,7 +267,7 @@ async def test_refresh_port():
     # Mock allocation information
     mock_allocation = MagicMock()
     mock_allocation.__class__.__name__ = "InstanceManual"
-    mock_allocation.crn_url = FAKE_CRN_URL
+    mock_allocation.crn_url = FAKE_CRN_BASIC_URL
 
     # Mock non-manual allocation (for InstanceScheduler)
     mock_allocations = MagicMock()
