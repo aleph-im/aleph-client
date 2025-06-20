@@ -106,6 +106,8 @@ async def fetch_crn_list(
     current_crn_version = await fetch_latest_crn_version()
     crns = []
     for crn in data.get("crns"):
+        gpu_support = crn.get("gpu_support")
+        available_gpu = crn.get("compatible_available_gpus")
         if latest_crn_version and (crn.get("version") or "0.0.0") < current_crn_version:
             continue
         if ipv6:
@@ -116,7 +118,7 @@ async def fetch_crn_list(
             continue
         if confidential and not crn.get("confidential_support"):
             continue
-        if gpu and not (crn.get("gpu_support") and crn.get("compatible_available_gpus")):
+        if gpu and (not gpu_support or not available_gpu):
             continue
         try:
             crns.append(CRNInfo.from_unsanitized_input(crn))
@@ -142,7 +144,10 @@ async def fetch_crn_info(
     if crn_url:
         crn_url = sanitize_url(crn_url)
     for crn in crn_list:
-        if (crn_url and crn.get("url", None) == crn_url) or (crn_hash and crn.get("hash", None) == crn_hash):
+
+        if (crn_url and sanitize_url(crn.get("address", None)) == crn_url) or (
+            crn_hash and crn.get("hash", None) == crn_hash
+        ):
             return CRNInfo.from_unsanitized_input(crn)
     return None
 

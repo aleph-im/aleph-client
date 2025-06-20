@@ -407,7 +407,6 @@ async def create(
                 async with AlephHttpClient() as client:
                     crn_list = (await client.crn.get_crns_list()).get("crns")
 
-        if (crn_url or crn_hash) and not gpu:
             try:
                 crn = await fetch_crn_info(crn_list, crn_url, crn_hash)
                 if crn:
