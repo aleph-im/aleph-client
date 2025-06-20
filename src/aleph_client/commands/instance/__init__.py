@@ -398,9 +398,13 @@ async def create(
                 echo(f"Invalid URL provided: {crn_url}")
                 raise typer.Exit(1) from e
 
-        echo("Fetching compute resource node's list...")
-        async with AlephHttpClient() as client:
-            crn_list = (await client.crn.get_crns_list()).get("crns")
+
+        if (crn_url or crn_hash):
+            if not gpu:
+                echo("Fetching compute resource node's list...")
+
+                async with AlephHttpClient() as client:
+                    crn_list = (await client.crn.get_crns_list()).get("crns")
 
         if (crn_url or crn_hash) and not gpu:
             try:
