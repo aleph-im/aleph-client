@@ -13,7 +13,6 @@ import typer
 from aleph.sdk import AlephHttpClient, AuthenticatedAlephHttpClient
 from aleph.sdk.account import _load_account
 from aleph.sdk.chains.ethereum import ETHAccount
-from aleph.sdk.client.service.port_forwarder import PortFlags, Ports
 from aleph.sdk.client.vm_client import VmClient
 from aleph.sdk.client.vm_confidential_client import VmConfidentialClient
 from aleph.sdk.conf import load_main_configuration, settings
@@ -33,6 +32,8 @@ from aleph.sdk.types import (
     CrnExecutionV2,
     InstanceAllocationsInfo,
     InstanceWithScheduler,
+    PortFlags,
+    Ports,
     StorageEnum,
     TokenType,
 )
