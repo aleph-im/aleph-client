@@ -12,8 +12,6 @@ from tempfile import NamedTemporaryFile
 
 import pytest
 from aleph.sdk.chains.common import generate_key
-from aleph_message.models import Chain, Payment, PaymentType
-from aleph_message.models.execution.environment import HypervisorType
 
 from aleph_client.models import CRNInfo
 
@@ -27,9 +25,6 @@ from .mocks import (
     FAKE_CRN_GPU_ADDRESS,
     FAKE_CRN_GPU_HASH,
     FAKE_CRN_GPU_URL,
-    FAKE_STORE_HASH,
-    FAKE_VM_HASH,
-    Dict,
 )
 
 
