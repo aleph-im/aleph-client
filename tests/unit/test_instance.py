@@ -30,10 +30,7 @@ from aleph_client.commands.instance import (
     reboot,
     stop,
 )
-from aleph_client.commands.instance.network import (
-    fetch_crn_info,
-    fetch_latest_crn_version,
-)
+from aleph_client.commands.instance.network import fetch_crn_info
 from aleph_client.models import (
     CoreFrequencies,
     CpuUsage,
@@ -469,16 +466,6 @@ async def test_create_instance(args, expected, mock_crn_list):
     mock_wait_for_processed_instance = AsyncMock()
     mock_wait_for_confirmed_flow = AsyncMock()
 
-    # Force mock to call fetch_latest_crn_version
-    async def mock_fetch_crn_list(*args, **kwargs):
-        await fetch_latest_crn_version()
-        # Return a filtered list based on confidential parameter
-        if kwargs.get("confidential"):
-            return [crn for crn in mock_crn_list if crn.get("confidential_support")]
-        return mock_crn_list
-
-    mock_fetch_crn_list = AsyncMock(side_effect=mock_fetch_crn_list)
-
     @patch("aleph_client.commands.instance.validate_ssh_pubkey_file", mock_validate_ssh_pubkey_file)
     @patch("aleph_client.commands.instance._load_account", mock_load_account)
     @patch("aleph_client.commands.instance.get_balance", mock_get_balance)
@@ -486,7 +473,6 @@ async def test_create_instance(args, expected, mock_crn_list):
     @patch("aleph_client.commands.instance.AuthenticatedAlephHttpClient", mock_auth_client_class)
     @patch("aleph_client.commands.pricing.validated_prompt", mock_validated_prompt)
     @patch("aleph_client.commands.instance.network.fetch_latest_crn_version", mock_fetch_latest_crn_version)
-    @patch("aleph_client.commands.instance.network.fetch_crn_list", mock_fetch_crn_list)
     @patch("aleph_client.commands.instance.yes_no_input", mock_yes_no_input)
     @patch("aleph_client.commands.instance.wait_for_processed_instance", mock_wait_for_processed_instance)
     @patch("aleph_client.commands.instance.wait_for_confirmed_flow", mock_wait_for_confirmed_flow)

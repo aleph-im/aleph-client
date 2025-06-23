@@ -403,10 +403,11 @@ async def create(
             if not gpu:
                 echo("Fetching compute resource node's list...")
 
-                async with AlephHttpClient() as client:
-                    crn_list = (await client.crn.get_crns_list()).get("crns")
+            async with AlephHttpClient() as client:
+                crn_list = (await client.crn.get_crns_list()).get("crns")
 
             try:
+
                 crn = await fetch_crn_info(crn_list, crn_url, crn_hash)
                 if crn:
                     if (crn_hash and crn_hash != crn.hash) or (crn_url and crn_url != crn.url):
