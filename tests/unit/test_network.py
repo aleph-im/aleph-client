@@ -94,50 +94,32 @@ def test_found_gpus_by_model_multiple_crns():
 
 
 @pytest.mark.asyncio
-async def test_fetch_crn_info_by_url():
+async def test_fetch_crn_info_by_url(mock_crn_list):
     """Test fetch_crn_info with URL parameter."""
-    crn_list = [
-        {
-            "address": FAKE_CRN_BASIC_URL,
-            "hash": FAKE_CRN_BASIC_HASH,
-            "vm_ipv6_prefix": "2001:db8::",
-            "owner": FAKE_ADDRESS_EVM,
-        }
-    ]
-
     # Test with URL
-    result = await fetch_crn_info(crn_list, crn_url=FAKE_CRN_BASIC_URL)
+    result = await fetch_crn_info(mock_crn_list, crn_url=FAKE_CRN_BASIC_URL)
     assert result is not None
     assert result.url == FAKE_CRN_BASIC_URL
     assert result.hash == FAKE_CRN_BASIC_HASH
 
     # Test with URL that has trailing slash (should be sanitized)
-    result = await fetch_crn_info(crn_list, crn_url=f"{FAKE_CRN_BASIC_URL}/")
+    result = await fetch_crn_info(mock_crn_list, crn_url=f"{FAKE_CRN_BASIC_URL}/")
     assert result is not None
     assert result.url == FAKE_CRN_BASIC_URL
 
     # Test with non-existent URL
-    result = await fetch_crn_info(crn_list, crn_url="https://nonexistent.com")
+    result = await fetch_crn_info(mock_crn_list, crn_url="https://nonexistent.com")
     assert result is None
 
 
 @pytest.mark.asyncio
-async def test_fetch_crn_info_by_hash():
+async def test_fetch_crn_info_by_hash(mock_crn_list):
     """Test fetch_crn_info with hash parameter."""
-    crn_list = [
-        {
-            "address": FAKE_CRN_BASIC_URL,
-            "hash": FAKE_CRN_BASIC_HASH,
-            "vm_ipv6_prefix": "2001:db8::",
-            "owner": FAKE_ADDRESS_EVM,
-        }
-    ]
-
     # Test with hash
-    result = await fetch_crn_info(crn_list, crn_hash=FAKE_CRN_BASIC_HASH)
+    result = await fetch_crn_info(mock_crn_list, crn_hash=FAKE_CRN_BASIC_HASH)
     assert result is not None
     assert result.hash == FAKE_CRN_BASIC_HASH
 
     # Test with non-existent hash
-    result = await fetch_crn_info(crn_list, crn_hash="nonexistent_hash")
+    result = await fetch_crn_info(mock_crn_list, crn_hash="nonexistent_hash")
     assert result is None
