@@ -183,8 +183,8 @@ async def test_execution_columns_v1():
 
     mock_allocation = MagicMock(spec=InstanceManual)
 
-    mock_execution = MagicMock()
-    mock_execution.__class__ = CrnExecutionV1
+    mock_execution = MagicMock(spec=CrnExecutionV1)
+    mock_execution.__class__ = MagicMock(spec=type)
     mock_execution.networking = MagicMock()
     mock_execution.networking.ipv6 = "2001:db8::1234"
     mock_execution.networking.ipv4 = "192.168.1.100"
@@ -211,8 +211,8 @@ async def test_execution_columns_v2():
 
     mock_allocation = MagicMock(spec=InstanceManual)
 
-    mock_execution = MagicMock()
-    mock_execution.__class__ = CrnExecutionV2
+    mock_execution = MagicMock(spec=CrnExecutionV2)
+    mock_execution.__class__ = MagicMock(spec=type)
     mock_execution.networking = MagicMock()
     mock_execution.networking.ipv4_network = "192.168.1.0/24"
     mock_execution.networking.ipv6_network = "2001:db8::/64"
@@ -293,8 +293,8 @@ async def test_instance_table_builder():
     mock_allocations.root = {"vm_hash_0": mock_manual, "vm_hash_1": mock_scheduler}
 
     mock_executions = MagicMock()
-    mock_execution = MagicMock()
-    mock_execution.__class__ = CrnExecutionV2
+    mock_execution = MagicMock(spec=CrnExecutionV2)
+    mock_execution.__class__ = MagicMock(spec=type)
 
     # Create status
     mock_execution.status = MagicMock()
