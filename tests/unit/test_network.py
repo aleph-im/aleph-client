@@ -8,7 +8,7 @@ from aleph_client.commands.instance.network import fetch_crn_info
 from aleph_client.commands.utils import found_gpus_by_model
 from aleph_client.utils import sanitize_url
 
-from .mocks import FAKE_ADDRESS_EVM, FAKE_CRN_BASIC_HASH, FAKE_CRN_BASIC_URL
+from .mocks import FAKE_CRN_BASIC_HASH, FAKE_CRN_BASIC_URL
 
 
 def test_sanitize_url_removes_trailing_slash():
