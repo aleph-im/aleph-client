@@ -140,15 +140,18 @@ async def fetch_crn_info(
     Returns:
         Union[CRNInfo, None]: The compute resource node or None if not found.
     """
-
     if crn_url:
         crn_url = sanitize_url(crn_url)
     for crn in crn_list:
-
-        if (crn_url and sanitize_url(crn.get("address", None)) == crn_url) or (
-            crn_hash and crn.get("hash", None) == crn_hash
-        ):
+        crn_address = crn.get('address', None)
+        if crn_hash and crn.get("hash", None) == crn_hash:
             return CRNInfo.from_unsanitized_input(crn)
+        if crn_url and crn_address:
+            try:
+                if sanitize_url(crn_address) == crn_url:
+                    return CRNInfo.from_unsanitized_input(crn)
+            except Exception:
+                continue
     return None
 
 
