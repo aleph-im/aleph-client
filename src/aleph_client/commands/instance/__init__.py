@@ -773,7 +773,7 @@ async def delete(
         chain = existing_message.content.payment.chain  # type: ignore
 
         # Check status of the instance and eventually erase associated VM
-        info: InstanceAllocationsInfo = await client.utils.get_instances_allocations([existing_message])
+        info: InstanceAllocationsInfo = await client.instance.get_instances_allocations([existing_message])
         instance_info = info.root.get(existing_message.item_hash)
 
         if isinstance(instance_info, InstanceWithScheduler):
@@ -859,13 +859,13 @@ async def list_instances(
     address = address or settings.ADDRESS_TO_USE or account.get_address()
 
     async with AlephHttpClient(api_server=settings.API_HOST) as client:
-        instances: list[InstanceMessage] = await client.utils.get_instances(address=address)
-        allocations = await client.utils.get_instances_allocations(instances, only_processed=False)
+        instances: list[InstanceMessage] = await client.instance.get_instances(address=address)
+        allocations = await client.instance.get_instances_allocations(instances, only_processed=False)
         if not allocations.root:
             echo(f"Address: {address}\n\nNo instance found\n")
             raise typer.Exit(code=1)
 
-        execution = await client.utils.get_instance_executions_info(allocations)
+        execution = await client.instance.get_instance_executions_info(allocations)
         await show_instances(messages=instances, allocations=allocations, executions=execution)
 
 

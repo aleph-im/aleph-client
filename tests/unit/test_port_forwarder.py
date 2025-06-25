@@ -59,7 +59,7 @@ def mock_auth_setup():
     mock_client.crn = mock_crn_service
     mock_client.port_forwarder = mock_port_forwarder
     mock_client.instance = mock_instance_service
-    mock_client.utils = mock_utils_service
+    mock_client.instance = mock_utils_service
     mock_client.get_message = AsyncMock(return_value=MagicMock(spec=InstanceMessage))
 
     # Create client class
@@ -108,7 +108,7 @@ async def test_list_ports(mock_auth_setup):
         # Check function calls
         mock_load_account.assert_called_once()
         mock_client.port_forwarder.get_ports.assert_called_once()
-        mock_client.utils.get_name_of_executable.assert_called()
+        mock_client.instance.get_name_of_executable.assert_called()
         mock_console.print.assert_called()
 
     # Test when no ports are found
@@ -307,7 +307,7 @@ async def test_refresh_port(mock_auth_setup):
 
     mock_allocation.allocations = mock_allocations
 
-    mock_client.utils.get_instance_allocation_info.return_value = (None, mock_allocation)
+    mock_client.instance.get_instance_allocation_info.return_value = (None, mock_allocation)
 
     with (
         patch("aleph_client.commands.instance.port_forwarder._load_account", mock_load_account),
@@ -320,7 +320,7 @@ async def test_refresh_port(mock_auth_setup):
         mock_load_account.assert_called_once()
         mock_client.get_message.assert_called_once_with(item_hash=FAKE_VM_HASH, message_type=InstanceMessage)
         mock_client.crn.get_crns_list.assert_called_once()
-        mock_client.utils.get_instance_allocation_info.assert_called_once()
+        mock_client.instance.get_instance_allocation_info.assert_called_once()
 
         args, kwargs = mock_client.crn.update_instance_config.call_args
         assert "item_hash" in kwargs and kwargs["item_hash"] == FAKE_VM_HASH
@@ -337,7 +337,7 @@ async def test_refresh_port_no_allocation(mock_auth_setup):
     mock_client = mock_auth_setup["mock_client"]
     mock_client_class = mock_auth_setup["mock_client_class"]
 
-    mock_client.utils.get_instance_allocation_info.return_value = (None, None)
+    mock_client.instance.get_instance_allocation_info.return_value = (None, None)
 
     with (
         patch("aleph_client.commands.instance.port_forwarder._load_account", mock_load_account),
@@ -351,7 +351,7 @@ async def test_refresh_port_no_allocation(mock_auth_setup):
         mock_load_account.assert_called_once()
         mock_client.get_message.assert_called_once_with(item_hash=FAKE_VM_HASH, message_type=InstanceMessage)
         mock_client.crn.get_crns_list.assert_called_once()
-        mock_client.utils.get_instance_allocation_info.assert_called_once()
+        mock_client.instance.get_instance_allocation_info.assert_called_once()
 
         mock_echo.assert_called_with("No allocation Found")
 
@@ -373,7 +373,7 @@ async def test_refresh_port_scheduler_allocation(mock_auth_setup):
     mock_allocations.node.url = "scheduler_node_url"
     mock_allocation.allocations = mock_allocations
 
-    mock_client.utils.get_instance_allocation_info.return_value = (None, mock_allocation)
+    mock_client.instance.get_instance_allocation_info.return_value = (None, mock_allocation)
 
     with (
         patch("aleph_client.commands.instance.port_forwarder._load_account", mock_load_account),
@@ -385,7 +385,7 @@ async def test_refresh_port_scheduler_allocation(mock_auth_setup):
         mock_load_account.assert_called_once()
         mock_client.get_message.assert_called_once_with(item_hash=FAKE_VM_HASH, message_type=InstanceMessage)
         mock_client.crn.get_crns_list.assert_called_once()
-        mock_client.utils.get_instance_allocation_info.assert_called_once()
+        mock_client.instance.get_instance_allocation_info.assert_called_once()
 
         args, kwargs = mock_client.crn.update_instance_config.call_args
         assert "crn_address" in kwargs and kwargs["crn_address"] == "scheduler_node_url"

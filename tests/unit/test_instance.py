@@ -529,7 +529,7 @@ async def test_list_instances(mock_crn_list):
     mock_allocations = MagicMock(root={"some_hash": "some_allocation"})
     mock_executions = MagicMock(root={})
 
-    mock_auth_client.utils = MagicMock(
+    mock_auth_client.instance = MagicMock(
         get_instances=AsyncMock(return_value=mock_instance_messages.return_value),
         get_instances_allocations=AsyncMock(return_value=mock_allocations),
         get_instance_executions_info=AsyncMock(return_value=mock_executions),
@@ -543,9 +543,9 @@ async def test_list_instances(mock_crn_list):
     async def list_instance():
         print()  # For better display when pytest -v -s
         await list_instances(address=mock_account.get_address())
-        mock_auth_client.utils.get_instances.assert_called_once()
-        mock_auth_client.utils.get_instances_allocations.assert_called_once()
-        mock_auth_client.utils.get_instance_executions_info.assert_called_once()
+        mock_auth_client.instance.get_instances.assert_called_once()
+        mock_auth_client.instance.get_instances_allocations.assert_called_once()
+        mock_auth_client.instance.get_instance_executions_info.assert_called_once()
 
     await list_instance()
 
@@ -563,7 +563,7 @@ async def test_delete_instance():
     )
 
     # We need to mock that there is no CRN information to skip VM erasure
-    mock_auth_client.utils = MagicMock(get_instances_allocations=AsyncMock(return_value=MagicMock(root={})))
+    mock_auth_client.instance = MagicMock(get_instances_allocations=AsyncMock(return_value=MagicMock(root={})))
 
     @patch("aleph_client.commands.instance._load_account", mock_load_account)
     @patch("aleph_client.commands.instance.AuthenticatedAlephHttpClient", mock_auth_client_class)
@@ -597,7 +597,7 @@ async def test_reboot_instance():
     mock_allocation.root = {FAKE_VM_HASH: mock_instance}
 
     # Add the mock to the auth client
-    mock_auth_client.utils = MagicMock(get_instances_allocations=AsyncMock(return_value=mock_allocation))
+    mock_auth_client.instance = MagicMock(get_instances_allocations=AsyncMock(return_value=mock_allocation))
 
     @patch("aleph_client.commands.instance._load_account", mock_load_account)
     @patch("aleph_client.commands.instance.network.AlephHttpClient", mock_auth_client_class)
@@ -629,7 +629,7 @@ async def test_allocate_instance():
     mock_allocation.root = {FAKE_VM_HASH: mock_instance}
 
     # Add the mock to the auth client
-    mock_auth_client.utils = MagicMock(get_instances_allocations=AsyncMock(return_value=mock_allocation))
+    mock_auth_client.instance = MagicMock(get_instances_allocations=AsyncMock(return_value=mock_allocation))
 
     @patch("aleph_client.commands.instance._load_account", mock_load_account)
     @patch("aleph_client.commands.instance.network.AlephHttpClient", mock_auth_client_class)
@@ -661,7 +661,7 @@ async def test_logs_instance(capsys):
     mock_allocation.root = {FAKE_VM_HASH: mock_instance}
 
     # Add the mock to the auth client
-    mock_auth_client.utils = MagicMock(get_instances_allocations=AsyncMock(return_value=mock_allocation))
+    mock_auth_client.instance = MagicMock(get_instances_allocations=AsyncMock(return_value=mock_allocation))
 
     @patch("aleph_client.commands.instance._load_account", mock_load_account)
     @patch("aleph_client.commands.instance.network.AlephHttpClient", mock_auth_client_class)
@@ -695,7 +695,7 @@ async def test_stop_instance():
     mock_allocation.root = {FAKE_VM_HASH: mock_instance}
 
     # Add the mock to the auth client
-    mock_auth_client.utils = MagicMock(get_instances_allocations=AsyncMock(return_value=mock_allocation))
+    mock_auth_client.instance = MagicMock(get_instances_allocations=AsyncMock(return_value=mock_allocation))
 
     @patch("aleph_client.commands.instance._load_account", mock_load_account)
     @patch("aleph_client.commands.instance.network.AlephHttpClient", mock_auth_client_class)
@@ -728,7 +728,7 @@ async def test_confidential_init_session():
     mock_allocation.root = {FAKE_VM_HASH: mock_instance}
 
     # Add the mock to the auth client
-    mock_auth_client.utils = MagicMock(get_instances_allocations=AsyncMock(return_value=mock_allocation))
+    mock_auth_client.instance = MagicMock(get_instances_allocations=AsyncMock(return_value=mock_allocation))
 
     @patch("aleph_client.commands.instance._load_account", mock_load_account)
     @patch("aleph_client.commands.instance.network.AlephHttpClient", mock_auth_client_class)
@@ -770,7 +770,7 @@ async def test_confidential_start():
     mock_allocation.root = {FAKE_VM_HASH: mock_instance}
 
     # Add the mock to the auth client
-    mock_auth_client.utils = MagicMock(get_instances_allocations=AsyncMock(return_value=mock_allocation))
+    mock_auth_client.instance = MagicMock(get_instances_allocations=AsyncMock(return_value=mock_allocation))
 
     @patch("aleph_client.commands.instance._load_account", mock_load_account)
     @patch("aleph_client.commands.utils.shutil", mock_shutil)
@@ -834,7 +834,7 @@ async def test_confidential_create(mock_crn_list, args):
     mock_allocation.root = {FAKE_VM_HASH: mock_instance}
 
     # Add the mock to the auth client
-    mock_auth_client.utils = MagicMock(get_instances_allocations=AsyncMock(return_value=mock_allocation))
+    mock_auth_client.instance = MagicMock(get_instances_allocations=AsyncMock(return_value=mock_allocation))
 
     @patch("aleph_client.commands.utils.shutil", mock_shutil)
     @patch("aleph_client.commands.instance.create", mock_create)

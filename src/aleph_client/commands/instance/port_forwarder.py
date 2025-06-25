@@ -74,7 +74,7 @@ async def list_ports(
                 ports_map = config.root
 
                 for ih, ports in ports_map.items():
-                    name = await client.utils.get_name_of_executable(item_hash=ItemHash(ih))
+                    name = await client.instance.get_name_of_executable(item_hash=ItemHash(ih))
 
                     # If an item hash is specified, only show that one
                     if item_hash and ih != item_hash:
@@ -380,7 +380,7 @@ async def refresh(
         async with AuthenticatedAlephHttpClient(api_server=settings.API_HOST, account=account) as client:
             instance: InstanceMessage = await client.get_message(item_hash=item_hash, message_type=InstanceMessage)
             crn_list = await client.crn.get_crns_list()
-            _, allocation = await client.utils.get_instance_allocation_info(instance, crn_list)
+            _, allocation = await client.instance.get_instance_allocation_info(instance, crn_list)
 
             if not allocation:
                 typer.echo("No allocation Found")

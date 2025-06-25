@@ -168,7 +168,7 @@ async def find_crn_of_vm(vm_id: str) -> Optional[str]:
             if not message:
                 raise Exit(code=1)
 
-            allocations = await client.utils.get_instances_allocations(messages_list=[message])
+            allocations = await client.instance.get_instances_allocations(messages_list=[message])
             # Make sure to await the result if it's a coroutine
             if hasattr(allocations, "__await__"):
                 allocations = await allocations
