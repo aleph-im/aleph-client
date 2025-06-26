@@ -39,10 +39,10 @@ def mock_auth_setup():
 
     # Mock port forwarder service
     mock_port_forwarder = MagicMock()
-    mock_port_forwarder.create_port = AsyncMock(return_value=(mock_port_message, MessageStatus.PROCESSED))
-    mock_port_forwarder.get_port = AsyncMock()
+    mock_port_forwarder.create_ports = AsyncMock(return_value=(mock_port_message, MessageStatus.PROCESSED))
     mock_port_forwarder.get_ports = AsyncMock()
-    mock_port_forwarder.update_port = AsyncMock(return_value=(mock_port_message, MessageStatus.PROCESSED))
+    mock_port_forwarder.get_address_ports = AsyncMock()
+    mock_port_forwarder.update_ports = AsyncMock(return_value=(mock_port_message, MessageStatus.PROCESSED))
     mock_port_forwarder.delete_ports = AsyncMock(return_value=(mock_port_message, MessageStatus.PROCESSED))
 
     # Mock instance service
@@ -94,7 +94,7 @@ async def test_list_ports(mock_auth_setup):
         )
     ]
 
-    mock_client.port_forwarder.get_ports.return_value = mock_port_config
+    mock_client.port_forwarder.get_address_ports.return_value = mock_port_config
     mock_console = MagicMock()
 
     with (
@@ -107,13 +107,13 @@ async def test_list_ports(mock_auth_setup):
 
         # Check function calls
         mock_load_account.assert_called_once()
-        mock_client.port_forwarder.get_ports.assert_called_once()
+        mock_client.port_forwarder.get_address_ports.assert_called_once()
         mock_client.instance.get_name_of_executable.assert_called()
         mock_console.print.assert_called()
 
     # Test when no ports are found
-    mock_client.port_forwarder.get_ports.reset_mock()
-    mock_client.port_forwarder.get_ports.side_effect = ClientResponseError(
+    mock_client.port_forwarder.get_address_ports.reset_mock()
+    mock_client.port_forwarder.get_address_ports.side_effect = ClientResponseError(
         request_info=MagicMock(), history=(), status=404
     )
 
@@ -129,7 +129,7 @@ async def test_list_ports(mock_auth_setup):
         except SystemExit:
             pass
 
-        mock_client.port_forwarder.get_ports.assert_called_once()
+        mock_client.port_forwarder.get_address_ports.assert_called_once()
         mock_echo.assert_any_call("No port forwards found for address: 0x941B13FE26aF62C288108224FcD6fE03F71E189F")
 
 
@@ -151,10 +151,10 @@ async def test_create_port(mock_auth_setup):
 
         # Check function calls
         mock_load_account.assert_called_once()
-        mock_client.port_forwarder.create_port.assert_called_once()
+        mock_client.port_forwarder.create_ports.assert_called_once()
 
         # Verify correct arguments were passed
-        call_args = mock_client.port_forwarder.create_port.call_args[1]
+        call_args = mock_client.port_forwarder.create_ports.call_args[1]
         assert call_args["item_hash"] == ItemHash(FAKE_VM_HASH)
         assert 22 in call_args["ports"].ports
         assert call_args["ports"].ports[22].tcp is True
@@ -174,7 +174,7 @@ async def test_update_port(mock_auth_setup):
     mock_existing_ports = MagicMock()
     mock_existing_ports.ports = {22: PortFlags(tcp=True, udp=False), 80: PortFlags(tcp=True, udp=True)}
 
-    mock_client.port_forwarder.get_port.return_value = mock_existing_ports
+    mock_client.port_forwarder.get_ports.return_value = mock_existing_ports
 
     with (
         patch("aleph_client.commands.instance.port_forwarder._load_account", mock_load_account),
@@ -185,10 +185,10 @@ async def test_update_port(mock_auth_setup):
         await update(item_hash=FAKE_VM_HASH, port=22, tcp=True, udp=True)
 
         mock_load_account.assert_called_once()
-        mock_client.port_forwarder.get_port.assert_called_once()
-        mock_client.port_forwarder.update_port.assert_called_once()
+        mock_client.port_forwarder.get_ports.assert_called_once()
+        mock_client.port_forwarder.update_ports.assert_called_once()
 
-        call_args = mock_client.port_forwarder.update_port.call_args[1]
+        call_args = mock_client.port_forwarder.update_ports.call_args[1]
         assert call_args["item_hash"] == ItemHash(FAKE_VM_HASH)
         assert 22 in call_args["ports"].ports
         assert call_args["ports"].ports[22].tcp is True
@@ -208,7 +208,7 @@ async def test_delete_port(mock_auth_setup):
     mock_existing_ports = MagicMock()
     mock_existing_ports.ports = {22: PortFlags(tcp=True, udp=False), 80: PortFlags(tcp=True, udp=True)}
 
-    mock_client.port_forwarder.get_port.return_value = mock_existing_ports
+    mock_client.port_forwarder.get_ports.return_value = mock_existing_ports
 
     with (
         patch("aleph_client.commands.instance.port_forwarder._load_account", mock_load_account),
@@ -220,10 +220,10 @@ async def test_delete_port(mock_auth_setup):
         await delete(item_hash=FAKE_VM_HASH, port=22)
 
         mock_load_account.assert_called_once()
-        mock_client.port_forwarder.get_port.assert_called_once()
-        mock_client.port_forwarder.update_port.assert_called_once()
+        mock_client.port_forwarder.get_ports.assert_called_once()
+        mock_client.port_forwarder.update_ports.assert_called_once()
 
-        call_args = mock_client.port_forwarder.update_port.call_args[1]
+        call_args = mock_client.port_forwarder.update_ports.call_args[1]
         assert call_args["item_hash"] == ItemHash(FAKE_VM_HASH)
         assert 22 not in call_args["ports"].ports
         assert 80 in call_args["ports"].ports
@@ -231,8 +231,8 @@ async def test_delete_port(mock_auth_setup):
         mock_echo.assert_any_call(f"Port forward deleted successfully for {FAKE_VM_HASH} on port 22")
 
     mock_load_account.reset_mock()
-    mock_client.port_forwarder.get_port.reset_mock()
-    mock_client.port_forwarder.update_port.reset_mock()
+    mock_client.port_forwarder.get_ports.reset_mock()
+    mock_client.port_forwarder.update_ports.reset_mock()
     mock_client.port_forwarder.delete_ports.reset_mock()
 
     with (
@@ -244,7 +244,7 @@ async def test_delete_port(mock_auth_setup):
         await delete(item_hash=FAKE_VM_HASH, port=None)
 
         mock_load_account.assert_called_once()
-        mock_client.port_forwarder.get_port.assert_called_once()
+        mock_client.port_forwarder.get_ports.assert_called_once()
         mock_client.port_forwarder.delete_ports.assert_called_once()
 
         call_args = mock_client.port_forwarder.delete_ports.call_args[1]
@@ -255,7 +255,7 @@ async def test_delete_port(mock_auth_setup):
 
 @pytest.mark.asyncio
 async def test_delete_port_last_port(mock_auth_setup):
-    """Test deleting the last port which should trigger delete_ports instead of update_port"""
+    """Test deleting the last port which should trigger delete_ports instead of update_ports"""
     mock_load_account = mock_auth_setup["mock_load_account"]
     mock_client = mock_auth_setup["mock_client"]
     mock_client_class = mock_auth_setup["mock_client_class"]
@@ -263,9 +263,9 @@ async def test_delete_port_last_port(mock_auth_setup):
     mock_existing_ports = MagicMock()
     mock_existing_ports.ports = {22: PortFlags(tcp=True, udp=False)}
 
-    mock_client.port_forwarder.get_port.return_value = mock_existing_ports
+    mock_client.port_forwarder.get_ports.return_value = mock_existing_ports
 
-    mock_client.port_forwarder.update_port = None
+    mock_client.port_forwarder.update_ports = None
 
     with (
         patch("aleph_client.commands.instance.port_forwarder._load_account", mock_load_account),
@@ -277,7 +277,7 @@ async def test_delete_port_last_port(mock_auth_setup):
 
         # Check function calls
         mock_load_account.assert_called_once()
-        mock_client.port_forwarder.get_port.assert_called_once()
+        mock_client.port_forwarder.get_ports.assert_called_once()
 
         # Verify delete_ports was called
         mock_client.port_forwarder.delete_ports.assert_called_once()
@@ -412,7 +412,7 @@ async def test_non_processed_message_statuses():
     mock_existing_ports = MagicMock()
     mock_existing_ports.ports = {22: PortFlags(tcp=True, udp=False)}
     mock_http_client.port_forwarder = MagicMock()
-    mock_http_client.port_forwarder.get_port = AsyncMock(return_value=mock_existing_ports)
+    mock_http_client.port_forwarder.get_ports = AsyncMock(return_value=mock_existing_ports)
 
     with (
         patch("aleph_client.commands.instance.port_forwarder._load_account", mock_load_account),
@@ -421,7 +421,7 @@ async def test_non_processed_message_statuses():
         patch("aleph_client.commands.instance.port_forwarder.typer.echo") as mock_echo,
     ):
         port_forwarder_mock = MagicMock()
-        port_forwarder_mock.update_port = AsyncMock(return_value=("mock_message", MessageStatus.PENDING))
+        port_forwarder_mock.update_ports = AsyncMock(return_value=("mock_message", MessageStatus.PENDING))
         mock_auth_client.port_forwarder = port_forwarder_mock
 
         await update(item_hash=FAKE_VM_HASH, port=22, tcp=True, udp=True)
@@ -438,7 +438,7 @@ async def test_non_processed_message_statuses():
         patch("aleph_client.commands.instance.port_forwarder.typer.echo") as mock_echo,
     ):
         port_forwarder_mock = MagicMock()
-        port_forwarder_mock.update_port = AsyncMock(return_value=("mock_message", MessageStatus.PENDING))
+        port_forwarder_mock.update_ports = AsyncMock(return_value=("mock_message", MessageStatus.PENDING))
         port_forwarder_mock.delete_ports = AsyncMock(return_value=("mock_message", MessageStatus.PENDING))
         mock_auth_client.port_forwarder = port_forwarder_mock
 
@@ -456,7 +456,7 @@ async def test_non_processed_message_statuses():
         patch("aleph_client.commands.instance.port_forwarder.typer.echo") as mock_echo,
     ):
         port_forwarder_mock = MagicMock()
-        port_forwarder_mock.update_port = AsyncMock(return_value=("mock_message", MessageStatus.PENDING))
+        port_forwarder_mock.update_ports = AsyncMock(return_value=("mock_message", MessageStatus.PENDING))
         port_forwarder_mock.delete_ports = AsyncMock(return_value=("mock_message", MessageStatus.PENDING))
         mock_auth_client.port_forwarder = port_forwarder_mock
 

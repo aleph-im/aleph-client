@@ -296,8 +296,8 @@ def create_mock_auth_client(mock_account, payment_type="superfluid", payment_typ
     # Create a proper mock for port_forwarder service
     mock_port_forwarder = MagicMock()
     mock_port_message = MagicMock(item_hash=FAKE_VM_HASH)
-    mock_port_forwarder.create_port = AsyncMock(return_value=(mock_port_message, 200))
-    mock_port_forwarder.get_port = AsyncMock(return_value=None)
+    mock_port_forwarder.create_ports = AsyncMock(return_value=(mock_port_message, 200))
+    mock_port_forwarder.get_ports = AsyncMock(return_value=None)
     mock_port_forwarder.delete_ports = AsyncMock(return_value=(mock_port_message, 200))
 
     mock_auth_client = AsyncMock(
@@ -559,7 +559,7 @@ async def test_delete_instance():
 
     # Mock port forwarder
     mock_auth_client.port_forwarder = MagicMock(
-        get_port=AsyncMock(return_value=None), delete_ports=AsyncMock(return_value=("mock_message", "mock_status"))
+        get_ports=AsyncMock(return_value=None), delete_ports=AsyncMock(return_value=("mock_message", "mock_status"))
     )
 
     # We need to mock that there is no CRN information to skip VM erasure

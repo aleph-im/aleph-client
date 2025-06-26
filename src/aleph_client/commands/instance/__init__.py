@@ -403,23 +403,21 @@ async def create(
             if not gpu:
                 echo("Fetching compute resource node's list...")
 
-            async with AlephHttpClient() as client:
-                crn_list = (await client.crn.get_crns_list()).get("crns")
-
             try:
-
-                crn = await fetch_crn_info(crn_list, crn_url, crn_hash)
-                if crn:
-                    if (crn_hash and crn_hash != crn.hash) or (crn_url and crn_url != crn.url):
-                        echo(
-                            f"* Provided CRN *\nUrl: {crn_url}\nHash: {crn_hash}\n\n* Found CRN *\nUrl: "
-                            f"{crn.url}\nHash: {crn.hash}\n\nMismatch between provided CRN and found CRN"
-                        )
+                async with AlephHttpClient() as client:
+                    crn_list = (await client.crn.get_crns_list()).get("crns")
+                    crn = await fetch_crn_info(crn_list, crn_url, crn_hash)
+                    if crn:
+                        if (crn_hash and crn_hash != crn.hash) or (crn_url and crn_url != crn.url):
+                            echo(
+                                f"* Provided CRN *\nUrl: {crn_url}\nHash: {crn_hash}\n\n* Found CRN *\nUrl: "
+                                f"{crn.url}\nHash: {crn.hash}\n\nMismatch between provided CRN and found CRN"
+                            )
+                            raise typer.Exit(1)
+                        crn.display_crn_specs()
+                    else:
+                        echo(f"* Provided CRN *\nUrl: {crn_url}\nHash: {crn_hash}\n\nProvided CRN not found")
                         raise typer.Exit(1)
-                    crn.display_crn_specs()
-                else:
-                    echo(f"* Provided CRN *\nUrl: {crn_url}\nHash: {crn_hash}\n\nProvided CRN not found")
-                    raise typer.Exit(1)
             except Exception as e:
                 raise typer.Exit(1) from e
 
@@ -569,7 +567,7 @@ async def create(
             port_flags = PortFlags(tcp=True, udp=False)
             ports = Ports(ports={22: port_flags})
 
-            message_port, status_port = await client.port_forwarder.create_port(
+            message_port, status_port = await client.port_forwarder.create_ports(
                 item_hash=message.item_hash, ports=ports
             )
         except InsufficientFundsError as e:

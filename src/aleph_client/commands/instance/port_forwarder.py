@@ -49,7 +49,7 @@ async def list_ports(
         # Get all port forwards for the address
         try:
             typer.echo(f"Getting port forwards for address: {address}")
-            ports_config = await client.port_forwarder.get_ports(address=address)
+            ports_config = await client.port_forwarder.get_address_ports(address=address)
 
             # Debug logging
             if debug:
@@ -169,7 +169,7 @@ async def create(
     try:
         async with AuthenticatedAlephHttpClient(account=account, api_server=settings.API_HOST) as client:
             try:
-                message, status = await client.port_forwarder.create_port(item_hash=ItemHash(item_hash), ports=ports)
+                message, status = await client.port_forwarder.create_ports(item_hash=ItemHash(item_hash), ports=ports)
                 typer.echo(f"Currents status: {status}")
                 typer.echo(f"Port forward created successfully for {item_hash} on port {port}")
                 typer.echo(f"TCP: {'Enabled' if tcp else 'Disabled'}, UDP: {'Enabled' if udp else 'Disabled'}")
@@ -216,7 +216,7 @@ async def update(
     # First check if the port forward exists
     async with AlephHttpClient(api_server=settings.API_HOST) as client:
         try:
-            existing_config = await client.port_forwarder.get_port(
+            existing_config = await client.port_forwarder.get_ports(
                 address=account.get_address(), item_hash=ItemHash(item_hash)
             )
 
@@ -249,7 +249,7 @@ async def update(
     try:
         async with AuthenticatedAlephHttpClient(account=account, api_server=settings.API_HOST) as client:
             try:
-                message, status = await client.port_forwarder.update_port(
+                message, status = await client.port_forwarder.update_ports(
                     item_hash=ItemHash(item_hash), ports=updated_ports
                 )
 
@@ -296,7 +296,7 @@ async def delete(
     # First check if the port forward exists
     async with AlephHttpClient(api_server=settings.API_HOST) as client:
         try:
-            existing_config = await client.port_forwarder.get_port(
+            existing_config = await client.port_forwarder.get_ports(
                 address=account.get_address(), item_hash=ItemHash(item_hash)
             )
 
@@ -327,7 +327,7 @@ async def delete(
                     if not updated_ports.ports:
                         message, status = await client.port_forwarder.delete_ports(item_hash=ItemHash(item_hash))
                     else:
-                        message, status = await client.port_forwarder.update_port(
+                        message, status = await client.port_forwarder.update_ports(
                             item_hash=ItemHash(item_hash), ports=updated_ports
                         )
 
