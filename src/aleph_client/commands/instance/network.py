@@ -103,7 +103,10 @@ async def fetch_crn_list(
     """
 
     data = await call_program_crn_list()
-    current_crn_version = await fetch_latest_crn_version()
+    # current_crn_version = await fetch_latest_crn_version()
+    # Relax current filter to allow use aleph-vm versions since 1.5.1.
+    # TODO: Allow to specify that option on settings aggregate on maybe on GitHub
+    current_crn_version = "1.5.1"
     crns = []
     for crn in data.get("crns"):
         gpu_support = crn.get("gpu_support")
