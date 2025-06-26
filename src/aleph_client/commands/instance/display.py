@@ -33,10 +33,7 @@ from textual.widgets._data_table import RowKey
 
 from aleph_client.commands.files import download
 from aleph_client.commands.help_strings import ALLOCATION_AUTO, ALLOCATION_MANUAL
-from aleph_client.commands.instance.network import (
-    fetch_crn_list,
-    fetch_latest_crn_version,
-)
+from aleph_client.commands.instance.network import fetch_crn_list
 from aleph_client.commands.node import _format_score
 from aleph_client.models import CRNInfo
 
@@ -635,7 +632,10 @@ class CRNTable(App[tuple[CRNInfo, int]]):
                 for gpu_id in range(len(crn.compatible_available_gpus))
             }
         )
-        self.current_crn_version = await fetch_latest_crn_version()
+        # self.current_crn_version = await fetch_latest_crn_version()
+        # Relax current filter to allow use aleph-vm versions since 1.5.1.
+        # TODO: Allow to specify that option on settings aggregate on maybe on GitHub
+        self.current_crn_version = "1.5.1"
 
         # Initialize the progress bar
         self.total_crns = len(self.crns)
@@ -655,7 +655,7 @@ class CRNTable(App[tuple[CRNInfo, int]]):
     async def add_crn_info(self, crn: CRNInfo, gpu_id: int):
         self.active_crns += 1
         # Skip CRNs with legacy version
-        if self.only_latest_crn_version and crn.version < self.current_crn_version:
+        if self.only_latest_crn_version and (crn.version or "0.0.0") < self.current_crn_version:
             logger.debug(f"Skipping CRN {crn.hash}, legacy version")
             return
         # Skip CRNs without machine usage
