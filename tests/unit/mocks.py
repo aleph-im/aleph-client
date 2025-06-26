@@ -25,8 +25,21 @@ FAKE_STORE_HASH_PUBLISHER = "0xe0aaF578B287de16852dbc54Ae34a263FF2F4b9E"  # TODO
 FAKE_VM_HASH = "ab12" * 16
 FAKE_PROGRAM_HASH = "cd34" * 16
 FAKE_PROGRAM_HASH_2 = "ef56" * 16
-FAKE_CRN_HASH = "cb764fe80f76cd5ec395952263fcbf0f5d2cc0dfe1ed98c90e13734b3fb2df3e"
-FAKE_CRN_URL = "https://coco-1.crn.aleph.sh"
+
+
+FAKE_CRN_GPU_HASH = "abcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabca"
+FAKE_CRN_GPU_ADDRESS = "0xBCABCABCABCABCABCABCABCABCABCABCABCABCAB"
+FAKE_CRN_GPU_URL = "https://test.gpu.crn.com"
+
+FAKE_CRN_CONF_HASH = "defdefdefdefdefdefdefdefdefdefdefdefdefdefdefdefdefdefdefdefdefd"
+FAKE_CRN_CONF_ADDRESS = "0xDEfDEfDEfDEfDEfDEfDEfDEfDEfDEfDEfDEfDEfDEf"
+FAKE_CRN_CONF_URL = "https://test.conf.crn"
+
+FAKE_CRN_BASIC_HASH = "aaaabbbbccccddddeeeeffff1111222233334444555566667777888899990000"
+FAKE_CRN_BASIC_ADDRESS = "0xAAAABBBBCCCCDDDDEEEEFFFF1111222233334444"
+
+FAKE_CRN_BASIC_URL = "https://test.basic.crn.com"
+
 FAKE_FLOW_HASH = "0xfake_flow_hash"
 
 

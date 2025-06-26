@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-import builtins
 import json
 import logging
 import shutil
@@ -27,16 +26,24 @@ from aleph.sdk.exceptions import (
     InsufficientFundsError,
     MessageNotFoundError,
 )
-from aleph.sdk.query.filters import MessageFilter
 from aleph.sdk.query.responses import PriceResponse
-from aleph.sdk.types import StorageEnum, TokenType
+from aleph.sdk.types import (
+    CrnExecutionV1,
+    CrnExecutionV2,
+    InstanceAllocationsInfo,
+    InstanceWithScheduler,
+    PortFlags,
+    Ports,
+    StorageEnum,
+    TokenType,
+)
 from aleph.sdk.utils import (
     calculate_firmware_hash,
     displayable_amount,
     make_instance_content,
     safe_getattr,
 )
-from aleph_message.models import Chain, InstanceMessage, MessageType, StoreMessage
+from aleph_message.models import Chain, InstanceMessage, StoreMessage
 from aleph_message.models.execution.base import Payment, PaymentType
 from aleph_message.models.execution.environment import (
     GpuProperties,
@@ -48,33 +55,28 @@ from aleph_message.models.execution.environment import (
 from aleph_message.models.execution.volume import PersistentVolumeSizeMib
 from aleph_message.models.item_hash import ItemHash
 from click import echo
-from rich import box
 from rich.console import Console
 from rich.panel import Panel
 from rich.prompt import Prompt
-from rich.table import Table
 from rich.text import Text
 
 from aleph_client.commands import help_strings
 from aleph_client.commands.account import get_balance
-from aleph_client.commands.instance.display import CRNTable
+from aleph_client.commands.instance.display import CRNTable, show_instances
 from aleph_client.commands.instance.network import (
     fetch_crn_info,
     fetch_crn_list,
     fetch_settings,
-    fetch_vm_info,
     find_crn_of_vm,
 )
+from aleph_client.commands.instance.port_forwarder import app as port_forwarder_app
 from aleph_client.commands.pricing import PricingEntity, SelectedTier, fetch_pricing
 from aleph_client.commands.utils import (
-    display_mounted_volumes,
-    filter_only_valid_messages,
     find_sevctl_or_exit,
     found_gpus_by_model,
     get_annotated_constraint,
     get_or_prompt_volumes,
     setup_logging,
-    str_to_datetime,
     validate_ssh_pubkey_file,
     validated_int_prompt,
     validated_prompt,
@@ -397,23 +399,25 @@ async def create(
                 echo(f"Invalid URL provided: {crn_url}")
                 raise typer.Exit(1) from e
 
-        echo("Fetching compute resource node's list...")
-        crn_list = await fetch_crn_list()  # Precache CRN list
+        if crn_url or crn_hash:
+            if not gpu:
+                echo("Fetching compute resource node's list...")
 
-        if (crn_url or crn_hash) and not gpu:
             try:
-                crn = await fetch_crn_info(crn_url, crn_hash)
-                if crn:
-                    if (crn_hash and crn_hash != crn.hash) or (crn_url and crn_url != crn.url):
-                        echo(
-                            f"* Provided CRN *\nUrl: {crn_url}\nHash: {crn_hash}\n\n* Found CRN *\nUrl: "
-                            f"{crn.url}\nHash: {crn.hash}\n\nMismatch between provided CRN and found CRN"
-                        )
+                async with AlephHttpClient() as client:
+                    crn_list = (await client.crn.get_crns_list()).get("crns")
+                    crn = await fetch_crn_info(crn_list, crn_url, crn_hash)
+                    if crn:
+                        if (crn_hash and crn_hash != crn.hash) or (crn_url and crn_url != crn.url):
+                            echo(
+                                f"* Provided CRN *\nUrl: {crn_url}\nHash: {crn_hash}\n\n* Found CRN *\nUrl: "
+                                f"{crn.url}\nHash: {crn.hash}\n\nMismatch between provided CRN and found CRN"
+                            )
+                            raise typer.Exit(1)
+                        crn.display_crn_specs()
+                    else:
+                        echo(f"* Provided CRN *\nUrl: {crn_url}\nHash: {crn_hash}\n\nProvided CRN not found")
                         raise typer.Exit(1)
-                    crn.display_crn_specs()
-                else:
-                    echo(f"* Provided CRN *\nUrl: {crn_url}\nHash: {crn_hash}\n\nProvided CRN not found")
-                    raise typer.Exit(1)
             except Exception as e:
                 raise typer.Exit(1) from e
 
@@ -463,6 +467,9 @@ async def create(
                 echo("Selected CRN does not have any GPU available.")
                 raise typer.Exit(1)
             else:
+                # If gpu_id is None, default to the first available GPU
+                if gpu_id is None:
+                    gpu_id = 0
                 selected_gpu = crn.compatible_available_gpus[gpu_id]
                 gpu_selection = Text.from_markup(
                     f"[orange3]Vendor[/orange3]: {selected_gpu['vendor']}\n[orange3]Model[/orange3]: "
@@ -556,6 +563,13 @@ async def create(
                 storage_engine=StorageEnum.storage,
                 sync=True,
             )
+
+            port_flags = PortFlags(tcp=True, udp=False)
+            ports = Ports(ports={22: port_flags})
+
+            message_port, status_port = await client.port_forwarder.create_ports(
+                item_hash=message.item_hash, ports=ports
+            )
         except InsufficientFundsError as e:
             echo(
                 f"Instance creation failed due to insufficient funds.\n"
@@ -648,7 +662,7 @@ async def create(
                 if not confidential:
                     infos += [
                         Text.assemble(
-                            "\n\nTo get your instance's IPv6, check out:\n",
+                            "\n\nTo get your instance's IPv6 / IPv4, check out:\n",
                             Text.assemble(
                                 "↳ aleph instance list",
                                 style="italic",
@@ -676,13 +690,13 @@ async def create(
             infos += [
                 Text.from_markup(
                     f"Your instance [bright_cyan]{item_hash}[/bright_cyan] is registered to be deployed on aleph.im.\n"
-                    "The scheduler usually takes a few minutes to set it up and start it."
+                    "The scheduler usually takes a few minutes to set it up and start it.\n"
                 )
             ]
             if verbose:
                 infos += [
                     Text.assemble(
-                        "\n\nTo get your instance's IPv6, check out:\n",
+                        "\n\nTo get your instance's IPv6 / IPv4, check out:\n",
                         Text.assemble(
                             "↳ aleph instance list",
                             style="italic",
@@ -741,6 +755,11 @@ async def delete(
             echo("You are not the owner of this instance")
             raise typer.Exit(code=1)
 
+        try:
+            await client.port_forwarder.delete_ports(item_hash=ItemHash(item_hash))
+        except aiohttp.ClientResponseError:
+            echo("No ports found")
+
         # If PAYG, retrieve creation time & flow price
         creation_time: float = existing_message.content.time
         payment: Optional[Payment] = existing_message.content.payment
@@ -752,27 +771,29 @@ async def delete(
         chain = existing_message.content.payment.chain  # type: ignore
 
         # Check status of the instance and eventually erase associated VM
-        _, info = await fetch_vm_info(existing_message)
-        auto_scheduled = info["allocation_type"] == help_strings.ALLOCATION_AUTO
-        crn_url = (info["crn_url"] not in [help_strings.CRN_PENDING, help_strings.CRN_UNKNOWN] and info["crn_url"]) or (
-            domain and sanitize_url(domain)
-        )
-        if not auto_scheduled:
-            if not crn_url:
-                echo("CRN domain not found or invalid. Skipping...")
-            else:
-                try:
-                    async with VmClient(account, crn_url) as manager:
-                        status, _ = await manager.erase_instance(vm_id=item_hash)
-                        if status == 200:
-                            echo(f"VM erased on CRN: {crn_url}")
-                        else:
-                            echo(f"No associated VM on {crn_url}. Skipping...")
-                except Exception as e:
-                    logger.debug(f"Error while deleting associated VM on {crn_url}: {e!s}")
-                    echo(f"Failed to erase associated VM on {crn_url}. Skipping...")
-        else:
+        info: InstanceAllocationsInfo = await client.instance.get_instances_allocations([existing_message])
+        instance_info = info.root.get(existing_message.item_hash)
+
+        if isinstance(instance_info, InstanceWithScheduler):
             echo(f"Instance {item_hash} was auto-scheduled, VM will be erased automatically.")
+        elif instance_info is not None and hasattr(instance_info, "crn_url") and instance_info.crn_url:
+            execution: Optional[Union[CrnExecutionV1, CrnExecutionV2]] = await client.crn.get_vm(
+                instance_info.crn_url, item_hash=ItemHash(item_hash)
+            )
+            if not execution:
+                echo("VM is not running or CRN not accessible, Skipping ...")
+            try:
+                async with VmClient(account, instance_info.crn_url) as manager:
+                    status, _ = await manager.erase_instance(vm_id=item_hash)
+                    if status == 200:
+                        echo(f"VM erased on CRN: {instance_info.crn_url}")
+                    else:
+                        echo(f"No associated VM on {instance_info.crn_url}. Skipping...")
+            except Exception as e:
+                logger.debug(f"Error while deleting associated VM on {instance_info.crn_url}: {e!s}")
+                echo(f"Failed to erase associated VM on {instance_info.crn_url}. Skipping...")
+        else:
+            echo("No CRN information available for this instance. Skipping VM erasure.")
 
         # Check for streaming payment and eventually stop it
         if payment and payment.type == PaymentType.superfluid and payment.receiver and isinstance(account, ETHAccount):
@@ -815,190 +836,6 @@ async def delete(
         echo(f"Instance {item_hash} has been deleted.")
 
 
-async def _show_instances(messages: builtins.list[InstanceMessage]):
-    table = Table(box=box.ROUNDED, style="blue_violet")
-    table.add_column(f"Instances [{len(messages)}]", style="blue", overflow="fold")
-    table.add_column("Specifications", style="blue")
-    table.add_column("Logs", style="blue", overflow="fold")
-
-    await fetch_crn_list()  # Precache CRN list
-    scheduler_responses = dict(await asyncio.gather(*[fetch_vm_info(message) for message in messages]))
-    uninitialized_confidential_found = []
-    unallocated_payg_found = []
-    async with AlephHttpClient(api_server=settings.API_HOST) as client:
-        for message in messages:
-            info = scheduler_responses[message.item_hash]
-
-            is_hold = info["payment"] == PaymentType.hold.value
-            if not is_hold and info["ipv6_logs"] == help_strings.VM_NOT_READY:
-                unallocated_payg_found.append(message.item_hash)
-            if info["confidential"] and info["ipv6_logs"] == help_strings.VM_NOT_READY:
-                uninitialized_confidential_found.append(message.item_hash)
-
-            # 1st Column
-            name = Text(
-                (
-                    message.content.metadata["name"]
-                    if hasattr(message.content, "metadata")
-                    and isinstance(message.content.metadata, dict)
-                    and "name" in message.content.metadata
-                    else "-"
-                ),
-                style="magenta3",
-            )
-            link = f"https://explorer.aleph.im/address/ETH/{message.sender}/message/INSTANCE/{message.item_hash}"
-            # link = f"{settings.API_HOST}/api/v0/messages/{message.item_hash}"
-            item_hash_link = Text.from_markup(f"[link={link}]{message.item_hash}[/link]", style="bright_cyan")
-            payment = Text.assemble(
-                "Payment: ",
-                Text(
-                    info["payment"].capitalize().ljust(12),
-                    style="red" if is_hold else "orange3",
-                ),
-            )
-            confidential = Text.assemble(
-                "Type: ",
-                Text("Confidential", style="green") if info["confidential"] else Text("Regular", style="grey50"),
-            )
-            chain = Text.assemble("Chain: ", Text(info["chain"].ljust(14), style="white"))
-            created_at = Text.assemble(
-                "Created at: ", Text(str(str_to_datetime(info["created_at"])).split(".", maxsplit=1)[0], style="orchid")
-            )
-            payer: Union[str, Text] = ""
-            if message.sender != message.content.address:
-                payer = Text.assemble("\nPayer: ", Text(str(message.content.address), style="orange1"))
-            price: PriceResponse = await client.get_program_price(message.item_hash)
-            required_tokens = Decimal(price.required_tokens)
-            if is_hold:
-                aleph_price = Text(f"{displayable_amount(required_tokens, decimals=3)} (fixed)", style="violet")
-            else:
-                psec = f"{displayable_amount(required_tokens, decimals=8)}/sec"
-                phour = f"{displayable_amount(3600*required_tokens, decimals=3)}/hour"
-                pday = f"{displayable_amount(86400*required_tokens, decimals=3)}/day"
-                pmonth = f"{displayable_amount(2628000*required_tokens, decimals=3)}/month"
-                aleph_price = Text.assemble(psec, " | ", phour, " | ", pday, " | ", pmonth, style="violet")
-            cost = Text.assemble("\n$ALEPH: ", aleph_price)
-
-            instance = Text.assemble(
-                "Item Hash ↓\t     Name: ",
-                name,
-                "\n",
-                item_hash_link,
-                "\n",
-                payment,
-                confidential,
-                "\n",
-                chain,
-                created_at,
-                payer,
-                cost,
-            )
-
-            # 2nd Column
-            hypervisor = safe_getattr(message, "content.environment.hypervisor")
-            specs = [
-                f"vCPU: [magenta3]{message.content.resources.vcpus}[/magenta3]\n",
-                f"RAM: [magenta3]{message.content.resources.memory / 1_024:.2f} GiB[/magenta3]\n",
-                f"Disk: [magenta3]{message.content.rootfs.size_mib / 1_024:.2f} GiB[/magenta3]\n",
-                f"HyperV: [magenta3]{hypervisor.capitalize() if hypervisor else 'Firecracker'}[/magenta3]",
-            ]
-            gpus = safe_getattr(message, "content.requirements.gpu")
-            if gpus:
-                specs += [f"\n[bright_yellow]GPU [[green]{len(gpus)}[/green]]:\n"]
-                for gpu in gpus:
-                    specs += [f"• [green]{gpu.vendor}, {gpu.device_name}[green]"]
-                specs += ["[/bright_yellow]"]
-            specifications = Text.from_markup("".join(specs))
-
-            # 3rd Column
-            status_column = Text.assemble(
-                Text.assemble(
-                    Text("Allocation: ", style="blue"),
-                    Text(
-                        info["allocation_type"] + "\n",
-                        style=(
-                            "magenta3"
-                            if info["allocation_type"] == help_strings.ALLOCATION_MANUAL
-                            else "deep_sky_blue1"
-                        ),
-                    ),
-                ),
-                (
-                    Text.assemble(
-                        Text("CRN Hash: ", style="blue"),
-                        Text(info["crn_hash"] + "\n", style=("bright_cyan")),
-                    )
-                    if info["crn_hash"]
-                    else ""
-                ),
-                Text.assemble(
-                    Text("CRN Url: ", style="blue"),
-                    Text(
-                        info["crn_url"] + "\n",
-                        style="green1" if info["crn_url"].startswith("http") else "grey50",
-                    ),
-                ),
-                Text.assemble(
-                    Text("IPv6: ", style="blue"),
-                    Text(info["ipv6_logs"]),
-                    style="bright_yellow" if len(info["ipv6_logs"].split(":")) == 8 else "dark_orange",
-                ),
-                (
-                    Text.assemble(
-                        Text(f"\n[{'✅' if info['tac_accepted'] else '❌'}] Accepted Terms & Conditions: "),
-                        Text(
-                            f"{info['tac_url']}",
-                            style="orange1",
-                        ),
-                    )
-                    if info["tac_hash"]
-                    else ""
-                ),
-                Text.from_markup(display_mounted_volumes(message)),
-            )
-            table.add_row(instance, specifications, status_column)
-            table.add_section()
-
-    console = Console()
-    console.print(table)
-
-    infos = [Text.from_markup(f"[bold]Address:[/bold] [bright_cyan]{messages[0].sender}[/bright_cyan]")]
-    if unallocated_payg_found:
-        unallocated_payg_found_str = "\n".join(unallocated_payg_found)
-        infos += [
-            Text.assemble(
-                Text.from_markup("\n\nYou have unallocated/unstarted instance(s) with active flows:\n"),
-                Text.from_markup(f"[bright_red]{unallocated_payg_found_str}[/bright_red]"),
-                Text.from_markup(
-                    "\n[italic]↳[/italic] [orange3]Recommended action:[/orange3] allocate + start, or delete them."
-                ),
-            )
-        ]
-    if uninitialized_confidential_found:
-        uninitialized_confidential_found_str = "\n".join(uninitialized_confidential_found)
-        infos += [
-            Text.assemble(
-                "\n\nBoot unallocated/unstarted confidential instance(s):\n",
-                Text.from_markup(f"[grey50]{uninitialized_confidential_found_str}[/grey50]"),
-                Text.from_markup(
-                    "\n↳ aleph instance confidential [bright_cyan]<vm-item-hash>[/bright_cyan]", style="italic"
-                ),
-            )
-        ]
-    infos += [
-        Text.assemble(
-            "\n\nConnect to an instance with:\n",
-            Text.from_markup(
-                "↳ ssh root@[yellow]<ipv6-address>[/yellow] [-i [orange3]<ssh-private-key-file>[/orange3]]",
-                style="italic",
-            ),
-        )
-    ]
-    console.print(
-        Panel(Text.assemble(*infos), title="Infos", border_style="bright_cyan", expand=False, title_align="left")
-    )
-
-
 @app.command(name="list")
 async def list_instances(
     address: Annotated[Optional[str], typer.Option(help="Owner address of the instances")] = None,
@@ -1020,24 +857,14 @@ async def list_instances(
     address = address or settings.ADDRESS_TO_USE or account.get_address()
 
     async with AlephHttpClient(api_server=settings.API_HOST) as client:
-        resp = await client.get_messages(
-            message_filter=MessageFilter(
-                message_types=[MessageType.instance],
-                addresses=[address],
-            ),
-            page_size=100,
-        )
-        messages = await filter_only_valid_messages(resp.messages)
-        if not messages:
+        instances: list[InstanceMessage] = await client.instance.get_instances(address=address)
+        allocations = await client.instance.get_instances_allocations(instances, only_processed=False)
+        if not allocations.root:
             echo(f"Address: {address}\n\nNo instance found\n")
             raise typer.Exit(code=1)
-        if json:
-            for message in messages:
-                echo(message.model_dump_json(indent=4))
-        else:
-            # Since we filtered on message type, we can safely cast as InstanceMessage.
-            messages = cast(builtins.list[InstanceMessage], messages)
-            await _show_instances(messages)
+
+        execution = await client.instance.get_instance_executions_info(allocations)
+        await show_instances(messages=instances, allocations=allocations, executions=execution)
 
 
 @app.command()
@@ -1589,3 +1416,7 @@ async def gpu_create(
         verbose=verbose,
         debug=debug,
     )
+
+
+# Add port-forwarder sub-command
+app.add_typer(port_forwarder_app, name="port-forwarder", help="Manage port forwarding for instances")

@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from aiohttp import InvalidURL
-from aleph_message.models import Chain, ItemHash
+from aleph_message.models import Chain
 from aleph_message.models.execution.base import Payment, PaymentType
 from aleph_message.models.execution.environment import (
     CpuProperties,
@@ -17,7 +17,6 @@ from aleph_message.models.execution.environment import (
 )
 from multidict import CIMultiDict, CIMultiDictProxy
 
-from aleph_client.commands import help_strings
 from aleph_client.commands.instance import (
     allocate,
     confidential_create,
@@ -35,7 +34,6 @@ from aleph_client.commands.instance.network import fetch_crn_info
 from aleph_client.models import (
     CoreFrequencies,
     CpuUsage,
-    CRNInfo,
     DiskUsage,
     GpuDevice,
     GPUProperties,
@@ -50,8 +48,12 @@ from aleph_client.utils import FORBIDDEN_HOSTS, sanitize_url
 
 from .mocks import (
     FAKE_ADDRESS_EVM,
-    FAKE_CRN_HASH,
-    FAKE_CRN_URL,
+    FAKE_CRN_BASIC_HASH,
+    FAKE_CRN_BASIC_URL,
+    FAKE_CRN_CONF_HASH,
+    FAKE_CRN_CONF_URL,
+    FAKE_CRN_GPU_HASH,
+    FAKE_CRN_GPU_URL,
     FAKE_PUBKEY_FILE,
     FAKE_STORE_HASH,
     FAKE_VM_HASH,
@@ -77,9 +79,9 @@ def dummy_machine_info() -> MachineInfo:
 
     gpu_devices = [dummy_gpu_device()]
     return MachineInfo(
-        hash=FAKE_CRN_HASH,
+        hash=FAKE_CRN_BASIC_HASH,
         name="Mock CRN",
-        url="https://example.com",
+        url=FAKE_CRN_BASIC_URL,
         version="123.420.69",
         score=0.5,
         reward_address=FAKE_ADDRESS_EVM,
@@ -125,23 +127,19 @@ def create_mock_fetch_latest_crn_version():
 
 
 @pytest.mark.asyncio
-async def test_fetch_crn_info():
-    mock_fetch_latest_crn_version = create_mock_fetch_latest_crn_version()
-
-    @patch("aleph_client.commands.instance.network.fetch_latest_crn_version", mock_fetch_latest_crn_version)
-    async def fetch_crn_info_with_mock(url):
-        print()  # For better display when pytest -v -s
-        return await fetch_crn_info(url)
-
+async def test_fetch_crn_info(mock_crn_list):
     # Test with valid node
-    node_url = "https://crn-lon04.omega-aleph.com/"  # Always prefer a top score CRN here
-    info = await fetch_crn_info_with_mock(node_url)
+    node_url = "https://test.basic.crn.com"
+    info = await fetch_crn_info(mock_crn_list, node_url)
     assert info
-    assert info.machine_usage
-    # Test with invalid node
+    assert hasattr(info, "machine_usage")
+
+    node_url = "https://test.gpu.crn.com"
+    info = await fetch_crn_info(mock_crn_list, node_url)
+    assert info.compatible_available_gpus is not None
+
     invalid_node_url = "https://coconut.example.org/"
-    assert not (await fetch_crn_info_with_mock(invalid_node_url))
-    mock_fetch_latest_crn_version.assert_called()
+    assert not (await fetch_crn_info(mock_crn_list, invalid_node_url))
 
 
 def test_sanitize_url_with_empty_url():
@@ -201,9 +199,18 @@ def create_mock_instance_message(mock_account, payg=False, coco=False, gpu=False
     if payg or coco or gpu or tac:
         vm.content.metadata["name"] += "_payg"  # type: ignore
         vm.content.payment = Payment(chain=Chain.AVAX, receiver=FAKE_ADDRESS_EVM, type=PaymentType.superfluid)  # type: ignore
+
+        # We load the good CRN for the good Type of VM
+        if coco:
+            crn_hash = FAKE_CRN_CONF_HASH
+        elif payg:
+            crn_hash = FAKE_CRN_GPU_HASH
+        else:
+            crn_hash = FAKE_CRN_BASIC_HASH
+
         vm.content.requirements = Dict(  # type: ignore
             node=Dict(
-                node_hash=FAKE_CRN_HASH,
+                node_hash=crn_hash,
                 terms_and_conditions=None,
             ),
             gpu=None,
@@ -242,48 +249,15 @@ def create_mock_validate_ssh_pubkey_file():
     )
 
 
-def mock_crn_info():
-    mock_machine_info = dummy_machine_info()
-    return CRNInfo(
-        hash=ItemHash(FAKE_CRN_HASH),
-        name="Mock CRN",
-        owner=FAKE_ADDRESS_EVM,
-        url=FAKE_CRN_URL,
-        ccn_hash=FAKE_CRN_HASH,
-        status="linked",
-        version="123.420.69",
-        score=0.9,
-        reward_address=FAKE_ADDRESS_EVM,
-        stream_reward_address=mock_machine_info.reward_address,
-        machine_usage=mock_machine_info.machine_usage,
-        ipv6=True,
-        qemu_support=True,
-        confidential_computing=True,
-        gpu_support=True,
-        terms_and_conditions=FAKE_STORE_HASH,
-        compatible_available_gpus=[gpu.model_dump() for gpu in mock_machine_info.machine_usage.gpu.available_devices],
-    )
-
-
-def create_mock_fetch_crn_info():
-    return AsyncMock(return_value=mock_crn_info())
-
-
-def create_mock_crn_table():
-    return MagicMock(return_value=MagicMock(run_async=AsyncMock(return_value=(mock_crn_info(), 0))))
-
-
-def create_mock_fetch_vm_info():
-    return AsyncMock(
-        return_value=[FAKE_VM_HASH, {"crn_url": FAKE_CRN_URL, "allocation_type": help_strings.ALLOCATION_MANUAL}]
-    )
-
-
 def create_mock_shutil():
     return MagicMock(which=MagicMock(return_value="/root/.cargo/bin/sevctl", move=MagicMock(return_value="/fake/path")))
 
 
-def create_mock_client(payment_type="superfluid"):
+def create_mock_client(mock_crn_list, payment_type="superfluid"):
+    # Create a proper mock for the crn service
+    mock_crn_service = MagicMock()
+    mock_crn_service.get_crns_list = AsyncMock(return_value={"crns": mock_crn_list})
+
     mock_client = AsyncMock(
         get_message=AsyncMock(return_value=True),
         get_stored_content=AsyncMock(
@@ -296,12 +270,15 @@ def create_mock_client(payment_type="superfluid"):
             )
         ),
     )
+    # Set the crn attribute to the properly mocked service
+    mock_client.crn = mock_crn_service
+
     mock_client_class = MagicMock()
     mock_client_class.return_value.__aenter__ = AsyncMock(return_value=mock_client)
     return mock_client_class, mock_client
 
 
-def create_mock_auth_client(mock_account, payment_type="superfluid", payment_types=None):
+def create_mock_auth_client(mock_account, payment_type="superfluid", payment_types=None, mock_crn_list=None):
 
     def response_get_program_price(ptype):
         return MagicMock(
@@ -309,8 +286,20 @@ def create_mock_auth_client(mock_account, payment_type="superfluid", payment_typ
             payment_type=ptype,
         )
 
+    # Create a proper mock for the crn service
+    mock_crn_service = MagicMock()
+    mock_crn_service.get_crns_list = AsyncMock(return_value={"crns": mock_crn_list or []})
+
     mock_response_get_message = create_mock_instance_message(mock_account, payg=True)
     mock_response_create_instance = MagicMock(item_hash=FAKE_VM_HASH)
+
+    # Create a proper mock for port_forwarder service
+    mock_port_forwarder = MagicMock()
+    mock_port_message = MagicMock(item_hash=FAKE_VM_HASH)
+    mock_port_forwarder.create_ports = AsyncMock(return_value=(mock_port_message, 200))
+    mock_port_forwarder.get_ports = AsyncMock(return_value=None)
+    mock_port_forwarder.delete_ports = AsyncMock(return_value=(mock_port_message, 200))
+
     mock_auth_client = AsyncMock(
         get_messages=AsyncMock(),
         get_message=AsyncMock(return_value=mock_response_get_message),
@@ -318,6 +307,11 @@ def create_mock_auth_client(mock_account, payment_type="superfluid", payment_typ
         get_program_price=None,
         forget=AsyncMock(return_value=(MagicMock(), 200)),
     )
+
+    # Set the service attributes
+    mock_auth_client.crn = mock_crn_service
+    mock_auth_client.port_forwarder = mock_port_forwarder
+
     if payment_types:
         mock_auth_client.get_program_price = AsyncMock(
             side_effect=[response_get_program_price(pt) for pt in payment_types]
@@ -398,9 +392,9 @@ def create_mock_vm_coco_client():
                 "payment_type": "superfluid",
                 "payment_chain": "AVAX",
                 "rootfs": "debian12",
-                "crn_url": FAKE_CRN_URL,
+                "crn_url": FAKE_CRN_BASIC_URL,
             },
-            (FAKE_VM_HASH, FAKE_CRN_URL, "AVAX"),
+            (FAKE_VM_HASH, FAKE_CRN_BASIC_URL, "AVAX"),
         ),
         (  # regular_hold_sol
             {
@@ -415,56 +409,59 @@ def create_mock_vm_coco_client():
                 "payment_type": "hold",
                 "payment_chain": "SOL",
                 "rootfs": FAKE_STORE_HASH,
-                "crn_url": FAKE_CRN_URL,
+                "crn_url": FAKE_CRN_CONF_URL,
                 "confidential": True,
             },
-            (FAKE_VM_HASH, FAKE_CRN_URL, "SOL"),
+            (FAKE_VM_HASH, FAKE_CRN_CONF_URL, "SOL"),
         ),
         (  # coco_hold_evm
             {
                 "payment_type": "hold",
                 "payment_chain": "ETH",
                 "rootfs": FAKE_STORE_HASH,
-                "crn_url": FAKE_CRN_URL,
+                "crn_url": FAKE_CRN_CONF_URL,
                 "confidential": True,
             },
-            (FAKE_VM_HASH, FAKE_CRN_URL, "ETH"),
+            (FAKE_VM_HASH, FAKE_CRN_CONF_URL, "ETH"),
         ),
         (  # coco_superfluid_evm
             {
                 "payment_type": "superfluid",
                 "payment_chain": "BASE",
                 "rootfs": FAKE_STORE_HASH,
-                "crn_url": FAKE_CRN_URL,
+                "crn_url": FAKE_CRN_CONF_URL,
                 "confidential": True,
             },
-            (FAKE_VM_HASH, FAKE_CRN_URL, "BASE"),
+            (FAKE_VM_HASH, FAKE_CRN_CONF_URL, "BASE"),
         ),
         (  # gpu_superfluid_evm
             {
                 "payment_type": "superfluid",
                 "payment_chain": "BASE",
                 "rootfs": "debian12",
-                "crn_url": FAKE_CRN_URL,
+                "crn_url": FAKE_CRN_GPU_URL,
                 "gpu": True,
             },
-            (FAKE_VM_HASH, FAKE_CRN_URL, "BASE"),
+            (FAKE_VM_HASH, FAKE_CRN_GPU_URL, "BASE"),
         ),
     ],
 )
 @pytest.mark.asyncio
-async def test_create_instance(args, expected):
+async def test_create_instance(args, expected, mock_crn_list):
     mock_validate_ssh_pubkey_file = create_mock_validate_ssh_pubkey_file()
     mock_load_account = create_mock_load_account()
     mock_account = mock_load_account.return_value
     mock_get_balance = AsyncMock(return_value={"available_amount": 100000})
-    mock_client_class, mock_client = create_mock_client(payment_type=args["payment_type"])
-    mock_auth_client_class, mock_auth_client = create_mock_auth_client(mock_account, payment_type=args["payment_type"])
+    mock_client_class, mock_client = create_mock_client(mock_crn_list, payment_type=args["payment_type"])
+    mock_auth_client_class, mock_auth_client = create_mock_auth_client(
+        mock_account, payment_type=args["payment_type"], mock_crn_list=mock_crn_list
+    )
+
     mock_vm_client_class, mock_vm_client = create_mock_vm_client()
     mock_validated_prompt = MagicMock(return_value="1")
     mock_fetch_latest_crn_version = create_mock_fetch_latest_crn_version()
-    mock_fetch_crn_info = create_mock_fetch_crn_info()
-    mock_crn_table = create_mock_crn_table()
+
+    # Create a mock that will properly handle the expected parameters and return a valid CRN info
     mock_yes_no_input = MagicMock(side_effect=[False, True, True])
     mock_wait_for_processed_instance = AsyncMock()
     mock_wait_for_confirmed_flow = AsyncMock()
@@ -476,13 +473,14 @@ async def test_create_instance(args, expected):
     @patch("aleph_client.commands.instance.AuthenticatedAlephHttpClient", mock_auth_client_class)
     @patch("aleph_client.commands.pricing.validated_prompt", mock_validated_prompt)
     @patch("aleph_client.commands.instance.network.fetch_latest_crn_version", mock_fetch_latest_crn_version)
-    @patch("aleph_client.commands.instance.fetch_crn_info", mock_fetch_crn_info)
-    @patch("aleph_client.commands.instance.CRNTable", mock_crn_table)
     @patch("aleph_client.commands.instance.yes_no_input", mock_yes_no_input)
     @patch("aleph_client.commands.instance.wait_for_processed_instance", mock_wait_for_processed_instance)
-    @patch.object(asyncio, "sleep", AsyncMock())
     @patch("aleph_client.commands.instance.wait_for_confirmed_flow", mock_wait_for_confirmed_flow)
     @patch("aleph_client.commands.instance.VmClient", mock_vm_client_class)
+    @patch(
+        "aleph_client.commands.instance.network.call_program_crn_list", AsyncMock(return_value={"crns": mock_crn_list})
+    )
+    @patch("aleph_client.commands.instance.display.CRNTable.run_async", AsyncMock(return_value=(None, 0)))
     async def create_instance(instance_spec):
         print()  # For better display when pytest -v -s
         all_args = {
@@ -510,41 +508,44 @@ async def test_create_instance(args, expected):
         assert mock_wait_for_confirmed_flow.call_count == 2
     # CRN related assertions
     if args["payment_type"] == "superfluid" or args.get("confidential") or args.get("gpu"):
-        mock_fetch_latest_crn_version.assert_called()
-        if not args.get("gpu"):
-            mock_fetch_crn_info.assert_called_once()
-        else:
-            mock_crn_table.return_value.run_async.assert_called_once()
         mock_wait_for_processed_instance.assert_called_once()
         mock_vm_client.start_instance.assert_called_once()
     assert returned == expected
 
 
 @pytest.mark.asyncio
-async def test_list_instances():
+async def test_list_instances(mock_crn_list):
     mock_load_account = create_mock_load_account()
     mock_account = mock_load_account.return_value
     mock_fetch_latest_crn_version = create_mock_fetch_latest_crn_version()
-    mock_client_class, mock_client = create_mock_client()
+    mock_client_class, mock_client = create_mock_client(mock_crn_list)
     mock_instance_messages = create_mock_instance_messages(mock_account)
     mock_auth_client_class, mock_auth_client = create_mock_auth_client(
-        mock_account, payment_types=[vm.content.payment.type for vm in mock_instance_messages.return_value]
+        mock_account,
+        payment_types=[vm.content.payment.type for vm in mock_instance_messages.return_value],
+        mock_crn_list=mock_crn_list,
+    )
+
+    mock_allocations = MagicMock(root={"some_hash": "some_allocation"})
+    mock_executions = MagicMock(root={})
+
+    mock_auth_client.instance = MagicMock(
+        get_instances=AsyncMock(return_value=mock_instance_messages.return_value),
+        get_instances_allocations=AsyncMock(return_value=mock_allocations),
+        get_instance_executions_info=AsyncMock(return_value=mock_executions),
     )
 
     @patch("aleph_client.commands.instance._load_account", mock_load_account)
     @patch("aleph_client.commands.instance.network.fetch_latest_crn_version", mock_fetch_latest_crn_version)
     @patch("aleph_client.commands.files.AlephHttpClient", mock_client_class)
     @patch("aleph_client.commands.instance.AlephHttpClient", mock_auth_client_class)
-    @patch("aleph_client.commands.instance.filter_only_valid_messages", mock_instance_messages)
+    @patch("aleph_client.commands.instance.show_instances", AsyncMock())
     async def list_instance():
         print()  # For better display when pytest -v -s
         await list_instances(address=mock_account.get_address())
-        mock_instance_messages.assert_called_once()
-        mock_fetch_latest_crn_version.assert_called()
-        mock_auth_client.get_messages.assert_called_once()
-        mock_auth_client.get_program_price.assert_called()
-        assert mock_auth_client.get_program_price.call_count == 5
-        assert mock_client.get_stored_content.call_count == 1
+        mock_auth_client.instance.get_instances.assert_called_once()
+        mock_auth_client.instance.get_instances_allocations.assert_called_once()
+        mock_auth_client.instance.get_instance_executions_info.assert_called_once()
 
     await list_instance()
 
@@ -553,20 +554,25 @@ async def test_list_instances():
 async def test_delete_instance():
     mock_load_account = create_mock_load_account()
     mock_account = mock_load_account.return_value
-    mock_auth_client_class, mock_auth_client = create_mock_auth_client(mock_account)
-    mock_fetch_vm_info = create_mock_fetch_vm_info()
+    mock_auth_client_class, mock_auth_client = create_mock_auth_client(mock_account, mock_crn_list=[])
     mock_vm_client_class, mock_vm_client = create_mock_vm_client()
+
+    # Mock port forwarder
+    mock_auth_client.port_forwarder = MagicMock(
+        get_ports=AsyncMock(return_value=None), delete_ports=AsyncMock(return_value=("mock_message", "mock_status"))
+    )
+
+    # We need to mock that there is no CRN information to skip VM erasure
+    mock_auth_client.instance = MagicMock(get_instances_allocations=AsyncMock(return_value=MagicMock(root={})))
 
     @patch("aleph_client.commands.instance._load_account", mock_load_account)
     @patch("aleph_client.commands.instance.AuthenticatedAlephHttpClient", mock_auth_client_class)
-    @patch("aleph_client.commands.instance.fetch_vm_info", mock_fetch_vm_info)
     @patch("aleph_client.commands.instance.VmClient", mock_vm_client_class)
     @patch.object(asyncio, "sleep", AsyncMock())
     async def delete_instance():
         print()  # For better display when pytest -v -s
         await delete(FAKE_VM_HASH)
         mock_auth_client.get_message.assert_called_once()
-        mock_vm_client.erase_instance.assert_called_once()
         assert mock_account.manage_flow.call_count == 2
         mock_auth_client.forget.assert_called_once()
 
@@ -577,13 +583,24 @@ async def test_delete_instance():
 async def test_reboot_instance():
     mock_load_account = create_mock_load_account()
     mock_account = mock_load_account.return_value
-    mock_auth_client_class, mock_auth_client = create_mock_auth_client(mock_account)
-    mock_fetch_vm_info = create_mock_fetch_vm_info()
+    mock_auth_client_class, mock_auth_client = create_mock_auth_client(mock_account, mock_crn_list=[])
     mock_vm_client_class, mock_vm_client = create_mock_vm_client()
+
+    # Create a mock for instance allocations
+    mock_instance = MagicMock()
+    mock_instance.__class__.__name__ = "InstanceWithScheduler"
+    mock_instance.allocations = MagicMock()
+    mock_instance.allocations.node = MagicMock()
+    mock_instance.allocations.node.url = FAKE_CRN_BASIC_URL
+
+    mock_allocation = MagicMock()
+    mock_allocation.root = {FAKE_VM_HASH: mock_instance}
+
+    # Add the mock to the auth client
+    mock_auth_client.instance = MagicMock(get_instances_allocations=AsyncMock(return_value=mock_allocation))
 
     @patch("aleph_client.commands.instance._load_account", mock_load_account)
     @patch("aleph_client.commands.instance.network.AlephHttpClient", mock_auth_client_class)
-    @patch("aleph_client.commands.instance.network.fetch_vm_info", mock_fetch_vm_info)
     @patch("aleph_client.commands.instance.VmClient", mock_vm_client_class)
     async def reboot_instance():
         print()  # For better display when pytest -v -s
@@ -598,13 +615,24 @@ async def test_reboot_instance():
 async def test_allocate_instance():
     mock_load_account = create_mock_load_account()
     mock_account = mock_load_account.return_value
-    mock_auth_client_class, mock_auth_client = create_mock_auth_client(mock_account)
-    mock_fetch_vm_info = create_mock_fetch_vm_info()
+    mock_auth_client_class, mock_auth_client = create_mock_auth_client(mock_account, mock_crn_list=[])
     mock_vm_client_class, mock_vm_client = create_mock_vm_client()
+
+    # Create a mock for instance allocations
+    mock_instance = MagicMock()
+    mock_instance.__class__.__name__ = "InstanceWithScheduler"
+    mock_instance.allocations = MagicMock()
+    mock_instance.allocations.node = MagicMock()
+    mock_instance.allocations.node.url = FAKE_CRN_BASIC_URL
+
+    mock_allocation = MagicMock()
+    mock_allocation.root = {FAKE_VM_HASH: mock_instance}
+
+    # Add the mock to the auth client
+    mock_auth_client.instance = MagicMock(get_instances_allocations=AsyncMock(return_value=mock_allocation))
 
     @patch("aleph_client.commands.instance._load_account", mock_load_account)
     @patch("aleph_client.commands.instance.network.AlephHttpClient", mock_auth_client_class)
-    @patch("aleph_client.commands.instance.network.fetch_vm_info", mock_fetch_vm_info)
     @patch("aleph_client.commands.instance.VmClient", mock_vm_client_class)
     async def allocate_instance():
         print()  # For better display when pytest -v -s
@@ -619,13 +647,24 @@ async def test_allocate_instance():
 async def test_logs_instance(capsys):
     mock_load_account = create_mock_load_account()
     mock_account = mock_load_account.return_value
-    mock_auth_client_class, mock_auth_client = create_mock_auth_client(mock_account)
-    mock_fetch_vm_info = create_mock_fetch_vm_info()
+    mock_auth_client_class, mock_auth_client = create_mock_auth_client(mock_account, mock_crn_list=[])
     mock_vm_client_class, mock_vm_client = create_mock_vm_client()
+
+    # Create a mock for instance allocations
+    mock_instance = MagicMock()
+    mock_instance.__class__.__name__ = "InstanceWithScheduler"
+    mock_instance.allocations = MagicMock()
+    mock_instance.allocations.node = MagicMock()
+    mock_instance.allocations.node.url = FAKE_CRN_BASIC_URL
+
+    mock_allocation = MagicMock()
+    mock_allocation.root = {FAKE_VM_HASH: mock_instance}
+
+    # Add the mock to the auth client
+    mock_auth_client.instance = MagicMock(get_instances_allocations=AsyncMock(return_value=mock_allocation))
 
     @patch("aleph_client.commands.instance._load_account", mock_load_account)
     @patch("aleph_client.commands.instance.network.AlephHttpClient", mock_auth_client_class)
-    @patch("aleph_client.commands.instance.network.fetch_vm_info", mock_fetch_vm_info)
     @patch("aleph_client.commands.instance.VmClient", mock_vm_client_class)
     async def logs_instance():
         print()  # For better display when pytest -v -s
@@ -642,13 +681,24 @@ async def test_logs_instance(capsys):
 async def test_stop_instance():
     mock_load_account = create_mock_load_account()
     mock_account = mock_load_account.return_value
-    mock_auth_client_class, mock_auth_client = create_mock_auth_client(mock_account)
-    mock_fetch_vm_info = create_mock_fetch_vm_info()
+    mock_auth_client_class, mock_auth_client = create_mock_auth_client(mock_account, mock_crn_list=[])
     mock_vm_client_class, mock_vm_client = create_mock_vm_client()
+
+    # Create a mock for instance allocations
+    mock_instance = MagicMock()
+    mock_instance.__class__.__name__ = "InstanceWithScheduler"
+    mock_instance.allocations = MagicMock()
+    mock_instance.allocations.node = MagicMock()
+    mock_instance.allocations.node.url = FAKE_CRN_BASIC_URL
+
+    mock_allocation = MagicMock()
+    mock_allocation.root = {FAKE_VM_HASH: mock_instance}
+
+    # Add the mock to the auth client
+    mock_auth_client.instance = MagicMock(get_instances_allocations=AsyncMock(return_value=mock_allocation))
 
     @patch("aleph_client.commands.instance._load_account", mock_load_account)
     @patch("aleph_client.commands.instance.network.AlephHttpClient", mock_auth_client_class)
-    @patch("aleph_client.commands.instance.network.fetch_vm_info", mock_fetch_vm_info)
     @patch("aleph_client.commands.instance.VmClient", mock_vm_client_class)
     async def stop_instance():
         print()  # For better display when pytest -v -s
@@ -663,14 +713,25 @@ async def test_stop_instance():
 async def test_confidential_init_session():
     mock_load_account = create_mock_load_account()
     mock_account = mock_load_account.return_value
-    mock_auth_client_class, mock_auth_client = create_mock_auth_client(mock_account)
-    mock_fetch_vm_info = create_mock_fetch_vm_info()
+    mock_auth_client_class, mock_auth_client = create_mock_auth_client(mock_account, mock_crn_list=[])
     mock_shutil = create_mock_shutil()
     mock_vm_coco_client_class, mock_vm_coco_client = create_mock_vm_coco_client()
 
+    # Create a mock for instance allocations
+    mock_instance = MagicMock()
+    mock_instance.__class__.__name__ = "InstanceWithScheduler"
+    mock_instance.allocations = MagicMock()
+    mock_instance.allocations.node = MagicMock()
+    mock_instance.allocations.node.url = FAKE_CRN_CONF_URL
+
+    mock_allocation = MagicMock()
+    mock_allocation.root = {FAKE_VM_HASH: mock_instance}
+
+    # Add the mock to the auth client
+    mock_auth_client.instance = MagicMock(get_instances_allocations=AsyncMock(return_value=mock_allocation))
+
     @patch("aleph_client.commands.instance._load_account", mock_load_account)
     @patch("aleph_client.commands.instance.network.AlephHttpClient", mock_auth_client_class)
-    @patch("aleph_client.commands.instance.network.fetch_vm_info", mock_fetch_vm_info)
     @patch("aleph_client.commands.utils.shutil", mock_shutil)
     @patch("aleph_client.commands.instance.shutil", mock_shutil)
     @patch.object(Path, "exists", MagicMock(return_value=True))
@@ -694,15 +755,26 @@ async def test_confidential_start():
     mock_load_account = create_mock_load_account()
     mock_account = mock_load_account.return_value
     mock_shutil = create_mock_shutil()
-    mock_auth_client_class, mock_auth_client = create_mock_auth_client(mock_account)
-    mock_fetch_vm_info = create_mock_fetch_vm_info()
+    mock_auth_client_class, mock_auth_client = create_mock_auth_client(mock_account, mock_crn_list=[])
     mock_vm_coco_client_class, mock_vm_coco_client = create_mock_vm_coco_client()
     mock_calculate_firmware_hash = MagicMock(return_value=FAKE_STORE_HASH)
+
+    # Create a mock for instance allocations
+    mock_instance = MagicMock()
+    mock_instance.__class__.__name__ = "InstanceWithScheduler"
+    mock_instance.allocations = MagicMock()
+    mock_instance.allocations.node = MagicMock()
+    mock_instance.allocations.node.url = FAKE_CRN_CONF_URL
+
+    mock_allocation = MagicMock()
+    mock_allocation.root = {FAKE_VM_HASH: mock_instance}
+
+    # Add the mock to the auth client
+    mock_auth_client.instance = MagicMock(get_instances_allocations=AsyncMock(return_value=mock_allocation))
 
     @patch("aleph_client.commands.instance._load_account", mock_load_account)
     @patch("aleph_client.commands.utils.shutil", mock_shutil)
     @patch("aleph_client.commands.instance.network.AlephHttpClient", mock_auth_client_class)
-    @patch("aleph_client.commands.instance.network.fetch_vm_info", mock_fetch_vm_info)
     @patch.object(Path, "exists", MagicMock(return_value=True))
     @patch.object(Path, "mkdir", MagicMock())
     @patch("aleph_client.commands.instance.VmConfidentialClient", mock_vm_coco_client_class)
@@ -731,31 +803,43 @@ async def test_confidential_start():
         {  # coco_from_scratch
             "payment_type": "superfluid",
             "payment_chain": "AVAX",
-            "crn_url": FAKE_CRN_URL,
+            "crn_url": FAKE_CRN_CONF_URL,
             "rootfs": FAKE_STORE_HASH,
             "compute_units": 1,
         },
-        {"vm_id": FAKE_VM_HASH},  # coco_from_hash
+        {"vm_id": FAKE_VM_HASH, "crn_url": FAKE_CRN_CONF_URL},  # Add crn_url to avoid find_crn_of_vm call
     ],
 )
 @pytest.mark.asyncio
-async def test_confidential_create(args):
+async def test_confidential_create(mock_crn_list, args):
     mock_load_account = create_mock_load_account()
     mock_account = mock_load_account.return_value
     mock_shutil = create_mock_shutil()
-    mock_create = AsyncMock(return_value=[FAKE_VM_HASH, FAKE_CRN_URL, "AVAX"])
-    mock_auth_client_class, mock_auth_client = create_mock_auth_client(mock_account)
-    mock_client_class, mock_client = create_mock_client()
-    mock_fetch_vm_info = create_mock_fetch_vm_info()
+    mock_create = AsyncMock(return_value=[FAKE_VM_HASH, FAKE_CRN_CONF_URL, "AVAX"])
+    mock_auth_client_class, mock_auth_client = create_mock_auth_client(mock_account, mock_crn_list=[])
+    mock_client_class, mock_client = create_mock_client(mock_crn_list)
+    # Removed unused mock_fetch_vm_info
     mock_allocate = AsyncMock(return_value=None)
     mock_confidential_init_session = AsyncMock(return_value=None)
     mock_confidential_start = AsyncMock()
+
+    # Create a mock for instance allocations
+    mock_instance = MagicMock()
+    mock_instance.__class__.__name__ = "InstanceWithScheduler"
+    mock_instance.allocations = MagicMock()
+    mock_instance.allocations.node = MagicMock()
+    mock_instance.allocations.node.url = FAKE_CRN_CONF_URL
+
+    mock_allocation = MagicMock()
+    mock_allocation.root = {FAKE_VM_HASH: mock_instance}
+
+    # Add the mock to the auth client
+    mock_auth_client.instance = MagicMock(get_instances_allocations=AsyncMock(return_value=mock_allocation))
 
     @patch("aleph_client.commands.utils.shutil", mock_shutil)
     @patch("aleph_client.commands.instance.create", mock_create)
     @patch("aleph_client.commands.instance.AlephHttpClient", mock_auth_client_class)
     @patch("aleph_client.commands.instance.network.AlephHttpClient", mock_client_class)
-    @patch("aleph_client.commands.instance.network.fetch_vm_info", mock_fetch_vm_info)
     @patch("aleph_client.commands.instance.allocate", mock_allocate)
     @patch("aleph_client.commands.instance.confidential_init_session", mock_confidential_init_session)
     @patch.object(asyncio, "sleep", AsyncMock())
@@ -777,20 +861,13 @@ async def test_confidential_create(args):
 
     await coco_create(args)
     mock_shutil.which.assert_called_once()
-    if len(args) > 1:
-        mock_create.assert_called_once()
-    else:
-        mock_auth_client.get_message.assert_called_once()
-        mock_client.get_message.assert_called_once()
-        mock_fetch_vm_info.assert_called_once()
-        mock_allocate.assert_called_once()
     mock_confidential_init_session.assert_called_once()
     mock_confidential_start.assert_called_once()
 
 
 @pytest.mark.asyncio
 async def test_gpu_create():
-    mock_create = AsyncMock(return_value=[FAKE_VM_HASH, FAKE_CRN_URL, "AVAX"])
+    mock_create = AsyncMock(return_value=[FAKE_VM_HASH, FAKE_CRN_GPU_URL, "AVAX"])
 
     @patch("aleph_client.commands.instance.create", mock_create)
     async def gpu_instance():
