@@ -9,6 +9,7 @@ from typing import Annotated, Optional
 
 import aiohttp
 import typer
+from aleph.sdk import AuthenticatedAlephHttpClient
 from aleph.sdk.account import _load_account
 from aleph.sdk.chains.common import generate_key
 from aleph.sdk.chains.solana import parse_private_key as parse_solana_private_key
@@ -42,7 +43,6 @@ from aleph_client.commands.utils import (
     yes_no_input,
 )
 from aleph_client.utils import AsyncTyper, list_unlinked_keys
-from aleph_client.voucher import VoucherManager
 
 logger = logging.getLogger(__name__)
 app = AsyncTyper(no_args_is_help=True)
@@ -301,8 +301,6 @@ async def balance(
     if account and not address:
         address = account.get_address()
 
-    voucher_manager = VoucherManager(account=account, chain=chain)
-
     if address:
         try:
             balance_data = await get_balance(address)
@@ -335,7 +333,8 @@ async def balance(
             ]
 
             # Get vouchers and add them to Account Info panel
-            vouchers = await voucher_manager.get_all(address=address)
+            async with AuthenticatedAlephHttpClient(account=account) as client:
+                vouchers = await client.voucher.get_vouchers(address=address)
             if vouchers:
                 voucher_names = [voucher.name for voucher in vouchers]
                 infos += [
@@ -422,11 +421,10 @@ async def vouchers(
     if account and not address:
         address = account.get_address()
 
-    voucher_manager = VoucherManager(account=account, chain=chain)
-
     if address:
         try:
-            vouchers = await voucher_manager.get_all(address=address)
+            async with AuthenticatedAlephHttpClient(account=account) as client:
+                vouchers = await client.voucher.get_vouchers(address=address)
             if vouchers:
                 voucher_table = Table(title="", show_header=True, box=box.ROUNDED)
                 voucher_table.add_column("Name", style="bright_cyan")

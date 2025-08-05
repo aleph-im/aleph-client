@@ -85,7 +85,6 @@ from aleph_client.commands.utils import (
     yes_no_input,
 )
 from aleph_client.utils import AsyncTyper, sanitize_url
-from aleph_client.voucher import VoucherManager
 
 logger = logging.getLogger(__name__)
 app = AsyncTyper(no_args_is_help=True)
@@ -193,9 +192,7 @@ async def create(
     # Force-switches if NFT payment-type
     nft_chains = [Chain.AVAX, Chain.BASE, Chain.SOL]
     if payment_type == "nft":
-        voucher_manager = VoucherManager(account=account, chain=Chain(account.CHAIN))
         payment_type = PaymentType.hold
-
         if payment_chain is None or payment_chain not in nft_chains:
             if payment_chain:
                 console.print(
@@ -210,11 +207,11 @@ async def create(
                     default=Chain.AVAX.value,
                 )
             )
-
-        vouchers = await voucher_manager.fetch_vouchers_by_chain(payment_chain)
-        if len(vouchers) == 0:
-            console.print("No NFT vouchers find on this account")
-            raise typer.Exit(code=1)
+        async with AuthenticatedAlephHttpClient(account=account) as client:
+            vouchers = await client.voucher.fetch_vouchers_by_chain(chain=Chain(account.CHAIN))
+            if len(vouchers) == 0:
+                console.print("No NFT vouchers find on this account")
+                raise typer.Exit(code=1)
 
     elif payment_type in [ptype.value for ptype in PaymentType]:
         payment_type = PaymentType(payment_type)
