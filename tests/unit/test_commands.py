@@ -2,9 +2,13 @@ import json
 import os
 from pathlib import Path
 from tempfile import NamedTemporaryFile
+from unittest.mock import AsyncMock
 
+import pytest
 from aleph.sdk.chains.ethereum import ETHAccount
 from aleph.sdk.conf import settings
+from aleph.sdk.query.responses import MessagesResponse
+from aleph_message.models import PostMessage, StoreMessage
 from typer.testing import CliRunner
 
 from aleph_client.__main__ import app
@@ -16,6 +20,41 @@ from .mocks import (
 )
 
 runner = CliRunner()
+
+
+@pytest.fixture
+def store_message_fixture():
+    return {
+        "sender": "0xe0aaF578B287de16852dbc54Ae34a263FF2F4b9E",
+        "chain": "ETH",
+        "signature": "0xe2d0bd0476e73652b1dbac082f250387b0a7691ee19f39ad6ffce2e8a45028160f3e35ef346beb4a4b5f"
+        "50aacdd0d9b454f63eeedc3f8058eb25f7b096eadd231c",
+        "type": "STORE",
+        "item_content": '{"item_type":"ipfs","item_hash":"QmXSEnpQCnUfeGFoSjY1XAK1Cuad5CtAaqyachGTtsFSuA",'
+        '"ref":"0xd8058efe0198ae9dd7d563e1b4938dcbc86a1f81:14",'
+        '"address":"0xe0aaF578B287de16852dbc54Ae34a263FF2F4b9E","time":1738837907}',
+        "item_type": "inline",
+        "item_hash": "5b868dc8c2df0dd9bb810b7a31cc50c8ad1e6569905e45ab4fd2eee36fecc4d2",
+        "time": 1738837907,
+        "channel": "test-chan-1",
+        "content": {
+            "address": "0xe0aaF578B287de16852dbc54Ae34a263FF2F4b9E",
+            "time": 1738837907,
+            "item_type": "ipfs",
+            "item_hash": "QmXSEnpQCnUfeGFoSjY1XAK1Cuad5CtAaqyachGTtsFSuA",
+            "size": None,
+            "content_type": None,
+            "ref": "0xd8058efe0198ae9dd7d563e1b4938dcbc86a1f81:14",
+            "metadata": None,
+        },
+    }
+
+
+async def create_mock_http_response(status_code=200, response_data=None):
+    resp = AsyncMock(status=status_code)
+    resp.status = status_code
+    resp.json.return_value = response_data
+    return resp
 
 
 def get_account(my_account_file: Path) -> ETHAccount:
@@ -207,13 +246,25 @@ def test_account_sign_bytes(env_files):
     assert result.stdout.startswith("\nSignature:")
 
 
-def test_account_balance(env_files):
+def test_account_balance(mocker, env_files):
     settings.CONFIG_FILE = env_files[1]
+    balance_response = {
+        "address": "0xCAfEcAfeCAfECaFeCaFecaFecaFECafECafeCaFe",
+        "balance": 24853,
+        "details": {"AVAX": 4000, "BASE": 10000, "ETH": 10853},
+        "locked_amount": 4663.334518051392,
+        "available_amount": 20189.665481948608,
+    }
+
+    mocker.patch("aleph_client.commands.account.get_balance", return_value=balance_response)
+    mocker.patch("aleph_client.voucher.VoucherManager.get_all", return_value=[])
+
     result = runner.invoke(
         app, ["account", "balance", "--address", "0xCAfEcAfeCAfECaFeCaFecaFecaFECafECafeCaFe", "--chain", "ETH"]
     )
     assert result.exit_code == 0
     assert result.stdout.startswith("╭─ Account Infos")
+    assert "Available: 20189.67" in result.stdout
 
 
 def test_account_config(env_files):
@@ -223,10 +274,14 @@ def test_account_config(env_files):
     assert result.stdout.startswith("New Default Configuration: ")
 
 
-def test_message_get():
+def test_message_get(mocker, store_message_fixture):
     # Use subprocess to avoid border effects between tests caused by the initialisation
     # of the aiohttp client session out of an async context in the SDK. This avoids
     # a "no running event loop" error when running several tests back to back.
+
+    message = StoreMessage.model_validate(store_message_fixture)
+    mocker.patch("aleph.sdk.AlephHttpClient.get_message", return_value=[message, "processed"])
+
     result = runner.invoke(
         app,
         [
@@ -239,7 +294,17 @@ def test_message_get():
     assert FAKE_STORE_HASH_PUBLISHER in result.stdout
 
 
-def test_message_find():
+def test_message_find(mocker, store_message_fixture):
+    response = {
+        "messages": [store_message_fixture],
+        "pagination_per_page": 20,
+        "pagination_page": 1,
+        "pagination_total": 1,
+        "pagination_item": "messages",
+    }
+    messages = MessagesResponse.model_validate(response)
+    mocker.patch("aleph.sdk.AlephHttpClient.get_messages", return_value=messages)
+
     result = runner.invoke(
         app,
         [
@@ -257,9 +322,33 @@ def test_message_find():
     assert FAKE_STORE_HASH in result.stdout
 
 
-def test_post_message(env_files):
+def test_post_message(mocker, env_files):
     settings.CONFIG_FILE = env_files[1]
     test_file_path = Path(__file__).parent.parent / "test_post.json"
+
+    post_message_text = json.loads(test_file_path.read_text())
+    post_message = {
+        "type": "POST",
+        "chain": "ETH",
+        "sender": "0xe0aaF578B287de16852dbc54Ae34a263FF2F4b9E",
+        "signature": "0xe2d0bd0476e73652b1dbac082f250387b0a7691ee19f39ad6ffce2e8a45028160f3e35ef346beb4a4b5f50"
+        "aacdd0d9b454f63eeedc3f8058eb25f7b096eadd231c",
+        "item_type": "inline",
+        "item_content": json.dumps(post_message_text),
+        "item_hash": "eddec2643cadc2d895ddb399499b0b2cd72ce7122080e0c78f833d1d959f5f82",
+        "content": {
+            "address": "0x40684b43B88356F62DCc56017547B6A7AC68780B",
+            "time": 1755201350,
+            "content": post_message_text,
+            "type": "test",
+        },
+        "time": 1738837907,
+        "channel": "test-chan-1",
+        "size": 208,
+    }
+    message = PostMessage.model_validate(post_message)
+    mocker.patch("aleph.sdk.AuthenticatedAlephHttpClient.create_post", return_value=[message, "processed"])
+
     result = runner.invoke(
         app,
         [
