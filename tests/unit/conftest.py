@@ -6,9 +6,11 @@
     https://pytest.org/latest/plugins.html
 """
 
+import json
 from collections.abc import Generator
 from pathlib import Path
 from tempfile import NamedTemporaryFile
+from unittest.mock import AsyncMock
 
 import pytest
 from aleph.sdk.chains.common import generate_key
@@ -259,3 +261,18 @@ def mock_crn_list():
 def mock_crn_info(mock_crn_list):
     """Create a mock CRNInfo object."""
     return CRNInfo.from_unsanitized_input(mock_crn_list[0])
+
+
+@pytest.fixture
+def mock_pricing_info_response():
+    pricing_file = Path(__file__).parent / "pricing_data.json"
+    with open(pricing_file) as f:
+        pricing_data = json.load(f)
+
+    # Create a mock response for the HTTP get call
+    mock_response = AsyncMock()
+    mock_response.__aenter__.return_value = mock_response
+    mock_response.status = 200
+    mock_response.json = AsyncMock(return_value=pricing_data)
+
+    return mock_response

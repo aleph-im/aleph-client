@@ -156,7 +156,7 @@ async def mock_client_session_get(self, program_url):
 
 
 @pytest.mark.asyncio
-async def test_upload_program():
+async def test_upload_program(mock_pricing_info_response):
     mock_load_account = create_mock_load_account()
     mock_account = mock_load_account.return_value
     mock_auth_client_class, mock_auth_client = create_mock_auth_client(mock_account)
@@ -167,7 +167,10 @@ async def test_upload_program():
     @patch("aleph_client.commands.program.AuthenticatedAlephHttpClient", mock_auth_client_class)
     @patch("aleph_client.commands.program.get_balance", mock_get_balance)
     @patch("aleph_client.commands.program.open", MagicMock())
-    async def upload_program():
+
+    # Here we mock the info
+    @patch.object(aiohttp.ClientSession, "get", return_value=mock_pricing_info_response)
+    async def upload_program(_):
         print()  # For better display when pytest -v -s
         returned = await upload(
             address=FAKE_ADDRESS_EVM,
