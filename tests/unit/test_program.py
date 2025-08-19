@@ -190,7 +190,7 @@ async def test_upload_program(mock_pricing_info_response):
         mock_auth_client.create_program.assert_called_once()
         assert returned == FAKE_PROGRAM_HASH
 
-    await upload_program()
+    await upload_program()  # type: ignore[call-arg]
 
 
 @pytest.mark.asyncio
