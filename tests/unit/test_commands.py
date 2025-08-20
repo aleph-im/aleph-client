@@ -268,18 +268,18 @@ def test_account_balance(mocker, env_files):
 def test_account_balance_error(mocker, env_files):
     """Test error handling in the account balance command when API returns an error."""
     settings.CONFIG_FILE = env_files[1]
-    
+
     # Mock get_balance to raise an exception - simulating a non-200 response
     mock_get_balance = mocker.patch(
-        "aleph_client.commands.account.get_balance", 
-        side_effect=Exception("Failed to retrieve balance for address test. Status code: 404")
+        "aleph_client.commands.account.get_balance",
+        side_effect=Exception("Failed to retrieve balance for address test. Status code: 404"),
     )
-    
+
     # Test with an address directly
     result = runner.invoke(
         app, ["account", "balance", "--address", "0xCAfEcAfeCAfECaFeCaFecaFecaFECafECafeCaFe", "--chain", "ETH"]
     )
-    
+
     # The command should run without crashing but report the error
     assert result.exit_code == 0
     assert "Failed to retrieve balance for address" in result.stdout
@@ -614,12 +614,12 @@ def test_file_list_error(mocker):
     # Create a mock response with error status
     mock_response = AsyncMock()
     mock_response.status = 404
-    
+
     # Create a mock session that returns our error response
     mock_session = AsyncMock()
     mock_session.__aenter__.return_value = mock_session
     mock_session.get.return_value = mock_response
-    
+
     # Patch aiohttp.ClientSession to return our mock
     with patch("aiohttp.ClientSession", return_value=mock_session):
         result = runner.invoke(
@@ -631,7 +631,7 @@ def test_file_list_error(mocker):
                 "0xe0aaF578B287de16852dbc54Ae34a263FF2F4b9E",
             ],
         )
-    
+
     # The command should run without crashing but report the error
     assert result.exit_code == 0
     assert "Failed to retrieve files for address" in result.stdout
