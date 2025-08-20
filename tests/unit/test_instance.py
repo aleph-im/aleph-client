@@ -582,7 +582,7 @@ async def test_delete_instance(mock_api_response):
         assert mock_account.manage_flow.call_count == 2
         mock_auth_client.forget.assert_called_once()
 
-    await delete_instance()
+    await delete_instance()  # type: ignore[call-arg]
 
 
 @pytest.mark.asyncio
