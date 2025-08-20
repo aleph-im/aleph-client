@@ -6,14 +6,21 @@
     https://pytest.org/latest/plugins.html
 """
 
+import hashlib
 import json
+import time
 from collections.abc import Generator
+from datetime import datetime, timezone
 from pathlib import Path
 from tempfile import NamedTemporaryFile
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from aleph.sdk.chains.common import generate_key
+from aleph.sdk.chains.ethereum import ETHAccount, get_fallback_private_key
+from aleph.sdk.types import StoredContent
+from aleph_message.models import Chain, ItemHash, ItemType, StoreContent, StoreMessage
+from aleph_message.models.base import MessageType
 
 from aleph_client.models import CRNInfo
 
@@ -27,6 +34,7 @@ from .mocks import (
     FAKE_CRN_GPU_ADDRESS,
     FAKE_CRN_GPU_HASH,
     FAKE_CRN_GPU_URL,
+    FAKE_STORE_HASH,
 )
 
 
@@ -265,7 +273,7 @@ def mock_crn_info(mock_crn_list):
 
 @pytest.fixture
 def mock_pricing_info_response():
-    pricing_file = Path(__file__).parent / "pricing_data.json"
+    pricing_file = Path(__file__).parent / "mock_data/pricing_data.json"
     with open(pricing_file) as f:
         pricing_data = json.load(f)
 
@@ -276,3 +284,186 @@ def mock_pricing_info_response():
     mock_response.json = AsyncMock(return_value=pricing_data)
 
     return mock_response
+
+
+@pytest.fixture
+def mock_settings_info():
+    settings_file = Path(__file__).parent / "mock_data/settings_aggregate.json"
+    with open(settings_file) as f:
+        settings_data = json.load(f)
+
+    # Create a mock response for the HTTP get call
+    mock_response = AsyncMock()
+    mock_response.__aenter__.return_value = mock_response
+    mock_response.status = 200
+    mock_response.json = AsyncMock(return_value=settings_data)
+
+    return mock_response
+
+
+@pytest.fixture
+def mock_store_message_upload_fixture():
+    return {
+        "sender": "0xe0aaF578B287de16852dbc54Ae34a263FF2F4b9E",
+        "chain": "ETH",
+        "signature": (
+            "0xe2d0bd0476e73652b1dbac082f250387b0a7691ee19f39ad6ffce2e8a45028160f3e35ef346beb4a4b5f50"
+            "aacdd0d9b454f63eeedc3f8058eb25f7b096eadd231c"
+        ),
+        "type": "STORE",
+        "item_content": (
+            '{"item_type":"storage","item_hash":"QmTestHashForMockedUpload","ref":null,'
+            '"address":"0xe0aaF578B287de16852dbc54Ae34a263FF2F4b9E","time":1738837907}'
+        ),
+        "item_type": "inline",
+        "item_hash": "5b868dc8c2df0dd9bb810b7a31cc50c8ad1e6569905e45ab4fd2eee36fecc4d2",
+        "time": 1738837907,
+        "channel": "test-chan-1",
+        "content": {
+            "address": "0xe0aaF578B287de16852dbc54Ae34a263FF2F4b9E",
+            "time": 1738837907,
+            "item_type": "storage",
+            "item_hash": "QmTestHashForMockedUpload",
+            "size": 12,
+            "content_type": "text/plain",
+            "ref": None,
+            "metadata": None,
+        },
+    }
+
+
+@pytest.fixture
+def mock_upload_store(mocker, store_message_fixture):
+    """Create a mock for the AuthenticatedAlephHttpClient.create_store method."""
+    from aleph_message.models import StoreMessage
+
+    message = StoreMessage.model_validate(store_message_fixture)
+    return mocker.patch("aleph.sdk.AuthenticatedAlephHttpClient.create_store", return_value=[message, "processed"])
+
+
+@pytest.fixture
+def mock_api_response(mock_pricing_info_response, mock_settings_info):
+    """
+    Side-effect function for ClientSession.get that returns the right mocked response
+    depending on the URL. It is a SYNC callable returning an async context manager.
+    """
+
+    def side_effect(url, *args, **kwargs):
+        if "keys=pricing" in url:
+            return mock_pricing_info_response
+        if "keys=settings" in url:
+            return mock_settings_info
+        return mock_pricing_info_response
+
+    return side_effect
+
+
+@pytest.fixture
+def mock_authenticated_aleph_http_client():
+    with patch("aleph_client.commands.files.AuthenticatedAlephHttpClient", autospec=True) as mock_client:
+        instance = mock_client.return_value
+        instance.__aenter__.return_value = instance
+        instance.__aexit__.return_value = None
+
+        # Build a real account so we can reuse its address
+        pkey = get_fallback_private_key()
+        account = ETHAccount(private_key=pkey)
+        instance.account = account
+
+        async def create_store(file_content, *args, **kwargs):
+            file_hash = hashlib.sha256(file_content).hexdigest()
+
+            sender = account.get_address()
+            content = StoreContent(
+                item_type=ItemType("storage"),
+                item_hash=ItemHash(file_hash),
+                address=sender,
+                time=time.time(),
+            )
+
+            msg = StoreMessage(
+                type=MessageType.store,
+                sender=sender,
+                chain=Chain.ETH,
+                channel="test",
+                content=content,
+                signature="ababababab",
+                item_hash=ItemHash(file_hash),
+                time=datetime.now(tz=timezone.utc),
+                item_type=ItemType.storage,
+            )
+            status = {"status": "success"}
+            return msg, status
+
+        instance.create_store = AsyncMock(side_effect=create_store)
+
+        yield mock_client
+
+
+@pytest.fixture
+def mock_aleph_http_client():
+    """Create a mock for the AlephHttpClient class."""
+    with patch("aleph_client.commands.files.AlephHttpClient", autospec=True) as mock_client:
+        instance = mock_client.return_value
+        instance.__aenter__.return_value = instance
+        instance.__aexit__.return_value = None
+
+        # Mock download_file_to_buffer
+        async def mock_download_file(*args, **kwargs):
+            # Just create a dummy file content
+            return b"Test file content"
+
+        instance.download_file_to_buffer = AsyncMock(side_effect=mock_download_file)
+        instance.download_file_ipfs_to_buffer = AsyncMock(side_effect=mock_download_file)
+
+        # Mock get_stored_content
+        async def mock_get_stored_content(item_hash, *args, **kwargs):
+            return StoredContent(
+                hash=item_hash,
+                filename=f"{item_hash}.txt",
+                url=f"https://api.aleph.im/storage/{item_hash}",
+                mime_type="text/plain",
+            )
+
+        instance.get_stored_content = AsyncMock(side_effect=mock_get_stored_content)
+
+        yield mock_client
+
+
+@pytest.fixture
+def mock_aiohttp_client_session():
+    """Create a mock for the aiohttp.ClientSession."""
+    with patch("aiohttp.ClientSession") as mock_session:
+        instance = mock_session.return_value
+        instance.__aenter__.return_value = instance
+        instance.__aexit__.return_value = None
+
+        # Create a mock response
+        mock_response = AsyncMock()
+        mock_response.status = 200
+
+        # Create example file listing data
+        files_data = {
+            "files": [
+                {
+                    "file_hash": "QmeomffUNfmQy76CQGy9NdmqEnnHU9soCexBnGU3ezPHVH",
+                    "size": "1024",
+                    "type": "file",
+                    "created": "2025-08-01T12:00:00.000000+00:00",
+                    "item_hash": FAKE_STORE_HASH,
+                }
+            ],
+            "pagination_page": 1,
+            "pagination_total": 1,
+            "pagination_per_page": 100,
+            "address": "0xe0aaF578B287de16852dbc54Ae34a263FF2F4b9E",
+            "total_size": "1024",
+        }
+
+        async def mock_json():
+            return files_data
+
+        mock_response.json = AsyncMock(side_effect=mock_json)
+        instance.get = AsyncMock(return_value=mock_response)
+
+        yield mock_session
