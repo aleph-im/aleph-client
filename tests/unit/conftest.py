@@ -422,7 +422,6 @@ def mock_aleph_http_client():
                 hash=item_hash,
                 filename=f"{item_hash}.txt",
                 url=f"https://api.aleph.im/storage/{item_hash}",
-                mime_type="text/plain",
             )
 
         instance.get_stored_content = AsyncMock(side_effect=mock_get_stored_content)

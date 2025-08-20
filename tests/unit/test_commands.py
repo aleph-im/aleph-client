@@ -488,7 +488,7 @@ def test_file_download(mock_aleph_http_client, tmp_path):
 
     with open(output_file, "rb") as f:
         content = f.read()
-        assert content == test_content, f"File content does not match. Expected {test_content}, got {content}"
+        assert content == test_content
 
     mock_client.download_file_to_buffer.assert_called_once()
 
@@ -538,7 +538,7 @@ def test_file_download_ipfs(mock_aleph_http_client, tmp_path):
 
     with open(output_file, "rb") as f:
         content = f.read()
-        assert content == test_content, f"File content does not match. Expected {test_content}, got {content}"
+        assert content == test_content, f"File content does not match. Expected {test_content!r}, got {content!r}"
 
     mock_client.download_file_ipfs_to_buffer.assert_called_once()
     mock_client.download_file_to_buffer.assert_not_called()
@@ -554,7 +554,6 @@ def test_file_download_only_info(mock_aleph_http_client):
         hash=FAKE_STORE_HASH,
         filename=f"{FAKE_STORE_HASH}.txt",
         url=f"https://api.aleph.im/storage/{FAKE_STORE_HASH}",
-        mime_type="text/plain",
     )
     mock_aleph_http_client.return_value.__aenter__.return_value.get_stored_content.return_value = stored_content
 
