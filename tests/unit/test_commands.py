@@ -1,23 +1,21 @@
+import hashlib
 import json
-import os
 from pathlib import Path
 from tempfile import NamedTemporaryFile
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from aleph.sdk.chains.ethereum import ETHAccount
 from aleph.sdk.conf import settings
 from aleph.sdk.query.responses import MessagesResponse
+from aleph.sdk.types import StoredContent
 from aleph_message.models import PostMessage, StoreMessage
 from typer.testing import CliRunner
 
 from aleph_client.__main__ import app
+from aleph_client.commands.files import upload
 
-from .mocks import (
-    FAKE_STORE_HASH,
-    FAKE_STORE_HASH_CONTENT_FILE_CID,
-    FAKE_STORE_HASH_PUBLISHER,
-)
+from .mocks import FAKE_STORE_HASH, FAKE_STORE_HASH_PUBLISHER
 
 runner = CliRunner()
 
@@ -433,36 +431,133 @@ def test_sign_raw_stdin():
     assert "0x" in result.stdout
 
 
-def test_file_upload():
-    # Test upload a file to aleph network by creating a file and upload it to an aleph node
-    with NamedTemporaryFile() as temp_file:
-        temp_file.write(b"Hello World \n")
+@pytest.mark.asyncio
+async def test_file_upload(mock_authenticated_aleph_http_client, capsys):
+    with NamedTemporaryFile() as tmp:
+        content = b"Test pyaleph upload\n"
+        expected_hash = hashlib.sha256(content).hexdigest()
+        tmp.write(content)
+        tmp.flush()
+
+        await upload(Path(tmp.name))
+        result = capsys.readouterr().out
+
+        assert result is not None
+        assert expected_hash in result
+
+
+def test_file_download(mock_aleph_http_client, tmp_path):
+    """Test downloading a file from the Aleph network.
+
+    This test uses proper mocking of the AlephHttpClient to simulate downloading
+    """
+
+    ipfs_cid = "QmeomffUNfmQy76CQGy9NdmqEnnHU9soCexBnGU3ezPHVH"
+    test_content = b"Test file content"
+
+    output_dir = tmp_path / "download_test"
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    async def mock_download_to_buffer(_, file_obj, *args, **kwargs):
+        file_obj.write(test_content)
+        return len(test_content)
+
+    mock_client = mock_aleph_http_client.return_value.__aenter__.return_value
+    mock_client.download_file_to_buffer.side_effect = mock_download_to_buffer
+    mock_client.download_file_ipfs_to_buffer.side_effect = mock_download_to_buffer
+
+    with patch("aleph_client.commands.files.logger.info") as mock_info:
         result = runner.invoke(
             app,
-            ["file", "upload", temp_file.name],
+            [
+                "file",
+                "download",
+                ipfs_cid,
+                "--output-path",
+                str(output_dir),
+            ],
         )
+
         assert result.exit_code == 0
-        assert result.stdout is not None
+
+        # Verify the logging was called with the expected message
+        mock_info.assert_called_with(f"Downloading {ipfs_cid} ...")
+
+    output_file = output_dir / ipfs_cid
+    assert output_file.exists(), f"Output file {output_file} does not exist"
+
+    with open(output_file, "rb") as f:
+        content = f.read()
+        assert content == test_content, f"File content does not match. Expected {test_content}, got {content}"
+
+    mock_client.download_file_to_buffer.assert_called_once()
+
+    output_file.unlink()
+    output_dir.rmdir()
 
 
-def test_file_download():
-    # Test download a file from aleph network
+def test_file_download_ipfs(mock_aleph_http_client, tmp_path):
+    """Test downloading a file from the Aleph network using IPFS method.
+
+    This test verifies the IPFS download path works correctly.
+    """
+    # Test file hash/CID to download
     ipfs_cid = "QmeomffUNfmQy76CQGy9NdmqEnnHU9soCexBnGU3ezPHVH"
+    test_content = b"Test IPFS file content"
+
+    # Set up a test directory for the downloaded file
+    output_dir = tmp_path / "ipfs_download_test"
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    async def mock_download_to_buffer(_, file_obj, *args, **kwargs):
+        file_obj.write(test_content)
+        return len(test_content)
+
+    # Set up the client mock methods
+    mock_client = mock_aleph_http_client.return_value.__aenter__.return_value
+    mock_client.download_file_to_buffer.side_effect = mock_download_to_buffer
+    mock_client.download_file_ipfs_to_buffer.side_effect = mock_download_to_buffer
+
+    # Run the CLI command with IPFS flag
     result = runner.invoke(
         app,
         [
             "file",
             "download",
             ipfs_cid,
-        ],  # 5 bytes file
+            "--use-ipfs",
+            "--output-path",
+            str(output_dir),
+        ],
     )
+
     assert result.exit_code == 0
-    assert result.stdout is not None
-    os.remove(ipfs_cid)
+
+    output_file = output_dir / ipfs_cid
+    assert output_file.exists(), f"Output file {output_file} does not exist"
+
+    with open(output_file, "rb") as f:
+        content = f.read()
+        assert content == test_content, f"File content does not match. Expected {test_content}, got {content}"
+
+    mock_client.download_file_ipfs_to_buffer.assert_called_once()
+    mock_client.download_file_to_buffer.assert_not_called()
+
+    output_file.unlink()
+    output_dir.rmdir()
 
 
-def test_file_download_only_info():
-    # Test retrieve the underlying content cid
+def test_file_download_only_info(mock_aleph_http_client):
+    """Test retrieving only file information without downloading the file."""
+
+    stored_content = StoredContent(
+        hash=FAKE_STORE_HASH,
+        filename=f"{FAKE_STORE_HASH}.txt",
+        url=f"https://api.aleph.im/storage/{FAKE_STORE_HASH}",
+        mime_type="text/plain",
+    )
+    mock_aleph_http_client.return_value.__aenter__.return_value.get_stored_content.return_value = stored_content
+
     result = runner.invoke(
         app,
         [
@@ -474,17 +569,21 @@ def test_file_download_only_info():
         standalone_mode=False,
     )
     assert result.exit_code == 0
-    assert result.return_value.model_dump()["hash"] == FAKE_STORE_HASH_CONTENT_FILE_CID
+    assert FAKE_STORE_HASH in result.return_value.hash
 
 
-def test_file_list():
+def test_file_list(mock_aiohttp_client_session):
     result = runner.invoke(
         app,
         [
             "file",
             "list",
+            "--address",
+            "0xe0aaF578B287de16852dbc54Ae34a263FF2F4b9E",
         ],
     )
 
     assert result.exit_code == 0
-    assert "0x" in result.stdout
+    assert "Address:" in result.stdout
+
+    assert "0dd9bb810b7a31cc50c8ad1e6569905" in result.stdout
