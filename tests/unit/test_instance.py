@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import aiohttp
 import pytest
 from aiohttp import InvalidURL
 from aleph_message.models import Chain
@@ -447,7 +448,7 @@ def create_mock_vm_coco_client():
     ],
 )
 @pytest.mark.asyncio
-async def test_create_instance(args, expected, mock_crn_list):
+async def test_create_instance(args, expected, mock_crn_list, mock_api_response):
     mock_validate_ssh_pubkey_file = create_mock_validate_ssh_pubkey_file()
     mock_load_account = create_mock_load_account()
     mock_account = mock_load_account.return_value
@@ -481,8 +482,11 @@ async def test_create_instance(args, expected, mock_crn_list):
         "aleph_client.commands.instance.network.call_program_crn_list", AsyncMock(return_value={"crns": mock_crn_list})
     )
     @patch("aleph_client.commands.instance.display.CRNTable.run_async", AsyncMock(return_value=(None, 0)))
-    async def create_instance(instance_spec):
+    @patch("aiohttp.ClientSession.get")
+    async def create_instance(mock_get, instance_spec):
         print()  # For better display when pytest -v -s
+        # Use the mock_api_response fixture which handles URL-based responses
+        mock_get.side_effect = mock_api_response
         all_args = {
             "ssh_pubkey_file": FAKE_PUBKEY_FILE,
             "name": "mock_instance",
@@ -494,7 +498,7 @@ async def test_create_instance(args, expected, mock_crn_list):
         all_args.update(instance_spec)
         return await create(**all_args)
 
-    returned = await create_instance(args)
+    returned = await create_instance(instance_spec=args)
     # Basic assertions for all cases
     mock_load_account.assert_called_once()
     mock_validate_ssh_pubkey_file.return_value.read_text.assert_called_once()
@@ -551,7 +555,7 @@ async def test_list_instances(mock_crn_list):
 
 
 @pytest.mark.asyncio
-async def test_delete_instance():
+async def test_delete_instance(mock_api_response):
     mock_load_account = create_mock_load_account()
     mock_account = mock_load_account.return_value
     mock_auth_client_class, mock_auth_client = create_mock_auth_client(mock_account, mock_crn_list=[])
@@ -569,14 +573,16 @@ async def test_delete_instance():
     @patch("aleph_client.commands.instance.AuthenticatedAlephHttpClient", mock_auth_client_class)
     @patch("aleph_client.commands.instance.VmClient", mock_vm_client_class)
     @patch.object(asyncio, "sleep", AsyncMock())
-    async def delete_instance():
+    @patch.object(aiohttp.ClientSession, "get")
+    async def delete_instance(mock_get):
         print()  # For better display when pytest -v -s
+        mock_get.side_effect = mock_api_response
         await delete(FAKE_VM_HASH)
         mock_auth_client.get_message.assert_called_once()
         assert mock_account.manage_flow.call_count == 2
         mock_auth_client.forget.assert_called_once()
 
-    await delete_instance()
+    await delete_instance()  # type: ignore[call-arg]
 
 
 @pytest.mark.asyncio

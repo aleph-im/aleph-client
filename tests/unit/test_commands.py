@@ -1,21 +1,58 @@
+import hashlib
 import json
-import os
 from pathlib import Path
 from tempfile import NamedTemporaryFile
+from unittest.mock import AsyncMock, patch
 
+import pytest
 from aleph.sdk.chains.ethereum import ETHAccount
 from aleph.sdk.conf import settings
+from aleph.sdk.query.responses import MessagesResponse
+from aleph.sdk.types import StoredContent
+from aleph_message.models import PostMessage, StoreMessage
 from typer.testing import CliRunner
 
 from aleph_client.__main__ import app
+from aleph_client.commands.files import upload
 
-from .mocks import (
-    FAKE_STORE_HASH,
-    FAKE_STORE_HASH_CONTENT_FILE_CID,
-    FAKE_STORE_HASH_PUBLISHER,
-)
+from .mocks import FAKE_STORE_HASH, FAKE_STORE_HASH_PUBLISHER
 
 runner = CliRunner()
+
+
+@pytest.fixture
+def store_message_fixture():
+    return {
+        "sender": "0xe0aaF578B287de16852dbc54Ae34a263FF2F4b9E",
+        "chain": "ETH",
+        "signature": "0xe2d0bd0476e73652b1dbac082f250387b0a7691ee19f39ad6ffce2e8a45028160f3e35ef346beb4a4b5f"
+        "50aacdd0d9b454f63eeedc3f8058eb25f7b096eadd231c",
+        "type": "STORE",
+        "item_content": '{"item_type":"ipfs","item_hash":"QmXSEnpQCnUfeGFoSjY1XAK1Cuad5CtAaqyachGTtsFSuA",'
+        '"ref":"0xd8058efe0198ae9dd7d563e1b4938dcbc86a1f81:14",'
+        '"address":"0xe0aaF578B287de16852dbc54Ae34a263FF2F4b9E","time":1738837907}',
+        "item_type": "inline",
+        "item_hash": "5b868dc8c2df0dd9bb810b7a31cc50c8ad1e6569905e45ab4fd2eee36fecc4d2",
+        "time": 1738837907,
+        "channel": "test-chan-1",
+        "content": {
+            "address": "0xe0aaF578B287de16852dbc54Ae34a263FF2F4b9E",
+            "time": 1738837907,
+            "item_type": "ipfs",
+            "item_hash": "QmXSEnpQCnUfeGFoSjY1XAK1Cuad5CtAaqyachGTtsFSuA",
+            "size": None,
+            "content_type": None,
+            "ref": "0xd8058efe0198ae9dd7d563e1b4938dcbc86a1f81:14",
+            "metadata": None,
+        },
+    }
+
+
+async def create_mock_http_response(status_code=200, response_data=None):
+    resp = AsyncMock(status=status_code)
+    resp.status = status_code
+    resp.json.return_value = response_data
+    return resp
 
 
 def get_account(my_account_file: Path) -> ETHAccount:
@@ -207,13 +244,46 @@ def test_account_sign_bytes(env_files):
     assert result.stdout.startswith("\nSignature:")
 
 
-def test_account_balance(env_files):
+def test_account_balance(mocker, env_files):
     settings.CONFIG_FILE = env_files[1]
+    balance_response = {
+        "address": "0xCAfEcAfeCAfECaFeCaFecaFecaFECafECafeCaFe",
+        "balance": 24853,
+        "details": {"AVAX": 4000, "BASE": 10000, "ETH": 10853},
+        "locked_amount": 4663.334518051392,
+        "available_amount": 20189.665481948608,
+    }
+
+    mocker.patch("aleph_client.commands.account.get_balance", return_value=balance_response)
+    mocker.patch("aleph_client.voucher.VoucherManager.get_all", return_value=[])
+
     result = runner.invoke(
         app, ["account", "balance", "--address", "0xCAfEcAfeCAfECaFeCaFecaFecaFECafECafeCaFe", "--chain", "ETH"]
     )
     assert result.exit_code == 0
     assert result.stdout.startswith("╭─ Account Infos")
+    assert "Available: 20189.67" in result.stdout
+
+
+def test_account_balance_error(mocker, env_files):
+    """Test error handling in the account balance command when API returns an error."""
+    settings.CONFIG_FILE = env_files[1]
+
+    # Mock get_balance to raise an exception - simulating a non-200 response
+    mock_get_balance = mocker.patch(
+        "aleph_client.commands.account.get_balance",
+        side_effect=Exception("Failed to retrieve balance for address test. Status code: 404"),
+    )
+
+    # Test with an address directly
+    result = runner.invoke(
+        app, ["account", "balance", "--address", "0xCAfEcAfeCAfECaFeCaFecaFecaFECafECafeCaFe", "--chain", "ETH"]
+    )
+
+    # The command should run without crashing but report the error
+    assert result.exit_code == 0
+    assert "Failed to retrieve balance for address" in result.stdout
+    mock_get_balance.assert_called_once()
 
 
 def test_account_config(env_files):
@@ -223,10 +293,14 @@ def test_account_config(env_files):
     assert result.stdout.startswith("New Default Configuration: ")
 
 
-def test_message_get():
+def test_message_get(mocker, store_message_fixture):
     # Use subprocess to avoid border effects between tests caused by the initialisation
     # of the aiohttp client session out of an async context in the SDK. This avoids
     # a "no running event loop" error when running several tests back to back.
+
+    message = StoreMessage.model_validate(store_message_fixture)
+    mocker.patch("aleph.sdk.AlephHttpClient.get_message", return_value=[message, "processed"])
+
     result = runner.invoke(
         app,
         [
@@ -239,7 +313,17 @@ def test_message_get():
     assert FAKE_STORE_HASH_PUBLISHER in result.stdout
 
 
-def test_message_find():
+def test_message_find(mocker, store_message_fixture):
+    response = {
+        "messages": [store_message_fixture],
+        "pagination_per_page": 20,
+        "pagination_page": 1,
+        "pagination_total": 1,
+        "pagination_item": "messages",
+    }
+    messages = MessagesResponse.model_validate(response)
+    mocker.patch("aleph.sdk.AlephHttpClient.get_messages", return_value=messages)
+
     result = runner.invoke(
         app,
         [
@@ -257,9 +341,33 @@ def test_message_find():
     assert FAKE_STORE_HASH in result.stdout
 
 
-def test_post_message(env_files):
+def test_post_message(mocker, env_files):
     settings.CONFIG_FILE = env_files[1]
     test_file_path = Path(__file__).parent.parent / "test_post.json"
+
+    post_message_text = json.loads(test_file_path.read_text())
+    post_message = {
+        "type": "POST",
+        "chain": "ETH",
+        "sender": "0xe0aaF578B287de16852dbc54Ae34a263FF2F4b9E",
+        "signature": "0xe2d0bd0476e73652b1dbac082f250387b0a7691ee19f39ad6ffce2e8a45028160f3e35ef346beb4a4b5f50"
+        "aacdd0d9b454f63eeedc3f8058eb25f7b096eadd231c",
+        "item_type": "inline",
+        "item_content": json.dumps(post_message_text),
+        "item_hash": "eddec2643cadc2d895ddb399499b0b2cd72ce7122080e0c78f833d1d959f5f82",
+        "content": {
+            "address": "0x40684b43B88356F62DCc56017547B6A7AC68780B",
+            "time": 1755201350,
+            "content": post_message_text,
+            "type": "test",
+        },
+        "time": 1738837907,
+        "channel": "test-chan-1",
+        "size": 208,
+    }
+    message = PostMessage.model_validate(post_message)
+    mocker.patch("aleph.sdk.AuthenticatedAlephHttpClient.create_post", return_value=[message, "processed"])
+
     result = runner.invoke(
         app,
         [
@@ -344,36 +452,132 @@ def test_sign_raw_stdin():
     assert "0x" in result.stdout
 
 
-def test_file_upload():
-    # Test upload a file to aleph network by creating a file and upload it to an aleph node
-    with NamedTemporaryFile() as temp_file:
-        temp_file.write(b"Hello World \n")
+@pytest.mark.asyncio
+async def test_file_upload(mock_authenticated_aleph_http_client, capsys):
+    with NamedTemporaryFile() as tmp:
+        content = b"Test pyaleph upload\n"
+        expected_hash = hashlib.sha256(content).hexdigest()
+        tmp.write(content)
+        tmp.flush()
+
+        await upload(Path(tmp.name))
+        result = capsys.readouterr().out
+
+        assert result is not None
+        assert expected_hash in result
+
+
+def test_file_download(mock_aleph_http_client, tmp_path):
+    """Test downloading a file from the Aleph network.
+
+    This test uses proper mocking of the AlephHttpClient to simulate downloading
+    """
+
+    ipfs_cid = "QmeomffUNfmQy76CQGy9NdmqEnnHU9soCexBnGU3ezPHVH"
+    test_content = b"Test file content"
+
+    output_dir = tmp_path / "download_test"
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    async def mock_download_to_buffer(_, file_obj, *args, **kwargs):
+        file_obj.write(test_content)
+        return len(test_content)
+
+    mock_client = mock_aleph_http_client.return_value.__aenter__.return_value
+    mock_client.download_file_to_buffer.side_effect = mock_download_to_buffer
+    mock_client.download_file_ipfs_to_buffer.side_effect = mock_download_to_buffer
+
+    with patch("aleph_client.commands.files.logger.info") as mock_info:
         result = runner.invoke(
             app,
-            ["file", "upload", temp_file.name],
+            [
+                "file",
+                "download",
+                ipfs_cid,
+                "--output-path",
+                str(output_dir),
+            ],
         )
+
         assert result.exit_code == 0
-        assert result.stdout is not None
+
+        # Verify the logging was called with the expected message
+        mock_info.assert_called_with(f"Downloading {ipfs_cid} ...")
+
+    output_file = output_dir / ipfs_cid
+    assert output_file.exists(), f"Output file {output_file} does not exist"
+
+    with open(output_file, "rb") as f:
+        content = f.read()
+        assert content == test_content
+
+    mock_client.download_file_to_buffer.assert_called_once()
+
+    output_file.unlink()
+    output_dir.rmdir()
 
 
-def test_file_download():
-    # Test download a file from aleph network
+def test_file_download_ipfs(mock_aleph_http_client, tmp_path):
+    """Test downloading a file from the Aleph network using IPFS method.
+
+    This test verifies the IPFS download path works correctly.
+    """
+    # Test file hash/CID to download
     ipfs_cid = "QmeomffUNfmQy76CQGy9NdmqEnnHU9soCexBnGU3ezPHVH"
+    test_content = b"Test IPFS file content"
+
+    # Set up a test directory for the downloaded file
+    output_dir = tmp_path / "ipfs_download_test"
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    async def mock_download_to_buffer(_, file_obj, *args, **kwargs):
+        file_obj.write(test_content)
+        return len(test_content)
+
+    # Set up the client mock methods
+    mock_client = mock_aleph_http_client.return_value.__aenter__.return_value
+    mock_client.download_file_to_buffer.side_effect = mock_download_to_buffer
+    mock_client.download_file_ipfs_to_buffer.side_effect = mock_download_to_buffer
+
+    # Run the CLI command with IPFS flag
     result = runner.invoke(
         app,
         [
             "file",
             "download",
             ipfs_cid,
-        ],  # 5 bytes file
+            "--use-ipfs",
+            "--output-path",
+            str(output_dir),
+        ],
     )
+
     assert result.exit_code == 0
-    assert result.stdout is not None
-    os.remove(ipfs_cid)
+
+    output_file = output_dir / ipfs_cid
+    assert output_file.exists(), f"Output file {output_file} does not exist"
+
+    with open(output_file, "rb") as f:
+        content = f.read()
+        assert content == test_content, f"File content does not match. Expected {test_content!r}, got {content!r}"
+
+    mock_client.download_file_ipfs_to_buffer.assert_called_once()
+    mock_client.download_file_to_buffer.assert_not_called()
+
+    output_file.unlink()
+    output_dir.rmdir()
 
 
-def test_file_download_only_info():
-    # Test retrieve the underlying content cid
+def test_file_download_only_info(mock_aleph_http_client):
+    """Test retrieving only file information without downloading the file."""
+
+    stored_content = StoredContent(
+        hash=FAKE_STORE_HASH,
+        filename=f"{FAKE_STORE_HASH}.txt",
+        url=f"https://api.aleph.im/storage/{FAKE_STORE_HASH}",
+    )
+    mock_aleph_http_client.return_value.__aenter__.return_value.get_stored_content.return_value = stored_content
+
     result = runner.invoke(
         app,
         [
@@ -385,17 +589,50 @@ def test_file_download_only_info():
         standalone_mode=False,
     )
     assert result.exit_code == 0
-    assert result.return_value.model_dump()["hash"] == FAKE_STORE_HASH_CONTENT_FILE_CID
+    assert FAKE_STORE_HASH in result.return_value.hash
 
 
-def test_file_list():
+def test_file_list(mock_aiohttp_client_session):
     result = runner.invoke(
         app,
         [
             "file",
             "list",
+            "--address",
+            "0xe0aaF578B287de16852dbc54Ae34a263FF2F4b9E",
         ],
     )
 
     assert result.exit_code == 0
-    assert "0x" in result.stdout
+    assert "Address:" in result.stdout
+
+    assert "0dd9bb810b7a31cc50c8ad1e6569905" in result.stdout
+
+
+def test_file_list_error(mocker):
+    """Test error handling in the file list command when API returns an error."""
+    # Create a mock response with error status
+    mock_response = AsyncMock()
+    mock_response.status = 404
+
+    # Create a mock session that returns our error response
+    mock_session = AsyncMock()
+    mock_session.__aenter__.return_value = mock_session
+    mock_session.get.return_value = mock_response
+
+    # Patch aiohttp.ClientSession to return our mock
+    with patch("aiohttp.ClientSession", return_value=mock_session):
+        result = runner.invoke(
+            app,
+            [
+                "file",
+                "list",
+                "--address",
+                "0xe0aaF578B287de16852dbc54Ae34a263FF2F4b9E",
+            ],
+        )
+
+    # The command should run without crashing but report the error
+    assert result.exit_code == 0
+    assert "Failed to retrieve files for address" in result.stdout
+    assert "Status code: 404" in result.stdout

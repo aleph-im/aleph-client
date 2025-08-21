@@ -94,6 +94,7 @@ dependencies = [
 type = "virtual"
 dependencies = [
   "pytest==8.2.2",
+  "pytest-mock==3.14.0",
   "pytest-asyncio==0.23.7",
   "pytest-cov==5.0.0",
   "mypy==1.10.0",
