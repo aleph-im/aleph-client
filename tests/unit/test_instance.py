@@ -9,6 +9,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import aiohttp
 import pytest
 from aiohttp import InvalidURL
+from aleph.sdk.client.services.crn import CrnList
 from aleph_message.models import Chain
 from aleph_message.models.execution.base import Payment, PaymentType
 from aleph_message.models.execution.environment import (
@@ -257,7 +258,17 @@ def create_mock_shutil():
 def create_mock_client(mock_crn_list, payment_type="superfluid"):
     # Create a proper mock for the crn service
     mock_crn_service = MagicMock()
-    mock_crn_service.get_crns_list = AsyncMock(return_value={"crns": mock_crn_list})
+    # Ensure we have a valid CrnList even if mock_crn_list is None
+    crn_list_data = mock_crn_list
+    mock_crn_service.get_crns_list = AsyncMock(return_value=CrnList.from_api({"crns": crn_list_data}))
+
+    mock_crn_service.fetch_gpu_on_network = AsyncMock(
+        return_value=Dict(
+            total_gpu_count=1,
+            available_gpu_list={"https://test.gpu.crn.com": [{"model": "RTX 4000 ADA", "device_name": "GPU Device"}]},
+            used_gpu_list={},
+        )
+    )
 
     mock_client = AsyncMock(
         get_message=AsyncMock(return_value=True),
@@ -289,7 +300,14 @@ def create_mock_auth_client(mock_account, payment_type="superfluid", payment_typ
 
     # Create a proper mock for the crn service
     mock_crn_service = MagicMock()
-    mock_crn_service.get_crns_list = AsyncMock(return_value={"crns": mock_crn_list or []})
+    mock_crn_service.get_crns_list = AsyncMock(return_value=CrnList.from_api({"crns": mock_crn_list}))
+    mock_crn_service.fetch_gpu_on_network = AsyncMock(
+        return_value=Dict(
+            total_gpu_count=1,
+            available_gpu_list={"https://test.gpu.crn.com": [{"model": "RTX 4000 ADA", "device_name": "GPU Device"}]},
+            used_gpu_list={},
+        )
+    )
 
     mock_response_get_message = create_mock_instance_message(mock_account, payg=True)
     mock_response_create_instance = MagicMock(item_hash=FAKE_VM_HASH)
@@ -471,16 +489,14 @@ async def test_create_instance(args, expected, mock_crn_list, mock_api_response)
     @patch("aleph_client.commands.instance._load_account", mock_load_account)
     @patch("aleph_client.commands.instance.get_balance", mock_get_balance)
     @patch("aleph_client.commands.instance.AlephHttpClient", mock_client_class)
+    @patch("aleph_client.commands.instance.network.AlephHttpClient", mock_client_class)
     @patch("aleph_client.commands.instance.AuthenticatedAlephHttpClient", mock_auth_client_class)
-    @patch("aleph_client.commands.pricing.validated_prompt", mock_validated_prompt)
+    @patch("aleph_client.commands.utils.validated_prompt", mock_validated_prompt)
     @patch("aleph_client.commands.instance.network.fetch_latest_crn_version", mock_fetch_latest_crn_version)
     @patch("aleph_client.commands.instance.yes_no_input", mock_yes_no_input)
     @patch("aleph_client.commands.instance.wait_for_processed_instance", mock_wait_for_processed_instance)
     @patch("aleph_client.commands.instance.wait_for_confirmed_flow", mock_wait_for_confirmed_flow)
     @patch("aleph_client.commands.instance.VmClient", mock_vm_client_class)
-    @patch(
-        "aleph_client.commands.instance.network.call_program_crn_list", AsyncMock(return_value={"crns": mock_crn_list})
-    )
     @patch("aleph_client.commands.instance.display.CRNTable.run_async", AsyncMock(return_value=(None, 0)))
     @patch("aiohttp.ClientSession.get")
     async def create_instance(mock_get, instance_spec):
