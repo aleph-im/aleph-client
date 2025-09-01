@@ -31,8 +31,8 @@ dependencies = [
   "aiodns==3.2",
   "aiohttp==3.11.13",
   "aleph-message>=1.0.1",
-  "aleph-sdk-python>=2.0.5",
-  "base58==2.1.1",               # Needed now as default with _load_account changement
+  "aleph-sdk-python @ git+https://github.com/aleph-im/aleph-sdk-python@1yam-pricing-services",
+  "base58==2.1.1",                                                                             # Needed now as default with _load_account changement
   "click<8.2",
   "py-sr25519-bindings==0.2",    # Needed for DOT signatures
   "pydantic>=2",
