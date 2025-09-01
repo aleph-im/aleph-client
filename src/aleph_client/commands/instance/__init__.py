@@ -6,13 +6,15 @@ import logging
 import shutil
 from decimal import Decimal
 from pathlib import Path
-from typing import Annotated, Any, Optional, Union, cast
+from typing import Annotated, Any, Optional, Union
 
 import aiohttp
 import typer
 from aleph.sdk import AlephHttpClient, AuthenticatedAlephHttpClient
 from aleph.sdk.account import _load_account
 from aleph.sdk.chains.ethereum import ETHAccount
+from aleph.sdk.client.services.crn import NetworkGPUS
+from aleph.sdk.client.services.pricing import Price
 from aleph.sdk.client.vm_client import VmClient
 from aleph.sdk.client.vm_confidential_client import VmConfidentialClient
 from aleph.sdk.conf import load_main_configuration, settings
@@ -64,16 +66,14 @@ from aleph_client.commands import help_strings
 from aleph_client.commands.account import get_balance
 from aleph_client.commands.instance.display import CRNTable, show_instances
 from aleph_client.commands.instance.network import (
-    fetch_crn_info,
-    fetch_crn_list,
+    call_program_crn_list,
     fetch_settings,
     find_crn_of_vm,
 )
 from aleph_client.commands.instance.port_forwarder import app as port_forwarder_app
-from aleph_client.commands.pricing import PricingEntity, SelectedTier, fetch_pricing
+from aleph_client.commands.pricing import PricingEntity, fetch_pricing_aggregate
 from aleph_client.commands.utils import (
     find_sevctl_or_exit,
-    found_gpus_by_model,
     get_annotated_constraint,
     get_or_prompt_volumes,
     setup_logging,
@@ -84,6 +84,7 @@ from aleph_client.commands.utils import (
     wait_for_processed_instance,
     yes_no_input,
 )
+from aleph_client.models import CRNInfo
 from aleph_client.utils import AsyncTyper, sanitize_url
 
 logger = logging.getLogger(__name__)
@@ -171,6 +172,11 @@ async def create(
     # Populates account / address
     account = _load_account(private_key, private_key_file, chain=payment_chain)
     address = address or settings.ADDRESS_TO_USE or account.get_address()
+
+    # Start the fetch in the background (async_lru_cache already returns a future)
+    # We'll await this at the point we need it
+    crn_list_future = call_program_crn_list()
+    crn_list = None
 
     # Loads default configuration if no chain is set
     if payment_chain is None:
@@ -311,19 +317,25 @@ async def create(
             if not firmware_message:
                 raise typer.Exit(code=1)
 
+    if not crn_list:
+        crn_list = await crn_list_future
+
     # Filter and prepare the list of available GPUs
-    crn_list = None
-    found_gpu_models: Optional[dict[str, dict[str, dict[str, int]]]] = None
+    found_gpu_models: Optional[NetworkGPUS] = None
     if gpu:
         echo("Fetching available GPU list...")
-        crn_list = await fetch_crn_list(latest_crn_version=True, ipv6=True, stream_address=True, gpu=True)
-        found_gpu_models = found_gpus_by_model(crn_list)
-        if not found_gpu_models:
+
+        # Await the future to get the actual crn_list before first use
+
+        filtered_crns = crn_list.filter_crn(latest_crn_version=True, ipv6=True, stream_address=True, gpu=True)
+        found_gpu_models = crn_list.find_gpu_on_network()
+        if not found_gpu_models or not found_gpu_models.total_gpu_count:
             echo("No available GPU found. Try again later.")
+            echo(f"Currently {0 if not found_gpu_models else found_gpu_models.total_gpu_count} being used")
             raise typer.Exit(code=1)
         premium = yes_no_input(f"{help_strings.GPU_PREMIUM_OPTION}?", default=False) if premium is None else premium
 
-    pricing = await fetch_pricing()
+    pricing = await fetch_pricing_aggregate()
     pricing_entity = (
         PricingEntity.INSTANCE_CONFIDENTIAL
         if confidential
@@ -333,22 +345,55 @@ async def create(
             else PricingEntity.INSTANCE_GPU_STANDARD if gpu else PricingEntity.INSTANCE
         )
     )
-    tier = cast(  # Safe cast
-        SelectedTier,
-        pricing.display_table_for(
-            pricing_entity,
-            compute_units=compute_units,
-            vcpus=vcpus,
-            memory=memory,
-            gpu_models=found_gpu_models,
-            selector=True,
-        ),
+
+    tier = pricing.data[pricing_entity].get_closest_tier(
+        vcpus=vcpus,
+        memory_mib=memory,
+        compute_unit=compute_units,
     )
+
+    if not tier:
+        pricing.display_table_for(entity=pricing_entity, network_gpu=found_gpu_models, tier=None)
+        tiers = list(pricing.data[pricing_entity].tiers)
+
+        # GPU entities: filter to tiers that actually use the selected GPUs
+        eligible = (
+            [t for t in tiers if pricing._process_network_gpu_info(tier=t, network_gpu=found_gpu_models)[0]]
+            if pricing_entity in [PricingEntity.INSTANCE_GPU_PREMIUM, PricingEntity.INSTANCE_GPU_STANDARD]
+            else tiers
+        )
+
+        if pricing_entity in [PricingEntity.INSTANCE_GPU_PREMIUM, PricingEntity.INSTANCE_GPU_STANDARD] and not eligible:
+            echo("No eligible tiers for the selected GPUs.")
+            raise typer.Exit(code=1)
+
+        if pricing_entity == PricingEntity.INSTANCE_CONFIDENTIAL and payment_type == PaymentType.hold:
+            echo("No eligible tier, please change payment type")
+
+        # Options shown to the user
+        if pricing_entity == PricingEntity.INSTANCE and payment_type == PaymentType.hold:
+            options = ["1", "2", "3", "4"]  # hold instances up to tier 4
+            pool = eligible or tiers
+        else:
+            pool = eligible or tiers
+            options = [t.extract_tier_id() for t in pool]
+
+        chosen = validated_prompt(
+            prompt=f"Choose a tier ({', '.join(options)}):",
+            validator=lambda s: s in options,
+            default=options[0],
+        )
+
+        tier = next(t for t in pool if t.id.endswith(f"-{chosen}") or t.extract_tier_id() == chosen)
+
     name = name or validated_prompt("Instance name", lambda x: x and len(x) < 65)
-    vcpus = tier.vcpus
-    memory = tier.memory
-    disk_size = tier.disk
-    gpu_model = tier.gpu_model
+    specs = pricing.data[pricing_entity].get_services_specs(tier)
+
+    vcpus = specs.vcpus
+    memory = specs.memory_mib
+    disk_size = specs.disk_mib
+    gpu_model = specs.gpu_model
+
     disk_size_info = f"Rootfs Size: {round(disk_size/1024, 2)} GiB (defaulted to included storage in tier)"
     if not isinstance(rootfs_size, int):
         rootfs_size = validated_int_prompt(
@@ -372,22 +417,36 @@ async def create(
     # Early check with minimal cost (Gas + Aleph ERC20)
     available_funds = Decimal(0 if is_stream else (await get_balance(address))["available_amount"])
     try:
+        # Get compute_unit price from PricingPerEntity
+        compute_unit_price = pricing.data[pricing_entity].price.get("compute_unit")
         if is_stream and isinstance(account, ETHAccount):
             if account.CHAIN != payment_chain:
                 account.switch_chain(payment_chain)
             if safe_getattr(account, "superfluid_connector"):
-                account.can_start_flow(tier.price.payg)
+                if isinstance(compute_unit_price, Price) and compute_unit_price.payg:
+                    payg_price = Decimal(str(compute_unit_price.payg)) * tier.compute_units
+                    flow_rate_per_second = payg_price / Decimal(3600)
+                    account.can_start_flow(flow_rate_per_second)
+                else:
+                    echo("No PAYG price available for this tier.")
+                    raise typer.Exit(code=1)
             else:
                 echo("Superfluid connector not available on this chain.")
                 raise typer.Exit(code=1)
-        elif available_funds < tier.price.hold:
-            raise InsufficientFundsError(TokenType.ALEPH, float(tier.price.hold), float(available_funds))
+        elif not is_stream:
+            if isinstance(compute_unit_price, Price) and compute_unit_price.holding:
+                hold_price = Decimal(str(compute_unit_price.holding)) * tier.compute_units
+                if available_funds < hold_price:
+                    raise InsufficientFundsError(TokenType.ALEPH, float(hold_price), float(available_funds))
+            else:
+                echo("No holding price available for this tier.")
+                raise typer.Exit(code=1)
     except InsufficientFundsError as e:
         echo(e)
         raise typer.Exit(code=1) from e
 
     stream_reward_address = None
-    crn, gpu_id = None, None
+    crn, crn_info, gpu_id = None, None, None
     if is_stream or confidential or gpu:
         if crn_url:
             try:
@@ -399,27 +458,42 @@ async def create(
         if crn_url or crn_hash:
             if not gpu:
                 echo("Fetching compute resource node's list...")
+                if not crn_list:
+                    crn_list = await crn_list_future
 
-            try:
-                async with AlephHttpClient() as client:
-                    crn_list = (await client.crn.get_crns_list()).get("crns")
-                    crn = await fetch_crn_info(crn_list, crn_url, crn_hash)
-                    if crn:
-                        if (crn_hash and crn_hash != crn.hash) or (crn_url and crn_url != crn.url):
-                            echo(
-                                f"* Provided CRN *\nUrl: {crn_url}\nHash: {crn_hash}\n\n* Found CRN *\nUrl: "
-                                f"{crn.url}\nHash: {crn.hash}\n\nMismatch between provided CRN and found CRN"
-                            )
-                            raise typer.Exit(1)
-                        crn.display_crn_specs()
-                    else:
-                        echo(f"* Provided CRN *\nUrl: {crn_url}\nHash: {crn_hash}\n\nProvided CRN not found")
-                        raise typer.Exit(1)
-            except Exception as e:
-                raise typer.Exit(1) from e
+            crn = crn_list.find_crn(
+                address=crn_url,
+                crn_hash=crn_hash,
+            )
 
-        while not crn:
+            if crn:
+                if (crn_hash and crn_hash != crn.hash) or (crn_url and crn_url != crn.address):
+                    echo(
+                        f"* Provided CRN *\nUrl: {crn_url}\nHash: {crn_hash}\n\n* Found CRN *\nUrl: "
+                        f"{crn.address}\nHash: {crn.hash}\n\nMismatch between provided CRN and found CRN"
+                    )
+                    raise typer.Exit(1)
+
+                # Now we build a CRNInfo to display full info about the node
+                crn_info = CRNInfo.from_unsanitized_input(crn)
+                crn_info.display_crn_specs()
+            else:
+                echo(f"* Provided CRN *\nUrl: {crn_url}\nHash: {crn_hash}\n\nProvided CRN not found")
+                raise typer.Exit(1)
+
+        while not crn_info:
+            if not crn_list:
+                crn_list = await crn_list_future
+
+            filtered_crns = crn_list.filter_crn(
+                latest_crn_version=True,
+                ipv6=True,
+                stream_address=is_stream,
+                gpu=gpu,
+                confidential=confidential,
+            )
             crn_table = CRNTable(
+                crn_list=filtered_crns,
                 only_latest_crn_version=True,
                 only_reward_address=is_stream,
                 only_qemu=True,
@@ -431,10 +505,10 @@ async def create(
             if not selection:
                 # User has ctrl-c
                 raise typer.Exit(1)
-            crn, gpu_id = selection
-            crn.display_crn_specs()
+            crn_info, gpu_id = selection
+            crn_info.display_crn_specs()
             if not yes_no_input("Deploy on this node?", default=True):
-                crn = None
+                crn_info = None
                 continue
     elif crn_url or crn_hash:
         logger.debug(
@@ -443,31 +517,30 @@ async def create(
         )
 
     requirements, trusted_execution, gpu_requirement, tac_accepted = None, None, None, None
-    if crn:
-        stream_reward_address = safe_getattr(crn, "stream_reward_address") or ""
-        if is_stream and not stream_reward_address:
+    if crn and crn_info:
+        if is_stream and not crn_info.stream_reward_address:
             echo("Selected CRN does not have a defined or valid receiver address.")
             raise typer.Exit(1)
-        if not safe_getattr(crn, "qemu_support"):
+        if not crn_info.qemu_support:
             echo("Selected CRN does not support QEMU hypervisor.")
             raise typer.Exit(1)
         if confidential:
-            if not safe_getattr(crn, "confidential_computing"):
+            if not crn_info.confidential_computing:
                 echo("Selected CRN does not support confidential computing.")
                 raise typer.Exit(1)
             trusted_execution = TrustedExecutionEnvironment(firmware=confidential_firmware_as_hash)
         if gpu:
-            if not safe_getattr(crn, "gpu_support"):
+            if not crn_info.gpu_support:
                 echo("Selected CRN does not support GPU computing.")
                 raise typer.Exit(1)
-            if not crn.compatible_available_gpus:
+            if not crn_info.compatible_available_gpus:
                 echo("Selected CRN does not have any GPU available.")
                 raise typer.Exit(1)
             else:
                 # If gpu_id is None, default to the first available GPU
                 if gpu_id is None:
                     gpu_id = 0
-                selected_gpu = crn.compatible_available_gpus[gpu_id]
+                selected_gpu = crn_info.compatible_available_gpus[gpu_id]
                 gpu_selection = Text.from_markup(
                     f"[orange3]Vendor[/orange3]: {selected_gpu['vendor']}\n[orange3]Model[/orange3]: "
                     f"{selected_gpu['model']}\n[orange3]Device[/orange3]: {selected_gpu['device_name']}"
@@ -492,8 +565,8 @@ async def create(
                 if not yes_no_input("Confirm this GPU device?", default=True):
                     echo("GPU device selection cancelled.")
                     raise typer.Exit(1)
-        if crn.terms_and_conditions:
-            tac_accepted = await crn.display_terms_and_conditions(auto_accept=crn_auto_tac)
+        if crn_info.terms_and_conditions:
+            tac_accepted = await crn_info.display_terms_and_conditions(auto_accept=crn_auto_tac)
             if tac_accepted is None:
                 echo("Failed to fetch terms and conditions.\nContact support or use a different CRN.")
                 raise typer.Exit(1)
@@ -504,8 +577,8 @@ async def create(
 
         requirements = HostRequirements(
             node=NodeRequirements(
-                node_hash=crn.hash,
-                terms_and_conditions=(ItemHash(crn.terms_and_conditions) if tac_accepted else None),
+                node_hash=crn_info.hash,
+                terms_and_conditions=(ItemHash(crn_info.terms_and_conditions) if tac_accepted else None),
             ),
             gpu=gpu_requirement,
         )
@@ -583,8 +656,8 @@ async def create(
         infos = []
 
         # Instances that need to be started by notifying a specific CRN
-        crn_url = crn.url if crn and crn.url else None
-        if crn and (is_stream or confidential or gpu):
+        crn_url = crn_info.url if crn_info and crn_info.url else None
+        if crn_info and (is_stream or confidential or gpu):
             if not crn_url:
                 # Not the ideal solution
                 logger.debug(f"Cannot allocate {item_hash}: no CRN url")
@@ -602,7 +675,7 @@ async def create(
                 community_wallet_address = fetched_settings.get("community_wallet_address")
                 flow_crn_amount = required_tokens * Decimal("0.8")
                 flow_hash_crn = await account.manage_flow(
-                    receiver=crn.stream_reward_address,
+                    receiver=crn_info.stream_reward_address,
                     flow=flow_crn_amount,
                     update_type=FlowUpdate.INCREASE,
                 )
@@ -617,7 +690,7 @@ async def create(
                     echo("Flow creation failed. Check your wallet balance and try recreate the VM.")
                     raise typer.Exit(code=1)
                 # Wait for the flow transactions to be confirmed
-                await wait_for_confirmed_flow(account, crn.stream_reward_address)
+                await wait_for_confirmed_flow(account, crn_info.stream_reward_address)
                 await wait_for_confirmed_flow(account, community_wallet_address)
                 if flow_hash_crn and flow_hash_community:
                     flow_info = "\n".join(
@@ -628,7 +701,7 @@ async def create(
                             f" | {displayable_amount(86400*required_tokens, decimals=3)}/day"
                             f" | {displayable_amount(2628000*required_tokens, decimals=3)}/month[/violet]",
                             "Flow Distribution": "\n[bright_cyan]80% ➜ CRN wallet[/bright_cyan]"
-                            f"\n  Address: {crn.stream_reward_address}\n  Tx: {flow_hash_crn}"
+                            f"\n  Address: {crn_info.stream_reward_address}\n  Tx: {flow_hash_crn}"
                             f"\n[bright_cyan]20% ➜ Community wallet[/bright_cyan]"
                             f"\n  Address: {community_wallet_address}\n  Tx: {flow_hash_community}",
                         }.items()
@@ -644,7 +717,7 @@ async def create(
                     )
 
             # Notify CRN
-            async with VmClient(account, crn.url) as crn_client:
+            async with VmClient(account, crn_info.url) as crn_client:
                 status, result = await crn_client.start_instance(vm_id=item_hash)
                 logger.debug(status, result)
                 if int(status) != 200:
