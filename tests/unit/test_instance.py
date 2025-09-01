@@ -8,11 +8,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import aiohttp
 import pytest
-import typer
 from aiohttp import InvalidURL
-from aleph.sdk.exceptions import InsufficientFundsError
-from aleph.sdk.types import TokenType, Voucher, VoucherAttribute
-from aleph_message.models import Chain, ItemHash
+from aleph_message.models import Chain
 from aleph_message.models.execution.base import Payment, PaymentType
 from aleph_message.models.execution.environment import (
     CpuProperties,
@@ -20,9 +17,7 @@ from aleph_message.models.execution.environment import (
     HypervisorType,
 )
 from multidict import CIMultiDict, CIMultiDictProxy
-from typer import Exit
 
-from aleph_client.commands import help_strings
 from aleph_client.commands.instance import (
     allocate,
     confidential_create,
@@ -40,7 +35,6 @@ from aleph_client.commands.instance.network import fetch_crn_info
 from aleph_client.models import (
     CoreFrequencies,
     CpuUsage,
-    CRNInfo,
     DiskUsage,
     GpuDevice,
     GPUProperties,
@@ -53,7 +47,6 @@ from aleph_client.models import (
 )
 from aleph_client.utils import FORBIDDEN_HOSTS, sanitize_url
 
-from .conftest import MOCK_METADATA_ID, MOCK_VOUCHER_ID
 from .mocks import (
     FAKE_ADDRESS_EVM,
     FAKE_CRN_BASIC_HASH,
@@ -68,10 +61,6 @@ from .mocks import (
     Dict,
     create_mock_load_account,
 )
-
-# Define missing constants
-FAKE_CRN_HASH = FAKE_CRN_BASIC_HASH
-FAKE_CRN_URL = FAKE_CRN_BASIC_URL
 
 
 def dummy_gpu_device() -> GpuDevice:
@@ -261,51 +250,11 @@ def create_mock_validate_ssh_pubkey_file():
     )
 
 
-def mock_crn_info(with_gpu=True):
-    mock_machine_info = dummy_machine_info()
-    gpu_devices = mock_machine_info.machine_usage.gpu.available_devices if with_gpu else []
-    return CRNInfo(
-        hash=ItemHash(FAKE_CRN_HASH),
-        name="Mock CRN",
-        owner=FAKE_ADDRESS_EVM,
-        url=FAKE_CRN_URL,
-        ccn_hash=FAKE_CRN_HASH,
-        status="linked",
-        version="123.420.69",
-        score=0.9,
-        reward_address=FAKE_ADDRESS_EVM,
-        stream_reward_address=mock_machine_info.reward_address,
-        machine_usage=mock_machine_info.machine_usage,
-        ipv6=True,
-        qemu_support=True,
-        confidential_computing=True,
-        gpu_support=True,
-        terms_and_conditions=FAKE_STORE_HASH,
-        compatible_available_gpus=[gpu.model_dump() for gpu in gpu_devices],
-    )
-
-
-def create_mock_fetch_crn_info():
-    return AsyncMock(return_value=mock_crn_info())
-
-
-def create_mock_crn_table(with_gpu=True):
-    # Configure the mock to return CRN info with or without GPUs
-    mock_info = mock_crn_info(with_gpu=with_gpu)
-    return MagicMock(return_value=MagicMock(run_async=AsyncMock(return_value=(mock_info, 0))))
-
-
-def create_mock_fetch_vm_info():
-    return AsyncMock(
-        return_value=[FAKE_VM_HASH, {"crn_url": FAKE_CRN_URL, "allocation_type": help_strings.ALLOCATION_MANUAL}]
-    )
-
-
 def create_mock_shutil():
     return MagicMock(which=MagicMock(return_value="/root/.cargo/bin/sevctl", move=MagicMock(return_value="/fake/path")))
 
 
-def create_mock_client(mock_crn_list, payment_type="superfluid", mock_voucher_service=None):
+def create_mock_client(mock_crn_list, payment_type="superfluid"):
     # Create a proper mock for the crn service
     mock_crn_service = MagicMock()
     mock_crn_service.get_crns_list = AsyncMock(return_value={"crns": mock_crn_list})
@@ -322,13 +271,11 @@ def create_mock_client(mock_crn_list, payment_type="superfluid", mock_voucher_se
             )
         ),
     )
-    # Set the service attributes
+    # Set the crn attribute to the properly mocked service
     mock_client.crn = mock_crn_service
-    mock_client.voucher = mock_voucher_service
 
     mock_client_class = MagicMock()
     mock_client_class.return_value.__aenter__ = AsyncMock(return_value=mock_client)
-
     return mock_client_class, mock_client
 
 
@@ -343,47 +290,6 @@ def create_mock_auth_client(mock_account, payment_type="superfluid", payment_typ
     # Create a proper mock for the crn service
     mock_crn_service = MagicMock()
     mock_crn_service.get_crns_list = AsyncMock(return_value={"crns": mock_crn_list or []})
-
-    # Create voucher attributes using the proper types
-
-    # Create EVM voucher
-    evm_voucher = Voucher(
-        id=MOCK_VOUCHER_ID,
-        metadata_id=MOCK_METADATA_ID,
-        name="EVM Test Voucher",
-        description="A test voucher for EVM chains",
-        external_url="https://example.com",
-        image="https://example.com/image.png",
-        icon="https://example.com/icon.png",
-        attributes=[
-            VoucherAttribute(trait_type="Duration", value="30 days", display_type="string"),
-            VoucherAttribute(trait_type="Compute Units", value="4", display_type="number"),
-            VoucherAttribute(trait_type="Type", value="instance", display_type="string"),
-        ],
-    )
-
-    # Create Solana voucher
-    solana_voucher = Voucher(
-        id="solticket123",
-        metadata_id=MOCK_METADATA_ID,
-        name="Solana Test Voucher",
-        description="A test voucher for Solana",
-        external_url="https://example.com",
-        image="https://example.com/image.png",
-        icon="https://example.com/icon.png",
-        attributes=[
-            VoucherAttribute(trait_type="Duration", value="60 days", display_type="string"),
-            VoucherAttribute(trait_type="Compute Units", value="8", display_type="number"),
-            VoucherAttribute(trait_type="Type", value="instance", display_type="string"),
-        ],
-    )
-
-    # Create a proper mock for voucher service
-    mock_voucher_service = MagicMock()
-    mock_voucher_service.fetch_vouchers_by_chain = AsyncMock(return_value=[evm_voucher])
-    mock_voucher_service.get_vouchers = AsyncMock(return_value=[evm_voucher, solana_voucher])
-    mock_voucher_service.get_evm_vouchers = AsyncMock(return_value=[evm_voucher])
-    mock_voucher_service.get_solana_vouchers = AsyncMock(return_value=[solana_voucher])
 
     mock_response_get_message = create_mock_instance_message(mock_account, payg=True)
     mock_response_create_instance = MagicMock(item_hash=FAKE_VM_HASH)
@@ -406,7 +312,6 @@ def create_mock_auth_client(mock_account, payment_type="superfluid", payment_typ
     # Set the service attributes
     mock_auth_client.crn = mock_crn_service
     mock_auth_client.port_forwarder = mock_port_forwarder
-    mock_auth_client.voucher = mock_voucher_service
 
     if payment_types:
         mock_auth_client.get_program_price = AsyncMock(
@@ -469,9 +374,6 @@ def create_mock_vm_coco_client():
         "coco_hold_evm",
         "coco_superfluid_evm",
         "gpu_superfluid_evm",
-        "nft_payment_avax",
-        "nft_payment_base",
-        "nft_payment_sol",
     ],
     argnames="args, expected",
     argvalues=[
@@ -540,40 +442,8 @@ def create_mock_vm_coco_client():
                 "rootfs": "debian12",
                 "crn_url": FAKE_CRN_GPU_URL,
                 "gpu": True,
-                "ssh_pubkey_file": FAKE_PUBKEY_FILE,
-                "name": "mock_instance",
-                "compute_units": 1,
-                "rootfs_size": 0,
-                "skip_volume": True,
-                "crn_auto_tac": True,
             },
             (FAKE_VM_HASH, FAKE_CRN_GPU_URL, "BASE"),
-        ),
-        (  # nft_payment_avax
-            {
-                "payment_type": "nft",
-                "payment_chain": "AVAX",
-                "rootfs": "debian12",
-            },
-            (FAKE_VM_HASH, None, "AVAX"),
-        ),
-        (  # nft_payment_base
-            {
-                "payment_type": "nft",
-                "payment_chain": "BASE",
-                "rootfs": "debian12",
-                "crn_url": FAKE_CRN_BASIC_URL,
-            },
-            (FAKE_VM_HASH, None, "BASE"),
-        ),
-        (  # nft_payment_sol
-            {
-                "payment_type": "nft",
-                "payment_chain": "SOL",
-                "rootfs": "debian12",
-                "crn_url": FAKE_CRN_BASIC_URL,
-            },
-            (FAKE_VM_HASH, None, "SOL"),
         ),
     ],
 )
@@ -589,7 +459,7 @@ async def test_create_instance(args, expected, mock_crn_list, mock_api_response)
     )
 
     mock_vm_client_class, mock_vm_client = create_mock_vm_client()
-    mock_validated_prompt = MagicMock(return_value="3")
+    mock_validated_prompt = MagicMock(return_value="1")
     mock_fetch_latest_crn_version = create_mock_fetch_latest_crn_version()
 
     # Create a mock that will properly handle the expected parameters and return a valid CRN info
@@ -618,6 +488,7 @@ async def test_create_instance(args, expected, mock_crn_list, mock_api_response)
         patch("aleph_client.commands.pricing.validated_prompt", mock_validated_prompt),
         patch("aleph_client.commands.instance.network.fetch_latest_crn_version", mock_fetch_latest_crn_version),
         patch("aleph_client.commands.instance.yes_no_input", mock_yes_no_input),
+        patch("aleph_client.commands.utils.validated_prompt", mock_validated_prompt),
         patch("aleph_client.commands.instance.wait_for_processed_instance", mock_wait_for_processed_instance),
         patch("aleph_client.commands.instance.wait_for_confirmed_flow", mock_wait_for_confirmed_flow),
         patch("aleph_client.commands.instance.VmClient", mock_vm_client_class),
@@ -1102,6 +973,7 @@ async def test_confidential_create(mock_crn_list, args):
     mock_create = AsyncMock(return_value=[FAKE_VM_HASH, FAKE_CRN_CONF_URL, "AVAX"])
     mock_auth_client_class, mock_auth_client = create_mock_auth_client(mock_account, mock_crn_list=[])
     mock_client_class, mock_client = create_mock_client(mock_crn_list)
+    # Removed unused mock_fetch_vm_info
     mock_allocate = AsyncMock(return_value=None)
     mock_confidential_init_session = AsyncMock(return_value=None)
     mock_confidential_start = AsyncMock()
