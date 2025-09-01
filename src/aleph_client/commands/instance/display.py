@@ -6,6 +6,7 @@ from decimal import Decimal
 from typing import Optional, Union, cast
 
 from aleph.sdk.client.http import AlephHttpClient
+from aleph.sdk.client.services.crn import CRN
 from aleph.sdk.query.responses import PriceResponse
 from aleph.sdk.types import (
     CrnExecutionV1,
@@ -33,7 +34,7 @@ from textual.widgets._data_table import RowKey
 
 from aleph_client.commands.files import download
 from aleph_client.commands.help_strings import ALLOCATION_AUTO, ALLOCATION_MANUAL
-from aleph_client.commands.instance.network import fetch_crn_list
+from aleph_client.commands.instance.network import build_crn_info
 from aleph_client.commands.node import _format_score
 from aleph_client.models import CRNInfo
 
@@ -548,6 +549,7 @@ class CRNTable(App[tuple[CRNInfo, int]]):
     filtered_crns: int = 0
     label_start = reactive("Loading CRNs list ")
     label_end = reactive("")
+    crn_list: list[CRN]
     only_reward_address: bool = False
     only_qemu: bool = False
     only_confidentials: bool = False
@@ -572,6 +574,7 @@ class CRNTable(App[tuple[CRNInfo, int]]):
 
     def __init__(
         self,
+        crn_list: list[CRN],
         only_latest_crn_version: bool = False,
         only_reward_address: bool = False,
         only_qemu: bool = False,
@@ -586,6 +589,7 @@ class CRNTable(App[tuple[CRNInfo, int]]):
         self.only_confidentials = only_confidentials
         self.only_gpu = only_gpu
         self.only_gpu_model = only_gpu_model
+        self.crn_list = crn_list
 
     def compose(self):
         """Create child widgets for the app."""
@@ -622,13 +626,15 @@ class CRNTable(App[tuple[CRNInfo, int]]):
         task.add_done_callback(self.tasks.discard)
 
     async def fetch_node_list(self):
-        crn_list = await fetch_crn_list()
+
+        crn_info = await build_crn_info(self.crn_list)
+
         self.crns = (
-            {RowKey(crn.hash): (crn, 0) for crn in crn_list}
+            {RowKey(crn.hash): (crn, 0) for crn in crn_info}
             if not self.only_gpu_model
             else {
                 RowKey(f"{crn.hash}_{gpu_id}"): (crn, gpu_id)
-                for crn in crn_list
+                for crn in crn_info
                 for gpu_id in range(len(crn.compatible_available_gpus))
             }
         )
@@ -694,7 +700,6 @@ class CRNTable(App[tuple[CRNInfo, int]]):
 
         # Fetch terms and conditions
         tac = await crn.terms_and_conditions_content
-
         self.table.add_row(
             _format_score(crn.score),
             crn.name,
