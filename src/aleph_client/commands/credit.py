@@ -105,3 +105,32 @@ async def list_credits(
     except ClientResponseError as e:
         typer.echo("Failed to retrieve credits.")
         raise (e)
+
+
+@app.command(name="buy")
+async def buy_credits(
+    debug: Annotated[bool, typer.Option()] = False,
+):
+    """Purchase Aleph credits through the payment website."""
+    setup_logging(debug)
+
+    # Payment URL
+    payment_url = "https://pay.aleph.im"
+
+    infos = [
+        Text.from_markup("To purchase Aleph credits, visit:"),
+        Text.from_markup(
+            f"\n\n[bright_yellow][link={payment_url}]{payment_url}[/link][/bright_yellow]",
+            style="italic",
+        ),
+    ]
+
+    console.print(
+        Panel(
+            Text.assemble(*infos),
+            title="Buy Credits",
+            border_style="bright_cyan",
+            expand=False,
+            title_align="left",
+        )
+    )
