@@ -176,7 +176,7 @@ def test_sanitize_url_with_https_scheme():
     assert sanitize_url(url) == url
 
 
-def create_mock_instance_message(mock_account, payg=False, coco=False, gpu=False, tac=False):
+def create_mock_instance_message(mock_account, payg=False, coco=False, gpu=False, tac=False, credit=False):
     tmp = list(FAKE_VM_HASH)
     random.shuffle(tmp)
     vm_item_hash = "".join(tmp)
@@ -204,14 +204,19 @@ def create_mock_instance_message(mock_account, payg=False, coco=False, gpu=False
             volumes=[],
         ),
     )
-    if payg or coco or gpu or tac:
-        vm.content.metadata["name"] += "_payg"  # type: ignore
-        vm.content.payment = Payment(chain=Chain.AVAX, receiver=FAKE_ADDRESS_EVM, type=PaymentType.superfluid)  # type: ignore
+    if payg or coco or gpu or tac or credit:
+        # Set payment type based on what's being requested
+        if credit:
+            vm.content.metadata["name"] += "_credit"  # type: ignore
+            vm.content.payment = Payment(chain=Chain.ETH, receiver=FAKE_ADDRESS_EVM, type=PaymentType.credit)  # type: ignore
+        else:
+            vm.content.metadata["name"] += "_payg"  # type: ignore
+            vm.content.payment = Payment(chain=Chain.AVAX, receiver=FAKE_ADDRESS_EVM, type=PaymentType.superfluid)  # type: ignore
 
         # We load the good CRN for the good Type of VM
         if coco:
             crn_hash = FAKE_CRN_CONF_HASH
-        elif payg:
+        elif payg or credit:
             crn_hash = FAKE_CRN_GPU_HASH
         else:
             crn_hash = FAKE_CRN_BASIC_HASH
@@ -248,7 +253,8 @@ def create_mock_instance_messages(mock_account):
     coco = create_mock_instance_message(mock_account, coco=True)
     gpu = create_mock_instance_message(mock_account, gpu=True)
     tac = create_mock_instance_message(mock_account, tac=True)
-    return AsyncMock(return_value=[regular, payg, coco, gpu, tac])
+    credit = create_mock_instance_message(mock_account, credit=True)
+    return AsyncMock(return_value=[regular, payg, coco, gpu, tac, credit])
 
 
 def create_mock_validate_ssh_pubkey_file():
@@ -270,6 +276,9 @@ def create_mock_client(mock_crn_list_obj, mock_pricing_info_response, mock_setti
     mock_pricing_service = MagicMock()
     mock_pricing_service.get_pricing_aggregate = AsyncMock(return_value=mock_pricing_info_response)
 
+    # Define required tokens based on payment type
+    required_tokens = 0.00001527777777777777 if payment_type == "superfluid" else 1000
+
     mock_client = AsyncMock(
         get_message=AsyncMock(return_value=True),
         get_stored_content=AsyncMock(
@@ -277,8 +286,13 @@ def create_mock_client(mock_crn_list_obj, mock_pricing_info_response, mock_setti
         ),
         get_estimated_price=AsyncMock(
             return_value=MagicMock(
-                required_tokens=0.00001527777777777777 if payment_type == "superfluid" else 1000,
+                required_tokens=required_tokens,
                 payment_type=payment_type,
+            )
+        ),
+        get_credit_balance=AsyncMock(
+            return_value=MagicMock(
+                credits=5000,  # Enough credits for testing
             )
         ),
     )
@@ -325,6 +339,11 @@ def create_mock_auth_client(
         create_instance=AsyncMock(return_value=[mock_response_create_instance, 200]),
         get_program_price=None,
         forget=AsyncMock(return_value=(MagicMock(), 200)),
+        get_credit_balance=AsyncMock(
+            return_value=MagicMock(
+                credits=5000,  # Enough credits for testing
+            )
+        ),
     )
 
     # Set the service attributes
@@ -393,6 +412,7 @@ def create_mock_vm_coco_client():
         "coco_hold_evm",
         "coco_superfluid_evm",
         "gpu_superfluid_evm",
+        "regular_credit_instance",
     ],
     argnames="args, expected",
     argvalues=[
@@ -463,6 +483,15 @@ def create_mock_vm_coco_client():
                 "gpu": True,
             },
             (FAKE_VM_HASH, FAKE_CRN_GPU_URL, "BASE"),
+        ),
+        (  # regular_credit_instance
+            {
+                "payment_type": "credit",
+                "payment_chain": "ETH",  # Not actually used for credit payment type
+                "rootfs": "debian12",
+                "crn_url": FAKE_CRN_BASIC_URL,
+            },
+            (FAKE_VM_HASH, FAKE_CRN_BASIC_URL, "ETH"),
         ),
     ],
 )
