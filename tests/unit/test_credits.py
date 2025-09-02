@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from aiohttp import ClientResponseError
 
-from aleph_client.commands.credits import list_credits, show
+from aleph_client.commands.credit import list_credits, show
 
 
 @pytest.fixture
@@ -17,7 +17,7 @@ def mock_credit_balance_response():
     mock_response.json = AsyncMock(
         return_value={
             "address": "0x1234567890123456789012345678901234567890",
-            "credits": 1000000000,  # 10 credits with 8 decimals
+            "credits": 1000000000,
         }
     )
     return mock_response
@@ -34,11 +34,11 @@ def mock_credits_list_response():
             "credit_balances": [
                 {
                     "address": "0x1234567890123456789012345678901234567890",
-                    "credits": 1000000000,  # 10 credits with 8 decimals
+                    "credits": 1000000000,
                 },
                 {
                     "address": "0x0987654321098765432109876543210987654321",
-                    "credits": 500000000,  # 5 credits with 8 decimals
+                    "credits": 500000000,
                 },
             ],
             "pagination_page": 1,
