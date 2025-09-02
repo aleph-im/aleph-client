@@ -226,8 +226,10 @@ async def create(
         raise ValueError(msg)
 
     # Checks if payment-chain is compatible with PAYG
-    is_stream = payment_type != PaymentType.hold
-    if is_stream:
+    is_stream = payment_type == PaymentType.superfluid
+    is_credit = payment_type == PaymentType.credit
+
+    if is_stream:  # credit don't have payment-chain res
         if address != account.get_address():
             console.print("Payment delegation is incompatible with Pay-As-You-Go.")
             raise typer.Exit(code=1)
@@ -414,40 +416,57 @@ async def create(
             immutable_volume=immutable_volume,
         )
 
-    # Early check with minimal cost (Gas + Aleph ERC20)
-    available_funds = Decimal(0 if is_stream else (await get_balance(address))["available_amount"])
-    try:
-        # Get compute_unit price from PricingPerEntity
-        compute_unit_price = pricing.data[pricing_entity].price.get("compute_unit")
-        if is_stream and isinstance(account, ETHAccount):
-            if account.CHAIN != payment_chain:
-                account.switch_chain(payment_chain)
-            if safe_getattr(account, "superfluid_connector"):
-                if isinstance(compute_unit_price, Price) and compute_unit_price.payg:
-                    payg_price = Decimal(str(compute_unit_price.payg)) * tier.compute_units
-                    flow_rate_per_second = payg_price / Decimal(3600)
-                    account.can_start_flow(flow_rate_per_second)
+    compute_unit_price = pricing.data[pricing_entity].price.get("compute_unit")
+    if payment_type in [PaymentType.hold, PaymentType.superfluid]:
+        # Early check with minimal cost (Gas + Aleph ERC20)
+        available_funds = Decimal(0 if is_stream else (await get_balance(address))["available_amount"])
+        try:
+            # Get compute_unit price from PricingPerEntity
+            if is_stream and isinstance(account, ETHAccount):
+                if account.CHAIN != payment_chain:
+                    account.switch_chain(payment_chain)
+                if safe_getattr(account, "superfluid_connector"):
+                    if isinstance(compute_unit_price, Price) and compute_unit_price.payg:
+                        payg_price = Decimal(str(compute_unit_price.payg)) * tier.compute_units
+                        flow_rate_per_second = payg_price / Decimal(3600)
+                        account.can_start_flow(flow_rate_per_second)
+                    else:
+                        echo("No PAYG price available for this tier.")
+                        raise typer.Exit(code=1)
                 else:
-                    echo("No PAYG price available for this tier.")
+                    echo("Superfluid connector not available on this chain.")
                     raise typer.Exit(code=1)
-            else:
-                echo("Superfluid connector not available on this chain.")
-                raise typer.Exit(code=1)
-        elif not is_stream:
-            if isinstance(compute_unit_price, Price) and compute_unit_price.holding:
-                hold_price = Decimal(str(compute_unit_price.holding)) * tier.compute_units
-                if available_funds < hold_price:
-                    raise InsufficientFundsError(TokenType.ALEPH, float(hold_price), float(available_funds))
-            else:
-                echo("No holding price available for this tier.")
-                raise typer.Exit(code=1)
-    except InsufficientFundsError as e:
-        echo(e)
-        raise typer.Exit(code=1) from e
+            elif not is_stream:
+                if isinstance(compute_unit_price, Price) and compute_unit_price.holding:
+                    hold_price = Decimal(str(compute_unit_price.holding)) * tier.compute_units
+                    if available_funds < hold_price:
+                        raise InsufficientFundsError(TokenType.ALEPH, float(hold_price), float(available_funds))
+                else:
+                    echo("No holding price available for this tier.")
+                    raise typer.Exit(code=1)
+        except InsufficientFundsError as e:
+            echo(e)
+            raise typer.Exit(code=1) from e
+
+    if payment_type == PaymentType.credit:
+        async with AlephHttpClient(api_server=settings.API_HOST) as client:
+            try:
+                credit_info = await client.get_credit_balance(address=address)
+                if isinstance(compute_unit_price, Price) and compute_unit_price.credit:
+                    credit_price = Decimal(str(compute_unit_price.credit)) * tier.compute_units
+                    if credit_info.credits < credit_price:
+                        raise InsufficientFundsError(TokenType.CREDIT, float(credit_price), float(credit_info.credits))
+                    available_funds = credit_info.credits
+                else:
+                    echo("No credits price available for this tier.")
+                    raise typer.Exit(code=1)
+            except Exception as e:
+                echo(f"Failed to fetch credit info, error: {e}")
+                raise typer.Exit(code=1) from e
 
     stream_reward_address = None
     crn, crn_info, gpu_id = None, None, None
-    if is_stream or confidential or gpu:
+    if is_stream or confidential or gpu or is_credit:
         if crn_url:
             try:
                 crn_url = sanitize_url(crn_url)
@@ -657,7 +676,7 @@ async def create(
 
         # Instances that need to be started by notifying a specific CRN
         crn_url = crn_info.url if crn_info and crn_info.url else None
-        if crn_info and (is_stream or confidential or gpu):
+        if crn_info and (is_stream or confidential or gpu or is_credit):
             if not crn_url:
                 # Not the ideal solution
                 logger.debug(f"Cannot allocate {item_hash}: no CRN url")
