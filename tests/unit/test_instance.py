@@ -47,6 +47,7 @@ from aleph_client.models import (
 )
 from aleph_client.utils import FORBIDDEN_HOSTS, sanitize_url
 
+from .conftest import MOCK_METADATA_ID, MOCK_VOUCHER_ID
 from .mocks import (
     FAKE_ADDRESS_EVM,
     FAKE_CRN_BASIC_HASH,
@@ -254,7 +255,7 @@ def create_mock_shutil():
     return MagicMock(which=MagicMock(return_value="/root/.cargo/bin/sevctl", move=MagicMock(return_value="/fake/path")))
 
 
-def create_mock_client(mock_crn_list, payment_type="superfluid"):
+def create_mock_client(mock_crn_list, payment_type="superfluid", mock_voucher_service=None):
     # Create a proper mock for the crn service
     mock_crn_service = MagicMock()
     mock_crn_service.get_crns_list = AsyncMock(return_value={"crns": mock_crn_list})
@@ -271,11 +272,13 @@ def create_mock_client(mock_crn_list, payment_type="superfluid"):
             )
         ),
     )
-    # Set the crn attribute to the properly mocked service
+    # Set the service attributes
     mock_client.crn = mock_crn_service
+    mock_client.voucher = mock_voucher_service
 
     mock_client_class = MagicMock()
     mock_client_class.return_value.__aenter__ = AsyncMock(return_value=mock_client)
+
     return mock_client_class, mock_client
 
 
@@ -290,6 +293,48 @@ def create_mock_auth_client(mock_account, payment_type="superfluid", payment_typ
     # Create a proper mock for the crn service
     mock_crn_service = MagicMock()
     mock_crn_service.get_crns_list = AsyncMock(return_value={"crns": mock_crn_list or []})
+
+    # Create voucher attributes using the proper types
+    from aleph.sdk.types import Voucher, VoucherAttribute
+
+    # Create EVM voucher
+    evm_voucher = Voucher(
+        id=MOCK_VOUCHER_ID,
+        metadata_id=MOCK_METADATA_ID,
+        name="EVM Test Voucher",
+        description="A test voucher for EVM chains",
+        external_url="https://example.com",
+        image="https://example.com/image.png",
+        icon="https://example.com/icon.png",
+        attributes=[
+            VoucherAttribute(trait_type="Duration", value="30 days", display_type="string"),
+            VoucherAttribute(trait_type="Compute Units", value="4", display_type="number"),
+            VoucherAttribute(trait_type="Type", value="instance", display_type="string"),
+        ],
+    )
+
+    # Create Solana voucher
+    solana_voucher = Voucher(
+        id="solticket123",
+        metadata_id=MOCK_METADATA_ID,
+        name="Solana Test Voucher",
+        description="A test voucher for Solana",
+        external_url="https://example.com",
+        image="https://example.com/image.png",
+        icon="https://example.com/icon.png",
+        attributes=[
+            VoucherAttribute(trait_type="Duration", value="60 days", display_type="string"),
+            VoucherAttribute(trait_type="Compute Units", value="8", display_type="number"),
+            VoucherAttribute(trait_type="Type", value="instance", display_type="string"),
+        ],
+    )
+
+    # Create a proper mock for voucher service
+    mock_voucher_service = MagicMock()
+    mock_voucher_service.fetch_vouchers_by_chain = AsyncMock(return_value=[evm_voucher])
+    mock_voucher_service.get_vouchers = AsyncMock(return_value=[evm_voucher, solana_voucher])
+    mock_voucher_service.get_evm_vouchers = AsyncMock(return_value=[evm_voucher])
+    mock_voucher_service.get_solana_vouchers = AsyncMock(return_value=[solana_voucher])
 
     mock_response_get_message = create_mock_instance_message(mock_account, payg=True)
     mock_response_create_instance = MagicMock(item_hash=FAKE_VM_HASH)
@@ -312,6 +357,7 @@ def create_mock_auth_client(mock_account, payment_type="superfluid", payment_typ
     # Set the service attributes
     mock_auth_client.crn = mock_crn_service
     mock_auth_client.port_forwarder = mock_port_forwarder
+    mock_auth_client.voucher = mock_voucher_service
 
     if payment_types:
         mock_auth_client.get_program_price = AsyncMock(
@@ -374,6 +420,9 @@ def create_mock_vm_coco_client():
         "coco_hold_evm",
         "coco_superfluid_evm",
         "gpu_superfluid_evm",
+        "nft_payment_avax",
+        "nft_payment_base",
+        "nft_payment_sol",
     ],
     argnames="args, expected",
     argvalues=[
@@ -444,6 +493,32 @@ def create_mock_vm_coco_client():
                 "gpu": True,
             },
             (FAKE_VM_HASH, FAKE_CRN_GPU_URL, "BASE"),
+        ),
+        (  # nft_payment_avax
+            {
+                "payment_type": "nft",
+                "payment_chain": "AVAX",
+                "rootfs": "debian12",
+            },
+            (FAKE_VM_HASH, None, "AVAX"),
+        ),
+        (  # nft_payment_base
+            {
+                "payment_type": "nft",
+                "payment_chain": "BASE",
+                "rootfs": "debian12",
+                "crn_url": FAKE_CRN_BASIC_URL,
+            },
+            (FAKE_VM_HASH, None, "BASE"),
+        ),
+        (  # nft_payment_sol
+            {
+                "payment_type": "nft",
+                "payment_chain": "SOL",
+                "rootfs": "debian12",
+                "crn_url": FAKE_CRN_BASIC_URL,
+            },
+            (FAKE_VM_HASH, None, "SOL"),
         ),
     ],
 )

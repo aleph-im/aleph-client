@@ -244,7 +244,7 @@ def test_account_sign_bytes(env_files):
     assert result.stdout.startswith("\nSignature:")
 
 
-def test_account_balance(mocker, env_files):
+def test_account_balance(mocker, env_files, mock_voucher_service):
     settings.CONFIG_FILE = env_files[1]
     balance_response = {
         "address": "0xCAfEcAfeCAfECaFeCaFecaFecaFECafECafeCaFe",
@@ -255,7 +255,10 @@ def test_account_balance(mocker, env_files):
     }
 
     mocker.patch("aleph_client.commands.account.get_balance", return_value=balance_response)
-    mocker.patch("aleph_client.voucher.VoucherManager.get_all", return_value=[])
+    # TODO: used the mocked_client fixture instead (also need to move get_balance to the SDK)
+    mock_client = mocker.AsyncMock()
+    mock_client.voucher = mock_voucher_service
+    mocker.patch("aleph_client.commands.account.AuthenticatedAlephHttpClient.__aenter__", return_value=mock_client)
 
     result = runner.invoke(
         app, ["account", "balance", "--address", "0xCAfEcAfeCAfECaFeCaFecaFecaFECafECafeCaFe", "--chain", "ETH"]
@@ -263,6 +266,8 @@ def test_account_balance(mocker, env_files):
     assert result.exit_code == 0
     assert result.stdout.startswith("╭─ Account Infos")
     assert "Available: 20189.67" in result.stdout
+    assert "Vouchers:" in result.stdout
+    assert "EVM Test Voucher" in result.stdout
 
 
 def test_account_balance_error(mocker, env_files):
