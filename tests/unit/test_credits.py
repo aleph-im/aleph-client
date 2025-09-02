@@ -114,7 +114,7 @@ async def test_show_with_account(mock_credit_balance_response):
     """Test the show command using account-derived address."""
 
     @patch("aiohttp.ClientSession.get")
-    @patch("aleph_client.commands.credits._load_account")
+    @patch("aleph_client.commands.credit._load_account")
     async def run(mock_load_account, mock_get):
         mock_get.return_value = mock_credit_balance_response
 
@@ -143,7 +143,7 @@ async def test_show_with_account(mock_credit_balance_response):
 async def test_show_no_address_no_account(capsys):
     """Test the show command with no address and no account."""
 
-    @patch("aleph_client.commands.credits._load_account")
+    @patch("aleph_client.commands.credit._load_account")
     async def run(mock_load_account):
         # Setup the mock account to return None (no account found)
         mock_load_account.return_value = None
