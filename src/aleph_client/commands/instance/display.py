@@ -344,10 +344,15 @@ class InstanceDisplay:
             color_allocation = "magenta3"
             crn_hash = safe_getattr(self.message.content.requirements, "node.node_hash") or ""
         else:
-            crn_url = self.allocation.allocations.node.url
+            allocation_node = (
+                self.allocation.allocations.node
+                if self.allocation.allocations and self.allocation.allocations.node
+                else None
+            )
+            crn_url = allocation_node.url if allocation_node else ""
             allocation_str = ALLOCATION_AUTO
             color_allocation = "deep_sky_blue1"
-            crn_hash = self.allocation.allocations.node.node_id
+            crn_hash = allocation_node.node_id if allocation_node else ""
 
         # Assemble the complete allocation column
         self.allocation_column = cast(
