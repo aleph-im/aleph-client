@@ -13,12 +13,12 @@ from collections.abc import Generator
 from datetime import datetime, timezone
 from pathlib import Path
 from tempfile import NamedTemporaryFile
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from aleph.sdk.chains.common import generate_key
 from aleph.sdk.chains.ethereum import ETHAccount, get_fallback_private_key
-from aleph.sdk.types import StoredContent
+from aleph.sdk.types import StoredContent, Voucher, VoucherAttribute
 from aleph_message.models import Chain, ItemHash, ItemType, StoreContent, StoreMessage
 from aleph_message.models.base import MessageType
 
@@ -36,6 +36,12 @@ from .mocks import (
     FAKE_CRN_GPU_URL,
     FAKE_STORE_HASH,
 )
+
+# Constants for voucher testing
+MOCK_ADDRESS = "0x1234567890123456789012345678901234567890"
+MOCK_SOLANA_ADDRESS = "abcdefghijklmnopqrstuvwxyz123456789"
+MOCK_METADATA_ID = "metadata123"
+MOCK_VOUCHER_ID = "voucher123"
 
 
 @pytest.fixture
@@ -466,3 +472,55 @@ def mock_aiohttp_client_session():
         instance.get = AsyncMock(return_value=mock_response)
 
         yield mock_session
+
+
+@pytest.fixture
+def mock_vouchers():
+    """Create mock vouchers for testing."""
+    # Create EVM voucher
+    evm_voucher = Voucher(
+        id=MOCK_VOUCHER_ID,
+        metadata_id=MOCK_METADATA_ID,
+        name="EVM Test Voucher",
+        description="A test voucher for EVM chains",
+        external_url="https://example.com",
+        image="https://example.com/image.png",
+        icon="https://example.com/icon.png",
+        attributes=[
+            VoucherAttribute(trait_type="Duration", value="30 days", display_type="string"),
+            VoucherAttribute(trait_type="Compute Units", value="4", display_type="number"),
+            VoucherAttribute(trait_type="Type", value="instance", display_type="string"),
+        ],
+    )
+
+    # Create Solana voucher
+    solana_voucher = Voucher(
+        id="solticket123",
+        metadata_id=MOCK_METADATA_ID,
+        name="Solana Test Voucher",
+        description="A test voucher for Solana",
+        external_url="https://example.com",
+        image="https://example.com/image.png",
+        icon="https://example.com/icon.png",
+        attributes=[
+            VoucherAttribute(trait_type="Duration", value="60 days", display_type="string"),
+            VoucherAttribute(trait_type="Compute Units", value="8", display_type="number"),
+            VoucherAttribute(trait_type="Type", value="instance", display_type="string"),
+        ],
+    )
+
+    return evm_voucher, solana_voucher
+
+
+@pytest.fixture
+def mock_voucher_service(mock_vouchers):
+    """Create a mock voucher service with pre-configured responses."""
+    evm_voucher, solana_voucher = mock_vouchers
+
+    mock_service = MagicMock()
+    mock_service.fetch_vouchers_by_chain = AsyncMock(return_value=[evm_voucher])
+    mock_service.get_vouchers = AsyncMock(return_value=[evm_voucher, solana_voucher])
+    mock_service.get_evm_vouchers = AsyncMock(return_value=[evm_voucher])
+    mock_service.get_solana_vouchers = AsyncMock(return_value=[solana_voucher])
+
+    return mock_service
