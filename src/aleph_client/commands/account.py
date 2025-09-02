@@ -9,6 +9,7 @@ from typing import Annotated, Optional
 
 import aiohttp
 import typer
+from aleph.sdk import AlephHttpClient
 from aleph.sdk.account import _load_account
 from aleph.sdk.chains.common import generate_key
 from aleph.sdk.chains.solana import parse_private_key as parse_solana_private_key
@@ -334,12 +335,26 @@ async def balance(
                 ),
             ]
 
+            try:
+                # Fetch user Credits
+                async with AlephHttpClient() as client:
+                    credits_balance = await client.get_credit_balance(address)
+                    infos += [
+                        Text("\nCredits:"),
+                        Text.from_markup(
+                            f"[bright_cyan] {displayable_amount(credits_balance.credits, decimals=2)}[/bright_cyan]"
+                        ),
+                    ]
+            except Exception as e:
+                # In the case we call on ccn that does not support credits yet
+                logger.warning(f"Failed to fetch credits balance: {e}")
+
             # Get vouchers and add them to Account Info panel
             vouchers = await voucher_manager.get_all(address=address)
             if vouchers:
                 voucher_names = [voucher.name for voucher in vouchers]
                 infos += [
-                    Text("\n\nVouchers:"),
+                    Text("\nVouchers:"),
                     Text.from_markup(f"\n [bright_cyan]{', '.join(voucher_names)}[/bright_cyan]"),
                 ]
 
