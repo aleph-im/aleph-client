@@ -62,6 +62,7 @@ async def pin(
 @app.command()
 async def upload(
     path: Annotated[Path, typer.Argument(help="Path of the file to upload")],
+    storage_engine: Annotated[Optional[StorageEnum], typer.Option(help=help_strings.STORAGE_ENGINE)] = None,
     channel: Annotated[Optional[str], typer.Option(help=help_strings.CHANNEL)] = settings.DEFAULT_CHANNEL,
     private_key: Annotated[Optional[str], typer.Option(help=help_strings.PRIVATE_KEY)] = settings.PRIVATE_KEY_STRING,
     private_key_file: Annotated[
@@ -76,6 +77,7 @@ async def upload(
 
     account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
 
+
     async with AuthenticatedAlephHttpClient(account=account, api_server=settings.API_HOST) as client:
         if not path.is_file():
             typer.echo(f"Error: File not found: '{path}'")
@@ -85,7 +87,14 @@ async def upload(
             logger.debug("Reading file")
             # TODO: Read in lazy mode instead of copying everything in memory
             file_content = fd.read()
-            storage_engine = StorageEnum.ipfs if len(file_content) > 4 * 1024 * 1024 else StorageEnum.storage
+            file_size = len(file_content)
+            storage_limit = 4 * 1024 * 1024  # 4MB
+            if storage_engine is None:
+                storage_engine = StorageEnum.ipfs if file_size > storage_limit else StorageEnum.storage
+            if storage_engine == StorageEnum.storage and file_size > storage_limit:
+                typer.echo("Warning: File is larger than 4MB, switching to IPFS storage.")
+                storage_engine = StorageEnum.ipfs
+
             logger.debug("Uploading file")
             result: StoreMessage
             status: MessageStatus
@@ -271,6 +280,8 @@ async def list_files(
         # Build the query parameters
         query_params = GetAccountFilesQueryParams(pagination=pagination, page=page, sort_order=sort_order)
 
+        async with AlephHttpClient(api_server=settings.API_HOST) as client:
+            await client.get_fi
         uri = f"{settings.API_HOST}/api/v0/addresses/{address}/files"
         async with aiohttp.ClientSession() as session:
             response = await session.get(uri, params=query_params.model_dump())
