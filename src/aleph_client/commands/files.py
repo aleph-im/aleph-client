@@ -77,7 +77,6 @@ async def upload(
 
     account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
 
-
     async with AuthenticatedAlephHttpClient(account=account, api_server=settings.API_HOST) as client:
         if not path.is_file():
             typer.echo(f"Error: File not found: '{path}'")
