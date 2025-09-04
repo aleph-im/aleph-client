@@ -279,8 +279,6 @@ async def list_files(
         # Build the query parameters
         query_params = GetAccountFilesQueryParams(pagination=pagination, page=page, sort_order=sort_order)
 
-        async with AlephHttpClient(api_server=settings.API_HOST) as client:
-            await client.get_fi
         uri = f"{settings.API_HOST}/api/v0/addresses/{address}/files"
         async with aiohttp.ClientSession() as session:
             response = await session.get(uri, params=query_params.model_dump())
