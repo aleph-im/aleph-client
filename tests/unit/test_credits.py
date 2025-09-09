@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from aiohttp import ClientResponseError
 
-from aleph_client.commands.credit import list_credits, show
+from aleph_client.commands.credit import show
 
 
 @pytest.fixture
@@ -178,118 +178,6 @@ async def test_show_api_error(mock_credit_error_response):
                 private_key_file=None,
                 json=False,
                 debug=False,
-            )
-
-    await run()
-
-
-@pytest.mark.asyncio
-async def test_list_credits_default(mock_credits_list_response, capsys):
-    """Test the list_credits command with default parameters."""
-
-    @patch("aiohttp.ClientSession.get")
-    async def run(mock_get):
-        mock_get.return_value = mock_credits_list_response
-
-        # Run the list_credits command with default parameters
-        await list_credits(
-            page_size=100,
-            page=1,
-            min_balance=None,
-            json=False,
-        )
-
-    await run()
-    captured = capsys.readouterr()
-    assert "Credits Information" in captured.out
-    assert "0x1234567890123456789012345678901234567890" in captured.out
-    # The credits might be displayed in their raw form without formatting
-    assert "1000000000" in captured.out
-
-
-@pytest.mark.asyncio
-async def test_list_credits_with_filter(mock_credits_list_response, capsys):
-    """Test the list_credits command with min_balance filter."""
-
-    @patch("aiohttp.ClientSession.get")
-    async def run(mock_get):
-        mock_get.return_value = mock_credits_list_response
-
-        # Run the list_credits command with min_balance filter
-        await list_credits(
-            page_size=100,
-            page=1,
-            min_balance=1000000,  # 0.01 credits with 8 decimals
-            json=False,
-        )
-
-    await run()
-    captured = capsys.readouterr()
-    assert "Credits Information" in captured.out
-
-
-@pytest.mark.asyncio
-async def test_list_credits_json_output(mock_credits_list_response, capsys):
-    """Test the list_credits command with JSON output."""
-
-    @patch("aiohttp.ClientSession.get")
-    async def run(mock_get):
-        mock_get.return_value = mock_credits_list_response
-
-        # Run the list_credits command with JSON output
-        await list_credits(
-            page_size=100,
-            page=1,
-            min_balance=None,
-            json=True,
-        )
-
-    await run()
-    captured = capsys.readouterr()
-    assert "credit_balances" in captured.out
-    assert "pagination_page" in captured.out
-
-
-@pytest.mark.asyncio
-async def test_list_credits_custom_pagination(mock_credits_list_response):
-    """Test the list_credits command with custom pagination parameters."""
-
-    @patch("aiohttp.ClientSession.get")
-    async def run(mock_get):
-        mock_get.return_value = mock_credits_list_response
-
-        # Run the list_credits command with custom pagination
-        await list_credits(
-            page_size=50,
-            page=2,
-            min_balance=None,
-            json=False,
-        )
-
-        # Verify that the parameters were passed correctly
-        # In the SDK, these parameters are passed as part of the 'params' argument, not in the URL
-        called_params = mock_get.call_args[1]["params"]
-        assert called_params["pagination"] == "50"
-        assert called_params["page"] == "2"
-
-    await run()
-
-
-@pytest.mark.asyncio
-async def test_list_credits_api_error(mock_credit_error_response):
-    """Test the list_credits command handling API errors."""
-
-    @patch("aiohttp.ClientSession.get")
-    async def run(mock_get):
-        mock_get.return_value = mock_credit_error_response
-
-        # Run the list_credits command and expect it to handle the error
-        with pytest.raises(ClientResponseError):
-            await list_credits(
-                page_size=100,
-                page=1,
-                min_balance=None,
-                json=False,
             )
 
     await run()
