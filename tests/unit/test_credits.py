@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from aiohttp import ClientResponseError
 
-from aleph_client.commands.credit import list_credits, show
+from aleph_client.commands.credit import buy_credits, list_credits, show
 
 
 @pytest.fixture
@@ -293,3 +293,19 @@ async def test_list_credits_api_error(mock_credit_error_response):
             )
 
     await run()
+
+
+@pytest.mark.asyncio
+async def test_buy_credits(capsys):
+    """Test the buy_credits command outputs the payment URL information."""
+
+    # Call the buy_credits function
+    await buy_credits(debug=False)
+
+    # Capture the output
+    captured = capsys.readouterr()
+
+    # Check that the expected elements are in the output
+    assert "Buy Credits" in captured.out
+    assert "To purchase Aleph credits, visit:" in captured.out
+    assert "https://pay.aleph.im" in captured.out
