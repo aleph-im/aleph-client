@@ -115,7 +115,7 @@ async def buy_credits(
     setup_logging(debug)
 
     # Payment URL
-    payment_url = "https://pay.aleph.im"
+    payment_url = "https://app.aleph.cloud/console/"
 
     infos = [
         Text.from_markup("To purchase Aleph credits, visit:"),
