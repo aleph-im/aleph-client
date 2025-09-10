@@ -6,6 +6,7 @@ from typing import Optional
 
 from aiohttp import ClientConnectorError, ClientResponseError, ClientSession, InvalidURL
 from aleph.sdk import AlephHttpClient
+from aleph.sdk.client.services.crn import CRN, CrnList
 from aleph.sdk.conf import settings
 from aleph.sdk.exceptions import ForgottenMessageError, MessageNotFoundError
 from aleph_message.models import InstanceMessage
@@ -15,12 +16,7 @@ from pydantic import ValidationError
 from typer import Exit
 
 from aleph_client.models import CRNInfo
-from aleph_client.utils import (
-    async_lru_cache,
-    extract_valid_eth_address,
-    fetch_json,
-    sanitize_url,
-)
+from aleph_client.utils import async_lru_cache, fetch_json, sanitize_url
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +36,7 @@ PATH_ABOUT_EXECUTIONS_LIST = "/about/executions/list"
 
 
 @async_lru_cache
-async def call_program_crn_list() -> dict:
+async def call_program_crn_list() -> CrnList:
     """Call program to fetch the compute resource node list."""
     error = None
     try:
@@ -83,46 +79,15 @@ async def fetch_latest_crn_version() -> str:
 
 
 @async_lru_cache
-async def fetch_crn_list(
-    latest_crn_version: bool = False,
-    ipv6: bool = False,
-    stream_address: bool = False,
-    confidential: bool = False,
-    gpu: bool = False,
-) -> list[CRNInfo]:
-    """Fetch compute resource node list, unfiltered by default.
+async def fetch_network_gpu(crn_list=None):
+    async with AlephHttpClient(api_server=settings.API_HOST) as client:
+        return await client.crn.fetch_gpu_on_network(crn_list=crn_list)
 
-    Args:
-        latest_crn_version (bool): Filter by latest crn version.
-        ipv6 (bool): Filter invalid IPv6 configuration.
-        stream_address (bool): Filter invalid payment receiver address.
-        confidential (bool): Filter by confidential computing support.
-        gpu (bool): Filter by GPU support.
-    Returns:
-        list[CRNInfo]: List of compute resource nodes.
-    """
 
-    data = await call_program_crn_list()
-    # current_crn_version = await fetch_latest_crn_version()
-    # Relax current filter to allow use aleph-vm versions since 1.5.1.
-    # TODO: Allow to specify that option on settings aggregate on maybe on GitHub
-    current_crn_version = "1.5.1"
-    crns = []
-    for crn in data.get("crns"):
-        gpu_support = crn.get("gpu_support")
-        available_gpu = crn.get("compatible_available_gpus")
-        if latest_crn_version and (crn.get("version") or "0.0.0") < current_crn_version:
-            continue
-        if ipv6:
-            ipv6_check = crn.get("ipv6_check")
-            if not ipv6_check or not all(ipv6_check.values()):
-                continue
-        if stream_address and not extract_valid_eth_address(crn.get("payment_receiver_address") or ""):
-            continue
-        if confidential and not crn.get("confidential_support"):
-            continue
-        if gpu and (not gpu_support or not available_gpu):
-            continue
+async def build_crn_info(crn_list: list[CRN]) -> list[CRNInfo]:
+    """Build a list of CRNInfo from CRN List already filtered."""
+    crns: list[CRNInfo] = []
+    for crn in crn_list:
         try:
             crns.append(CRNInfo.from_unsanitized_input(crn))
         except ValidationError:

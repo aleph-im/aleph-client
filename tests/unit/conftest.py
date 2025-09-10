@@ -18,6 +18,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from aleph.sdk.chains.common import generate_key
 from aleph.sdk.chains.ethereum import ETHAccount, get_fallback_private_key
+from aleph.sdk.client.services.crn import CrnList
 from aleph.sdk.types import StoredContent
 from aleph_message.models import Chain, ItemHash, ItemType, StoreContent, StoreMessage
 from aleph_message.models.base import MessageType
@@ -263,6 +264,16 @@ def mock_crn_list():
             "ipv6_check": {"host": True, "vm": False},
         },
     ]
+
+
+@pytest.fixture
+def mock_crn_list_obj(mock_crn_list):
+    """
+    Wrap the raw mock_crn_list data into a CrnList object,
+    same type as call_program_crn_list() would return.
+    """
+    # call_program_crn_list expects a JSON dict with "crns"
+    return CrnList.from_api({"crns": mock_crn_list})
 
 
 @pytest.fixture
