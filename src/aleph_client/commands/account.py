@@ -15,6 +15,7 @@ from aleph.sdk.chains.common import generate_key
 from aleph.sdk.chains.solana import parse_private_key as parse_solana_private_key
 from aleph.sdk.conf import (
     MainConfiguration,
+    AccountType,
     load_main_configuration,
     save_main_configuration,
     settings,
@@ -25,6 +26,7 @@ from aleph.sdk.evm_utils import (
     get_compatible_chains,
 )
 from aleph.sdk.utils import bytes_from_hex, displayable_amount
+from aleph.sdk.wallets.ledger import LedgerETHAccount
 from aleph_message.models import Chain
 from rich import box
 from rich.console import Console
@@ -145,10 +147,10 @@ async def create(
 
 @app.command(name="address")
 def display_active_address(
-    private_key: Annotated[Optional[str], typer.Option(help=help_strings.PRIVATE_KEY)] = settings.PRIVATE_KEY_STRING,
+    private_key: Annotated[Optional[str], typer.Option(help=help_strings.PRIVATE_KEY)] = None,
     private_key_file: Annotated[
         Optional[Path], typer.Option(help=help_strings.PRIVATE_KEY_FILE)
-    ] = settings.PRIVATE_KEY_FILE,
+    ] = None,
 ):
     """
     Display your public address(es).
@@ -476,10 +478,15 @@ async def vouchers(
 async def configure(
     private_key_file: Annotated[Optional[Path], typer.Option(help="New path to the private key file")] = None,
     chain: Annotated[Optional[Chain], typer.Option(help="New active chain")] = None,
+    address: Annotated[Optional[str], typer.Option(help="New active address")] = None,
+    account_type: Annotated[Optional[AccountType], typer.Option(help="Account type")] = None,
 ):
     """Configure current private key file and active chain (default selection)"""
 
     unlinked_keys, config = await list_unlinked_keys()
+
+    if not account_type:
+        account_type = AccountType.INTERNAL
 
     # Fixes private key file path
     if private_key_file:
@@ -494,7 +501,7 @@ async def configure(
         raise typer.Exit()
 
     # Configures active private key file
-    if not private_key_file and config and hasattr(config, "path") and Path(config.path).exists():
+    if not account_type and not private_key_file and config and hasattr(config, "path") and Path(config.path).exists():
         if not yes_no_input(
             f"Active private key file: [bright_cyan]{config.path}[/bright_cyan]\n[yellow]Keep current active private "
             "key?[/yellow]",
@@ -521,8 +528,32 @@ async def configure(
             private_key_file = Path(config.path)
 
     if not private_key_file:
-        typer.secho("No private key file provided or found.", fg=typer.colors.RED)
-        raise typer.Exit()
+        if yes_no_input(
+                f"[bright_cyan]No private key file found.[/bright_cyan] [yellow]"
+                f"Do you want to import from Ledger?[/yellow]",
+                default="y",
+        ):
+            accounts = LedgerETHAccount.get_accounts()
+            account_addresses = [acc.address for acc in accounts]
+
+            console.print("[bold cyan]Available addresses on Ledger:[/bold cyan]")
+            for idx, account_address in enumerate(account_addresses, start=1):
+                console.print(f"[{idx}] {account_address}")
+
+            key_choice = Prompt.ask("Choose a address by index")
+            if key_choice.isdigit():
+                key_index = int(key_choice) - 1
+                selected_address = account_addresses[key_index]
+
+                if not selected_address:
+                    typer.secho("No valid address selected.", fg=typer.colors.RED)
+                    raise typer.Exit()
+
+                address = selected_address
+                account_type = AccountType.EXTERNAL
+        else:
+            typer.secho("No private key file provided or found.", fg=typer.colors.RED)
+            raise typer.Exit()
 
     # Configure active chain
     if not chain and config and hasattr(config, "chain"):
@@ -545,11 +576,11 @@ async def configure(
         raise typer.Exit()
 
     try:
-        config = MainConfiguration(path=private_key_file, chain=chain)
+        config = MainConfiguration(path=private_key_file, chain=chain, address=address, type=account_type)
         save_main_configuration(settings.CONFIG_FILE, config)
         console.print(
-            f"New Default Configuration: [italic bright_cyan]{config.path}[/italic bright_cyan] with [italic "
-            f"bright_cyan]{config.chain}[/italic bright_cyan]",
+            f"New Default Configuration: [italic bright_cyan]{config.path or config.address}"
+            f"[/italic bright_cyan] with [italic bright_cyan]{config.chain}[/italic bright_cyan]",
             style=typer.colors.GREEN,
         )
     except ValueError as e:

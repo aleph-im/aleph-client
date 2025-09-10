@@ -31,7 +31,8 @@ dependencies = [
   "aiodns==3.2",
   "aiohttp==3.11.13",
   "aleph-message>=1.0.5",
-  "aleph-sdk-python>=2.1",
+  #"aleph-sdk-python>=2.1",
+  "aleph-sdk-python @ git+https://github.com/aleph-im/aleph-sdk-python@andres-feature-implement_ledger_wallet",
   "base58==2.1.1",               # Needed now as default with _load_account changement
   "click<8.2",
   "py-sr25519-bindings==0.2",    # Needed for DOT signatures
@@ -44,6 +45,8 @@ dependencies = [
   "substrate-interface==1.7.11", # Needed for DOT signatures
   "textual==0.73",
   "typer==0.15.2",
+  "ledgerblue>=0.1.48",
+  "ledgereth>=0.10.0",
 ]
 optional-dependencies.cosmos = [ "cosmospy==6" ]
 optional-dependencies.docs = [ "sphinxcontrib-plantuml==0.30" ]
