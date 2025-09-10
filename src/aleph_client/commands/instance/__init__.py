@@ -171,6 +171,7 @@ async def create(
 
     # Populates account / address
     account = _load_account(private_key, private_key_file, chain=payment_chain)
+
     address = address or settings.ADDRESS_TO_USE or account.get_address()
 
     # Loads default configuration if no chain is set
