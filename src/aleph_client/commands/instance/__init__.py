@@ -15,7 +15,7 @@ from aleph.sdk.account import _load_account
 from aleph.sdk.chains.ethereum import ETHAccount
 from aleph.sdk.client.vm_client import VmClient
 from aleph.sdk.client.vm_confidential_client import VmConfidentialClient
-from aleph.sdk.conf import load_main_configuration, settings
+from aleph.sdk.conf import AccountType, load_main_configuration, settings
 from aleph.sdk.evm_utils import (
     FlowUpdate,
     get_chains_with_holding,
@@ -169,18 +169,23 @@ async def create(
         )
     ssh_pubkey: str = ssh_pubkey_file.read_text(encoding="utf-8").strip()
 
-    # Populates account / address
-    account = _load_account(private_key, private_key_file, chain=payment_chain)
-    address = address or settings.ADDRESS_TO_USE or account.get_address()
-
     # Loads default configuration if no chain is set
+    config = load_main_configuration(settings.CONFIG_FILE)
     if payment_chain is None:
-        config = load_main_configuration(settings.CONFIG_FILE)
         if config is not None:
             payment_chain = config.chain
             console.print(f"Preset to default chain: [green]{payment_chain}[/green]")
         else:
             console.print("No active chain selected in configuration.")
+
+    # Populates account / address
+    if config and config.type == AccountType.EXTERNAL:
+        account = _load_account(None, None, chain=payment_chain)
+    else:
+        account = _load_account(private_key, private_key_file, chain=payment_chain)
+
+    address = address or settings.ADDRESS_TO_USE or account.get_address()
+    console.print(f"Address to use: {address}.")
 
     # Populates payment type if not set
     if not payment_type:
@@ -738,7 +743,13 @@ async def delete(
 
     setup_logging(debug)
 
-    account = _load_account(private_key, private_key_file, chain=chain)
+    config = load_main_configuration(settings.CONFIG_FILE)
+    # Populates account / address
+    if config and config.type == AccountType.EXTERNAL:
+        account = _load_account(None, None, chain=chain)
+    else:
+        account = _load_account(private_key, private_key_file, chain=chain)
+
     async with AuthenticatedAlephHttpClient(account=account, api_server=settings.API_HOST) as client:
         try:
             existing_message: InstanceMessage = await client.get_message(
@@ -853,7 +864,13 @@ async def list_instances(
 
     setup_logging(debug)
 
-    account = _load_account(private_key, private_key_file, chain=chain)
+    config = load_main_configuration(settings.CONFIG_FILE)
+    # Populates account / address
+    if config and config.type == AccountType.EXTERNAL:
+        account = _load_account(None, None, chain=chain)
+    else:
+        account = _load_account(private_key, private_key_file, chain=chain)
+
     address = address or settings.ADDRESS_TO_USE or account.get_address()
 
     async with AlephHttpClient(api_server=settings.API_HOST) as client:
@@ -890,7 +907,12 @@ async def reboot(
         or Prompt.ask("URL of the CRN (Compute node) on which the VM is running")
     )
 
-    account = _load_account(private_key, private_key_file, chain=chain)
+    config = load_main_configuration(settings.CONFIG_FILE)
+    # Populates account / address
+    if config and config.type == AccountType.EXTERNAL:
+        account = _load_account(None, None, chain=chain)
+    else:
+        account = _load_account(private_key, private_key_file, chain=chain)
 
     async with VmClient(account, domain) as manager:
         status, result = await manager.reboot_instance(vm_id=vm_id)
@@ -923,7 +945,12 @@ async def allocate(
         or Prompt.ask("URL of the CRN (Compute node) on which the VM will be allocated")
     )
 
-    account = _load_account(private_key, private_key_file, chain=chain)
+    config = load_main_configuration(settings.CONFIG_FILE)
+    # Populates account / address
+    if config and config.type == AccountType.EXTERNAL:
+        account = _load_account(None, None, chain=chain)
+    else:
+        account = _load_account(private_key, private_key_file, chain=chain)
 
     async with VmClient(account, domain) as manager:
         status, result = await manager.start_instance(vm_id=vm_id)
@@ -951,7 +978,12 @@ async def logs(
 
     domain = (domain and sanitize_url(domain)) or await find_crn_of_vm(vm_id) or Prompt.ask(help_strings.PROMPT_CRN_URL)
 
-    account = _load_account(private_key, private_key_file, chain=chain)
+    config = load_main_configuration(settings.CONFIG_FILE)
+    # Populates account / address
+    if config and config.type == AccountType.EXTERNAL:
+        account = _load_account(None, None, chain=chain)
+    else:
+        account = _load_account(private_key, private_key_file, chain=chain)
 
     async with VmClient(account, domain) as manager:
         try:
@@ -982,7 +1014,12 @@ async def stop(
 
     domain = (domain and sanitize_url(domain)) or await find_crn_of_vm(vm_id) or Prompt.ask(help_strings.PROMPT_CRN_URL)
 
-    account = _load_account(private_key, private_key_file, chain=chain)
+    config = load_main_configuration(settings.CONFIG_FILE)
+    # Populates account / address
+    if config and config.type == AccountType.EXTERNAL:
+        account = _load_account(None, None, chain=chain)
+    else:
+        account = _load_account(private_key, private_key_file, chain=chain)
 
     async with VmClient(account, domain) as manager:
         status, result = await manager.stop_instance(vm_id=vm_id)
@@ -1021,7 +1058,12 @@ async def confidential_init_session(
         or Prompt.ask("URL of the CRN (Compute node) on which the session will be initialized")
     )
 
-    account = _load_account(private_key, private_key_file, chain=chain)
+    config = load_main_configuration(settings.CONFIG_FILE)
+    # Populates account / address
+    if config and config.type == AccountType.EXTERNAL:
+        account = _load_account(None, None, chain=chain)
+    else:
+        account = _load_account(private_key, private_key_file, chain=chain)
 
     sevctl_path = find_sevctl_or_exit()
 
@@ -1098,7 +1140,13 @@ async def confidential_start(
     session_dir.mkdir(exist_ok=True, parents=True)
 
     vm_hash = ItemHash(vm_id)
-    account = _load_account(private_key, private_key_file, chain=chain)
+    config = load_main_configuration(settings.CONFIG_FILE)
+    # Populates account / address
+    if config and config.type == AccountType.EXTERNAL:
+        account = _load_account(None, None, chain=chain)
+    else:
+        account = _load_account(private_key, private_key_file, chain=chain)
+
     sevctl_path = find_sevctl_or_exit()
 
     domain = (

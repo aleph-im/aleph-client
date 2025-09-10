@@ -16,7 +16,7 @@ from aleph.sdk.conf import settings
 from aleph.sdk.exceptions import ForgottenMessageError, MessageNotFoundError
 from aleph.sdk.query.filters import MessageFilter
 from aleph.sdk.query.responses import MessagesResponse
-from aleph.sdk.types import AccountFromPrivateKey, StorageEnum
+from aleph.sdk.types import StorageEnum
 from aleph.sdk.utils import extended_json_encoder
 from aleph_message.models import AlephMessage, ProgramMessage
 from aleph_message.models.base import MessageType
@@ -132,7 +132,7 @@ async def post(
 
     setup_logging(debug)
 
-    account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
+    account = _load_account(private_key, private_key_file)
     storage_engine: StorageEnum
     content: dict
 
@@ -182,7 +182,7 @@ async def amend(
 
     setup_logging(debug)
 
-    account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
+    account = _load_account(private_key, private_key_file)
 
     async with AlephHttpClient(api_server=settings.API_HOST) as client:
         existing_message: Optional[AlephMessage] = None
@@ -247,7 +247,7 @@ async def forget(
 
     hash_list: list[ItemHash] = [ItemHash(h) for h in hashes.split(",")]
 
-    account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
+    account = _load_account(private_key, private_key_file)
     async with AuthenticatedAlephHttpClient(account=account, api_server=settings.API_HOST) as client:
         await client.forget(hashes=hash_list, reason=reason, channel=channel)
 
@@ -290,7 +290,7 @@ def sign(
 
     setup_logging(debug)
 
-    account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
+    account = _load_account(private_key, private_key_file)
 
     if message is None:
         message = input_multiline()
