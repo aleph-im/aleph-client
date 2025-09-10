@@ -343,7 +343,10 @@ class InstanceDisplay:
             allocation_str = ALLOCATION_MANUAL
             color_allocation = "magenta3"
             crn_hash = safe_getattr(self.message.content.requirements, "node.node_hash") or ""
-        elif self.allocation.allocations:
+        elif isinstance(self.allocation, InstanceWithScheduler) and not self.allocation.allocations:
+            self.allocation_column = cast(Text, Text.from_markup("[red]Not allocated[/red]"))
+            return
+        else:
             crn_url = self.allocation.allocations.node.url
             allocation_str = ALLOCATION_AUTO
             color_allocation = "deep_sky_blue1"

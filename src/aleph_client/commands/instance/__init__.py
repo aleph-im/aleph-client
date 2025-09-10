@@ -15,7 +15,7 @@ from aleph.sdk.account import _load_account
 from aleph.sdk.chains.ethereum import ETHAccount
 from aleph.sdk.client.vm_client import VmClient
 from aleph.sdk.client.vm_confidential_client import VmConfidentialClient
-from aleph.sdk.conf import load_main_configuration, settings, AccountType
+from aleph.sdk.conf import AccountType, load_main_configuration, settings
 from aleph.sdk.evm_utils import (
     FlowUpdate,
     get_chains_with_holding,
@@ -179,7 +179,7 @@ async def create(
             console.print("No active chain selected in configuration.")
 
     # Populates account / address
-    if config and config.type == AccountType.EXTERNAL.value:
+    if config and config.type == AccountType.EXTERNAL:
         account = _load_account(None, None, chain=payment_chain)
     else:
         account = _load_account(private_key, private_key_file, chain=payment_chain)
@@ -745,7 +745,7 @@ async def delete(
 
     config = load_main_configuration(settings.CONFIG_FILE)
     # Populates account / address
-    if config and config.type == AccountType.EXTERNAL.value:
+    if config and config.type == AccountType.EXTERNAL:
         account = _load_account(None, None, chain=chain)
     else:
         account = _load_account(private_key, private_key_file, chain=chain)
@@ -866,7 +866,7 @@ async def list_instances(
 
     config = load_main_configuration(settings.CONFIG_FILE)
     # Populates account / address
-    if config and config.type == AccountType.EXTERNAL.value:
+    if config and config.type == AccountType.EXTERNAL:
         account = _load_account(None, None, chain=chain)
     else:
         account = _load_account(private_key, private_key_file, chain=chain)
@@ -909,7 +909,7 @@ async def reboot(
 
     config = load_main_configuration(settings.CONFIG_FILE)
     # Populates account / address
-    if config and config.type == AccountType.EXTERNAL.value:
+    if config and config.type == AccountType.EXTERNAL:
         account = _load_account(None, None, chain=chain)
     else:
         account = _load_account(private_key, private_key_file, chain=chain)
@@ -947,7 +947,7 @@ async def allocate(
 
     config = load_main_configuration(settings.CONFIG_FILE)
     # Populates account / address
-    if config and config.type == AccountType.EXTERNAL.value:
+    if config and config.type == AccountType.EXTERNAL:
         account = _load_account(None, None, chain=chain)
     else:
         account = _load_account(private_key, private_key_file, chain=chain)
@@ -980,7 +980,7 @@ async def logs(
 
     config = load_main_configuration(settings.CONFIG_FILE)
     # Populates account / address
-    if config and config.type == AccountType.EXTERNAL.value:
+    if config and config.type == AccountType.EXTERNAL:
         account = _load_account(None, None, chain=chain)
     else:
         account = _load_account(private_key, private_key_file, chain=chain)
@@ -1016,7 +1016,7 @@ async def stop(
 
     config = load_main_configuration(settings.CONFIG_FILE)
     # Populates account / address
-    if config and config.type == AccountType.EXTERNAL.value:
+    if config and config.type == AccountType.EXTERNAL:
         account = _load_account(None, None, chain=chain)
     else:
         account = _load_account(private_key, private_key_file, chain=chain)
@@ -1060,7 +1060,7 @@ async def confidential_init_session(
 
     config = load_main_configuration(settings.CONFIG_FILE)
     # Populates account / address
-    if config and config.type == AccountType.EXTERNAL.value:
+    if config and config.type == AccountType.EXTERNAL:
         account = _load_account(None, None, chain=chain)
     else:
         account = _load_account(private_key, private_key_file, chain=chain)
@@ -1142,7 +1142,7 @@ async def confidential_start(
     vm_hash = ItemHash(vm_id)
     config = load_main_configuration(settings.CONFIG_FILE)
     # Populates account / address
-    if config and config.type == AccountType.EXTERNAL.value:
+    if config and config.type == AccountType.EXTERNAL:
         account = _load_account(None, None, chain=chain)
     else:
         account = _load_account(private_key, private_key_file, chain=chain)
