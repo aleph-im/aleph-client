@@ -160,8 +160,14 @@ def display_active_address(
         typer.secho("No private key available", fg=RED)
         raise typer.Exit(code=1)
 
-    evm_address = _load_account(private_key, private_key_file, chain=Chain.ETH).get_address()
-    sol_address = _load_account(private_key, private_key_file, chain=Chain.SOL).get_address()
+    config_file_path = Path(settings.CONFIG_FILE)
+    config = load_main_configuration(config_file_path)
+    if config and config.type and config.type == AccountType.EXTERNAL:
+        evm_address = _load_account(None, None, chain=Chain.ETH).get_address()
+        sol_address = _load_account(None, None, chain=Chain.SOL).get_address()
+    else:
+        evm_address = _load_account(private_key, private_key_file, chain=Chain.ETH).get_address()
+        sol_address = _load_account(private_key, private_key_file, chain=Chain.SOL).get_address()
 
     console.print(
         "✉  [bold italic blue]Addresses for Active Account[/bold italic blue] ✉\n\n"
@@ -483,9 +489,6 @@ async def configure(
 
     unlinked_keys, config = await list_unlinked_keys()
 
-    if not account_type:
-        account_type = AccountType.INTERNAL
-
     # Fixes private key file path
     if private_key_file:
         if not private_key_file.name.endswith(".key"):
@@ -499,7 +502,8 @@ async def configure(
         raise typer.Exit()
 
     # Configures active private key file
-    if not account_type and not private_key_file and config and hasattr(config, "path") and Path(config.path).exists():
+    if (not account_type or account_type == AccountType.INTERNAL and
+            not private_key_file and config and hasattr(config, "path") and Path(config.path).exists()):
         if not yes_no_input(
             f"Active private key file: [bright_cyan]{config.path}[/bright_cyan]\n[yellow]Keep current active private "
             "key?[/yellow]",
@@ -525,9 +529,9 @@ async def configure(
         else:  # No change
             private_key_file = Path(config.path)
 
-    if not private_key_file:
+    if not private_key_file and account_type == AccountType.EXTERNAL:
         if yes_no_input(
-            "[bright_cyan]No private key file found.[/bright_cyan] [yellow]"
+            "[bright_cyan]Loading External keys.[/bright_cyan] [yellow]"
             "Do you want to import from Ledger?[/yellow]",
             default="y",
         ):
@@ -572,6 +576,9 @@ async def configure(
     if not chain:
         typer.secho("No chain provided.", fg=typer.colors.RED)
         raise typer.Exit()
+
+    if not account_type:
+        account_type = AccountType.INTERNAL.value
 
     try:
         config = MainConfiguration(path=private_key_file, chain=chain, address=address, type=account_type)
