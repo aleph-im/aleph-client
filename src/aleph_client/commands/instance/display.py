@@ -343,7 +343,7 @@ class InstanceDisplay:
             allocation_str = ALLOCATION_MANUAL
             color_allocation = "magenta3"
             crn_hash = safe_getattr(self.message.content.requirements, "node.node_hash") or ""
-        else:
+        elif self.allocation.allocations:
             crn_url = self.allocation.allocations.node.url
             allocation_str = ALLOCATION_AUTO
             color_allocation = "deep_sky_blue1"
