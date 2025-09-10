@@ -502,8 +502,13 @@ async def configure(
         raise typer.Exit()
 
     # Configures active private key file
-    if (not account_type or account_type == AccountType.INTERNAL and
-            not private_key_file and config and hasattr(config, "path") and Path(config.path).exists()):
+    if not account_type or (
+        account_type == AccountType.INTERNAL
+        and not private_key_file
+        and config
+        and hasattr(config, "path")
+        and Path(config.path).exists()
+    ):
         if not yes_no_input(
             f"Active private key file: [bright_cyan]{config.path}[/bright_cyan]\n[yellow]Keep current active private "
             "key?[/yellow]",
@@ -531,8 +536,7 @@ async def configure(
 
     if not private_key_file and account_type == AccountType.EXTERNAL:
         if yes_no_input(
-            "[bright_cyan]Loading External keys.[/bright_cyan] [yellow]"
-            "Do you want to import from Ledger?[/yellow]",
+            "[bright_cyan]Loading External keys.[/bright_cyan] [yellow]Do you want to import from Ledger?[/yellow]",
             default="y",
         ):
             accounts = LedgerETHAccount.get_accounts()
@@ -578,7 +582,7 @@ async def configure(
         raise typer.Exit()
 
     if not account_type:
-        account_type = AccountType.INTERNAL.value
+        account_type = AccountType.INTERNAL
 
     try:
         config = MainConfiguration(path=private_key_file, chain=chain, address=address, type=account_type)
