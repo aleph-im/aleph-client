@@ -14,8 +14,8 @@ from aleph.sdk.account import _load_account
 from aleph.sdk.chains.common import generate_key
 from aleph.sdk.chains.solana import parse_private_key as parse_solana_private_key
 from aleph.sdk.conf import (
-    MainConfiguration,
     AccountType,
+    MainConfiguration,
     load_main_configuration,
     save_main_configuration,
     settings,
@@ -148,9 +148,7 @@ async def create(
 @app.command(name="address")
 def display_active_address(
     private_key: Annotated[Optional[str], typer.Option(help=help_strings.PRIVATE_KEY)] = None,
-    private_key_file: Annotated[
-        Optional[Path], typer.Option(help=help_strings.PRIVATE_KEY_FILE)
-    ] = None,
+    private_key_file: Annotated[Optional[Path], typer.Option(help=help_strings.PRIVATE_KEY_FILE)] = None,
 ):
     """
     Display your public address(es).
@@ -383,7 +381,7 @@ async def list_accounts():
     table.add_column("Active", no_wrap=True)
 
     active_chain = None
-    if config:
+    if config and config.path:
         active_chain = config.chain
         table.add_row(config.path.stem, str(config.path), "[bold green]*[/bold green]")
     else:
@@ -529,9 +527,9 @@ async def configure(
 
     if not private_key_file:
         if yes_no_input(
-                f"[bright_cyan]No private key file found.[/bright_cyan] [yellow]"
-                f"Do you want to import from Ledger?[/yellow]",
-                default="y",
+            "[bright_cyan]No private key file found.[/bright_cyan] [yellow]"
+            "Do you want to import from Ledger?[/yellow]",
+            default="y",
         ):
             accounts = LedgerETHAccount.get_accounts()
             account_addresses = [acc.address for acc in accounts]
