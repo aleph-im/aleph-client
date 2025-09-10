@@ -24,7 +24,7 @@ from aleph.sdk.exceptions import (
 )
 from aleph.sdk.query.filters import MessageFilter
 from aleph.sdk.query.responses import PriceResponse
-from aleph.sdk.types import AccountFromPrivateKey, StorageEnum, TokenType
+from aleph.sdk.types import StorageEnum, TokenType
 from aleph.sdk.utils import displayable_amount, make_program_content, safe_getattr
 from aleph_message.models import (
     Chain,
@@ -127,7 +127,7 @@ async def upload(
         typer.echo("No such file or directory")
         raise typer.Exit(code=4) from error
 
-    account: AccountFromPrivateKey = _load_account(private_key, private_key_file, chain=payment_chain)
+    account = _load_account(private_key, private_key_file, chain=payment_chain)
     address = address or settings.ADDRESS_TO_USE or account.get_address()
 
     # Loads default configuration if no chain is set
@@ -341,7 +341,7 @@ async def update(
         typer.echo("No such file or directory")
         raise typer.Exit(code=4) from error
 
-    account: AccountFromPrivateKey = _load_account(private_key, private_key_file, chain=chain)
+    account = _load_account(private_key, private_key_file, chain=chain)
 
     async with AuthenticatedAlephHttpClient(account=account, api_server=settings.API_HOST) as client:
         try:

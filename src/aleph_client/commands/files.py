@@ -12,7 +12,7 @@ from aiohttp import ClientResponseError
 from aleph.sdk import AlephHttpClient, AuthenticatedAlephHttpClient
 from aleph.sdk.account import _load_account
 from aleph.sdk.conf import settings
-from aleph.sdk.types import AccountFromPrivateKey, StorageEnum, StoredContent
+from aleph.sdk.types import StorageEnum, StoredContent
 from aleph.sdk.utils import safe_getattr
 from aleph_message.models import ItemHash, StoreMessage
 from aleph_message.status import MessageStatus
@@ -44,7 +44,7 @@ async def pin(
 
     setup_logging(debug)
 
-    account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
+    account = _load_account(private_key, private_key_file)
 
     async with AuthenticatedAlephHttpClient(account=account, api_server=settings.API_HOST) as client:
         result: StoreMessage
@@ -75,7 +75,7 @@ async def upload(
 
     setup_logging(debug)
 
-    account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
+    account = _load_account(private_key, private_key_file)
 
     async with AuthenticatedAlephHttpClient(account=account, api_server=settings.API_HOST) as client:
         if not path.is_file():
@@ -181,7 +181,7 @@ async def forget(
 
     setup_logging(debug)
 
-    account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
+    account = _load_account(private_key, private_key_file)
 
     hashes = [ItemHash(item_hash) for item_hash in item_hash.split(",")]
 
@@ -270,7 +270,7 @@ async def list_files(
     json: Annotated[bool, typer.Option(help="Print as json instead of rich table")] = False,
 ):
     """List all files for a given address"""
-    account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
+    account = _load_account(private_key, private_key_file)
 
     if account and not address:
         address = account.get_address()

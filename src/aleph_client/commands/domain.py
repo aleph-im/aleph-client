@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 from time import sleep
-from typing import Annotated, Optional, cast
+from typing import Annotated, Optional, Union, cast
 
 import typer
 from aleph.sdk.account import _load_account
@@ -19,6 +19,7 @@ from aleph.sdk.domain import (
 from aleph.sdk.exceptions import DomainConfigurationError
 from aleph.sdk.query.filters import MessageFilter
 from aleph.sdk.types import AccountFromPrivateKey
+from aleph.sdk.wallets.ledger import LedgerETHAccount
 from aleph_message.models import AggregateMessage
 from aleph_message.models.base import MessageType
 from rich.console import Console
@@ -65,7 +66,7 @@ async def check_domain_records(fqdn, target, owner):
 
 
 async def attach_resource(
-    account: AccountFromPrivateKey,
+    account,
     fqdn: Hostname,
     item_hash: Optional[str] = None,
     catch_all_path: Optional[str] = None,
@@ -137,7 +138,9 @@ async def attach_resource(
             )
 
 
-async def detach_resource(account: AccountFromPrivateKey, fqdn: Hostname, interactive: Optional[bool] = None):
+async def detach_resource(
+    account: Union[AccountFromPrivateKey, LedgerETHAccount], fqdn: Hostname, interactive: Optional[bool] = None
+):
     domain_info = await get_aggregate_domain_info(account, fqdn)
     interactive = is_environment_interactive() if interactive is None else interactive
 
@@ -187,7 +190,7 @@ async def add(
     ] = settings.PRIVATE_KEY_FILE,
 ):
     """Add and link a Custom Domain."""
-    account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
+    account = _load_account(private_key, private_key_file)
     interactive = False if (not ask) else is_environment_interactive()
 
     console = Console()
@@ -272,7 +275,7 @@ async def attach(
     ] = settings.PRIVATE_KEY_FILE,
 ):
     """Attach resource to a Custom Domain."""
-    account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
+    account = _load_account(private_key, private_key_file)
 
     await attach_resource(
         account,
@@ -294,7 +297,7 @@ async def detach(
     ] = settings.PRIVATE_KEY_FILE,
 ):
     """Unlink Custom Domain."""
-    account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
+    account = _load_account(private_key, private_key_file)
 
     await detach_resource(account, Hostname(fqdn), interactive=False if (not ask) else None)
     raise typer.Exit()
@@ -309,7 +312,7 @@ async def info(
     ] = settings.PRIVATE_KEY_FILE,
 ):
     """Show Custom Domain Details."""
-    account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
+    account = _load_account(private_key, private_key_file)
 
     console = Console()
     domain_validator = DomainValidator()
