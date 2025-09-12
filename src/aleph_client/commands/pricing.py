@@ -26,7 +26,6 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
-from aleph_client.commands.instance.network import call_program_crn_list
 from aleph_client.commands.utils import colorful_json, setup_logging
 from aleph_client.utils import async_lru_cache, sanitize_url
 
@@ -111,18 +110,27 @@ class Pricing:
                 )
             )
         if "storage" in price_dict and isinstance(price_dict["storage"], Price):
-            is_storage = "+ " if not storage else ""
-            ammount = Decimal(str(price_dict["storage"].holding)) if price_dict["storage"].holding else Decimal("0")
-            infos.append(
-                Text.from_markup(
-                    f"{is_storage}"  # If it not STORAGE then it's 'additionnal' charge so we do + at end
-                    "$ALEPH (Holding): [bright_cyan]"
-                    f"{displayable_amount(ammount, decimals=5)}"
-                    " token/Mib[/bright_cyan] -or- [bright_cyan]"
-                    f"{displayable_amount(ammount * 1024, decimals=5)}"
-                    " token/GiB[/bright_cyan]"
+            prefix = "+ " if not storage else ""
+            storage_price = price_dict["storage"]
+
+            def fmt(value, unit):
+                amount = Decimal(str(value)) if value else Decimal("0")
+                return (
+                    f"{displayable_amount(amount, decimals=5)} {unit}/Mib[/bright_cyan] -or- "
+                    f"[bright_cyan]{displayable_amount(amount * 1024, decimals=5)} {unit}/GiB[/bright_cyan]"
                 )
-            )
+
+        holding = fmt(storage_price.holding, "token")
+
+        lines = [f"{prefix}$ALEPH (Holding): [bright_cyan]{holding}"]
+
+        # Show credits ONLY for storage, and only if a credit price exists
+        if storage and storage_price.credit:
+            credit = fmt(storage_price.credit, "credit")
+            lines.append(f"Credits: [bright_cyan]{credit}")
+
+        infos.append(Text.from_markup("\n".join(lines)))
+
         return Group(*infos)
 
     def build_column(
@@ -148,6 +156,9 @@ class Pricing:
 
         if isinstance(cu_price, Price) and cu_price.payg and entity in PAYG_GROUP:
             self.table.add_column("$ALEPH (Pay-As-You-Go)", style="green", justify="center")
+
+        if isinstance(cu_price, Price) and cu_price.credit:
+            self.table.add_column("$ Credits", style="green", justify="center")
 
         if entity in PRICING_GROUPS[GroupEntity.PROGRAM]:
             self.table.add_column("+ Internet Access", style="orange1", justify="center")
@@ -216,6 +227,15 @@ class Pricing:
                 f"{displayable_amount(payg_hourly, decimals=3)} token/hour"
                 f"\n{displayable_amount(payg_hourly * 24, decimals=3)} token/day"
             )
+        # Fill Credit row
+        if isinstance(cu_price, Price) and cu_price.credit:
+            credit_price = cu_price.credit
+            credit_hourly = Decimal(str(credit_price)) * tier.compute_units
+            row.append(
+                f"{displayable_amount(credit_hourly, decimals=3)} credit/hour"
+                f"\n{displayable_amount(credit_hourly * 24, decimals=3)} credit/day"
+            )
+
         # Program Case we additional price
         if entity in PRICING_GROUPS[GroupEntity.PROGRAM]:
             program_price = entity_info.price.get("compute_unit")
@@ -300,11 +320,16 @@ class Pricing:
             if isinstance(storage_price, Price) and storage_price.payg:
                 payg_storage_price = displayable_amount(Decimal(str(storage_price.payg)) * 1024 * 24, decimals=5)
 
+            extra_price_credits = "0"
+            if isinstance(storage_price, Price) and storage_price.credit:
+                extra_price_credits = displayable_amount(Decimal(str(storage_price.credit)) * 1024 * 24, decimals=5)
+
             infos = [
                 Text.from_markup(
                     f"Extra Volume Cost: {extra_price_holding}"
                     f"[green]{payg_storage_price}"
                     " token/GiB/day[/green] (Pay-As-You-Go)"
+                    f" -or- [green]{extra_price_credits} credit/GiB/day[/green] (Credits)\n"
                 )
             ]
             displayable_group = Group(
@@ -356,6 +381,8 @@ async def prices_for_service(
     # Fetch Current availibity
     network_gpu = None
     if (service in [GroupEntity.GPU, GroupEntity.ALL]) and with_current_availability:
+        from aleph_client.commands.instance.network import call_program_crn_list
+
         crn_lists = await call_program_crn_list()
         network_gpu = crn_lists.find_gpu_on_network()
     if json:

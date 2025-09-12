@@ -6,11 +6,13 @@
         "price": {
           "storage": {
             "payg": "0.000000977",
-            "holding": "0.05"
+            "holding": "0.05",
+            "credit": "0.000000977"
           },
           "compute_unit": {
             "payg": "0.011",
-            "holding": "200"
+            "holding": "200",
+            "credit": "0.011"
           }
         },
         "tiers": [
@@ -48,7 +50,8 @@
       "storage": {
         "price": {
           "storage": {
-            "holding": "0.333333333"
+            "holding": "0.333333333",
+            "credit": "0.333333333"
           }
         }
       },
@@ -56,11 +59,13 @@
         "price": {
           "storage": {
             "payg": "0.000000977",
-            "holding": "0.05"
+            "holding": "0.05",
+            "credit": "0.000000977"
           },
           "compute_unit": {
             "payg": "0.055",
-            "holding": "1000"
+            "holding": "1000",
+            "credit": "0.055"
           }
         },
         "tiers": [
@@ -107,11 +112,13 @@
         "price": {
           "storage": {
             "payg": "0.000000977",
-            "holding": "0.05"
+            "holding": "0.05",
+            "credit": "0.000000977"
           },
           "compute_unit": {
             "payg": "0.055",
-            "holding": "1000"
+            "holding": "1000",
+            "credit": "0.055"
           }
         },
         "tiers": [
@@ -149,10 +156,12 @@
       "instance_gpu_premium": {
         "price": {
           "storage": {
-            "payg": "0.000000977"
+            "payg": "0.000000977",
+            "credit": "0.000000977"
           },
           "compute_unit": {
-            "payg": "0.56"
+            "payg": "0.56",
+            "credit": "0.56"
           }
         },
         "tiers": [
@@ -179,11 +188,13 @@
         "price": {
           "storage": {
             "payg": "0.000000977",
-            "holding": "0.05"
+            "holding": "0.05",
+            "credit": "0.000000977"
           },
           "compute_unit": {
             "payg": "0.11",
-            "holding": "2000"
+            "holding": "2000",
+            "credit": "0.11"
           }
         },
         "tiers": [
@@ -221,10 +232,12 @@
       "instance_gpu_standard": {
         "price": {
           "storage": {
-            "payg": "0.000000977"
+            "payg": "0.000000977",
+            "credit": "0.000000977"
           },
           "compute_unit": {
-            "payg": "0.28"
+            "payg": "0.28",
+            "credit": "0.28"
           }
         },
         "tiers": [
