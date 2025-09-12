@@ -51,6 +51,8 @@ def colorized_status(status: MessageStatus) -> str:
         MessageStatus.PROCESSED: colors.GREEN,
         MessageStatus.PENDING: colors.YELLOW,
         MessageStatus.FORGOTTEN: colors.BRIGHT_BLACK,
+        MessageStatus.REMOVING: colors.YELLOW,
+        MessageStatus.REMOVED: colors.RED,
     }
     color = status_colors.get(status, colors.WHITE)
     return style(status, fg=color, bold=True)
