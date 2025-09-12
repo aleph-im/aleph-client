@@ -1,0 +1,85 @@
+{
+  "last_refresh": "2025-09-12T10:54:50.410762+00:00",
+  "crns": [
+    {
+      "hash": "388c36d26ed6c59e11c64c7bc858545fc50ea222106ed096d380c0e98da4bdc2",
+      "name": "OVH Staging",
+      "time": 1686824572.736,
+      "type": "compute",
+      "owner": "0x4145f182EF2F06b45E50468519C1B92C60FBd4A0",
+      "score": 0.981218669719485,
+      "banner": "",
+      "locked": false,
+      "parent": "",
+      "reward": "0x4145f182EF2F06b45E50468519C1B92C60FBd4A0",
+      "status": "linked",
+      "address": "http://ovh.staging.aleph.sh",
+      "manager": "",
+      "picture": "",
+      "authorized": "",
+      "description": "",
+      "performance": 0,
+      "multiaddress": "",
+      "score_updated": true,
+      "stream_reward": "0x4145f182EF2F06b45E50468519C1B92C60FBd4A0",
+      "inactive_since": null,
+      "decentralization": 0.952804599229347,
+      "registration_url": "",
+      "terms_and_conditions": "",
+      "config_from_crn": true,
+      "debug_config_from_crn_at": "2025-09-12T10:54:50.701148+00:00",
+      "debug_config_from_crn_error": "None",
+      "debug_usage_from_crn_at": "2025-09-12T10:54:50.701148+00:00",
+      "usage_from_crn_error": "None",
+      "version": "1.7.2",
+      "payment_receiver_address": "0xd95347956DebBAC208D51C3E005339A600894474",
+      "gpu_support": false,
+      "confidential_support": true,
+      "qemu_support": true,
+      "system_usage": {
+        "cpu": {
+          "count": 20,
+          "load_average": {
+            "load1": 0.078125,
+            "load5": 0.15380859375,
+            "load15": 0.20751953125
+          },
+          "core_frequencies": {
+            "min": 800,
+            "max": 4280
+          }
+        },
+        "mem": {
+          "total_kB": 67216409,
+          "available_kB": 67216409
+        },
+        "disk": {
+          "total_kB": 983016144,
+          "available_kB": 983016144
+        },
+        "period": {
+          "start_timestamp": "2025-09-12T10:55:00Z",
+          "duration_seconds": 60
+        },
+        "properties": {
+          "cpu": {
+            "architecture": "x86_64",
+            "vendor": "GenuineIntel",
+            "features": []
+          }
+        },
+        "gpu": {
+          "devices": [],
+          "available_devices": []
+        },
+        "active": true
+      },
+      "compatible_gpus": [],
+      "compatible_available_gpus": [],
+      "ipv6_check": {
+        "connection": true,
+        "connectivity": true
+      }
+    }
+  ]
+}
