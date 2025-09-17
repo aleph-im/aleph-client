@@ -391,6 +391,44 @@ def test_message_get(mocker, store_message_fixture):
     assert result.exit_code == 0
     assert FAKE_STORE_HASH_PUBLISHER in result.stdout
 
+def test_message_get_with_reject(mocker, store_message_fixture):
+    message = StoreMessage.model_validate(store_message_fixture)
+    mocker.patch("aleph.sdk.AlephHttpClient.get_message", return_value=[message, "rejected"])
+    mocker.patch("aleph.sdk.AlephHttpClient.get_message_error", return_value={'error_code': 100, 'details': {
+        "errors": [
+            "File not found: Could not retrieve file from storage at this time"
+        ]
+    }})
+    result = runner.invoke(
+        app,
+        [
+            "message",
+            "get",
+            FAKE_STORE_HASH,
+        ],
+    )
+    assert result.exit_code == 0
+    assert 'Message Status: rejected' in result.stdout
+
+def test_message_get_with_removing(mocker, store_message_fixture):
+    message = StoreMessage.model_validate(store_message_fixture)
+    mocker.patch("aleph.sdk.AlephHttpClient.get_message", return_value=[message, "removing"])
+    mocker.patch("aleph.sdk.AlephHttpClient.get_message_error", return_value={
+        'reason': 'balance_insufficient'
+    })
+    result = runner.invoke(
+        app,
+        [
+            "message",
+            "get",
+            FAKE_STORE_HASH,
+        ],
+    )
+    assert result.exit_code == 0
+    assert 'Message Status: removing' in result.stdout
+    assert 'balance_insufficient' in result.stdout
+
+
 
 def test_message_find(mocker, store_message_fixture):
     response = {
