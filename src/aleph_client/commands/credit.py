@@ -48,14 +48,14 @@ async def show(
 
     if address:
         async with AlephHttpClient(api_server=settings.API_HOST) as client:
-            credit = await client.get_credit_balance(address=address)
+            credit = await client.get_balance(address=address)
             if json:
                 typer.echo(credit.model_dump_json(indent=4))
             else:
                 infos = [
                     Text.from_markup(f"Address: {address}\n"),
                     Text("Credits:"),
-                    Text.from_markup(f" {displayable_amount(credit.credits, decimals=2)}"),
+                    Text.from_markup(f" {displayable_amount(credit.credit_balance, decimals=2)}"),
                 ]
                 console.print(
                     Panel(

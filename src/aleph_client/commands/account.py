@@ -335,11 +335,11 @@ async def balance(
             try:
                 # Fetch user Credits
                 async with AlephHttpClient() as client:
-                    credits_balance = await client.get_credit_balance(address)
+                    credits_balance = await client.get_balance(address).credit_balance
                     infos += [
                         Text("\nCredits:"),
                         Text.from_markup(
-                            f"[bright_cyan] {displayable_amount(credits_balance.credits, decimals=2)}[/bright_cyan]"
+                            f"[bright_cyan] {displayable_amount(credits_balance, decimals=2)}[/bright_cyan]"
                         ),
                     ]
             except Exception as e:

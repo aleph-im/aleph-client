@@ -451,12 +451,14 @@ async def create(
     if payment_type == PaymentType.credit:
         async with AlephHttpClient(api_server=settings.API_HOST) as client:
             try:
-                credit_info = await client.get_credit_balance(address=address)
+                credit_info = await client.get_balance(address=address)
                 if isinstance(compute_unit_price, Price) and compute_unit_price.credit:
                     credit_price = Decimal(str(compute_unit_price.credit)) * tier.compute_units
-                    if credit_info.credits < credit_price:
-                        raise InsufficientFundsError(TokenType.CREDIT, float(credit_price), float(credit_info.credits))
-                    available_funds = credit_info.credits
+                    if credit_info.credit_balance < credit_price:
+                        raise InsufficientFundsError(
+                            TokenType.CREDIT, float(credit_price), float(credit_info.credit_balance)
+                        )
+                    available_funds = credit_info.credit_balance
                 else:
                     echo("No credits price available for this tier.")
                     raise typer.Exit(code=1)

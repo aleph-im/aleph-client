@@ -290,9 +290,9 @@ def create_mock_client(mock_crn_list_obj, mock_pricing_info_response, mock_setti
                 payment_type=payment_type,
             )
         ),
-        get_credit_balance=AsyncMock(
+        get_balance=AsyncMock(
             return_value=MagicMock(
-                credits=5000,  # Enough credits for testing
+                credit_balance=5000,  # Enough credits for testing
             )
         ),
     )
@@ -339,9 +339,9 @@ def create_mock_auth_client(
         create_instance=AsyncMock(return_value=[mock_response_create_instance, 200]),
         get_program_price=None,
         forget=AsyncMock(return_value=(MagicMock(), 200)),
-        get_credit_balance=AsyncMock(
+        get_balance=AsyncMock(
             return_value=MagicMock(
-                credits=5000,  # Enough credits for testing
+                credit_balance=5000,  # Enough credits for testing
             )
         ),
     )
