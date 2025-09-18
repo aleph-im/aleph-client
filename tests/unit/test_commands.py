@@ -2,13 +2,13 @@ import hashlib
 import json
 from pathlib import Path
 from tempfile import NamedTemporaryFile
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from aleph.sdk.chains.ethereum import ETHAccount
 from aleph.sdk.conf import settings
 from aleph.sdk.query.responses import MessagesResponse
-from aleph.sdk.types import StoredContent
+from aleph.sdk.types import StorageEnum, StoredContent
 from aleph_message.models import PostMessage, StoreMessage
 from typer.testing import CliRunner
 
@@ -465,6 +465,62 @@ async def test_file_upload(mock_authenticated_aleph_http_client, capsys):
 
         assert result is not None
         assert expected_hash in result
+
+
+@pytest.mark.asyncio
+async def test_file_upload_storage_engine(mock_authenticated_aleph_http_client, capsys, monkeypatch):
+    """
+    Test Storage selections to ensure :
+        - Small file can be published over ipfs / storage engine
+        - File larger than 4MB got redirected to IPFS
+    """
+    with NamedTemporaryFile() as tmp:
+        content = b"Test storage engine selection\n"
+        tmp.write(content)
+        tmp.flush()
+
+        # Track what storage_engine was passed to create_store
+        original_create_store = mock_authenticated_aleph_http_client.return_value.__aenter__.return_value.create_store
+        storage_used = None
+
+        async def create_store_tracker(*args, **kwargs):
+            nonlocal storage_used
+            storage_used = kwargs.get("storage_engine")
+            return await original_create_store(*args, **kwargs)
+
+        mock_authenticated_aleph_http_client.return_value.__aenter__.return_value.create_store = AsyncMock(
+            side_effect=create_store_tracker
+        )
+
+        # Test explicit IPFS storage for small file
+        await upload(Path(tmp.name), storage_engine=StorageEnum.ipfs)
+        assert storage_used == StorageEnum.ipfs
+
+        # Test default storage engine for small file (should be storage)
+        storage_used = None
+        await upload(Path(tmp.name))
+        assert storage_used == StorageEnum.storage
+
+        # Test with large file that exceeds 4MB limit
+        with patch("builtins.open") as mock_open:
+            # Mock file content to be larger than 4MB
+            mock_large_content = b"X" * (4 * 1024 * 1024 + 100)  # 4MB + 100 bytes
+            mock_file = MagicMock()
+            mock_file.read.return_value = mock_large_content
+            mock_open.return_value.__enter__.return_value = mock_file
+
+            # Test default behavior with large file (should use IPFS)
+            storage_used = None
+            await upload(Path(tmp.name))
+            assert storage_used == StorageEnum.ipfs
+
+            # Test with explicit storage override that gets changed to IPFS
+            storage_used = None
+            with patch("typer.echo") as mock_echo:
+                await upload(Path(tmp.name), storage_engine=StorageEnum.storage)
+                # The warning should be the first echo call
+                mock_echo.assert_any_call("Warning: File is larger than 4MB, switching to IPFS storage.")
+                assert storage_used == StorageEnum.ipfs
 
 
 def test_file_download(mock_aleph_http_client, tmp_path):
