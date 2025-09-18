@@ -244,7 +244,7 @@ def test_account_sign_bytes(env_files):
     assert result.stdout.startswith("\nSignature:")
 
 
-def test_account_balance(mocker, env_files):
+def test_account_balance(mocker, env_files, mock_voucher_service):
     settings.CONFIG_FILE = env_files[1]
     balance_response = {
         "address": "0xCAfEcAfeCAfECaFeCaFecaFecaFECafECafeCaFe",
@@ -255,7 +255,10 @@ def test_account_balance(mocker, env_files):
     }
 
     mocker.patch("aleph_client.commands.account.get_balance", return_value=balance_response)
-    mocker.patch("aleph_client.voucher.VoucherManager.get_all", return_value=[])
+    # TODO: used the mocked_client fixture instead (also need to move get_balance to the SDK)
+    mock_client = mocker.AsyncMock()
+    mock_client.voucher = mock_voucher_service
+    mocker.patch("aleph_client.commands.account.AuthenticatedAlephHttpClient.__aenter__", return_value=mock_client)
 
     result = runner.invoke(
         app, ["account", "balance", "--address", "0xCAfEcAfeCAfECaFeCaFecaFecaFECafECafeCaFe", "--chain", "ETH"]
@@ -263,6 +266,8 @@ def test_account_balance(mocker, env_files):
     assert result.exit_code == 0
     assert result.stdout.startswith("╭─ Account Infos")
     assert "Available: 20189.67" in result.stdout
+    assert "Vouchers:" in result.stdout
+    assert "EVM Test Voucher" in result.stdout
 
 
 def test_account_balance_error(mocker, env_files):
@@ -284,6 +289,72 @@ def test_account_balance_error(mocker, env_files):
     assert result.exit_code == 0
     assert "Failed to retrieve balance for address" in result.stdout
     mock_get_balance.assert_called_once()
+
+
+def test_account_vouchers_display(mocker, env_files, mock_voucher_service):
+    """Test that vouchers are properly displayed in the account vouchers command."""
+    settings.CONFIG_FILE = env_files[1]
+
+    # Mock the HTTP client
+    mock_client = mocker.AsyncMock()
+    mock_client.voucher = mock_voucher_service
+    mocker.patch("aleph_client.commands.account.AuthenticatedAlephHttpClient.__aenter__", return_value=mock_client)
+
+    # Create a test address
+    test_address = "0xCAfEcAfeCAfECaFeCaFecaFecaFECafECafeCaFe"
+
+    # Test the command
+    result = runner.invoke(app, ["account", "vouchers", "--address", test_address, "--chain", "ETH"])
+
+    # Check that the command executed successfully
+    assert result.exit_code == 0
+
+    # Verify voucher service was called with the correct address
+    mock_voucher_service.get_vouchers.assert_called_once_with(address=test_address)
+
+    # Check that the voucher information is displayed in the output
+    assert "Vouchers" in result.stdout
+    assert "EVM Test Voucher" in result.stdout
+    assert "Solana Test Voucher" in result.stdout
+    assert "Duration: 30 days" in result.stdout
+    assert "Duration: 60 days" in result.stdout
+    assert "Compute Units: 4" in result.stdout
+    assert "Compute Units: 8" in result.stdout
+
+    # Test with private key file instead of address
+    result = runner.invoke(app, ["account", "vouchers", "--private-key-file", str(env_files[0]), "--chain", "ETH"])
+
+    # Check that the command executed successfully
+    assert result.exit_code == 0
+
+    # The mock should be called again, but with the address from the account loaded from the key file
+    assert mock_voucher_service.get_vouchers.call_count == 2
+
+
+def test_account_vouchers_no_vouchers(mocker, env_files):
+    """Test the account vouchers command when no vouchers are available."""
+    settings.CONFIG_FILE = env_files[1]
+
+    # Create a mock voucher service that returns an empty list
+    mock_voucher_service = mocker.MagicMock()
+    mock_voucher_service.get_vouchers = mocker.AsyncMock(return_value=[])
+
+    # Mock the HTTP client
+    mock_client = mocker.AsyncMock()
+    mock_client.voucher = mock_voucher_service
+    mocker.patch("aleph_client.commands.account.AuthenticatedAlephHttpClient.__aenter__", return_value=mock_client)
+
+    # Create a test address
+    test_address = "0xCAfEcAfeCAfECaFeCaFecaFecaFECafECafeCaFe"
+
+    # Test the command
+    result = runner.invoke(app, ["account", "vouchers", "--address", test_address, "--chain", "ETH"])
+
+    # Check that the command executed successfully
+    assert result.exit_code == 0
+
+    # Check that the "no vouchers" message is displayed
+    assert "No vouchers found for this address" in result.stdout
 
 
 def test_account_config(env_files):
