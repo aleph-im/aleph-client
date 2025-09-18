@@ -26,6 +26,7 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
+from aleph_client.commands.instance.network import call_program_crn_list
 from aleph_client.commands.utils import colorful_json, setup_logging
 from aleph_client.utils import async_lru_cache, sanitize_url
 
@@ -381,7 +382,6 @@ async def prices_for_service(
     # Fetch Current availibity
     network_gpu = None
     if (service in [GroupEntity.GPU, GroupEntity.ALL]) and with_current_availability:
-        from aleph_client.commands.instance.network import call_program_crn_list
 
         crn_lists = await call_program_crn_list()
         network_gpu = crn_lists.find_gpu_on_network()
