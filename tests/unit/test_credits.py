@@ -24,32 +24,6 @@ def mock_credit_balance_response():
 
 
 @pytest.fixture
-def mock_credits_list_response():
-    """Create a mock response for credits list API call."""
-    mock_response = AsyncMock()
-    mock_response.__aenter__.return_value = mock_response
-    mock_response.status = 200
-    mock_response.json = AsyncMock(
-        return_value={
-            "credit_balances": [
-                {
-                    "address": "0x1234567890123456789012345678901234567890",
-                    "credits": 1000000000,
-                },
-                {
-                    "address": "0x0987654321098765432109876543210987654321",
-                    "credits": 500000000,
-                },
-            ],
-            "pagination_page": 1,
-            "pagination_total": 1,
-            "pagination_per_page": 100,
-        }
-    )
-    return mock_response
-
-
-@pytest.fixture
 def mock_credit_history_response():
     """Create a mock response for credit history API call."""
     mock_response = AsyncMock()
