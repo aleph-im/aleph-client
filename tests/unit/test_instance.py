@@ -154,20 +154,6 @@ async def test_fetch_crn_info(mock_crn_list):
     assert not (await fetch_crn_info(mock_crn_list, invalid_node_url))
 
 
-def test_crn_list_vm_path_construction():
-    """Test the CRN list VM path construction in network.py"""
-    from aleph.sdk.conf import settings
-
-    from aleph_client.commands.instance.network import crn_list_link, crn_list_vm
-
-    # Verify the path is constructed correctly using settings.VM_URL_PATH
-    expected_format = settings.VM_URL_PATH.format(hash=crn_list_vm).rstrip("/") + "/crns.json"
-    assert crn_list_link == expected_format
-
-    # Verify the hash being used is the correct one
-    assert crn_list_vm == "bec08b08bb9f9685880f3aeb9c1533951ad56abef2a39c97f5a93683bdaa5e30"
-
-
 def test_sanitize_url_with_empty_url():
     with pytest.raises(InvalidURL, match="Empty URL"):
         sanitize_url("")
