@@ -45,7 +45,7 @@ jobs:
           python-version: 3.11
 
       - run: python3 -m venv /tmp/venv
-      - run: /tmp/venv/bin/python -m pip install --upgrade pip hatch coverage
+      - run: /tmp/venv/bin/python -m pip install --upgrade pip "click<8.2" hatch coverage
 
         # Only run coverage on one OS
       - run: /tmp/venv/bin/hatch run testing:test
