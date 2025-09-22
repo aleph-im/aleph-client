@@ -32,16 +32,16 @@ dependencies = [
   "aiohttp==3.11.13",
   "aleph-message>=1.0.1",
   "aleph-sdk-python @ git+https://github.com/aleph-im/aleph-sdk-python@main",
-  "base58==2.1.1",                                                                            # Needed now as default with _load_account changement
+  "base58==2.1.1",                                                            # Needed now as default with _load_account changement
   "click<8.2",
-  "py-sr25519-bindings==0.2",                                                                 # Needed for DOT signatures
+  "py-sr25519-bindings==0.2",                                                 # Needed for DOT signatures
   "pydantic>=2",
   "pygments==2.19.1",
-  "pynacl==1.5",                                                                              # Needed now as default with _load_account changement
+  "pynacl==1.5",                                                              # Needed now as default with _load_account changement
   "python-magic==0.4.27",
   "rich==13.9.*",
   "setuptools>=65.5",
-  "substrate-interface==1.7.11",                                                              # Needed for DOT signatures
+  "substrate-interface==1.7.11",                                              # Needed for DOT signatures
   "textual==0.73",
   "typer==0.15.2",
 ]
