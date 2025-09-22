@@ -31,11 +31,6 @@ settings_link = (
     "/api/v0/aggregates/0xFba561a84A537fCaa567bb7A2257e7142701ae2A.json?keys=settings"
 )
 
-crn_list_vm = "bec08b08bb9f9685880f3aeb9c1533951ad56abef2a39c97f5a93683bdaa5e30"
-crn_list_link = f"{settings.VM_URL_PATH.format(hash=crn_list_vm).rstrip('/')}/crns.json"
-
-PATH_ABOUT_EXECUTIONS_LIST = "/about/executions/list"
-
 
 @async_lru_cache
 async def call_program_crn_list() -> dict:
@@ -45,17 +40,17 @@ async def call_program_crn_list() -> dict:
         async with AlephHttpClient() as client:
             return await client.crn.get_crns_list(False)
     except InvalidURL as e:
-        error = f"Invalid URL: {crn_list_link}: {e}"
+        error = f"Invalid URL: {settings.CRN_LIST_URL}: {e}"
     except TimeoutError as e:
-        error = f"Timeout while fetching: {crn_list_link}: {e}"
+        error = f"Timeout while fetching: {settings.CRN_LIST_URL}: {e}"
     except ClientConnectorError as e:
-        error = f"Error on connection: {crn_list_link}: {e}"
+        error = f"Error on connection: {settings.CRN_LIST_URL}: {e}"
     except ClientResponseError as e:
-        error = f"Error on response: {crn_list_link}: {e}"
+        error = f"Error on response: {settings.CRN_LIST_URL}: {e}"
     except JSONDecodeError as e:
-        error = f"Error when decoding JSON: {crn_list_link}: {e}"
+        error = f"Error when decoding JSON: {settings.CRN_LIST_URL}: {e}"
     except Exception as e:
-        error = f"Unexpected error while fetching: {crn_list_link}: {e}"
+        error = f"Unexpected error while fetching: {settings.CRN_LIST_URL}: {e}"
     raise RuntimeError(error)
 
 
