@@ -800,17 +800,20 @@ async def delete(
                 fetched_settings = await fetch_settings()
                 community_wallet_timestamp = fetched_settings.get("community_wallet_timestamp")
                 community_wallet_address = fetched_settings.get("community_wallet_address")
-                try:  # Safety check to ensure account can transact
-                    account.can_transact()
-                except Exception as e:
-                    echo(e)
-                    raise typer.Exit(code=1) from e
+
                 echo("Deleting the flows...")
                 flow_crn_percent = Decimal("0.8") if community_wallet_timestamp < creation_time else Decimal("1")
                 flow_com_percent = Decimal("1") - flow_crn_percent
-                flow_hash_crn = await account.manage_flow(
-                    payment.receiver, Decimal(price.required_tokens) * flow_crn_percent, FlowUpdate.REDUCE
-                )
+                try:
+                    flow_hash_crn = await account.manage_flow(
+                        payment.receiver, Decimal(price.required_tokens) * flow_crn_percent, FlowUpdate.REDUCE
+                    )
+                except InsufficientFundsError as e:
+                    echo(f"Error missing token type: {e.token_type}")
+                    echo(f"Required : {e.required_funds}")
+                    echo(f"Available : {e.available_funds}")
+                    raise typer.Exit(code=1) from e
+
                 if flow_hash_crn:
                     echo(f"CRN flow has been deleted successfully (Tx: {flow_hash_crn})")
                     if flow_com_percent > Decimal("0"):
