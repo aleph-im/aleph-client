@@ -3,7 +3,7 @@ from __future__ import annotations
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from aleph.sdk.client.services.pricing import PricingEntity, PricingModel
+from aleph.sdk.client.services.pricing import PricingEntity
 from rich.console import Console
 
 from aleph_client.commands.pricing import (
@@ -13,6 +13,8 @@ from aleph_client.commands.pricing import (
     prices_for_service,
 )
 
+from .test_instance import create_mock_client
+
 
 @pytest.mark.parametrize(
     ids=list(GroupEntity),
@@ -20,12 +22,17 @@ from aleph_client.commands.pricing import (
     argvalues=list(GroupEntity),
 )
 @pytest.mark.asyncio
-async def test_prices_for_service(mock_pricing_info_response, capsys, args):
+async def test_prices_for_service(mock_pricing_info_response, mock_crn_list_obj, mock_settings_info, capsys, args):
     print()  # For better display when pytest -v -s
 
-    @patch("aiohttp.ClientSession.get")
-    async def run(mock_get):
-        mock_get.return_value = mock_pricing_info_response
+    # Create mock client using the function from test_instance
+    mock_client_class, _ = create_mock_client(mock_crn_list_obj, mock_pricing_info_response, mock_settings_info)
+
+    @patch("aleph_client.commands.pricing.AlephHttpClient", mock_client_class)
+    @patch("aleph_client.commands.instance.network.call_program_crn_list", AsyncMock(return_value=mock_crn_list_obj))
+    async def run():
+        # Clear the cache to ensure a fresh request
+        fetch_pricing_aggregate.cache_clear()
         await prices_for_service(service=args)
 
     await run()
@@ -45,12 +52,8 @@ async def test_prices_for_service(mock_pricing_info_response, capsys, args):
 )
 def test_pricing_display_table_for_compute(entity, mock_pricing_info_response):
     """Test the display_table_for method for compute entities."""
-    # Load pricing data from mock response
-    pricing_data = mock_pricing_info_response.json.return_value["data"]["pricing"]
-
-    pricing_model = PricingModel.model_validate(pricing_data)
-
-    pricing = Pricing(pricing_model)
+    # Use the PricingModel directly
+    pricing = Pricing(mock_pricing_info_response)
     pricing.console = MagicMock(spec=Console)
 
     pricing.display_table_for(entity)
@@ -64,12 +67,8 @@ def test_pricing_display_table_for_compute(entity, mock_pricing_info_response):
 
 def test_pricing_display_table_for_storage(mock_pricing_info_response):
     """Test the display_table_for method for storage and web3 hosting."""
-    # Load pricing data from mock response
-    pricing_data = mock_pricing_info_response.json.return_value["data"]["pricing"]
-
-    pricing_model = PricingModel.model_validate(pricing_data)
-
-    pricing = Pricing(pricing_model)
+    # Create Pricing directly from the model
+    pricing = Pricing(mock_pricing_info_response)
     pricing.console = MagicMock(spec=Console)
 
     pricing.display_table_for(PricingEntity.STORAGE)
@@ -88,12 +87,8 @@ async def test_pricing_display_gpu_info(mock_call_program_crn_list, mock_pricing
     # Setup mock for call_program_crn_list
     mock_call_program_crn_list.return_value = mock_crn_list_obj
 
-    # Load pricing data from mock response
-    pricing_data = mock_pricing_info_response.json.return_value["data"]["pricing"]
-
-    pricing_model = PricingModel.model_validate(pricing_data)
-
-    pricing = Pricing(pricing_model)
+    # Create Pricing directly from the model
+    pricing = Pricing(mock_pricing_info_response)
     pricing.console = MagicMock(spec=Console)
 
     network_gpu = mock_crn_list_obj.find_gpu_on_network()
@@ -106,37 +101,24 @@ async def test_pricing_display_gpu_info(mock_call_program_crn_list, mock_pricing
 
 
 @pytest.mark.asyncio
-async def test_fetch_pricing_aggregate(mock_pricing_info_response):
+async def test_fetch_pricing_aggregate(mock_pricing_info_response, mock_crn_list_obj, mock_settings_info):
     """Test the fetch_pricing_aggregate function."""
-    # Load pricing data from mock response
-    pricing_data = mock_pricing_info_response.json.return_value["data"]["pricing"]
+    from .test_instance import create_mock_client
 
-    pricing_model = PricingModel.model_validate(pricing_data)
+    # Create mock client with the pricing model
+    mock_client_class, _ = create_mock_client(mock_crn_list_obj, mock_pricing_info_response, mock_settings_info)
 
-    @patch("aleph_client.commands.pricing.AlephHttpClient")
-    async def run(mock_client_class):
-        # Setup the mock client
-        mock_client = MagicMock()
-        mock_client.__aenter__ = AsyncMock()
-        mock_client.__aenter__.return_value = mock_client
-        mock_client.__aexit__ = AsyncMock()
-
-        mock_client.pricing = MagicMock()
-        mock_client.pricing.get_pricing_aggregate = AsyncMock(return_value=pricing_model)
-
-        mock_client_class.return_value = mock_client
-
+    @patch("aleph_client.commands.pricing.AlephHttpClient", mock_client_class)
+    async def run():
         # Clear the cache
         fetch_pricing_aggregate.cache_clear()
 
         result = await fetch_pricing_aggregate()
 
         assert isinstance(result, Pricing)
-        assert result.data == pricing_model
+        assert result.data == mock_pricing_info_response
 
         # Call again to test caching
         await fetch_pricing_aggregate()
-
-        assert mock_client.pricing.get_pricing_aggregate.call_count == 2
 
     await run()

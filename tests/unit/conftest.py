@@ -19,7 +19,7 @@ import pytest
 from aleph.sdk.chains.common import generate_key
 from aleph.sdk.chains.ethereum import ETHAccount, get_fallback_private_key
 from aleph.sdk.client.services.crn import CrnList
-from aleph.sdk.types import StoredContent
+from aleph.sdk.client.services.pricing import PricingModel
 from aleph.sdk.types import StoredContent, Voucher, VoucherAttribute
 from aleph_message.models import Chain, ItemHash, ItemType, StoreContent, StoreMessage
 from aleph_message.models.base import MessageType
@@ -279,7 +279,6 @@ def mock_crn_list_obj(mock_crn_list):
     Wrap the raw mock_crn_list data into a CrnList object,
     same type as call_program_crn_list() would return.
     """
-    # call_program_crn_list expects a JSON dict with "crns"
     return CrnList.from_api({"crns": mock_crn_list})
 
 
@@ -295,13 +294,9 @@ def mock_pricing_info_response():
     with open(pricing_file) as f:
         pricing_data = json.load(f)
 
-    # Create a mock response for the HTTP get call
-    mock_response = AsyncMock()
-    mock_response.__aenter__.return_value = mock_response
-    mock_response.status = 200
-    mock_response.json = AsyncMock(return_value=pricing_data)
+    pricing_model = PricingModel(pricing_data["data"]["pricing"])
 
-    return mock_response
+    return pricing_model
 
 
 @pytest.fixture
@@ -371,7 +366,6 @@ def mock_api_response(mock_pricing_info_response, mock_settings_info):
             return mock_pricing_info_response
         if "keys=settings" in url:
             return mock_settings_info
-        return mock_pricing_info_response
 
     return side_effect
 

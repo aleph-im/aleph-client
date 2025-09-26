@@ -156,21 +156,25 @@ async def mock_client_session_get(self, program_url):
 
 
 @pytest.mark.asyncio
-async def test_upload_program(mock_pricing_info_response):
+async def test_upload_program(mock_pricing_info_response, mock_crn_list_obj, mock_settings_info):
     mock_load_account = create_mock_load_account()
     mock_account = mock_load_account.return_value
     mock_auth_client_class, mock_auth_client = create_mock_auth_client(mock_account)
     mock_get_balance = AsyncMock(return_value={"available_amount": 100000})
 
+    # Import the create_mock_client function from test_instance
+    from .test_instance import create_mock_client
+
+    # Create mock client for AlephHttpClient with pricing service
+    mock_client_class, _ = create_mock_client(mock_crn_list_obj, mock_pricing_info_response, mock_settings_info)
+
     @patch("aleph_client.commands.program._load_account", mock_load_account)
     @patch("aleph_client.utils.os.path.isfile", MagicMock(return_value=True))
     @patch("aleph_client.commands.program.AuthenticatedAlephHttpClient", mock_auth_client_class)
+    @patch("aleph_client.commands.pricing.AlephHttpClient", mock_client_class)  # Patch AlephHttpClient here
     @patch("aleph_client.commands.program.get_balance", mock_get_balance)
     @patch("aleph_client.commands.program.open", MagicMock())
-
-    # Here we mock the info
-    @patch.object(aiohttp.ClientSession, "get", return_value=mock_pricing_info_response)
-    async def upload_program(_):
+    async def upload_program():
         print()  # For better display when pytest -v -s
         returned = await upload(
             address=FAKE_ADDRESS_EVM,
@@ -190,7 +194,7 @@ async def test_upload_program(mock_pricing_info_response):
         mock_auth_client.create_program.assert_called_once()
         assert returned == FAKE_PROGRAM_HASH
 
-    await upload_program()  # type: ignore[call-arg]
+    await upload_program()
 
 
 @pytest.mark.asyncio

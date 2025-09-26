@@ -398,29 +398,3 @@ def find_sevctl_or_exit() -> Path:
         echo("Instructions for setup https://docs.aleph.im/computing/confidential/requirements/")
         raise Exit(code=1)
     return Path(sevctl_path)
-
-
-def found_gpus_by_model(crn_list: list) -> dict[str, dict[str, dict[str, int]]]:
-    found_gpu_models: dict[str, dict[str, dict[str, int]]] = {}
-    for crn_ in crn_list:
-        found_gpus: dict[str, dict[str, dict[str, int]]] = {}
-        for gpu_ in crn_.compatible_available_gpus:
-            model = gpu_["model"]
-            device = gpu_["device_name"]
-            if model not in found_gpus:
-                found_gpus[model] = {device: {"count": 1, "on_crns": 1}}
-            elif device not in found_gpus[model]:
-                found_gpus[model][device] = {"count": 1, "on_crns": 1}
-            else:
-                found_gpus[model][device]["count"] += 1
-        for model, devices in found_gpus.items():
-            if model not in found_gpu_models:
-                found_gpu_models[model] = devices
-            else:
-                for device, details in devices.items():
-                    if device not in found_gpu_models[model]:
-                        found_gpu_models[model][device] = details
-                    else:
-                        found_gpu_models[model][device]["count"] += details["count"]
-                        found_gpu_models[model][device]["on_crns"] += details["on_crns"]
-    return found_gpu_models
