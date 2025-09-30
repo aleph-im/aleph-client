@@ -60,8 +60,6 @@ async def get(
                 reason = await client.get_message_error(item_hash=ItemHash(item_hash))
                 typer.echo(colorful_json(json.dumps(reason, indent=4)))
             else:
-                if status == "removing":
-                    typer.echo(f"Removing reason : {message['reason']}")
                 typer.echo(colorful_json(json.dumps(message.model_dump(), indent=4, default=extended_json_encoder)))
 
 

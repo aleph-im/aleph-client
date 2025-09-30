@@ -443,23 +443,6 @@ def test_message_get_with_forgotten(mocker):
     assert "Message has been forgotten on aleph.im" in result.stdout
 
 
-def test_message_get_with_removing(mocker, store_message_fixture):
-    message = StoreMessage.model_validate(store_message_fixture)
-    mocker.patch("aleph.sdk.AlephHttpClient.get_message", return_value=[message, "removing"])
-    mocker.patch("aleph.sdk.AlephHttpClient.get_message_error", return_value={"reason": "balance_insufficient"})
-    result = runner.invoke(
-        app,
-        [
-            "message",
-            "get",
-            FAKE_STORE_HASH,
-        ],
-    )
-    assert result.exit_code == 0
-    assert "Message Status: removing" in result.stdout
-    assert "balance_insufficient" in result.stdout
-
-
 def test_message_get_not_found(mocker):
     """Test the behavior when a message is not found."""
     # Mock the get_message method to raise MessageNotFoundError

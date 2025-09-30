@@ -37,44 +37,6 @@ pricing_link = (
 )
 
 
-class PricingEntity(str, Enum):
-    STORAGE = "storage"
-    WEB3_HOSTING = "web3_hosting"
-    PROGRAM = "program"
-    PROGRAM_PERSISTENT = "program_persistent"
-    INSTANCE = "instance"
-    INSTANCE_CONFIDENTIAL = "instance_confidential"
-    INSTANCE_GPU_STANDARD = "instance_gpu_standard"
-    INSTANCE_GPU_PREMIUM = "instance_gpu_premium"
-
-
-class GroupEntity(str, Enum):
-    STORAGE = "storage"
-    WEBSITE = "website"
-    PROGRAM = "program"
-    INSTANCE = "instance"
-    CONFIDENTIAL = "confidential"
-    GPU = "gpu"
-    ALL = "all"
-
-
-PRICING_GROUPS: dict[str, list[PricingEntity]] = {
-    GroupEntity.STORAGE: [PricingEntity.STORAGE],
-    GroupEntity.WEBSITE: [PricingEntity.WEB3_HOSTING],
-    GroupEntity.PROGRAM: [PricingEntity.PROGRAM, PricingEntity.PROGRAM_PERSISTENT],
-    GroupEntity.INSTANCE: [PricingEntity.INSTANCE],
-    GroupEntity.CONFIDENTIAL: [PricingEntity.INSTANCE_CONFIDENTIAL],
-    GroupEntity.GPU: [PricingEntity.INSTANCE_GPU_STANDARD, PricingEntity.INSTANCE_GPU_PREMIUM],
-    GroupEntity.ALL: list(PricingEntity),
-}
-
-PAYG_GROUP: list[PricingEntity] = [
-    PricingEntity.INSTANCE,
-    PricingEntity.INSTANCE_CONFIDENTIAL,
-    PricingEntity.INSTANCE_GPU_STANDARD,
-    PricingEntity.INSTANCE_GPU_PREMIUM,
-]
-
 MAX_VALUE = Decimal(999_999_999)
 
 
