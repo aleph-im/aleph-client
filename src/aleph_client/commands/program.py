@@ -46,7 +46,6 @@ from rich.table import Table
 from rich.text import Text
 
 from aleph_client.commands import help_strings
-from aleph_client.commands.account import get_balance
 from aleph_client.commands.pricing import PricingEntity, fetch_pricing_aggregate
 from aleph_client.commands.utils import (
     display_mounted_volumes,
@@ -248,7 +247,7 @@ async def upload(
             typer.echo(f"Failed to estimate program cost, error: {e}")
             raise typer.Exit(code=1) from e
 
-        available_funds = Decimal((await get_balance(address))["available_amount"])
+        available_funds = Decimal((await client.get_balances(address))["available_amount"])
         try:
             if available_funds < required_tokens:
                 raise InsufficientFundsError(TokenType.ALEPH, float(required_tokens), float(available_funds))

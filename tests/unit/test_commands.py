@@ -7,6 +7,11 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from aleph.sdk.chains.ethereum import ETHAccount
 from aleph.sdk.conf import settings
+from aleph.sdk.exceptions import (
+    ForgottenMessageError,
+    MessageNotFoundError,
+    RemovedMessageError,
+)
 from aleph.sdk.query.responses import MessagesResponse
 from aleph.sdk.types import StorageEnum, StoredContent
 from aleph_message.models import PostMessage, StoreMessage
@@ -16,6 +21,7 @@ from aleph_client.__main__ import app
 from aleph_client.commands.files import upload
 
 from .mocks import FAKE_STORE_HASH, FAKE_STORE_HASH_PUBLISHER
+from .test_instance import create_mock_client
 
 runner = CliRunner()
 
@@ -244,25 +250,24 @@ def test_account_sign_bytes(env_files):
     assert result.stdout.startswith("\nSignature:")
 
 
-def test_account_balance(mocker, env_files, mock_voucher_service):
-    settings.CONFIG_FILE = env_files[1]
-    balance_response = {
-        "address": "0xCAfEcAfeCAfECaFeCaFecaFecaFECafECafeCaFe",
-        "balance": 24853,
-        "details": {"AVAX": 4000, "BASE": 10000, "ETH": 10853},
-        "locked_amount": 4663.334518051392,
-        "available_amount": 20189.665481948608,
-    }
+def test_account_balance(mocker, env_files, mock_voucher_service, mock_get_balances):
+    """
+    This test verifies that the account balance command correctly displays balance and voucher information.
+    """
 
-    mocker.patch("aleph_client.commands.account.get_balance", return_value=balance_response)
-    # TODO: used the mocked_client fixture instead (also need to move get_balance to the SDK)
-    mock_client = mocker.AsyncMock()
+    settings.CONFIG_FILE = env_files[1]
+    mock_client_class, mock_client = create_mock_client(None, None, mock_get_balances=mock_get_balances)
+
     mock_client.voucher = mock_voucher_service
-    mocker.patch("aleph_client.commands.account.AuthenticatedAlephHttpClient.__aenter__", return_value=mock_client)
+
+    # Replace both client types with our mock implementation
+    mocker.patch("aleph_client.commands.account.AlephHttpClient", mock_client_class)
+    mocker.patch("aleph_client.commands.account.AuthenticatedAlephHttpClient", mock_client_class)
 
     result = runner.invoke(
         app, ["account", "balance", "--address", "0xCAfEcAfeCAfECaFeCaFecaFecaFECafECafeCaFe", "--chain", "ETH"]
     )
+
     assert result.exit_code == 0
     assert result.stdout.startswith("╭─ Account Infos")
     assert "Available: 20189.67" in result.stdout
@@ -270,15 +275,24 @@ def test_account_balance(mocker, env_files, mock_voucher_service):
     assert "EVM Test Voucher" in result.stdout
 
 
-def test_account_balance_error(mocker, env_files):
+def test_account_balance_error(mocker, env_files, mock_voucher_empty):
     """Test error handling in the account balance command when API returns an error."""
     settings.CONFIG_FILE = env_files[1]
 
-    # Mock get_balance to raise an exception - simulating a non-200 response
-    mock_get_balance = mocker.patch(
-        "aleph_client.commands.account.get_balance",
-        side_effect=Exception("Failed to retrieve balance for address test. Status code: 404"),
+    mock_client_class = MagicMock()
+    mock_client = MagicMock()
+    mock_client.__aenter__.return_value = mock_client
+    mock_client.__aexit__.return_value = None
+    mock_client.get_balances = AsyncMock(
+        side_effect=Exception(
+            "Failed to retrieve balance for address 0xCAfEcAfeCAfECaFeCaFecaFecaFECafECafeCaFe. Status code: 404"
+        )
     )
+    mock_client.voucher = mock_voucher_empty
+    mock_client_class.return_value = mock_client
+
+    mocker.patch("aleph_client.commands.account.AlephHttpClient", mock_client_class)
+    mocker.patch("aleph_client.commands.account.AuthenticatedAlephHttpClient", mock_client_class)
 
     # Test with an address directly
     result = runner.invoke(
@@ -288,7 +302,6 @@ def test_account_balance_error(mocker, env_files):
     # The command should run without crashing but report the error
     assert result.exit_code == 0
     assert "Failed to retrieve balance for address" in result.stdout
-    mock_get_balance.assert_called_once()
 
 
 def test_account_vouchers_display(mocker, env_files, mock_voucher_service):
@@ -382,6 +395,95 @@ def test_message_get(mocker, store_message_fixture):
     )
     assert result.exit_code == 0
     assert FAKE_STORE_HASH_PUBLISHER in result.stdout
+
+
+def test_message_get_with_reject(mocker, store_message_fixture):
+    message = StoreMessage.model_validate(store_message_fixture)
+    mocker.patch("aleph.sdk.AlephHttpClient.get_message", return_value=[message, "rejected"])
+    mocker.patch(
+        "aleph.sdk.AlephHttpClient.get_message_error",
+        return_value={
+            "error_code": 100,
+            "details": {"errors": ["File not found: Could not retrieve file from storage at this time"]},
+        },
+    )
+    result = runner.invoke(
+        app,
+        [
+            "message",
+            "get",
+            FAKE_STORE_HASH,
+        ],
+    )
+    assert result.exit_code == 0
+    assert "Message Status: rejected" in result.stdout
+
+
+def test_message_get_with_forgotten(mocker):
+    """Test the behavior when a message has been forgotten."""
+    # Mock the get_message method to raise ForgottenMessageError
+    mocker.patch(
+        "aleph.sdk.AlephHttpClient.get_message",
+        side_effect=ForgottenMessageError(
+            f"The requested message {FAKE_STORE_HASH} has been forgotten by node1, node2"
+        ),
+    )
+
+    result = runner.invoke(
+        app,
+        [
+            "message",
+            "get",
+            FAKE_STORE_HASH,
+        ],
+    )
+
+    # Verify output matches expected response for forgotten messages
+    assert result.exit_code == 0
+    assert "Message has been forgotten on aleph.im" in result.stdout
+
+
+def test_message_get_not_found(mocker):
+    """Test the behavior when a message is not found."""
+    # Mock the get_message method to raise MessageNotFoundError
+    mocker.patch(
+        "aleph.sdk.AlephHttpClient.get_message", side_effect=MessageNotFoundError(f"No such hash {FAKE_STORE_HASH}")
+    )
+
+    result = runner.invoke(
+        app,
+        [
+            "message",
+            "get",
+            FAKE_STORE_HASH,
+        ],
+    )
+
+    # Verify output matches expected response for not found messages
+    assert result.exit_code == 0
+    assert "Message does not exist on aleph.im" in result.stdout
+
+
+def test_message_get_removed(mocker):
+    """Test the behavior when a message has been removed."""
+    # Mock the get_message method to raise RemovedMessageError
+    mocker.patch(
+        "aleph.sdk.AlephHttpClient.get_message",
+        side_effect=RemovedMessageError(f"The requested message {FAKE_STORE_HASH} has been removed by admin"),
+    )
+
+    result = runner.invoke(
+        app,
+        [
+            "message",
+            "get",
+            FAKE_STORE_HASH,
+        ],
+    )
+
+    # Verify output matches expected response for removed messages
+    assert result.exit_code == 0
+    assert "Message has been removed on aleph.im" in result.stdout
 
 
 def test_message_find(mocker, store_message_fixture):

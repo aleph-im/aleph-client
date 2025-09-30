@@ -13,7 +13,11 @@ import typer
 from aleph.sdk import AlephHttpClient, AuthenticatedAlephHttpClient
 from aleph.sdk.account import _load_account
 from aleph.sdk.conf import settings
-from aleph.sdk.exceptions import ForgottenMessageError, MessageNotFoundError
+from aleph.sdk.exceptions import (
+    ForgottenMessageError,
+    MessageNotFoundError,
+    RemovedMessageError,
+)
 from aleph.sdk.query.filters import MessageFilter
 from aleph.sdk.query.responses import MessagesResponse
 from aleph.sdk.types import AccountFromPrivateKey, StorageEnum
@@ -48,6 +52,8 @@ async def get(
             typer.echo("Message does not exist on aleph.im")
         except ForgottenMessageError:
             typer.echo("Message has been forgotten on aleph.im")
+        except RemovedMessageError:
+            typer.echo("Message has been removed on aleph.im")
         if message:
             typer.echo(f"Message Status: {colorized_status(status)}")
             if status == MessageStatus.REJECTED:

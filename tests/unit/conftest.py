@@ -11,6 +11,7 @@ import json
 import time
 from collections.abc import Generator
 from datetime import datetime, timezone
+from decimal import Decimal
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -20,6 +21,7 @@ from aleph.sdk.chains.common import generate_key
 from aleph.sdk.chains.ethereum import ETHAccount, get_fallback_private_key
 from aleph.sdk.client.services.crn import CrnList
 from aleph.sdk.client.services.pricing import PricingModel
+from aleph.sdk.query.responses import BalanceResponse
 from aleph.sdk.types import StoredContent, Voucher, VoucherAttribute
 from aleph_message.models import Chain, ItemHash, ItemType, StoreContent, StoreMessage
 from aleph_message.models.base import MessageType
@@ -530,3 +532,28 @@ def mock_voucher_service(mock_vouchers):
     mock_service.get_solana_vouchers = AsyncMock(return_value=[solana_voucher])
 
     return mock_service
+
+
+@pytest.fixture
+def mock_voucher_empty():
+    """Create a mock voucher service with pre-configured responses."""
+    mock_service = MagicMock()
+    mock_service.fetch_vouchers_by_chain = AsyncMock(return_value=[])
+    mock_service.get_vouchers = AsyncMock(return_value=[])
+    mock_service.get_evm_vouchers = AsyncMock(return_value=[])
+    mock_service.get_solana_vouchers = AsyncMock(return_value=[])
+
+    return mock_service
+
+
+@pytest.fixture
+def mock_get_balances():
+    # Create a proper BalanceResponse with all Decimal values
+    response = BalanceResponse(
+        address="0xCAfEcAfeCAfECaFeCaFecaFecaFECafECafeCaFe",
+        balance=Decimal(24853),
+        details={"AVAX": Decimal(4000), "BASE": Decimal(10000), "ETH": Decimal(10853)},
+        locked_amount=Decimal("4663.334518051392"),
+        credit_balance=5000,
+    )
+    return response

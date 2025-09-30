@@ -160,7 +160,8 @@ async def test_upload_program(mock_pricing_info_response, mock_crn_list_obj, moc
     mock_load_account = create_mock_load_account()
     mock_account = mock_load_account.return_value
     mock_auth_client_class, mock_auth_client = create_mock_auth_client(mock_account)
-    mock_get_balance = AsyncMock(return_value={"available_amount": 100000})
+    # Update: Using get_balances which returns a dict with available_amount instead of get_balance
+    mock_auth_client.get_balances = AsyncMock(return_value={"available_amount": 100000})
 
     # Import the create_mock_client function from test_instance
     from .test_instance import create_mock_client
@@ -172,7 +173,6 @@ async def test_upload_program(mock_pricing_info_response, mock_crn_list_obj, moc
     @patch("aleph_client.utils.os.path.isfile", MagicMock(return_value=True))
     @patch("aleph_client.commands.program.AuthenticatedAlephHttpClient", mock_auth_client_class)
     @patch("aleph_client.commands.pricing.AlephHttpClient", mock_client_class)  # Patch AlephHttpClient here
-    @patch("aleph_client.commands.program.get_balance", mock_get_balance)
     @patch("aleph_client.commands.program.open", MagicMock())
     async def upload_program():
         print()  # For better display when pytest -v -s
@@ -189,7 +189,7 @@ async def test_upload_program(mock_pricing_info_response, mock_crn_list_obj, moc
         )
         mock_load_account.assert_called_once()
         mock_auth_client.create_store.assert_called_once()
-        mock_get_balance.assert_called_once()
+        mock_auth_client.get_balances.assert_called_once()
         mock_auth_client.get_estimated_price.assert_called_once()
         mock_auth_client.create_program.assert_called_once()
         assert returned == FAKE_PROGRAM_HASH
