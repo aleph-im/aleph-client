@@ -519,8 +519,7 @@ class InstanceDisplay:
                         Text("Please make sure PAYG flow is running", style="orange3"),
                         Text.from_markup(
                             "\n[italic]↳[/italic] [orange3]Recommended action:[/orange3] \n"
-                            " ↳ aleph instance allocate [bright_cyan]<vm-item-hash>[/bright_cyan] \n"
-                            " ↳ aleph instance start [bright_cyan]<vm-item-hash>[/bright_cyan])"
+                            " ↳ aleph instance allocate [bright_cyan]<vm-item-hash>[/bright_cyan]"
                         ),
                     )
                     or Text(""),
