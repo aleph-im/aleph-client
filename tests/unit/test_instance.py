@@ -12,7 +12,6 @@ import typer
 from aiohttp import InvalidURL
 from aleph.sdk.exceptions import InsufficientFundsError
 from aleph.sdk.types import TokenType
-from aleph.sdk.client.services.crn import CrnList
 from aleph_message.models import Chain
 from aleph_message.models.execution.base import Payment, PaymentType
 from aleph_message.models.execution.environment import (
@@ -267,7 +266,13 @@ def create_mock_shutil():
     return MagicMock(which=MagicMock(return_value="/root/.cargo/bin/sevctl", move=MagicMock(return_value="/fake/path")))
 
 
-def create_mock_client(mock_crn_list_obj, mock_pricing_info_response, mock_settings_info, payment_type="superfluid"):
+def create_mock_client(
+    mock_crn_list_obj,
+    mock_pricing_info_response,
+    mock_get_balances,
+    payment_type="superfluid",
+    mock_voucher_service=None,
+):
     # Create a proper mock for the crn service
     mock_crn_service = MagicMock()
     mock_crn_service.get_crns_list = AsyncMock(return_value=mock_crn_list_obj)
@@ -290,15 +295,12 @@ def create_mock_client(mock_crn_list_obj, mock_pricing_info_response, mock_setti
                 payment_type=payment_type,
             )
         ),
-        get_balance=AsyncMock(
-            return_value=MagicMock(
-                credit_balance=5000,  # Enough credits for testing
-            )
-        ),
+        get_balances=AsyncMock(return_value=mock_get_balances),
     )
     mock_client.pricing = mock_pricing_service
     # Set the crn attribute to the properly mocked service
     mock_client.crn = mock_crn_service
+    mock_client.voucher = mock_voucher_service
 
     mock_client_class = MagicMock()
     mock_client_class.return_value.__aenter__ = AsyncMock(return_value=mock_client)
@@ -306,7 +308,12 @@ def create_mock_client(mock_crn_list_obj, mock_pricing_info_response, mock_setti
 
 
 def create_mock_auth_client(
-    mock_account, payment_type="superfluid", payment_types=None, mock_crn_list_obj=None, mock_pricing_info_response=None
+    mock_account,
+    payment_type="superfluid",
+    payment_types=None,
+    mock_crn_list_obj=None,
+    mock_pricing_info_response=None,
+    mock_get_balances=None,
 ):
 
     def response_get_program_price(ptype):
@@ -339,12 +346,11 @@ def create_mock_auth_client(
         create_instance=AsyncMock(return_value=[mock_response_create_instance, 200]),
         get_program_price=None,
         forget=AsyncMock(return_value=(MagicMock(), 200)),
-        get_balance=AsyncMock(
-            return_value=MagicMock(
-                credit_balance=5000,  # Enough credits for testing
-            )
-        ),
     )
+
+    # Set get_balances directly to avoid AsyncMock wrapping
+    if mock_get_balances:
+        mock_auth_client.get_balances = AsyncMock(return_value=mock_get_balances)
 
     # Set the service attributes
     mock_auth_client.crn = mock_crn_service
@@ -496,16 +502,18 @@ def create_mock_vm_coco_client():
     ],
 )
 @pytest.mark.asyncio
-async def test_create_instance(args, expected, mock_crn_list_obj, mock_pricing_info_response, mock_settings_info):
+async def test_create_instance(args, expected, mock_crn_list_obj, mock_pricing_info_response, mock_get_balances):
     mock_validate_ssh_pubkey_file = create_mock_validate_ssh_pubkey_file()
     mock_load_account = create_mock_load_account()
     mock_account = mock_load_account.return_value
-    mock_get_balance = AsyncMock(return_value={"available_amount": 100000})
     mock_client_class, mock_client = create_mock_client(
-        mock_crn_list_obj, mock_pricing_info_response, mock_settings_info, payment_type=args["payment_type"]
+        mock_crn_list_obj, mock_pricing_info_response, mock_get_balances, payment_type=args["payment_type"]
     )
     mock_auth_client_class, mock_auth_client = create_mock_auth_client(
-        mock_account, payment_type=args["payment_type"], mock_crn_list_obj=mock_crn_list_obj
+        mock_account,
+        payment_type=args["payment_type"],
+        mock_crn_list_obj=mock_crn_list_obj,
+        mock_get_balances=mock_get_balances,
     )
 
     mock_vm_client_class, mock_vm_client = create_mock_vm_client()
@@ -521,7 +529,6 @@ async def test_create_instance(args, expected, mock_crn_list_obj, mock_pricing_i
     with (
         patch("aleph_client.commands.instance.validate_ssh_pubkey_file", mock_validate_ssh_pubkey_file),
         patch("aleph_client.commands.instance._load_account", mock_load_account),
-        patch("aleph_client.commands.instance.get_balance", mock_get_balance),
         patch("aleph_client.commands.instance.AlephHttpClient", mock_client_class),
         patch("aleph_client.commands.pricing.AlephHttpClient", mock_client_class),
         patch("aleph_client.commands.instance.AuthenticatedAlephHttpClient", mock_auth_client_class),
@@ -564,14 +571,20 @@ async def test_create_instance(args, expected, mock_crn_list_obj, mock_pricing_i
         mock_auth_client.create_instance.assert_called_once()
 
         # Payment type specific assertions
-        if args["payment_type"] == "hold":
-            mock_get_balance.assert_called_once()
+        if args["payment_type"] == "credit":
+            # For credit payment type, client.get_balances should be called
+            mock_client.get_balances.assert_called_once()
         elif args["payment_type"] == "superfluid":
             assert mock_account.manage_flow.call_count == 2
             assert mock_wait_for_confirmed_flow.call_count == 2
 
         # CRN related assertions
-        if args["payment_type"] == "superfluid" or args.get("confidential") or args.get("gpu"):
+        if (
+            args["payment_type"] == "superfluid"
+            or args["payment_type"] == "credit"
+            or args.get("confidential")
+            or args.get("gpu")
+        ):
             mock_wait_for_processed_instance.assert_called_once()
             mock_vm_client.start_instance.assert_called_once()
 
@@ -579,18 +592,19 @@ async def test_create_instance(args, expected, mock_crn_list_obj, mock_pricing_i
 
 
 @pytest.mark.asyncio
-async def test_list_instances(mock_crn_list_obj, mock_pricing_info_response, mock_settings_info):
+async def test_list_instances(mock_crn_list_obj, mock_pricing_info_response, mock_get_balances):
     mock_load_account = create_mock_load_account()
     mock_account = mock_load_account.return_value
     mock_fetch_latest_crn_version = create_mock_fetch_latest_crn_version()
     mock_client_class, mock_client = create_mock_client(
-        mock_crn_list_obj, mock_pricing_info_response, mock_settings_info
+        mock_crn_list_obj, mock_pricing_info_response, mock_get_balances
     )
     mock_instance_messages = create_mock_instance_messages(mock_account)
     mock_auth_client_class, mock_auth_client = create_mock_auth_client(
         mock_account,
         payment_types=[vm.content.payment.type for vm in mock_instance_messages.return_value],
         mock_crn_list_obj=mock_crn_list_obj,
+        mock_get_balances=mock_get_balances,
     )
 
     mock_allocations = MagicMock(root={"some_hash": "some_allocation"})
@@ -1067,7 +1081,6 @@ async def test_gpu_create_no_gpus_available(mock_crn_list_obj, mock_pricing_info
     """
     mock_load_account = create_mock_load_account()
     mock_validate_ssh_pubkey_file = create_mock_validate_ssh_pubkey_file()
-    mock_get_balance = AsyncMock(return_value={"available_amount": 100000})
     mock_client_class, mock_client = create_mock_client(
         mock_crn_list_obj, mock_pricing_info_response, mock_settings_info, payment_type="superfluid"
     )
@@ -1076,7 +1089,6 @@ async def test_gpu_create_no_gpus_available(mock_crn_list_obj, mock_pricing_info
 
     @patch("aleph_client.commands.instance._load_account", mock_load_account)
     @patch("aleph_client.commands.instance.validate_ssh_pubkey_file", mock_validate_ssh_pubkey_file)
-    @patch("aleph_client.commands.instance.get_balance", mock_get_balance)
     @patch("aleph_client.commands.instance.AlephHttpClient", mock_client_class)
     @patch("aleph_client.commands.pricing.AlephHttpClient", mock_client_class)
     @patch("aleph_client.commands.instance.network.AlephHttpClient", mock_client_class)

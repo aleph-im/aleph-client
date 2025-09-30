@@ -9,7 +9,7 @@ from typing import Annotated, Optional
 
 import aiohttp
 import typer
-from aleph.sdk import AuthenticatedAlephHttpClient, AlephHttpClient
+from aleph.sdk import AlephHttpClient, AuthenticatedAlephHttpClient
 from aleph.sdk.account import _load_account
 from aleph.sdk.chains.common import generate_key
 from aleph.sdk.chains.solana import parse_private_key as parse_solana_private_key
@@ -303,14 +303,16 @@ async def balance(
 
     if address:
         try:
-            balance_data = await get_balance(address)
+            async with AlephHttpClient() as client:
+                balance_data = await client.get_balances(address)
+                available = balance_data.balance - balance_data.locked_amount
             infos = [
-                Text.from_markup(f"Address: [bright_cyan]{balance_data['address']}[/bright_cyan]"),
+                Text.from_markup(f"Address: [bright_cyan]{balance_data.address}[/bright_cyan]"),
                 Text.from_markup(
-                    f"\nBalance: [bright_cyan]{displayable_amount(balance_data['balance'], decimals=2)}[/bright_cyan]"
+                    f"\nBalance: [bright_cyan]{displayable_amount(balance_data.balance, decimals=2)}[/bright_cyan]"
                 ),
             ]
-            details = balance_data.get("details")
+            details = balance_data.details
             if details:
                 infos += [Text("\n ↳ Details")]
                 for chain_, chain_balance in details.items():
@@ -319,32 +321,25 @@ async def balance(
                             f"\n    {chain_}: [orange3]{displayable_amount(chain_balance, decimals=2)}[/orange3]"
                         )
                     ]
-            available_color = "bright_cyan" if balance_data["available_amount"] >= 0 else "red"
+            available_color = "bright_cyan" if available >= 0 else "red"
             infos += [
                 Text.from_markup(
-                    f"\n - Locked: [bright_cyan]{displayable_amount(balance_data['locked_amount'], decimals=2)}"
+                    f"\n - Locked: [bright_cyan]{displayable_amount(balance_data.locked_amount, decimals=2)}"
                     "[/bright_cyan]"
                 ),
                 Text.from_markup(
                     f"\n - Available: [{available_color}]"
-                    f"{displayable_amount(balance_data['available_amount'], decimals=2)}"
+                    f"{displayable_amount(available, decimals=2)}"
                     f"[/{available_color}]"
                 ),
             ]
 
-            try:
-                # Fetch user Credits
-                async with AlephHttpClient() as client:
-                    credits_balance = await client.get_balance(address).credit_balance
-                    infos += [
-                        Text("\nCredits:"),
-                        Text.from_markup(
-                            f"[bright_cyan] {displayable_amount(credits_balance, decimals=2)}[/bright_cyan]"
-                        ),
-                    ]
-            except Exception as e:
-                # In the case we call on ccn that does not support credits yet
-                logger.warning(f"Failed to fetch credits balance: {e}")
+            infos += [
+                Text("\nCredits:"),
+                Text.from_markup(
+                    f"[bright_cyan] {displayable_amount(balance_data.credit_balance, decimals=2)}[/bright_cyan]"
+                ),
+            ]
 
             # Get vouchers and add them to Account Info panel
             async with AuthenticatedAlephHttpClient(account=account) as client:

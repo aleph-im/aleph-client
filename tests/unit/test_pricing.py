@@ -22,11 +22,11 @@ from .test_instance import create_mock_client
     argvalues=list(GroupEntity),
 )
 @pytest.mark.asyncio
-async def test_prices_for_service(mock_pricing_info_response, mock_crn_list_obj, mock_settings_info, capsys, args):
+async def test_prices_for_service(mock_pricing_info_response, mock_crn_list_obj, mock_get_balances, capsys, args):
     print()  # For better display when pytest -v -s
 
     # Create mock client using the function from test_instance
-    mock_client_class, _ = create_mock_client(mock_crn_list_obj, mock_pricing_info_response, mock_settings_info)
+    mock_client_class, _ = create_mock_client(mock_crn_list_obj, mock_pricing_info_response, mock_get_balances)
 
     @patch("aleph_client.commands.pricing.AlephHttpClient", mock_client_class)
     @patch("aleph_client.commands.instance.network.call_program_crn_list", AsyncMock(return_value=mock_crn_list_obj))
@@ -101,12 +101,12 @@ async def test_pricing_display_gpu_info(mock_call_program_crn_list, mock_pricing
 
 
 @pytest.mark.asyncio
-async def test_fetch_pricing_aggregate(mock_pricing_info_response, mock_crn_list_obj, mock_settings_info):
+async def test_fetch_pricing_aggregate(mock_pricing_info_response, mock_crn_list_obj, mock_get_balances):
     """Test the fetch_pricing_aggregate function."""
     from .test_instance import create_mock_client
 
     # Create mock client with the pricing model
-    mock_client_class, _ = create_mock_client(mock_crn_list_obj, mock_pricing_info_response, mock_settings_info)
+    mock_client_class, _ = create_mock_client(mock_crn_list_obj, mock_pricing_info_response, mock_get_balances)
 
     @patch("aleph_client.commands.pricing.AlephHttpClient", mock_client_class)
     async def run():

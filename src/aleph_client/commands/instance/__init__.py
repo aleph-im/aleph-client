@@ -63,7 +63,6 @@ from rich.prompt import Prompt
 from rich.text import Text
 
 from aleph_client.commands import help_strings
-from aleph_client.commands.account import get_balance
 from aleph_client.commands.instance.display import CRNTable, show_instances
 from aleph_client.commands.instance.network import (
     call_program_crn_list,
@@ -419,7 +418,9 @@ async def create(
     compute_unit_price = pricing.data[pricing_entity].price.get("compute_unit")
     if payment_type in [PaymentType.hold, PaymentType.superfluid]:
         # Early check with minimal cost (Gas + Aleph ERC20)
-        available_funds = Decimal(0 if is_stream else (await get_balance(address))["available_amount"])
+        balance_response = await client.get_balances(address)
+        available_amount = balance_response.balance - balance_response.locked_amount
+        available_funds = Decimal(0 if is_stream else available_amount)
         try:
             # Get compute_unit price from PricingPerEntity
             if is_stream and isinstance(account, ETHAccount):
@@ -451,7 +452,7 @@ async def create(
     if payment_type == PaymentType.credit:
         async with AlephHttpClient(api_server=settings.API_HOST) as client:
             try:
-                credit_info = await client.get_balance(address=address)
+                credit_info = await client.get_balances(address=address)
                 if isinstance(compute_unit_price, Price) and compute_unit_price.credit:
                     credit_price = Decimal(str(compute_unit_price.credit)) * tier.compute_units
                     if credit_info.credit_balance < credit_price:

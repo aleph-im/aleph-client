@@ -48,7 +48,7 @@ async def show(
 
     if address:
         async with AlephHttpClient(api_server=settings.API_HOST) as client:
-            credit = await client.get_balance(address=address)
+            credit = await client.get_balances(address=address)
             if json:
                 typer.echo(credit.model_dump_json(indent=4))
             else:
@@ -107,7 +107,7 @@ async def history(
                 table.add_column("Origin Ref")
                 table.add_column("Expiration Date")
 
-                for credit in filtered_credits.credit_balances:
+                for credit in filtered_credits.credit_history:
                     timestamp = Text(credit.message_timestamp.strftime("%Y-%m-%d %H:%M:%S"))
                     amount = Text(displayable_amount(credit.amount, decimals=2), style="cyan")
                     payment_method = Text(credit.payment_method if credit.payment_method else "-")

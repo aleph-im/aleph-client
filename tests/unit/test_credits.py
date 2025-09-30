@@ -17,7 +17,10 @@ def mock_credit_balance_response():
     mock_response.json = AsyncMock(
         return_value={
             "address": "0x1234567890123456789012345678901234567890",
-            "credits": 1000000000,
+            "balance": 24853,
+            "locked_amount": 4663.33,
+            "credit_balance": 1000000000,
+            "details": {"AVAX": 4000, "BASE": 10000, "ETH": 10853},
         }
     )
     return mock_response
@@ -32,7 +35,7 @@ def mock_credit_history_response():
     mock_response.json = AsyncMock(
         return_value={
             "address": "0x1234567890123456789012345678901234567890",
-            "credit_balances": [
+            "credit_history": [
                 {
                     "amount": 1000000000,
                     "message_timestamp": "2023-06-15T12:30:45Z",
@@ -124,10 +127,9 @@ async def test_show_json_output(mock_credit_balance_response, capsys):
 
     # Try to parse the output as JSON to validate it's properly formatted
     parsed_json = json.loads(captured.out)
-
     # Verify expected data is in the parsed JSON
     assert parsed_json["address"] == "0x1234567890123456789012345678901234567890"
-    assert parsed_json["credits"] == 1000000000
+    assert parsed_json["credit_balance"] == 1000000000
 
 
 @pytest.mark.asyncio
@@ -259,9 +261,9 @@ async def test_history_json_output(mock_credit_history_response, capsys):
 
     # Verify expected data is in the parsed JSON
     assert parsed_json["address"] == "0x1234567890123456789012345678901234567890"
-    assert parsed_json["credit_balances"][0]["amount"] == 1000000000
-    assert parsed_json["credit_balances"][0]["payment_method"] == "credit_card"
-    assert len(parsed_json["credit_balances"]) == 2
+    assert parsed_json["credit_history"][0]["amount"] == 1000000000
+    assert parsed_json["credit_history"][0]["payment_method"] == "credit_card"
+    assert len(parsed_json["credit_history"]) == 2
 
 
 @pytest.mark.asyncio
