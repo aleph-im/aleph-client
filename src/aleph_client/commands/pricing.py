@@ -19,7 +19,6 @@ from aleph.sdk.client.services.pricing import (
 )
 from aleph.sdk.conf import settings
 from aleph.sdk.utils import displayable_amount
-from pydantic import BaseModel
 from rich import box
 from rich.console import Console, Group
 from rich.panel import Panel
@@ -28,29 +27,9 @@ from rich.text import Text
 
 from aleph_client.commands.instance.network import call_program_crn_list
 from aleph_client.commands.utils import colorful_json, setup_logging
-from aleph_client.utils import async_lru_cache, sanitize_url
+from aleph_client.utils import async_lru_cache
 
 logger = logging.getLogger(__name__)
-
-pricing_link = (
-    f"{sanitize_url(settings.API_HOST)}/api/v0/aggregates/0xFba561a84A537fCaa567bb7A2257e7142701ae2A.json?keys=pricing"
-)
-
-
-class SelectedTierPrice(BaseModel):
-    hold: Decimal
-    payg: Decimal  # Token by second
-    storage: Optional[SelectedTierPrice] = None
-
-
-class SelectedTier(BaseModel):
-    tier: int
-    compute_units: int
-    vcpus: int
-    memory: int
-    disk: int
-    gpu_model: Optional[str]
-    price: SelectedTierPrice
 
 
 class Pricing:

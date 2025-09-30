@@ -7,6 +7,11 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from aleph.sdk.chains.ethereum import ETHAccount
 from aleph.sdk.conf import settings
+from aleph.sdk.exceptions import (
+    ForgottenMessageError,
+    MessageNotFoundError,
+    RemovedMessageError,
+)
 from aleph.sdk.query.responses import MessagesResponse
 from aleph.sdk.types import StorageEnum, StoredContent
 from aleph_message.models import PostMessage, StoreMessage
@@ -390,6 +395,95 @@ def test_message_get(mocker, store_message_fixture):
     )
     assert result.exit_code == 0
     assert FAKE_STORE_HASH_PUBLISHER in result.stdout
+
+
+def test_message_get_with_reject(mocker, store_message_fixture):
+    message = StoreMessage.model_validate(store_message_fixture)
+    mocker.patch("aleph.sdk.AlephHttpClient.get_message", return_value=[message, "rejected"])
+    mocker.patch(
+        "aleph.sdk.AlephHttpClient.get_message_error",
+        return_value={
+            "error_code": 100,
+            "details": {"errors": ["File not found: Could not retrieve file from storage at this time"]},
+        },
+    )
+    result = runner.invoke(
+        app,
+        [
+            "message",
+            "get",
+            FAKE_STORE_HASH,
+        ],
+    )
+    assert result.exit_code == 0
+    assert "Message Status: rejected" in result.stdout
+
+
+def test_message_get_with_forgotten(mocker):
+    """Test the behavior when a message has been forgotten."""
+    # Mock the get_message method to raise ForgottenMessageError
+    mocker.patch(
+        "aleph.sdk.AlephHttpClient.get_message",
+        side_effect=ForgottenMessageError(
+            f"The requested message {FAKE_STORE_HASH} has been forgotten by node1, node2"
+        ),
+    )
+
+    result = runner.invoke(
+        app,
+        [
+            "message",
+            "get",
+            FAKE_STORE_HASH,
+        ],
+    )
+
+    # Verify output matches expected response for forgotten messages
+    assert result.exit_code == 0
+    assert "Message has been forgotten on aleph.im" in result.stdout
+
+
+def test_message_get_not_found(mocker):
+    """Test the behavior when a message is not found."""
+    # Mock the get_message method to raise MessageNotFoundError
+    mocker.patch(
+        "aleph.sdk.AlephHttpClient.get_message", side_effect=MessageNotFoundError(f"No such hash {FAKE_STORE_HASH}")
+    )
+
+    result = runner.invoke(
+        app,
+        [
+            "message",
+            "get",
+            FAKE_STORE_HASH,
+        ],
+    )
+
+    # Verify output matches expected response for not found messages
+    assert result.exit_code == 0
+    assert "Message does not exist on aleph.im" in result.stdout
+
+
+def test_message_get_removed(mocker):
+    """Test the behavior when a message has been removed."""
+    # Mock the get_message method to raise RemovedMessageError
+    mocker.patch(
+        "aleph.sdk.AlephHttpClient.get_message",
+        side_effect=RemovedMessageError(f"The requested message {FAKE_STORE_HASH} has been removed by admin"),
+    )
+
+    result = runner.invoke(
+        app,
+        [
+            "message",
+            "get",
+            FAKE_STORE_HASH,
+        ],
+    )
+
+    # Verify output matches expected response for removed messages
+    assert result.exit_code == 0
+    assert "Message has been removed on aleph.im" in result.stdout
 
 
 def test_message_find(mocker, store_message_fixture):
