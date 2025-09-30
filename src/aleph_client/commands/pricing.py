@@ -2,346 +2,378 @@ from __future__ import annotations
 
 import logging
 from decimal import Decimal
-from enum import Enum
 from typing import Annotated, Optional
 
-import aiohttp
 import typer
+from aleph.sdk import AlephHttpClient
+from aleph.sdk.client.services.crn import NetworkGPUS
+from aleph.sdk.client.services.pricing import (
+    PAYG_GROUP,
+    PRICING_GROUPS,
+    GroupEntity,
+    Price,
+    PricingEntity,
+    PricingModel,
+    PricingPerEntity,
+    Tier,
+)
 from aleph.sdk.conf import settings
-from aleph.sdk.utils import displayable_amount, safe_getattr
-from pydantic import BaseModel
+from aleph.sdk.utils import displayable_amount
 from rich import box
 from rich.console import Console, Group
 from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
-from aleph_client.commands.utils import setup_logging, validated_prompt
-from aleph_client.utils import async_lru_cache, sanitize_url
+from aleph_client.commands.instance.network import call_program_crn_list
+from aleph_client.commands.utils import colorful_json, setup_logging
+from aleph_client.utils import async_lru_cache
 
 logger = logging.getLogger(__name__)
 
-pricing_link = (
-    f"{sanitize_url(settings.API_HOST)}/api/v0/aggregates/0xFba561a84A537fCaa567bb7A2257e7142701ae2A.json?keys=pricing"
-)
-
-
-class PricingEntity(str, Enum):
-    STORAGE = "storage"
-    WEB3_HOSTING = "web3_hosting"
-    PROGRAM = "program"
-    PROGRAM_PERSISTENT = "program_persistent"
-    INSTANCE = "instance"
-    INSTANCE_CONFIDENTIAL = "instance_confidential"
-    INSTANCE_GPU_STANDARD = "instance_gpu_standard"
-    INSTANCE_GPU_PREMIUM = "instance_gpu_premium"
-
-
-class GroupEntity(str, Enum):
-    STORAGE = "storage"
-    WEBSITE = "website"
-    PROGRAM = "program"
-    INSTANCE = "instance"
-    CONFIDENTIAL = "confidential"
-    GPU = "gpu"
-    ALL = "all"
-
-
-PRICING_GROUPS: dict[str, list[PricingEntity]] = {
-    GroupEntity.STORAGE: [PricingEntity.STORAGE],
-    GroupEntity.WEBSITE: [PricingEntity.WEB3_HOSTING],
-    GroupEntity.PROGRAM: [PricingEntity.PROGRAM, PricingEntity.PROGRAM_PERSISTENT],
-    GroupEntity.INSTANCE: [PricingEntity.INSTANCE],
-    GroupEntity.CONFIDENTIAL: [PricingEntity.INSTANCE_CONFIDENTIAL],
-    GroupEntity.GPU: [PricingEntity.INSTANCE_GPU_STANDARD, PricingEntity.INSTANCE_GPU_PREMIUM],
-    GroupEntity.ALL: list(PricingEntity),
-}
-
-PAYG_GROUP: list[PricingEntity] = [
-    PricingEntity.INSTANCE,
-    PricingEntity.INSTANCE_CONFIDENTIAL,
-    PricingEntity.INSTANCE_GPU_STANDARD,
-    PricingEntity.INSTANCE_GPU_PREMIUM,
-]
-
-MAX_VALUE = Decimal(999_999_999)
-
-
-class SelectedTierPrice(BaseModel):
-    hold: Decimal
-    payg: Decimal  # Token by second
-    storage: Optional[SelectedTierPrice]
-
-
-class SelectedTier(BaseModel):
-    tier: int
-    compute_units: int
-    vcpus: int
-    memory: int
-    disk: int
-    gpu_model: Optional[str]
-    price: SelectedTierPrice
-
 
 class Pricing:
-    def __init__(self, **kwargs):
-        self.data = kwargs.get("data", {}).get("pricing", {})
+    def __init__(self, pricing_aggregate: PricingModel):
+        self.data = pricing_aggregate
+        self.console = Console()
+
+    def _format_name(self, entity: PricingEntity):
+        return entity.value.replace("_", " ").title()
+
+    def _format_tier_id(self, name: str):
+        return name.split("-", 1)[1]
+
+    def _tier_matches(self, tier: Tier, only_tier: Optional[int]) -> bool:
+        if only_tier is None:
+            return True
+        try:
+            short_id = int(self._format_tier_id(tier.id))
+        except ValueError:
+            return False
+        return short_id == only_tier
+
+    def _process_network_gpu_info(self, tier: Tier, network_gpu: NetworkGPUS):
+        available_gpu: dict[str, int] = {}
+        for crn_url, gpus in network_gpu.available_gpu_list.items():
+            for gpu in gpus:
+                if gpu.model == tier.model:
+                    # On this dict we want only count if there is a GPU for simplify draw
+                    if not available_gpu.get(crn_url, 0):
+                        available_gpu[crn_url] = 0
+                    available_gpu[crn_url] += 1
+
+        # If gpu is not available we checked if there is some but being used
+        used_gpu: dict[str, int] = {}
+        if len(available_gpu) == 0:
+            for crn_url, gpus in network_gpu.used_gpu_list.items():
+                for gpu in gpus:
+                    if gpu.model == tier.model:
+                        # On this dict we want only count if there is a GPU for simplify draw
+                        if not used_gpu.get(crn_url, 0):
+                            used_gpu[crn_url] = 0
+
+                        used_gpu[crn_url] += 1
+        return available_gpu, used_gpu
+
+    def build_storage_and_website(
+        self,
+        price_dict,
+        storage: bool = False,
+    ):
+        infos = []
+        if "fixed" in price_dict:
+            infos.append(
+                Text.from_markup(
+                    "Service & Availability (Holding): [orange1]"
+                    f"{displayable_amount(price_dict.get('fixed'),decimals=3)}"
+                    " tokens[/orange1]\n"
+                )
+            )
+        if "storage" in price_dict and isinstance(price_dict["storage"], Price):
+            prefix = "+ " if not storage else ""
+            storage_price = price_dict["storage"]
+
+            def fmt(value, unit):
+                amount = Decimal(str(value)) if value else Decimal("0")
+                return (
+                    f"{displayable_amount(amount, decimals=5)} {unit}/Mib[/bright_cyan] -or- "
+                    f"[bright_cyan]{displayable_amount(amount * 1024, decimals=5)} {unit}/GiB[/bright_cyan]"
+                )
+
+        holding = fmt(storage_price.holding, "token")
+
+        lines = [f"{prefix}$ALEPH (Holding): [bright_cyan]{holding}"]
+
+        # Show credits ONLY for storage, and only if a credit price exists
+        if storage and storage_price.credit:
+            credit = fmt(storage_price.credit, "credit")
+            lines.append(f"Credits: [bright_cyan]{credit}")
+
+        infos.append(Text.from_markup("\n".join(lines)))
+
+        return Group(*infos)
+
+    def build_column(
+        self,
+        entity: PricingEntity,
+        entity_info: PricingPerEntity,
+    ):
+        # Common Column for PROGRAM / INSTANCE / CONF / GPU
+        self.table.add_column("Tier", style="cyan")
+        self.table.add_column("Compute Units", style="orchid")
+        self.table.add_column("vCPUs", style="bright_cyan")
+        self.table.add_column("RAM (GiB)", style="bright_cyan")
+        self.table.add_column("Disk (GiB)", style="bright_cyan")
+
+        # GPU Case
+        if entity in PRICING_GROUPS[GroupEntity.GPU]:
+            self.table.add_column("GPU Model", style="orange1")
+            self.table.add_column("VRAM (GiB)", style="orange1")
+
+        cu_price = entity_info.price.get("compute_unit")
+        if isinstance(cu_price, Price) and cu_price.holding:
+            self.table.add_column("$ALEPH (Holding)", style="red", justify="center")
+
+        if isinstance(cu_price, Price) and cu_price.payg and entity in PAYG_GROUP:
+            self.table.add_column("$ALEPH (Pay-As-You-Go)", style="green", justify="center")
+
+        if isinstance(cu_price, Price) and cu_price.credit:
+            self.table.add_column("$ Credits", style="green", justify="center")
+
+        if entity in PRICING_GROUPS[GroupEntity.PROGRAM]:
+            self.table.add_column("+ Internet Access", style="orange1", justify="center")
+
+    def fill_tier(
+        self,
+        tier: Tier,
+        entity: PricingEntity,
+        entity_info: PricingPerEntity,
+        network_gpu: Optional[NetworkGPUS] = None,
+    ):
+        tier_id = self._format_tier_id(tier.id)
+        self.table.add_section()
+
+        if not entity_info.compute_unit:
+            error = f"No compute unit defined for tier {tier_id} in entity {entity}"
+            raise ValueError(error)
+
+        row = [
+            tier_id,
+            str(tier.compute_units),
+            str(entity_info.compute_unit.vcpus),
+            f"{entity_info.compute_unit.memory_mib * tier.compute_units / 1024:.0f}",
+            f"{entity_info.compute_unit.disk_mib * tier.compute_units / 1024:.0f}",
+        ]
+
+        # Gpu Case
+        if entity in PRICING_GROUPS[GroupEntity.GPU] and tier.model:
+            if not network_gpu:  # No info about if it available on network
+                row.append(tier.model)
+            else:
+                # Find how many of that GPU is currently available
+                available_gpu, used_gpu = self._process_network_gpu_info(network_gpu=network_gpu, tier=tier)
+
+                gpu_line = tier.model
+                if available_gpu:
+                    gpu_line += "[white] Available on: [/white]"
+                    for crn_url, count in available_gpu.items():
+                        gpu_line += f"\n[bright_yellow]• {crn_url}[/bright_yellow]: [white]{count}[/white]"
+                elif used_gpu:
+                    gpu_line += "[red] GPU Already in use: [/red]"
+                    for crn_url, count in used_gpu.items():
+                        if count > 0:
+                            gpu_line += f"\n[orange]• {crn_url}[/orange][white]:[/white][orange] {count}[/orange]"
+                else:
+                    gpu_line += "[red] Currently not available on network[/red]"
+                row.append(Text.from_markup(gpu_line))
+            row.append(str(tier.vram))
+
+        cu_price = entity_info.price.get("compute_unit")
+        # Fill Holding row
+        if isinstance(cu_price, Price) and cu_price.holding:
+            if entity == PricingEntity.INSTANCE_CONFIDENTIAL or (
+                entity == PricingEntity.INSTANCE and tier.compute_units > 4
+            ):
+                row.append(Text.from_markup("[red]Not Available[/red]"))
+            else:
+                row.append(
+                    f"{displayable_amount(Decimal(str(cu_price.holding)) * tier.compute_units, decimals=3)} tokens"
+                )
+        # Fill PAYG row
+        if isinstance(cu_price, Price) and cu_price.payg and entity in PAYG_GROUP:
+            payg_price = cu_price.payg
+            payg_hourly = Decimal(str(payg_price)) * tier.compute_units
+            row.append(
+                f"{displayable_amount(payg_hourly, decimals=3)} token/hour"
+                f"\n{displayable_amount(payg_hourly * 24, decimals=3)} token/day"
+            )
+        # Fill Credit row
+        if isinstance(cu_price, Price) and cu_price.credit:
+            credit_price = cu_price.credit
+            credit_hourly = Decimal(str(credit_price)) * tier.compute_units
+            row.append(
+                f"{displayable_amount(credit_hourly, decimals=3)} credit/hour"
+                f"\n{displayable_amount(credit_hourly * 24, decimals=3)} credit/day"
+            )
+
+        # Program Case we additional price
+        if entity in PRICING_GROUPS[GroupEntity.PROGRAM]:
+            program_price = entity_info.price.get("compute_unit")
+            if isinstance(program_price, Price) and program_price.holding is not None:
+                amount = Decimal(str(program_price.holding)) * tier.compute_units * 2
+                internet_cell = (
+                    "✅ Included"
+                    if entity == PricingEntity.PROGRAM_PERSISTENT
+                    else f"{displayable_amount(amount)} tokens"
+                )
+                row.append(internet_cell)
+            else:
+                row.append("N/A")
+        self.table.add_row(*row)
+
+    def fill_column(
+        self,
+        entity: PricingEntity,
+        entity_info: PricingPerEntity,
+        network_gpu: Optional[NetworkGPUS],
+        only_tier: Optional[int] = None,  # <-- now int
+    ):
+        any_added = False
+
+        if not entity_info.tiers:
+            error = f"No tiers defined for entity {entity}"
+            raise ValueError(error)
+
+        for tier in entity_info.tiers:
+            if not self._tier_matches(tier, only_tier):
+                continue
+            self.fill_tier(tier=tier, entity=entity, entity_info=entity_info, network_gpu=network_gpu)
+            any_added = True
+        return any_added
 
     def display_table_for(
-        self,
-        pricing_entity: Optional[PricingEntity] = None,
-        compute_units: Optional[int] = 0,
-        vcpus: Optional[int] = 0,
-        memory: Optional[int] = 0,
-        gpu_models: Optional[dict[str, dict[str, dict[str, int]]]] = None,
-        persistent: Optional[bool] = None,
-        selector: bool = False,
-        exit_on_error: bool = True,
-        verbose: bool = True,
-    ) -> Optional[SelectedTier]:
-        """Display pricing table for an entity"""
+        self, entity: PricingEntity, network_gpu: Optional[NetworkGPUS] = None, tier: Optional[int] = None
+    ):
+        info = self.data[entity]
+        label = self._format_name(entity=entity)
+        price = info.price
 
-        if not compute_units:
-            compute_units = 0
-        if not vcpus:
-            vcpus = 0
-        if not memory:
-            memory = 0
-
-        if not pricing_entity:
-            if persistent is not None:
-                # Program entity selection: Persistent or Non-Persistent
-                pricing_entity = PricingEntity.PROGRAM_PERSISTENT if persistent else PricingEntity.PROGRAM
-
-        entity_name = safe_getattr(pricing_entity, "value")
-        if pricing_entity:
-            entity = self.data.get(entity_name)
-            label = entity_name.replace("_", " ").title()
+        if entity in [PricingEntity.WEB3_HOSTING, PricingEntity.STORAGE]:
+            displayable_group = self.build_storage_and_website(
+                price_dict=price, storage=entity == PricingEntity.STORAGE
+            )
+            self.console.print(
+                Panel(
+                    displayable_group,
+                    title=f"Pricing: {label}",
+                    border_style="orchid",
+                    expand=False,
+                    title_align="left",
+                )
+            )
         else:
-            logger.error(f"Entity {entity_name} not found")
-            if exit_on_error:
-                raise typer.Exit(1)
-            else:
-                return None
-
-        unit = entity.get("compute_unit", {})
-        unit_vcpus = unit.get("vcpus")
-        unit_memory = unit.get("memory_mib")
-        unit_disk = unit.get("disk_mib")
-        price = entity.get("price", {})
-        price_unit = price.get("compute_unit")
-        price_storage = price.get("storage")
-        price_fixed = price.get("fixed")
-        tiers = entity.get("tiers", [])
-
-        displayable_group = None
-        tier_data: dict[int, SelectedTier] = {}
-        auto_selected = (compute_units or vcpus or memory) and not gpu_models
-        if tiers:
-            if auto_selected:
-                tiers = [
-                    tier
-                    for tier in tiers
-                    if compute_units <= tier["compute_units"]
-                    and vcpus <= unit_vcpus * tier["compute_units"]
-                    and memory <= unit_memory * tier["compute_units"]
-                ]
-                if tiers:
-                    tiers = tiers[:1]
-                else:
-                    requirements = []
-                    if compute_units:
-                        requirements.append(f"compute_units>={compute_units}")
-                    if vcpus:
-                        requirements.append(f"vcpus>={vcpus}")
-                    if memory:
-                        requirements.append(f"memory>={memory}")
-                    typer.echo(
-                        f"Minimum tier with required {' & '.join(requirements)}"
-                        f" not found for {pricing_entity.value}"
-                    )
-                    if exit_on_error:
-                        raise typer.Exit(1)
-                    else:
-                        return None
-
+            # Create a new table for each entity
             table = Table(
                 border_style="magenta",
                 box=box.MINIMAL,
             )
-            table.add_column("Tier", style="cyan")
-            table.add_column("Compute Units", style="orchid")
-            table.add_column("vCPUs", style="bright_cyan")
-            table.add_column("RAM (GiB)", style="bright_cyan")
-            table.add_column("Disk (GiB)", style="bright_cyan")
-            if "model" in tiers[0]:
-                table.add_column("GPU Model", style="orange1")
-            if "vram" in tiers[0]:
-                table.add_column("VRAM (GiB)", style="orange1")
-            if "holding" in price_unit:
-                table.add_column("$ALEPH (Holding)", style="red", justify="center")
-            if "payg" in price_unit and pricing_entity in PAYG_GROUP:
-                table.add_column("$ALEPH (Pay-As-You-Go)", style="green", justify="center")
-            if pricing_entity in PRICING_GROUPS[GroupEntity.PROGRAM]:
-                table.add_column("+ Internet Access", style="orange1", justify="center")
+            self.table = table
 
-            for tier in tiers:
-                tier_id = tier["id"].split("-", 1)[1]
-                current_units = tier["compute_units"]
-                table.add_section()
-                row = [
-                    tier_id,
-                    str(current_units),
-                    str(unit_vcpus * current_units),
-                    f"{unit_memory * current_units / 1024:.0f}",
-                    f"{unit_disk * current_units / 1024:.0f}",
-                ]
-                if "model" in tier:
-                    if gpu_models is None:
-                        row.append(tier["model"])
-                    elif tier["model"] in gpu_models:
-                        gpu_line = tier["model"]
-                        for device, details in gpu_models[tier["model"]].items():
-                            gpu_line += f"\n[bright_yellow]• {device}[/bright_yellow]\n"
-                            gpu_line += f"  [grey50]↳ [white]{details['count']}[/white]"
-                            gpu_line += f" available on [white]{details['on_crns']}[/white] CRN(s)[/grey50]"
-                        row.append(Text.from_markup(gpu_line))
-                    else:
-                        continue
-                if "vram" in tier:
-                    row.append(f"{tier['vram'] / 1024:.0f}")
-                if "holding" in price_unit:
-                    row.append(
-                        f"{displayable_amount(Decimal(price_unit['holding']) * current_units, decimals=3)} tokens"
-                    )
-                if "payg" in price_unit and pricing_entity in PAYG_GROUP:
-                    payg_hourly = Decimal(price_unit["payg"]) * current_units
-                    row.append(
-                        f"{displayable_amount(payg_hourly, decimals=3)} token/hour"
-                        f"\n{displayable_amount(payg_hourly*24, decimals=3)} token/day"
-                    )
-                if pricing_entity in PRICING_GROUPS[GroupEntity.PROGRAM]:
-                    internet_cell = (
-                        "✅ Included"
-                        if pricing_entity == PricingEntity.PROGRAM_PERSISTENT
-                        else f"{displayable_amount(Decimal(price_unit['holding']) * current_units * 2)} tokens"
-                    )
-                    row.append(internet_cell)
-                table.add_row(*row)
+            self.build_column(entity=entity, entity_info=info)
 
-                # Convert tier_id to int to ensure consistent typing
-                tier_id_int = int(tier_id)
-                tier_data[tier_id_int] = SelectedTier(
-                    tier=tier_id_int,
-                    compute_units=current_units,
-                    vcpus=unit_vcpus * current_units,
-                    memory=unit_memory * current_units,
-                    disk=unit_disk * current_units,
-                    gpu_model=tier.get("model"),
-                    price=SelectedTierPrice(
-                        hold=Decimal(price_unit["holding"]) * current_units if "holding" in price_unit else MAX_VALUE,
-                        payg=Decimal(price_unit["payg"]) / 3600 * current_units if "payg" in price_unit else MAX_VALUE,
-                        storage=SelectedTierPrice(
-                            hold=Decimal(price_storage["holding"]) if "holding" in price_storage else MAX_VALUE,
-                            payg=Decimal(price_storage["payg"]) / 3600 if "payg" in price_storage else MAX_VALUE,
-                            storage=None,
-                        ),
-                    ),
+            any_rows_added = self.fill_column(entity=entity, entity_info=info, network_gpu=network_gpu, only_tier=tier)
+
+            # If no rows were added, the filter was too restrictive
+            # So add all tiers without filter
+            if not any_rows_added:
+                self.fill_column(entity=entity, entity_info=info, network_gpu=network_gpu, only_tier=None)
+
+            storage_price = info.price.get("storage")
+            extra_price_holding = ""
+            if isinstance(storage_price, Price) and storage_price.holding:
+                extra_price_holding = (
+                    f"[red]{displayable_amount(Decimal(str(storage_price.holding)) * 1024, decimals=5)}"
+                    " token/GiB[/red] (Holding) -or- "
                 )
 
-            extra_price_holding = (
-                f"[red]{displayable_amount(Decimal(price_storage['holding'])*1024, decimals=5)}"
-                " token/GiB[/red] (Holding) -or- "
-                if "holding" in price_storage
-                else ""
-            )
+            payg_storage_price = "0"
+            if isinstance(storage_price, Price) and storage_price.payg:
+                payg_storage_price = displayable_amount(Decimal(str(storage_price.payg)) * 1024 * 24, decimals=5)
+
+            extra_price_credits = "0"
+            if isinstance(storage_price, Price) and storage_price.credit:
+                extra_price_credits = displayable_amount(Decimal(str(storage_price.credit)) * 1024 * 24, decimals=5)
+
             infos = [
                 Text.from_markup(
                     f"Extra Volume Cost: {extra_price_holding}"
-                    f"[green]{displayable_amount(Decimal(price_storage['payg'])*1024*24, decimals=5)}"
+                    f"[green]{payg_storage_price}"
                     " token/GiB/day[/green] (Pay-As-You-Go)"
+                    f" -or- [green]{extra_price_credits} credit/GiB/day[/green] (Credits)\n"
                 )
             ]
             displayable_group = Group(
-                table,
-                Text.assemble(*infos),
-            )
-        else:
-            infos = [Text("\n")]
-            if price_fixed:
-                infos.append(
-                    Text.from_markup(
-                        f"Service & Availability (Holding): [orange1]{displayable_amount(price_fixed, decimals=3)}"
-                        " tokens[/orange1]\n\n+ "
-                    )
-                )
-            infos.append(
-                Text.from_markup(
-                    "$ALEPH (Holding): [bright_cyan]"
-                    f"{displayable_amount(Decimal(price_storage['holding']), decimals=5)}"
-                    " token/Mib[/bright_cyan] -or- [bright_cyan]"
-                    f"{displayable_amount(Decimal(price_storage['holding'])*1024, decimals=5)}"
-                    " token/GiB[/bright_cyan]"
-                )
-            )
-            displayable_group = Group(
+                self.table,
                 Text.assemble(*infos),
             )
 
-        if gpu_models and not tier_data:
-            typer.echo(f"No GPU available for {label} at the moment.")
-            raise typer.Exit(1)
-        elif verbose:
-            console = Console()
-            console.print(
+            self.console.print(
                 Panel(
                     displayable_group,
-                    title=f"Pricing: {'Selected ' if compute_units else ''}{label}",
+                    title=f"Pricing: {label}",
                     border_style="orchid",
                     expand=False,
                     title_align="left",
                 )
             )
 
-        if selector and pricing_entity not in [PricingEntity.STORAGE, PricingEntity.WEB3_HOSTING]:
-            # Make sure tier_data has at least one element before proceeding
-            if not tier_data:
-                typer.echo(f"No valid tiers found for {pricing_entity.value}")
-                raise typer.Exit(1)
-
-            if not auto_selected:
-                tier_id = validated_prompt("Select a tier by index", lambda tier_id: int(tier_id) in tier_data)
-                # Convert tier_id to integer since we store it as integer keys in tier_data
-                return tier_data[int(tier_id)]
-            return next(iter(tier_data.values()))
-
-        return None
-
 
 @async_lru_cache
-async def fetch_pricing() -> Pricing:
+async def fetch_pricing_aggregate() -> Pricing:
     """Fetch pricing aggregate and format it as Pricing"""
+    async with AlephHttpClient(api_server=settings.API_HOST) as client:
+        pricing = await client.pricing.get_pricing_aggregate()
 
-    async with aiohttp.ClientSession() as session:
-        async with session.get(pricing_link) as resp:
-            if resp.status != 200:
-                logger.error("Unable to fetch pricing aggregate")
-                raise typer.Exit(1)
-
-            data = await resp.json()
-            return Pricing(**data)
+    return Pricing(pricing)
 
 
 async def prices_for_service(
     service: Annotated[GroupEntity, typer.Argument(help="Service to display pricing for")],
-    compute_units: Annotated[int, typer.Option(help="Compute units to display pricing for")] = 0,
+    tier: Annotated[Optional[int], typer.Option(help="Service specific Tier")] = None,
+    json: Annotated[bool, typer.Option(help="JSON output instead of Rich Table")] = False,
+    no_null: Annotated[bool, typer.Option(help="Exclude null values in JSON output")] = False,
+    with_current_availability: Annotated[
+        bool,
+        typer.Option(
+            "--with-current-availability/--ignore-availability",
+            help="(GPU only) Show prices only for GPU types currently accessible on the network.",
+        ),
+    ] = False,
     debug: bool = False,
 ):
     """Display pricing for services available on aleph.im & twentysix.cloud"""
 
     setup_logging(debug)
 
-    group = PRICING_GROUPS[service]
-    pricing = await fetch_pricing()
-    for entity in group:
-        pricing.display_table_for(entity, compute_units=compute_units, exit_on_error=False)
+    group: list[PricingEntity] = PRICING_GROUPS[service]
+
+    pricing = await fetch_pricing_aggregate()
+    # Fetch Current availibity
+    network_gpu = None
+    if (service in [GroupEntity.GPU, GroupEntity.ALL]) and with_current_availability:
+
+        crn_lists = await call_program_crn_list()
+        network_gpu = crn_lists.find_gpu_on_network()
+    if json:
+        for entity in group:
+            typer.echo(
+                colorful_json(
+                    pricing.data[entity].model_dump_json(
+                        indent=4,
+                        exclude_none=no_null,
+                    )
+                )
+            )
+    else:
+        for entity in group:
+            pricing.display_table_for(entity, network_gpu=network_gpu, tier=tier)

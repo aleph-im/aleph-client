@@ -46,8 +46,7 @@ from rich.table import Table
 from rich.text import Text
 
 from aleph_client.commands import help_strings
-from aleph_client.commands.account import get_balance
-from aleph_client.commands.pricing import PricingEntity, SelectedTier, fetch_pricing
+from aleph_client.commands.pricing import PricingEntity, fetch_pricing_aggregate
 from aleph_client.commands.utils import (
     display_mounted_volumes,
     filter_only_valid_messages,
@@ -169,22 +168,31 @@ async def upload(
                 typer.echo(f"{user_code.model_dump_json(indent=4)}")
             program_ref = user_code.item_hash
 
-        pricing = await fetch_pricing()
+        pricing = await fetch_pricing_aggregate()
         pricing_entity = PricingEntity.PROGRAM_PERSISTENT if persistent else PricingEntity.PROGRAM
-        tier = cast(  # Safe cast
-            SelectedTier,
-            pricing.display_table_for(
-                pricing_entity,
-                compute_units=compute_units,
-                vcpus=vcpus,
-                memory=memory,
-                selector=True,
-                verbose=verbose,
-            ),
+
+        tier = pricing.data[pricing_entity].get_closest_tier(
+            vcpus=vcpus,
+            memory_mib=memory,
+            compute_unit=compute_units,
         )
+
+        if not tier:
+            pricing.display_table_for(pricing_entity)
+            tiers = list(pricing.data[pricing_entity].tiers)
+            choices = [tier.extract_tier_id() for tier in tiers]
+
+            chosen = validated_prompt(
+                prompt=f"Choose a tier ({', '.join(choices)}):",
+                validator=lambda s: s in choices,
+                default=choices[0],
+            )
+            tier = next(t for t in tiers if t.id.endswith(f"-{chosen}") or t.extract_tier_id() == chosen)
+
+        specs = pricing.data[pricing_entity].get_services_specs(tier)
         name = name or validated_prompt("Program name", lambda x: x and len(x) < 65)
-        vcpus = tier.vcpus
-        memory = tier.memory
+        vcpus = specs.vcpus
+        memory = specs.memory_mib
         runtime = runtime or input(f"Ref of runtime? [{settings.DEFAULT_RUNTIME_ID}] ") or settings.DEFAULT_RUNTIME_ID
 
         volumes = []
@@ -239,7 +247,7 @@ async def upload(
             typer.echo(f"Failed to estimate program cost, error: {e}")
             raise typer.Exit(code=1) from e
 
-        available_funds = Decimal((await get_balance(address))["available_amount"])
+        available_funds = Decimal((await client.get_balances(address))["available_amount"])
         try:
             if available_funds < required_tokens:
                 raise InsufficientFundsError(TokenType.ALEPH, float(required_tokens), float(available_funds))
