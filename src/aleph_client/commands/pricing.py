@@ -19,6 +19,7 @@ from aleph.sdk.client.services.pricing import (
 )
 from aleph.sdk.conf import settings
 from aleph.sdk.utils import displayable_amount
+from aleph_message.models.execution.base import PaymentType
 from rich import box
 from rich.console import Console, Group
 from rich.panel import Panel
@@ -105,9 +106,11 @@ class Pricing:
         lines = [f"{prefix}$ALEPH (Holding): [bright_cyan]{holding}"]
 
         # Show credits ONLY for storage, and only if a credit price exists
-        if storage and storage_price.credit:
-            credit = fmt(storage_price.credit, "credit")
-            lines.append(f"Credits: [bright_cyan]{credit}")
+        # Credits not handled for now on storage so we keep that comment for now
+
+        # if storage and storage_price.credit:
+        #    credit = fmt(storage_price.credit, "credit")
+        #    lines.append(f"Credits: [bright_cyan]{credit}")
 
         infos.append(Text.from_markup("\n".join(lines)))
 
@@ -117,6 +120,7 @@ class Pricing:
         self,
         entity: PricingEntity,
         entity_info: PricingPerEntity,
+        payment_type: Optional[PaymentType] = None,
     ):
         # Common Column for PROGRAM / INSTANCE / CONF / GPU
         self.table.add_column("Tier", style="cyan")
@@ -131,13 +135,20 @@ class Pricing:
             self.table.add_column("VRAM (GiB)", style="orange1")
 
         cu_price = entity_info.price.get("compute_unit")
-        if isinstance(cu_price, Price) and cu_price.holding:
+
+        if (isinstance(cu_price, Price) and cu_price.holding) and (
+            payment_type is None or payment_type == PaymentType.hold
+        ):
             self.table.add_column("$ALEPH (Holding)", style="red", justify="center")
 
-        if isinstance(cu_price, Price) and cu_price.payg and entity in PAYG_GROUP:
+        if (isinstance(cu_price, Price) and cu_price.payg and entity in PAYG_GROUP) and (
+            payment_type is None or payment_type == PaymentType.superfluid
+        ):
             self.table.add_column("$ALEPH (Pay-As-You-Go)", style="green", justify="center")
 
-        if isinstance(cu_price, Price) and cu_price.credit:
+        if (isinstance(cu_price, Price) and cu_price.credit) and (
+            payment_type is None or payment_type == PaymentType.credit
+        ):
             self.table.add_column("$ Credits", style="green", justify="center")
 
         if entity in PRICING_GROUPS[GroupEntity.PROGRAM]:
@@ -149,6 +160,7 @@ class Pricing:
         entity: PricingEntity,
         entity_info: PricingPerEntity,
         network_gpu: Optional[NetworkGPUS] = None,
+        payment_type: Optional[PaymentType] = None,
     ):
         tier_id = self._format_tier_id(tier.id)
         self.table.add_section()
@@ -190,7 +202,9 @@ class Pricing:
 
         cu_price = entity_info.price.get("compute_unit")
         # Fill Holding row
-        if isinstance(cu_price, Price) and cu_price.holding:
+        if (isinstance(cu_price, Price) and cu_price.holding) and (
+            payment_type is None or payment_type == PaymentType.hold
+        ):
             if entity == PricingEntity.INSTANCE_CONFIDENTIAL or (
                 entity == PricingEntity.INSTANCE and tier.compute_units > 4
             ):
@@ -200,7 +214,9 @@ class Pricing:
                     f"{displayable_amount(Decimal(str(cu_price.holding)) * tier.compute_units, decimals=3)} tokens"
                 )
         # Fill PAYG row
-        if isinstance(cu_price, Price) and cu_price.payg and entity in PAYG_GROUP:
+        if (isinstance(cu_price, Price) and cu_price.payg and entity in PAYG_GROUP) and (
+            payment_type is None or payment_type == PaymentType.superfluid
+        ):
             payg_price = cu_price.payg
             payg_hourly = Decimal(str(payg_price)) * tier.compute_units
             row.append(
@@ -208,7 +224,9 @@ class Pricing:
                 f"\n{displayable_amount(payg_hourly * 24, decimals=3)} token/day"
             )
         # Fill Credit row
-        if isinstance(cu_price, Price) and cu_price.credit:
+        if (isinstance(cu_price, Price) and cu_price.credit) and (
+            payment_type is None or payment_type == PaymentType.credit
+        ):
             credit_price = cu_price.credit
             credit_hourly = Decimal(str(credit_price)) * tier.compute_units
             row.append(
@@ -237,6 +255,7 @@ class Pricing:
         entity_info: PricingPerEntity,
         network_gpu: Optional[NetworkGPUS],
         only_tier: Optional[int] = None,  # <-- now int
+        payment_type: Optional[PaymentType] = None,
     ):
         any_added = False
 
@@ -247,12 +266,18 @@ class Pricing:
         for tier in entity_info.tiers:
             if not self._tier_matches(tier, only_tier):
                 continue
-            self.fill_tier(tier=tier, entity=entity, entity_info=entity_info, network_gpu=network_gpu)
+            self.fill_tier(
+                tier=tier, entity=entity, entity_info=entity_info, network_gpu=network_gpu, payment_type=payment_type
+            )
             any_added = True
         return any_added
 
     def display_table_for(
-        self, entity: PricingEntity, network_gpu: Optional[NetworkGPUS] = None, tier: Optional[int] = None
+        self,
+        entity: PricingEntity,
+        network_gpu: Optional[NetworkGPUS] = None,
+        tier: Optional[int] = None,
+        payment_type: Optional[PaymentType] = None,
     ):
         info = self.data[entity]
         label = self._format_name(entity=entity)
@@ -279,39 +304,68 @@ class Pricing:
             )
             self.table = table
 
-            self.build_column(entity=entity, entity_info=info)
+            self.build_column(entity=entity, entity_info=info, payment_type=payment_type)
 
-            any_rows_added = self.fill_column(entity=entity, entity_info=info, network_gpu=network_gpu, only_tier=tier)
+            any_rows_added = self.fill_column(
+                entity=entity, entity_info=info, network_gpu=network_gpu, only_tier=tier, payment_type=payment_type
+            )
 
             # If no rows were added, the filter was too restrictive
             # So add all tiers without filter
             if not any_rows_added:
                 self.fill_column(entity=entity, entity_info=info, network_gpu=network_gpu, only_tier=None)
 
+            def build_extra_volume_cost(
+                storage_price: Optional[Price], payment_type: Optional[PaymentType] = None
+            ) -> Text:
+                """
+                Returns a Text markup with the correct extra volume cost
+                depending on payment_type.
+                """
+
+                extra_price_holding = ""
+                payg_storage_price = "0"
+                extra_price_credits = "0"
+
+                if isinstance(storage_price, Price):
+                    if storage_price.holding:
+                        extra_price_holding = (
+                            f"[red]{displayable_amount(Decimal(str(storage_price.holding)) * 1024, decimals=5)}"
+                            " token/GiB[/red] (Holding)"
+                        )
+
+                    if storage_price.payg:
+                        payg_storage_price = displayable_amount(
+                            Decimal(str(storage_price.payg)) * 1024 * 24, decimals=5
+                        )
+
+                    if storage_price.credit:
+                        extra_price_credits = displayable_amount(
+                            Decimal(str(storage_price.credit)) * 1024 * 24, decimals=5
+                        )
+
+                # Handle by payment_type
+                if payment_type is None:
+                    return Text.from_markup(
+                        f"Extra Volume Cost: {extra_price_holding} "
+                        f"[green]{payg_storage_price} token/GiB/day[/green] (Pay-As-You-Go) "
+                        f"-or- [green]{extra_price_credits} credit/GiB/day[/green] (Credits)\n"
+                    )
+                elif payment_type == PaymentType.superfluid:
+                    return Text.from_markup(
+                        f"Extra Volume Cost: [green]{payg_storage_price} token/GiB/day[/green] (Pay-As-You-Go)\n"
+                    )
+                elif payment_type == PaymentType.hold:
+                    return Text.from_markup(f"Extra Volume Cost: {extra_price_holding}\n")
+                elif payment_type == PaymentType.credit:
+                    return Text.from_markup(
+                        f"Extra Volume Cost: [green]{extra_price_credits} credit/GiB/day[/green] (Credits)\n"
+                    )
+                else:
+                    return Text("Extra Volume Cost: Unknown payment type\n")
+
             storage_price = info.price.get("storage")
-            extra_price_holding = ""
-            if isinstance(storage_price, Price) and storage_price.holding:
-                extra_price_holding = (
-                    f"[red]{displayable_amount(Decimal(str(storage_price.holding)) * 1024, decimals=5)}"
-                    " token/GiB[/red] (Holding) -or- "
-                )
-
-            payg_storage_price = "0"
-            if isinstance(storage_price, Price) and storage_price.payg:
-                payg_storage_price = displayable_amount(Decimal(str(storage_price.payg)) * 1024 * 24, decimals=5)
-
-            extra_price_credits = "0"
-            if isinstance(storage_price, Price) and storage_price.credit:
-                extra_price_credits = displayable_amount(Decimal(str(storage_price.credit)) * 1024 * 24, decimals=5)
-
-            infos = [
-                Text.from_markup(
-                    f"Extra Volume Cost: {extra_price_holding}"
-                    f"[green]{payg_storage_price}"
-                    " token/GiB/day[/green] (Pay-As-You-Go)"
-                    f" -or- [green]{extra_price_credits} credit/GiB/day[/green] (Credits)\n"
-                )
-            ]
+            infos = [build_extra_volume_cost(storage_price=storage_price, payment_type=payment_type)]
             displayable_group = Group(
                 self.table,
                 Text.assemble(*infos),
@@ -340,6 +394,7 @@ async def fetch_pricing_aggregate() -> Pricing:
 async def prices_for_service(
     service: Annotated[GroupEntity, typer.Argument(help="Service to display pricing for")],
     tier: Annotated[Optional[int], typer.Option(help="Service specific Tier")] = None,
+    payment_type: Annotated[Optional[PaymentType], typer.Option(help="Payment Type")] = None,
     json: Annotated[bool, typer.Option(help="JSON output instead of Rich Table")] = False,
     no_null: Annotated[bool, typer.Option(help="Exclude null values in JSON output")] = False,
     with_current_availability: Annotated[
@@ -376,4 +431,4 @@ async def prices_for_service(
             )
     else:
         for entity in group:
-            pricing.display_table_for(entity, network_gpu=network_gpu, tier=tier)
+            pricing.display_table_for(entity, network_gpu=network_gpu, tier=tier, payment_type=payment_type)
