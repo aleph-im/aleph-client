@@ -203,6 +203,7 @@ class InstanceDisplay:
 
         # Instance properties
         self.is_hold = message.content.payment and message.content.payment.type == PaymentType.hold.value
+        self.is_credit = message.content.payment and message.content.payment.type == PaymentType.credit.value
         self.firmware = safe_getattr(message.content.environment, "trusted_execution.firmware")
         self.is_confidential = self.firmware and len(self.firmware) == 64
         self.has_gpu = True if safe_getattr(message.content.requirements, "gpu") else False
@@ -293,7 +294,8 @@ class InstanceDisplay:
             pmonth = f"{displayable_amount(2628000*required_tokens, decimals=3)}/month"
             aleph_price = Text.assemble(psec, " | ", phour, " | ", pday, " | ", pmonth, style="magenta3")
 
-        cost = Text.assemble("\n$ALEPH: ", aleph_price)
+        cost_str = "\n$ALEPH: " if not self.is_credit else "\nCredits: "
+        cost = Text.assemble(cost_str, aleph_price)
 
         # Assemble the complete instance column
         result = Text.assemble(
