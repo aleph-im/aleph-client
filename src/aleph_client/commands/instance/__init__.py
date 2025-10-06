@@ -213,7 +213,9 @@ async def create(
                 )
             )
         async with AuthenticatedAlephHttpClient(account=account) as client:
-            vouchers = await client.voucher.fetch_vouchers_by_chain(chain=Chain(account.CHAIN))
+            vouchers = await client.voucher.fetch_vouchers_by_chain(
+                address=address, chain=Chain(account.CHAIN)
+            )
             if len(vouchers) == 0:
                 console.print("No NFT vouchers find on this account")
                 raise typer.Exit(code=1)
@@ -354,7 +356,9 @@ async def create(
     )
 
     if not tier:
-        pricing.display_table_for(entity=pricing_entity, network_gpu=found_gpu_models, tier=None)
+        pricing.display_table_for(
+            entity=pricing_entity, network_gpu=found_gpu_models, tier=None, payment_type=payment_type
+        )
         tiers = list(pricing.data[pricing_entity].tiers)
 
         # GPU entities: filter to tiers that actually use the selected GPUs
@@ -418,7 +422,8 @@ async def create(
     compute_unit_price = pricing.data[pricing_entity].price.get("compute_unit")
     if payment_type in [PaymentType.hold, PaymentType.superfluid]:
         # Early check with minimal cost (Gas + Aleph ERC20)
-        balance_response = await client.get_balances(address)
+        async with AlephHttpClient(api_server=settings.API_HOST) as client:
+            balance_response = await client.get_balances(address)
         available_amount = balance_response.balance - balance_response.locked_amount
         available_funds = Decimal(0 if is_stream else available_amount)
         try:
