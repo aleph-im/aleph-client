@@ -213,9 +213,7 @@ async def create(
                 )
             )
         async with AuthenticatedAlephHttpClient(account=account) as client:
-            vouchers = await client.voucher.fetch_vouchers_by_chain(
-                address=address, chain=Chain(account.CHAIN)
-            )
+            vouchers = await client.voucher.fetch_vouchers_by_chain(address=address, chain=Chain(account.CHAIN))
             if len(vouchers) == 0:
                 console.print("No NFT vouchers find on this account")
                 raise typer.Exit(code=1)
