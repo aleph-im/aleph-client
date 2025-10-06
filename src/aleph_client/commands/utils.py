@@ -100,10 +100,16 @@ def get_annotated_constraint(annotated_type: type, constraint_name: str) -> Any 
     if not args:
         return None
 
-    for arg in args:
-        if isinstance(arg, FieldInfo):
-            value = getattr(arg, constraint_name, None)
-            return value
+    # We only care about FieldInfo, not the base type (like int)
+    field_info = next((a for a in args if isinstance(a, FieldInfo)), None)
+    if not field_info:
+        return None
+
+    # FieldInfo stores constraint objects in its metadata list
+    for meta in getattr(field_info, "metadata", []):
+        if hasattr(meta, constraint_name):
+            return getattr(meta, constraint_name)
+
     return None
 
 
