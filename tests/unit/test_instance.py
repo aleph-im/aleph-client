@@ -292,6 +292,7 @@ def create_mock_client(
         get_estimated_price=AsyncMock(
             return_value=MagicMock(
                 required_tokens=required_tokens,
+                cost=required_tokens,
                 payment_type=payment_type,
             )
         ),
@@ -317,8 +318,10 @@ def create_mock_auth_client(
 ):
 
     def response_get_program_price(ptype):
+        required_tokens = 0.00001527777777777777 if ptype == "superfluid" else 1000
         return MagicMock(
-            required_tokens=0.00001527777777777777 if ptype == "superfluid" else 1000,
+            required_tokens=required_tokens,
+            cost=required_tokens,
             payment_type=ptype,
         )
 
