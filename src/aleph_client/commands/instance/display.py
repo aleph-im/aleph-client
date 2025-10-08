@@ -283,7 +283,7 @@ class InstanceDisplay:
         # Price information
         async with AlephHttpClient() as client:
             price: PriceResponse = await client.get_program_price(self.message.item_hash)
-            required_tokens = Decimal(price.required_tokens)
+            required_tokens = price.required_tokens if price.cost is None else Decimal(price.cost)
 
         if self.is_hold:
             aleph_price = Text(f"{displayable_amount(required_tokens, decimals=3)} (fixed)", style="magenta3")

@@ -74,6 +74,8 @@ async def list_ports(
                 ports_map = config.root
 
                 for ih, ports in ports_map.items():
+                    if not ports:
+                        continue
                     name = await client.instance.get_name_of_executable(item_hash=ItemHash(ih))
 
                     # If an item hash is specified, only show that one

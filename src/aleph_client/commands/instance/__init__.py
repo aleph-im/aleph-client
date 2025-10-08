@@ -6,7 +6,7 @@ import logging
 import shutil
 from decimal import Decimal
 from pathlib import Path
-from typing import Annotated, Any, Optional, Union
+from typing import Annotated, Any, Optional
 
 import aiohttp
 import typer
@@ -30,8 +30,6 @@ from aleph.sdk.exceptions import (
 )
 from aleph.sdk.query.responses import PriceResponse
 from aleph.sdk.types import (
-    CrnExecutionV1,
-    CrnExecutionV2,
     InstanceAllocationsInfo,
     InstanceWithScheduler,
     PortFlags,
@@ -213,7 +211,7 @@ async def create(
                 )
             )
         async with AuthenticatedAlephHttpClient(account=account) as client:
-            vouchers = await client.voucher.fetch_vouchers_by_chain(chain=Chain(account.CHAIN))
+            vouchers = await client.voucher.fetch_vouchers_by_chain(address=address, chain=Chain(account.CHAIN))
             if len(vouchers) == 0:
                 console.print("No NFT vouchers find on this account")
                 raise typer.Exit(code=1)
@@ -354,7 +352,9 @@ async def create(
     )
 
     if not tier:
-        pricing.display_table_for(entity=pricing_entity, network_gpu=found_gpu_models, tier=None)
+        pricing.display_table_for(
+            entity=pricing_entity, network_gpu=found_gpu_models, tier=None, payment_type=payment_type
+        )
         tiers = list(pricing.data[pricing_entity].tiers)
 
         # GPU entities: filter to tiers that actually use the selected GPUs
@@ -418,7 +418,8 @@ async def create(
     compute_unit_price = pricing.data[pricing_entity].price.get("compute_unit")
     if payment_type in [PaymentType.hold, PaymentType.superfluid]:
         # Early check with minimal cost (Gas + Aleph ERC20)
-        balance_response = await client.get_balances(address)
+        async with AlephHttpClient(api_server=settings.API_HOST) as client:
+            balance_response = await client.get_balances(address)
         available_amount = balance_response.balance - balance_response.locked_amount
         available_funds = Decimal(0 if is_stream else available_amount)
         try:
@@ -467,7 +468,6 @@ async def create(
                 echo(f"Failed to fetch credit info, error: {e}")
                 raise typer.Exit(code=1) from e
 
-    stream_reward_address = None
     crn, crn_info, gpu_id = None, None, None
     if is_stream or confidential or gpu or is_credit:
         if crn_url:
@@ -607,7 +607,7 @@ async def create(
 
     payment = Payment(
         chain=payment_chain,
-        receiver=stream_reward_address if stream_reward_address else None,
+        receiver=crn_info.stream_reward_address if crn_info and crn_info.stream_reward_address else None,
         type=payment_type,
     )
 
@@ -633,7 +633,7 @@ async def create(
         try:
             content = make_instance_content(**content_dict)
             price: PriceResponse = await client.get_estimated_price(content)
-            required_tokens = Decimal(price.required_tokens)
+            required_tokens = price.required_tokens if price.cost is None else Decimal(price.cost)
         except Exception as e:
             echo(f"Failed to estimate instance cost, error: {e}")
             raise typer.Exit(code=1) from e
@@ -836,7 +836,6 @@ async def delete(
             existing_message: InstanceMessage = await client.get_message(
                 item_hash=ItemHash(item_hash), message_type=InstanceMessage
             )
-
         except MessageNotFoundError:
             echo("Instance does not exist")
             raise typer.Exit(code=1) from None
@@ -869,11 +868,6 @@ async def delete(
         if isinstance(instance_info, InstanceWithScheduler):
             echo(f"Instance {item_hash} was auto-scheduled, VM will be erased automatically.")
         elif instance_info is not None and hasattr(instance_info, "crn_url") and instance_info.crn_url:
-            execution: Optional[Union[CrnExecutionV1, CrnExecutionV2]] = await client.crn.get_vm(
-                instance_info.crn_url, item_hash=ItemHash(item_hash)
-            )
-            if not execution:
-                echo("VM is not running or CRN not accessible, Skipping ...")
             try:
                 async with VmClient(account, instance_info.crn_url) as manager:
                     status, _ = await manager.erase_instance(vm_id=item_hash)

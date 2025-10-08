@@ -100,12 +100,14 @@ def create_mock_auth_client(mock_account, swap_persistent=False):
         get_estimated_price=AsyncMock(
             return_value=MagicMock(
                 required_tokens=1000,
+                cost=1000,
                 payment_type="hold",
             )
         ),
         get_program_price=AsyncMock(
             return_value=MagicMock(
                 required_tokens=1000,
+                cost=1000,
                 payment_type="hold",
             )
         ),

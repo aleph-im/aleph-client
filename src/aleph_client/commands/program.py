@@ -242,7 +242,7 @@ async def upload(
         try:
             content = make_program_content(**content_dict)
             price: PriceResponse = await client.get_estimated_price(content)
-            required_tokens = Decimal(price.required_tokens)
+            required_tokens = price.required_tokens if price.cost is None else Decimal(price.cost)
         except Exception as e:
             typer.echo(f"Failed to estimate program cost, error: {e}")
             raise typer.Exit(code=1) from e
@@ -575,7 +575,7 @@ async def list_programs(
             if message.sender != message.content.address:
                 payer = Text.assemble("\nPayer: ", Text(str(message.content.address), style="orange1"))
             price: PriceResponse = await client.get_program_price(message.item_hash)
-            required_tokens = Decimal(price.required_tokens)
+            required_tokens = price.required_tokens if price.cost is None else Decimal(price.cost)
             if price.payment_type == PaymentType.hold.value:
                 aleph_price = Text(
                     f"{displayable_amount(required_tokens, decimals=3)} (fixed)".ljust(13), style="violet"

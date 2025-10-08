@@ -147,6 +147,7 @@ async def test_instance_display_columns():
     with patch("aleph_client.commands.instance.display.download", AsyncMock(return_value=None)):
         mock_price = MagicMock()
         mock_price.required_tokens = "0.001"
+        mock_price.cost = "0.001"
         mock_client = AsyncMock()
         mock_client.get_program_price = AsyncMock(return_value=mock_price)
 
@@ -321,6 +322,7 @@ async def test_instance_table_builder():
             mock_client = AsyncMock()
             mock_price = MagicMock()
             mock_price.required_tokens = "0.001"
+            mock_price.cost = "0.001"
             mock_client.get_program_price = AsyncMock(return_value=mock_price)
 
             mock_client_class.return_value.__aenter__ = AsyncMock(return_value=mock_client)
@@ -430,6 +432,7 @@ async def test_show_instances():
                     mock_client = AsyncMock()
                     mock_price = MagicMock()
                     mock_price.required_tokens = "0.001"
+                    mock_price.cost = "0.001"
                     mock_client.get_program_price = AsyncMock(return_value=mock_price)
 
                     mock_client_class.return_value.__aenter__ = AsyncMock(return_value=mock_client)
