@@ -29,7 +29,7 @@ classifiers = [
 dynamic = [ "version" ]
 dependencies = [
   "aiodns==3.2",
-  "aiohttp==3.11.13",
+  "aiohttp==3.13.1",
   "aleph-message>=1.0.5",
   "aleph-sdk-python>=2.1",
   "base58==2.1.1",               # Needed now as default with _load_account changement
