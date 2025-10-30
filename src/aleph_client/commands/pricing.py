@@ -406,7 +406,7 @@ async def prices_for_service(
     ] = False,
     debug: bool = False,
 ):
-    """Display pricing for services available on aleph.im & twentysix.cloud"""
+    """Display pricing for services available on aleph.cloud"""
 
     setup_logging(debug)
 

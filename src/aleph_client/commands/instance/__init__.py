@@ -150,7 +150,7 @@ async def create(
     verbose: Annotated[bool, typer.Option(help="Display additional information")] = True,
     debug: Annotated[bool, typer.Option(help="Enable debug logging")] = False,
 ) -> tuple[ItemHash, Optional[str], Chain]:
-    """Create and register a new instance on aleph.im"""
+    """Create and register a new instance on aleph.cloud"""
     setup_logging(debug)
     console = Console()
 
@@ -295,9 +295,9 @@ async def create(
         try:
             rootfs_message = await client.get_message(item_hash=rootfs, message_type=StoreMessage)
         except MessageNotFoundError:
-            echo(f"Given rootfs volume {rootfs} does not exist on aleph.im")
+            echo(f"Given rootfs volume {rootfs} does not exist on aleph.cloud")
         except ForgottenMessageError:
-            echo(f"Given rootfs volume {rootfs} has been deleted on aleph.im")
+            echo(f"Given rootfs volume {rootfs} has been deleted on aleph.cloud")
         if not rootfs_message:
             raise typer.Exit(code=1)
 
@@ -310,9 +310,9 @@ async def create(
             try:
                 firmware_message = await client.get_message(item_hash=confidential_firmware, message_type=StoreMessage)
             except MessageNotFoundError:
-                echo("Confidential Firmware hash does not exist on aleph.im")
+                echo("Confidential Firmware hash does not exist on aleph.cloud")
             except ForgottenMessageError:
-                echo("Confidential Firmware hash has been deleted on aleph.im")
+                echo("Confidential Firmware hash has been deleted on aleph.cloud")
             if not firmware_message:
                 raise typer.Exit(code=1)
 
@@ -535,7 +535,7 @@ async def create(
     elif crn_url or crn_hash:
         logger.debug(
             "`--crn-url` and/or `--crn-hash` arguments have been ignored.\nHold-tier regular "
-            "instances are scheduled automatically on available CRNs by the Aleph.im network."
+            "instances are scheduled automatically on available CRNs by the Aleph Cloud network."
         )
 
     requirements, trusted_execution, gpu_requirement, tac_accepted = None, None, None, None
@@ -747,7 +747,7 @@ async def create(
                     return item_hash, crn_url, payment_chain
 
             infos += [
-                Text.from_markup(f"Your instance [bright_cyan]{item_hash}[/bright_cyan] has been deployed on aleph.im.")
+                Text.from_markup(f"Your instance [bright_cyan]{item_hash}[/bright_cyan] has been deployed on aleph.cloud.")
             ]
             if verbose:
                 # PAYG-tier non-confidential instances
@@ -781,7 +781,7 @@ async def create(
         else:
             infos += [
                 Text.from_markup(
-                    f"Your instance [bright_cyan]{item_hash}[/bright_cyan] is registered to be deployed on aleph.im.\n"
+                    f"Your instance [bright_cyan]{item_hash}[/bright_cyan] is registered to be deployed on aleph.cloud.\n"
                     "The scheduler usually takes a few minutes to set it up and start it.\n"
                 )
             ]
@@ -1470,7 +1470,7 @@ async def gpu_create(
     verbose: Annotated[bool, typer.Option(help="Display additional information")] = True,
     debug: Annotated[bool, typer.Option(help="Enable debug logging")] = False,
 ):
-    """Create and register a new GPU instance on aleph.im
+    """Create and register a new GPU instance on aleph.cloud
 
     Only compatible with Pay-As-You-Go"""
 

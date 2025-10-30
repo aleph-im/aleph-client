@@ -4,7 +4,7 @@
 Command-line Interface
 ========
 
-Aleph-client can be used as a command-line interface to some Aleph.im
+Aleph-client can be used as a command-line interface to some Aleph Cloud
 functionalities.
 
 The following commands are available:
@@ -12,7 +12,7 @@ The following commands are available:
 Post
 ----
 
-Post a message on Aleph.im.
+Post a message on Aleph Cloud.
 
 The content must be JSON encoded and is obtained either from a file
 or from a user prompt.
@@ -21,7 +21,7 @@ or from a user prompt.
 
     python3 -m aleph_client post [OPTIONS]
 
-      Post a message on Aleph.im.
+      Post a message on Aleph Cloud.
 
     Options:
       --path TEXT
@@ -35,13 +35,13 @@ or from a user prompt.
 Upload
 ------
 
-Upload and store a file on Aleph.im.
+Upload and store a file on Aleph Cloud.
 
 .. code-block:: bash
 
     python3 -m aleph_client upload [OPTIONS] PATH
 
-      Upload and store a file on Aleph.im.
+      Upload and store a file on Aleph Cloud.
 
     Arguments:
       PATH  [required]
@@ -55,13 +55,13 @@ Upload and store a file on Aleph.im.
 Pin
 ---
 
-Persist a file from IPFS on Aleph.im.
+Persist a file from IPFS on Aleph Cloud.
 
 .. code-block:: bash
 
     python3 -m aleph_client pin [OPTIONS] HASH
 
-      Persist a file from IPFS on Aleph.im.
+      Persist a file from IPFS on Aleph Cloud.
 
     Arguments:
       HASH  [required]
@@ -75,13 +75,13 @@ Persist a file from IPFS on Aleph.im.
 Program
 -------
 
-Register a program to run on Aleph.im virtual machines from a zip archive.
+Register a program to run on Aleph Cloud virtual machines from a zip archive.
 
 .. code-block:: bash
 
     python3 -m aleph_client program [OPTIONS] PATH ENTRYPOINT
 
-      Register a program to run on Aleph.im virtual machines from a zip archive.
+      Register a program to run on Aleph Cloud virtual machines from a zip archive.
 
     Arguments:
       PATH        [required]

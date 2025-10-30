@@ -31,7 +31,7 @@ app = AsyncTyper(no_args_is_help=True)
 
 @app.command()
 async def pin(
-    item_hash: Annotated[str, typer.Argument(help="IPFS hash to pin on aleph.im")],
+    item_hash: Annotated[str, typer.Argument(help="IPFS hash to pin on Aleph Cloud")],
     channel: Annotated[Optional[str], typer.Option(help=help_strings.CHANNEL)] = settings.DEFAULT_CHANNEL,
     private_key: Annotated[Optional[str], typer.Option(help=help_strings.PRIVATE_KEY)] = settings.PRIVATE_KEY_STRING,
     private_key_file: Annotated[
@@ -40,7 +40,7 @@ async def pin(
     ref: Annotated[Optional[str], typer.Option(help=help_strings.REF)] = None,
     debug: Annotated[bool, typer.Option()] = False,
 ):
-    """Persist a file from IPFS on aleph.im."""
+    """Persist a file from IPFS on Aleph Cloud."""
 
     setup_logging(debug)
 
@@ -71,7 +71,7 @@ async def upload(
     ref: Annotated[Optional[str], typer.Option(help=help_strings.REF)] = None,
     debug: Annotated[bool, typer.Option()] = False,
 ):
-    """Upload and store a file on aleph.im."""
+    """Upload and store a file on Aleph Cloud."""
 
     setup_logging(debug)
 
@@ -127,7 +127,7 @@ async def download(
     verbose: Annotated[bool, typer.Option()] = True,
     debug: Annotated[bool, typer.Option()] = False,
 ) -> Optional[StoredContent]:
-    """Download a file from aleph.im or display related infos."""
+    """Download a file from Aleph Cloud or display related infos."""
 
     setup_logging(debug)
 
@@ -177,7 +177,7 @@ async def forget(
     ] = settings.PRIVATE_KEY_FILE,
     debug: Annotated[bool, typer.Option()] = False,
 ):
-    """forget a file and his message on aleph.im."""
+    """Forget a file and his message on Aleph Cloud."""
 
     setup_logging(debug)
 

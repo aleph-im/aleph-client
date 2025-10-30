@@ -243,7 +243,7 @@ def export_private_key(
         "⚠️  [bold italic red]Private Keys for Active Account[/bold italic red] ⚠️\n\n"
         f"[italic]EVM[/italic]: [cyan]{evm_pk}[/cyan]\n"
         f"[italic]SOL[/italic]: [magenta]{sol_pk}[/magenta]\n\n"
-        "[bold italic red]Note: Aleph.im team will NEVER ask for them.[/bold italic red]"
+        "[bold italic red]Note: Aleph Cloud team will NEVER ask for them.[/bold italic red]"
     )
 
 
