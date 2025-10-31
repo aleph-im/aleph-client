@@ -11,7 +11,6 @@ from typing import Annotated, Any, Optional
 import aiohttp
 import typer
 from aleph.sdk import AlephHttpClient, AuthenticatedAlephHttpClient
-from aleph.sdk.account import _load_account
 from aleph.sdk.chains.ethereum import ETHAccount
 from aleph.sdk.client.services.crn import NetworkGPUS
 from aleph.sdk.client.services.pricing import Price
@@ -82,7 +81,7 @@ from aleph_client.commands.utils import (
     yes_no_input,
 )
 from aleph_client.models import CRNInfo
-from aleph_client.utils import AsyncTyper, sanitize_url
+from aleph_client.utils import AlephAccount, AsyncTyper, load_account, sanitize_url
 
 logger = logging.getLogger(__name__)
 app = AsyncTyper(no_args_is_help=True)
@@ -167,7 +166,7 @@ async def create(
     ssh_pubkey: str = ssh_pubkey_file.read_text(encoding="utf-8").strip()
 
     # Populates account / address
-    account = _load_account(private_key, private_key_file, chain=payment_chain)
+    account: AlephAccount = load_account(private_key, private_key_file, chain=payment_chain)
 
     address = address or settings.ADDRESS_TO_USE or account.get_address()
 
@@ -831,7 +830,7 @@ async def delete(
 
     setup_logging(debug)
 
-    account = _load_account(private_key, private_key_file, chain=chain)
+    account: AlephAccount = load_account(private_key, private_key_file, chain=chain)
     async with AuthenticatedAlephHttpClient(account=account, api_server=settings.API_HOST) as client:
         try:
             existing_message: InstanceMessage = await client.get_message(
@@ -943,7 +942,7 @@ async def list_instances(
 
     setup_logging(debug)
 
-    account = _load_account(private_key, private_key_file, chain=chain)
+    account: AlephAccount = load_account(private_key, private_key_file, chain=chain)
     address = address or settings.ADDRESS_TO_USE or account.get_address()
 
     async with AlephHttpClient(api_server=settings.API_HOST) as client:
@@ -980,7 +979,7 @@ async def reboot(
         or Prompt.ask("URL of the CRN (Compute node) on which the VM is running")
     )
 
-    account = _load_account(private_key, private_key_file, chain=chain)
+    account: AlephAccount = load_account(private_key, private_key_file, chain=chain)
 
     async with VmClient(account, domain) as manager:
         status, result = await manager.reboot_instance(vm_id=vm_id)
@@ -1013,7 +1012,7 @@ async def allocate(
         or Prompt.ask("URL of the CRN (Compute node) on which the VM will be allocated")
     )
 
-    account = _load_account(private_key, private_key_file, chain=chain)
+    account: AlephAccount = load_account(private_key, private_key_file, chain=chain)
 
     async with VmClient(account, domain) as manager:
         status, result = await manager.start_instance(vm_id=vm_id)
@@ -1041,7 +1040,7 @@ async def logs(
 
     domain = (domain and sanitize_url(domain)) or await find_crn_of_vm(vm_id) or Prompt.ask(help_strings.PROMPT_CRN_URL)
 
-    account = _load_account(private_key, private_key_file, chain=chain)
+    account: AlephAccount = load_account(private_key, private_key_file, chain=chain)
 
     async with VmClient(account, domain) as manager:
         try:
@@ -1072,7 +1071,7 @@ async def stop(
 
     domain = (domain and sanitize_url(domain)) or await find_crn_of_vm(vm_id) or Prompt.ask(help_strings.PROMPT_CRN_URL)
 
-    account = _load_account(private_key, private_key_file, chain=chain)
+    account: AlephAccount = load_account(private_key, private_key_file, chain=chain)
 
     async with VmClient(account, domain) as manager:
         status, result = await manager.stop_instance(vm_id=vm_id)
@@ -1111,7 +1110,7 @@ async def confidential_init_session(
         or Prompt.ask("URL of the CRN (Compute node) on which the session will be initialized")
     )
 
-    account = _load_account(private_key, private_key_file, chain=chain)
+    account: AlephAccount = load_account(private_key, private_key_file, chain=chain)
 
     sevctl_path = find_sevctl_or_exit()
 
@@ -1188,7 +1187,7 @@ async def confidential_start(
     session_dir.mkdir(exist_ok=True, parents=True)
 
     vm_hash = ItemHash(vm_id)
-    account = _load_account(private_key, private_key_file, chain=chain)
+    account: AlephAccount = load_account(private_key, private_key_file, chain=chain)
     sevctl_path = find_sevctl_or_exit()
 
     domain = (
