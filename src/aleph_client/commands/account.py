@@ -76,6 +76,26 @@ def decode_private_key(private_key: str, encoding: KeyEncoding) -> bytes:
 
 
 @app.command()
+async def init():
+    """Initialize base configuration file."""
+    config = MainConfiguration(path=None, chain=Chain.ETH)
+
+    # Create the parent directory and private-keys subdirectory if they don't exist
+    if settings.CONFIG_HOME:
+        settings.CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
+        private_keys_dir = Path(settings.CONFIG_HOME, "private-keys")
+        private_keys_dir.mkdir(parents=True, exist_ok=True)
+        save_main_configuration(settings.CONFIG_FILE, config)
+
+    typer.echo(
+        "Configuration initialized.\n"
+        "Next steps:\n"
+        "  • Run `aleph account create` to add a private key, or\n"
+        "  • Run `aleph account config --account-type external` to add a ledger account."
+    )
+
+
+@app.command()
 async def create(
     private_key: Annotated[Optional[str], typer.Option(help=help_strings.PRIVATE_KEY)] = None,
     private_key_file: Annotated[Optional[Path], typer.Option(help=help_strings.PRIVATE_KEY_FILE)] = None,
