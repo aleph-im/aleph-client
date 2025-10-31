@@ -8,7 +8,6 @@ from typing import Annotated, Optional
 
 import typer
 from aiohttp import ClientResponseError, ClientSession
-from aleph.sdk.account import _load_account
 from aleph.sdk.client import AuthenticatedAlephHttpClient
 from aleph.sdk.conf import settings
 from aleph.sdk.utils import extended_json_encoder
@@ -20,7 +19,7 @@ from rich.text import Text
 
 from aleph_client.commands import help_strings
 from aleph_client.commands.utils import setup_logging
-from aleph_client.utils import AsyncTyper, sanitize_url
+from aleph_client.utils import AlephAccount, AsyncTyper, load_account, sanitize_url
 
 logger = logging.getLogger(__name__)
 app = AsyncTyper(no_args_is_help=True)
@@ -58,7 +57,7 @@ async def forget(
 
     setup_logging(debug)
 
-    account = _load_account(private_key, private_key_file)
+    account: AlephAccount = load_account(private_key, private_key_file)
     address = account.get_address() if address is None else address
 
     if key == "security" and not is_same_context():
@@ -131,7 +130,7 @@ async def post(
 
     setup_logging(debug)
 
-    account = _load_account(private_key, private_key_file)
+    account: AlephAccount = load_account(private_key, private_key_file)
     address = account.get_address() if address is None else address
 
     if key == "security" and not is_same_context():
@@ -193,7 +192,7 @@ async def get(
 
     setup_logging(debug)
 
-    account = _load_account(private_key, private_key_file)
+    account: AlephAccount = load_account(private_key, private_key_file)
     address = account.get_address() if address is None else address
 
     async with AuthenticatedAlephHttpClient(account=account, api_server=settings.API_HOST) as client:
@@ -229,7 +228,7 @@ async def list_aggregates(
 
     setup_logging(debug)
 
-    account = _load_account(private_key, private_key_file)
+    account: AlephAccount = load_account(private_key, private_key_file)
     address = account.get_address() if address is None else address
 
     aggr_link = f"{sanitize_url(settings.API_HOST)}/api/v0/aggregates/{address}.json"
@@ -303,7 +302,7 @@ async def authorize(
 
     setup_logging(debug)
 
-    account = _load_account(private_key, private_key_file)
+    account: AlephAccount = load_account(private_key, private_key_file)
 
     data = await get(
         key="security",
@@ -377,7 +376,7 @@ async def revoke(
 
     setup_logging(debug)
 
-    account = _load_account(private_key, private_key_file)
+    account: AlephAccount = load_account(private_key, private_key_file)
 
     data = await get(
         key="security",
@@ -432,7 +431,7 @@ async def permissions(
 
     setup_logging(debug)
 
-    account = _load_account(private_key, private_key_file)
+    account: AlephAccount = load_account(private_key, private_key_file)
     address = account.get_address() if address is None else address
 
     data = await get(

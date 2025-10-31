@@ -44,7 +44,12 @@ from aleph_client.commands.utils import (
     validated_prompt,
     yes_no_input,
 )
-from aleph_client.utils import AsyncTyper, list_unlinked_keys
+from aleph_client.utils import (
+    AlephAccount,
+    AsyncTyper,
+    list_unlinked_keys,
+    load_account,
+)
 
 logger = logging.getLogger(__name__)
 app = AsyncTyper(no_args_is_help=True)
@@ -154,20 +159,8 @@ def display_active_address(
     Display your public address(es).
     """
 
-    if private_key is not None:
-        private_key_file = None
-    elif private_key_file and not private_key_file.exists():
-        typer.secho("No private key available", fg=RED)
-        raise typer.Exit(code=1)
-
-    config_file_path = Path(settings.CONFIG_FILE)
-    config = load_main_configuration(config_file_path)
-    if config and config.type and config.type == AccountType.EXTERNAL:
-        evm_address = _load_account(None, None, chain=Chain.ETH).get_address()
-        sol_address = _load_account(None, None, chain=Chain.SOL).get_address()
-    else:
-        evm_address = _load_account(private_key, private_key_file, chain=Chain.ETH).get_address()
-        sol_address = _load_account(private_key, private_key_file, chain=Chain.SOL).get_address()
+    evm_address = load_account(private_key, private_key_file, chain=Chain.ETH).get_address()
+    sol_address = load_account(private_key, private_key_file, chain=Chain.SOL).get_address()
 
     console.print(
         "✉  [bold italic blue]Addresses for Active Account[/bold italic blue] ✉\n\n"
@@ -267,7 +260,7 @@ def sign_bytes(
 
     setup_logging(debug)
 
-    account = _load_account(private_key, private_key_file, chain=chain)
+    account: AlephAccount = load_account(private_key, private_key_file, chain=chain)
 
     if not message:
         message = input_multiline()
@@ -302,7 +295,7 @@ async def balance(
     chain: Annotated[Optional[Chain], typer.Option(help=help_strings.ADDRESS_CHAIN)] = None,
 ):
     """Display your ALEPH balance and basic voucher information."""
-    account = _load_account(private_key, private_key_file, chain=chain)
+    account: AlephAccount = load_account(private_key, private_key_file, chain=chain)
 
     if account and not address:
         address = account.get_address()
@@ -431,7 +424,7 @@ async def vouchers(
     chain: Annotated[Optional[Chain], typer.Option(help=help_strings.ADDRESS_CHAIN)] = None,
 ):
     """Display detailed information about your vouchers."""
-    account = _load_account(private_key, private_key_file, chain=chain)
+    account = load_account(private_key, private_key_file, chain=chain)
 
     if account and not address:
         address = account.get_address()
@@ -501,13 +494,11 @@ async def configure(
         typer.secho(f"Private key file not found: {private_key_file}", fg=typer.colors.RED)
         raise typer.Exit()
 
-    # Configures active private key file
-    if not account_type or (
-        account_type == AccountType.INTERNAL
-        and not private_key_file
-        and config
-        and hasattr(config, "path")
-        and Path(config.path).exists()
+    # If private_key_file is specified via command line, prioritize it
+    if private_key_file:
+        pass
+    elif not account_type or (
+        account_type == AccountType.INTERNAL and config and hasattr(config, "path") and Path(config.path).exists()
     ):
         if not yes_no_input(
             f"Active private key file: [bright_cyan]{config.path}[/bright_cyan]\n[yellow]Keep current active private "
@@ -561,8 +552,10 @@ async def configure(
             typer.secho("No private key file provided or found.", fg=typer.colors.RED)
             raise typer.Exit()
 
-    # Configure active chain
-    if not chain and config and hasattr(config, "chain"):
+    # If chain is specified via command line, prioritize it
+    if chain:
+        pass
+    elif config and hasattr(config, "chain"):
         if not yes_no_input(
             f"Active chain: [bright_cyan]{config.chain}[/bright_cyan]\n[yellow]Keep current active chain?[/yellow]",
             default="y",

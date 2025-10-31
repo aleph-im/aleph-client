@@ -10,7 +10,6 @@ import aiohttp
 import typer
 from aiohttp import ClientResponseError
 from aleph.sdk import AlephHttpClient, AuthenticatedAlephHttpClient
-from aleph.sdk.account import _load_account
 from aleph.sdk.conf import settings
 from aleph.sdk.types import StorageEnum, StoredContent
 from aleph.sdk.utils import safe_getattr
@@ -23,7 +22,7 @@ from rich.table import Table
 
 from aleph_client.commands import help_strings
 from aleph_client.commands.utils import setup_logging
-from aleph_client.utils import AsyncTyper
+from aleph_client.utils import AlephAccount, AsyncTyper, load_account
 
 logger = logging.getLogger(__name__)
 app = AsyncTyper(no_args_is_help=True)
@@ -44,7 +43,7 @@ async def pin(
 
     setup_logging(debug)
 
-    account = _load_account(private_key, private_key_file)
+    account: AlephAccount = load_account(private_key, private_key_file)
 
     async with AuthenticatedAlephHttpClient(account=account, api_server=settings.API_HOST) as client:
         result: StoreMessage
@@ -75,7 +74,7 @@ async def upload(
 
     setup_logging(debug)
 
-    account = _load_account(private_key, private_key_file)
+    account: AlephAccount = load_account(private_key, private_key_file)
 
     async with AuthenticatedAlephHttpClient(account=account, api_server=settings.API_HOST) as client:
         if not path.is_file():
@@ -181,7 +180,7 @@ async def forget(
 
     setup_logging(debug)
 
-    account = _load_account(private_key, private_key_file)
+    account: AlephAccount = load_account(private_key, private_key_file)
 
     hashes = [ItemHash(item_hash) for item_hash in item_hash.split(",")]
 
@@ -270,7 +269,7 @@ async def list_files(
     json: Annotated[bool, typer.Option(help="Print as json instead of rich table")] = False,
 ):
     """List all files for a given address"""
-    account = _load_account(private_key, private_key_file)
+    account: AlephAccount = load_account(private_key, private_key_file)
 
     if account and not address:
         address = account.get_address()

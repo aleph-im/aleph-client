@@ -7,7 +7,6 @@ from aiohttp import ClientResponseError
 from aleph.sdk import AlephHttpClient
 from aleph.sdk.account import _load_account
 from aleph.sdk.conf import settings
-from aleph.sdk.types import AccountFromPrivateKey
 from aleph.sdk.utils import displayable_amount
 from rich import box
 from rich.console import Console
@@ -17,7 +16,7 @@ from rich.text import Text
 
 from aleph_client.commands import help_strings
 from aleph_client.commands.utils import setup_logging
-from aleph_client.utils import AsyncTyper
+from aleph_client.utils import AlephAccount, AsyncTyper
 
 logger = logging.getLogger(__name__)
 app = AsyncTyper(no_args_is_help=True)
@@ -41,7 +40,7 @@ async def show(
 
     setup_logging(debug)
 
-    account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
+    account: AlephAccount = _load_account(private_key, private_key_file)
 
     if account and not address:
         address = account.get_address()
@@ -87,7 +86,7 @@ async def history(
 ):
     setup_logging(debug)
 
-    account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
+    account: AlephAccount = _load_account(private_key, private_key_file)
 
     if account and not address:
         address = account.get_address()

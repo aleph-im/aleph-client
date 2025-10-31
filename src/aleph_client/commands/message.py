@@ -11,7 +11,6 @@ from typing import Annotated, Optional
 
 import typer
 from aleph.sdk import AlephHttpClient, AuthenticatedAlephHttpClient
-from aleph.sdk.account import _load_account
 from aleph.sdk.conf import settings
 from aleph.sdk.exceptions import (
     ForgottenMessageError,
@@ -35,7 +34,7 @@ from aleph_client.commands.utils import (
     setup_logging,
     str_to_datetime,
 )
-from aleph_client.utils import AsyncTyper
+from aleph_client.utils import AlephAccount, AsyncTyper, load_account
 
 app = AsyncTyper(no_args_is_help=True)
 
@@ -138,7 +137,7 @@ async def post(
 
     setup_logging(debug)
 
-    account = _load_account(private_key, private_key_file)
+    account: AlephAccount = load_account(private_key, private_key_file)
     storage_engine: StorageEnum
     content: dict
 
@@ -188,7 +187,7 @@ async def amend(
 
     setup_logging(debug)
 
-    account = _load_account(private_key, private_key_file)
+    account: AlephAccount = load_account(private_key, private_key_file)
 
     async with AlephHttpClient(api_server=settings.API_HOST) as client:
         existing_message: Optional[AlephMessage] = None
@@ -253,7 +252,7 @@ async def forget(
 
     hash_list: list[ItemHash] = [ItemHash(h) for h in hashes.split(",")]
 
-    account = _load_account(private_key, private_key_file)
+    account: AlephAccount = load_account(private_key, private_key_file)
     async with AuthenticatedAlephHttpClient(account=account, api_server=settings.API_HOST) as client:
         await client.forget(hashes=hash_list, reason=reason, channel=channel)
 
@@ -296,7 +295,7 @@ def sign(
 
     setup_logging(debug)
 
-    account = _load_account(private_key, private_key_file)
+    account: AlephAccount = load_account(private_key, private_key_file)
 
     if message is None:
         message = input_multiline()
