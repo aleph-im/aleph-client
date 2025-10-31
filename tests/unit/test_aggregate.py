@@ -67,7 +67,7 @@ async def test_forget(capsys, args):
     mock_list_aggregates = AsyncMock(return_value=FAKE_AGGREGATE_DATA)
     mock_auth_client_class, mock_auth_client = create_mock_auth_client()
 
-    @patch("aleph_client.commands.aggregate._load_account", mock_load_account)
+    @patch("aleph_client.commands.aggregate.load_account", mock_load_account)
     @patch("aleph_client.commands.aggregate.list_aggregates", mock_list_aggregates)
     @patch("aleph_client.commands.aggregate.AuthenticatedAlephHttpClient", mock_auth_client_class)
     async def run_forget(aggr_spec):
@@ -101,7 +101,7 @@ async def test_post(capsys, args):
     mock_load_account = create_mock_load_account()
     mock_auth_client_class, mock_auth_client = create_mock_auth_client()
 
-    @patch("aleph_client.commands.aggregate._load_account", mock_load_account)
+    @patch("aleph_client.commands.aggregate.load_account", mock_load_account)
     @patch("aleph_client.commands.aggregate.AuthenticatedAlephHttpClient", mock_auth_client_class)
     async def run_post(aggr_spec):
         print()  # For better display when pytest -v -s
@@ -135,7 +135,7 @@ async def test_get(capsys, args, expected):
     mock_load_account = create_mock_load_account()
     mock_auth_client_class, mock_auth_client = create_mock_auth_client(return_fetch=FAKE_AGGREGATE_DATA["AI"])
 
-    @patch("aleph_client.commands.aggregate._load_account", mock_load_account)
+    @patch("aleph_client.commands.aggregate.load_account", mock_load_account)
     @patch("aleph_client.commands.aggregate.AuthenticatedAlephHttpClient", mock_auth_client_class)
     async def run_get(aggr_spec):
         print()  # For better display when pytest -v -s
@@ -152,7 +152,7 @@ async def test_get(capsys, args, expected):
 async def test_list_aggregates():
     mock_load_account = create_mock_load_account()
 
-    @patch("aleph_client.commands.aggregate._load_account", mock_load_account)
+    @patch("aleph_client.commands.aggregate.load_account", mock_load_account)
     @patch.object(aiohttp.ClientSession, "get", mock_client_session_get)
     async def run_list_aggregates():
         print()  # For better display when pytest -v -s
@@ -169,7 +169,7 @@ async def test_authorize(capsys):
     mock_get = AsyncMock(return_value=FAKE_AGGREGATE_DATA["security"])
     mock_post = AsyncMock(return_value=True)
 
-    @patch("aleph_client.commands.aggregate._load_account", mock_load_account)
+    @patch("aleph_client.commands.aggregate.load_account", mock_load_account)
     @patch("aleph_client.commands.aggregate.get", mock_get)
     @patch("aleph_client.commands.aggregate.post", mock_post)
     async def run_authorize():
@@ -190,7 +190,7 @@ async def test_revoke(capsys):
     mock_get = AsyncMock(return_value=FAKE_AGGREGATE_DATA["security"])
     mock_post = AsyncMock(return_value=True)
 
-    @patch("aleph_client.commands.aggregate._load_account", mock_load_account)
+    @patch("aleph_client.commands.aggregate.load_account", mock_load_account)
     @patch("aleph_client.commands.aggregate.get", mock_get)
     @patch("aleph_client.commands.aggregate.post", mock_post)
     async def run_revoke():
@@ -210,7 +210,7 @@ async def test_permissions():
     mock_load_account = create_mock_load_account()
     mock_get = AsyncMock(return_value=FAKE_AGGREGATE_DATA["security"])
 
-    @patch("aleph_client.commands.aggregate._load_account", mock_load_account)
+    @patch("aleph_client.commands.aggregate.load_account", mock_load_account)
     @patch("aleph_client.commands.aggregate.get", mock_get)
     async def run_permissions():
         print()  # For better display when pytest -v -s
