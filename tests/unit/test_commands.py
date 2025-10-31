@@ -373,6 +373,7 @@ def test_account_vouchers_no_vouchers(mocker, env_files):
 def test_account_config(env_files):
     settings.CONFIG_FILE = env_files[1]
     result = runner.invoke(app, ["account", "config", "--private-key-file", str(env_files[0]), "--chain", "ETH"])
+    print(result.output)
     assert result.exit_code == 0
     assert result.stdout.startswith("New Default Configuration: ")
 
