@@ -403,6 +403,9 @@ async def list_accounts():
     if config and config.path:
         active_chain = config.chain
         table.add_row(config.path.stem, str(config.path), "[bold green]*[/bold green]")
+    elif config and config.address and config.type == AccountType.EXTERNAL:
+        active_chain = config.chain
+        table.add_row(f"Ledger ({config.address[:8]}...)", "External (Ledger)", "[bold green]*[/bold green]")
     else:
         console.print(
             "[red]No private key path selected in the config file.[/red]\nTo set it up, use: [bold "
@@ -414,13 +417,27 @@ async def list_accounts():
             if key_file.stem != "default":
                 table.add_row(key_file.stem, str(key_file), "[bold red]-[/bold red]")
 
+    # Try to detect Ledger devices
+    try:
+        ledger_accounts = LedgerETHAccount.get_accounts()
+        if ledger_accounts:
+            for idx, ledger_acc in enumerate(ledger_accounts):
+                is_active = config and config.type == AccountType.EXTERNAL and config.address == ledger_acc.address
+                status = "[bold green]*[/bold green]" if is_active else "[bold red]-[/bold red]"
+                table.add_row(f"Ledger #{idx}", f"{ledger_acc.address}", status)
+    except Exception:
+        logger.info("No ledger detected")
+
     hold_chains = [*get_chains_with_holding(), Chain.SOL.value]
     payg_chains = get_chains_with_super_token()
 
     active_address = None
-    if config and config.path and active_chain:
-        account = _load_account(private_key_path=config.path, chain=active_chain)
-        active_address = account.get_address()
+    if config and active_chain:
+        if config.path:
+            account = _load_account(private_key_path=config.path, chain=active_chain)
+            active_address = account.get_address()
+        elif config.address and config.type == AccountType.EXTERNAL:
+            active_address = config.address
 
     console.print(
         "🌐  [bold italic blue]Chain Infos[/bold italic blue] 🌐\n"
