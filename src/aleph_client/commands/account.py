@@ -261,7 +261,16 @@ def export_private_key(
     """
     Display your private key.
     """
+    # Check if we're using a Ledger account
+    config_file_path = Path(settings.CONFIG_FILE)
+    config = load_main_configuration(config_file_path)
 
+    if config and config.type == AccountType.EXTERNAL:
+        typer.secho("Cannot export private key from a Ledger hardware wallet", fg=RED)
+        typer.secho("The private key remains securely stored on your Ledger device", fg=RED)
+        raise typer.Exit(code=1)
+
+    # Normal private key handling
     if private_key:
         private_key_file = None
     elif private_key_file and not private_key_file.exists():
