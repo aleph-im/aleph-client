@@ -18,10 +18,21 @@ from zipfile import BadZipFile, ZipFile
 import aiohttp
 import typer
 from aiohttp import ClientSession
-from aleph.sdk.conf import MainConfiguration, load_main_configuration, settings
-from aleph.sdk.types import GenericMessage
+from aleph.sdk.account import _load_account
+from aleph.sdk.conf import (
+    AccountType,
+    MainConfiguration,
+    load_main_configuration,
+    settings,
+)
+from aleph.sdk.types import AccountFromPrivateKey, GenericMessage
+from aleph.sdk.wallets.ledger import LedgerETHAccount
+from aleph_message.models import Chain
 from aleph_message.models.base import MessageType
 from aleph_message.models.execution.base import Encoding
+
+# Type alias for account types
+AlephAccount = Union[AccountFromPrivateKey, LedgerETHAccount]
 
 logger = logging.getLogger(__name__)
 
@@ -190,3 +201,37 @@ def async_lru_cache(async_function):
         return ensure_future(async_function(*args, **kwargs))
 
     return cached_async_function
+
+
+def load_account(
+    private_key_str: Optional[str], private_key_file: Optional[Path], chain: Optional[Chain] = None
+) -> AlephAccount:
+    """
+    Two Case Possible
+        - Account from private key
+        - External account (ledger)
+
+    We first try to load configurations, if no configurations we fallback to private_key_str / private_key_file.
+    """
+
+    # 1st Check for configurations
+    config_file_path = Path(settings.CONFIG_FILE)
+    config = load_main_configuration(config_file_path)
+
+    # If no config we try to load private_key_str / private_key_file
+    if not config:
+        logger.warning("No config detected fallback to private key")
+        if private_key_str is not None:
+            private_key_file = None
+
+        elif private_key_file and not private_key_file.exists():
+            logger.error("No account could be retrieved please use `aleph account create` or `aleph account configure`")
+            raise typer.Exit(code=1)
+
+    if not chain and config:
+        chain = config.chain
+
+    if config and config.type and config.type == AccountType.EXTERNAL:
+        return _load_account(None, None, chain=chain)
+    else:
+        return _load_account(private_key_str, private_key_file, chain=chain)
