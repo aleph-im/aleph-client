@@ -178,12 +178,25 @@ def display_active_address(
     """
     Display your public address(es).
     """
+    # For regular accounts and Ledger accounts
+    evm_account = load_account(private_key, private_key_file, chain=Chain.ETH)
+    evm_address = evm_account.get_address()
 
-    evm_address = load_account(private_key, private_key_file, chain=Chain.ETH).get_address()
-    sol_address = load_account(private_key, private_key_file, chain=Chain.SOL).get_address()
+    # For Ledger accounts, the SOL address might not be available
+    try:
+        sol_address = load_account(private_key, private_key_file, chain=Chain.SOL).get_address()
+    except Exception:
+        sol_address = "Not available (using Ledger device)"
+
+    # Detect if it's a Ledger account
+    config_file_path = Path(settings.CONFIG_FILE)
+    config = load_main_configuration(config_file_path)
+    account_type = config.type if config else None
+
+    account_type_str = " (Ledger)" if account_type == AccountType.EXTERNAL else ""
 
     console.print(
-        "✉  [bold italic blue]Addresses for Active Account[/bold italic blue] ✉\n\n"
+        f"✉  [bold italic blue]Addresses for Active Account{account_type_str}[/bold italic blue] ✉\n\n"
         f"[italic]EVM[/italic]: [cyan]{evm_address}[/cyan]\n"
         f"[italic]SOL[/italic]: [magenta]{sol_address}[/magenta]\n"
     )
