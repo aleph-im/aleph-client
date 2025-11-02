@@ -280,7 +280,9 @@ async def upload(
             func_url_1 = f"{settings.VM_URL_PATH.format(hash=item_hash)}"
             func_url_2 = f"{settings.VM_URL_HOST.format(hash_base32=hash_base32)}"
             infos = [
-                Text.from_markup(f"Your program [bright_cyan]{item_hash}[/bright_cyan] has been uploaded on aleph.cloud."),
+                Text.from_markup(
+                    f"Your program [bright_cyan]{item_hash}[/bright_cyan] has been uploaded on aleph.cloud."
+                ),
                 Text.assemble(
                     "\n\nAvailable on:\n",
                     Text.from_markup(

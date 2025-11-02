@@ -1,15 +1,15 @@
 [build-system]
 build-backend = "hatchling.build"
 
-requires = ["hatch-vcs", "hatchling"]
+requires = [ "hatch-vcs", "hatchling" ]
 
 [project]
 name = "aleph-client"
 description = "Python Client library for the Aleph Cloud network"
 readme = "README.md"
-keywords = ["Aleph Cloud", "Client", "Library", "Python"]
+keywords = [ "Aleph Cloud", "Client", "Library", "Python" ]
 license = { file = "LICENSE.txt" }
-authors = [{ name = "Aleph Cloud Team", email = "hello@aleph.cloud" }]
+authors = [ { name = "Aleph Cloud Team", email = "hello@aleph.cloud" } ]
 requires-python = ">=3.9"
 classifiers = [
   "Development Status :: 4 - Beta",
@@ -24,7 +24,7 @@ classifiers = [
   "Topic :: System :: Distributed Computing",
 ]
 
-dynamic = ["version"]
+dynamic = [ "version" ]
 dependencies = [
   "aiodns==3.2",
   "aiohttp==3.11.13",
@@ -43,13 +43,13 @@ dependencies = [
   "textual==0.73",
   "typer==0.15.2",
 ]
-optional-dependencies.cosmos = ["cosmospy==6"]
-optional-dependencies.docs = ["sphinxcontrib-plantuml==0.30"]
-optional-dependencies.ethereum = ["eth-account>=0.4"]
-optional-dependencies.nuls2 = ["aleph-nuls2==0.1"]
-optional-dependencies.polkadot = ["substrate-interface==1.7.11"]
-optional-dependencies.solana = ["base58==2.1.1", "pynacl==1.5"]
-optional-dependencies.tezos = ["aleph-pytezos==3.13.4", "pynacl==1.5"]
+optional-dependencies.cosmos = [ "cosmospy==6" ]
+optional-dependencies.docs = [ "sphinxcontrib-plantuml==0.30" ]
+optional-dependencies.ethereum = [ "eth-account>=0.4" ]
+optional-dependencies.nuls2 = [ "aleph-nuls2==0.1" ]
+optional-dependencies.polkadot = [ "substrate-interface==1.7.11" ]
+optional-dependencies.solana = [ "base58==2.1.1", "pynacl==1.5" ]
+optional-dependencies.tezos = [ "aleph-pytezos==3.13.4", "pynacl==1.5" ]
 urls.Discussions = "https://community.aleph.cloud/"
 urls.Documentation = "https://docs.aleph.cloud/devhub/sdks-and-tools/aleph-cli/"
 urls.Issues = "https://github.com/aleph-im/aleph-client/issues"
@@ -61,16 +61,16 @@ readme-content-type = "text/x-rst; charset=UTF-8"
 allow-direct-references = true
 
 [tool.hatch.build.targets.sdist]
-include = ["src/aleph_client"]
+include = [ "src/aleph_client" ]
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/aleph_client"]
+packages = [ "src/aleph_client" ]
 
 [tool.hatch.version]
 source = "vcs"
 
 [tool.hatch.envs.default]
-platforms = ["linux", "macos"]
+platforms = [ "linux", "macos" ]
 dependencies = [
   "setuptools>=65.5.0",
   "pytest==8.2.2",
@@ -101,11 +101,11 @@ dependencies = [
 [tool.hatch.envs.testing.scripts]
 test = "pytest {args:} ./src/aleph_client/ ./tests/"
 test-cov = "pytest --cov {args:} ./src/aleph_client/ ./tests/ --cov-report=xml --cov-report=term ./tests/"
-cov-report = ["coverage report"]
-cov = ["test-cov", "cov-report"]
+cov-report = [ "coverage report" ]
+cov = [ "test-cov", "cov-report" ]
 
 [[tool.hatch.envs.all.matrix]]
-python = ["3.9", "3.10", "3.11", "3.12"]
+python = [ "3.9", "3.10", "3.11", "3.12" ]
 
 [tool.hatch.envs.linting]
 dependencies = [
@@ -137,16 +137,16 @@ fmt = [
   "pyproject-fmt pyproject.toml",
   "style",
 ]
-all = ["style", "typing"]
+all = [ "style", "typing" ]
 
 [tool.black]
 line-length = 120
-target-version = ["py39"]
+target-version = [ "py39" ]
 
 [tool.ruff]
 target-version = "py39"
 line-length = 120
-exclude = ["docs/", "scripts/gendoc.py"]
+exclude = [ "docs/", "scripts/gendoc.py" ]
 
 lint.select = [
   "A",
@@ -209,27 +209,27 @@ lint.ignore = [
 ]
 #[tool.ruff.isort]
 #known-first-party = ["aleph_client"]
-lint.per-file-ignores."src/aleph_client/commands/help_strings.py" = ["E501"]
-lint.per-file-ignores."tests/unit/*" = ["T201"]
+lint.per-file-ignores."src/aleph_client/commands/help_strings.py" = [ "E501" ]
+lint.per-file-ignores."tests/unit/*" = [ "T201" ]
 
-lint.per-file-ignores."tests/unit/test_instance.py" = ["S106", "T201"]
+lint.per-file-ignores."tests/unit/test_instance.py" = [ "S106", "T201" ]
 
 [tool.pytest.ini_options]
-pythonpath = ["src"]
-testpaths = ["tests"]
+pythonpath = [ "src" ]
+testpaths = [ "tests" ]
 asyncio_default_fixture_loop_scope = "function"
 
 [tool.coverage.run]
 branch = true
 parallel = true
-source_pkgs = ["aleph_client", "tests"]
+source_pkgs = [ "aleph_client", "tests" ]
 
 [tool.coverage.paths]
-aleph_client = ["src/aleph_client"]
-tests = ["tests"]
+aleph_client = [ "src/aleph_client" ]
+tests = [ "tests" ]
 
 [tool.coverage.report]
-exclude_lines = ["no cov", "if __name__ == .__main__.:", "if TYPE_CHECKING:"]
+exclude_lines = [ "no cov", "if __name__ == .__main__.:", "if TYPE_CHECKING:" ]
 
 [tool.mypy]
 python_version = "3.9"

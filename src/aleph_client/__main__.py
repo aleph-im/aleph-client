@@ -25,9 +25,7 @@ app.add_typer(
     name="message",
     help="Manage messages (post, amend, watch and forget) on Aleph Cloud",
 )
-app.add_typer(
-    aggregate.app, name="aggregate", help="Manage aggregate messages and permissions on Aleph Cloud"
-)
+app.add_typer(aggregate.app, name="aggregate", help="Manage aggregate messages and permissions on Aleph Cloud")
 app.add_typer(files.app, name="file", help="Manage files (upload and pin on IPFS) on Aleph Cloud")
 app.add_typer(program.app, name="program", help="Manage programs (micro-VMs) on Aleph Cloud")
 app.add_typer(instance.app, name="instance", help="Manage instances (VMs) on Aleph Cloud")

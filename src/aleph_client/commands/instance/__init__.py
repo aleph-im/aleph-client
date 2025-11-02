@@ -747,7 +747,9 @@ async def create(
                     return item_hash, crn_url, payment_chain
 
             infos += [
-                Text.from_markup(f"Your instance [bright_cyan]{item_hash}[/bright_cyan] has been deployed on aleph.cloud.")
+                Text.from_markup(
+                    f"Your instance [bright_cyan]{item_hash}[/bright_cyan] has been deployed on aleph.cloud."
+                )
             ]
             if verbose:
                 # PAYG-tier non-confidential instances
@@ -781,7 +783,8 @@ async def create(
         else:
             infos += [
                 Text.from_markup(
-                    f"Your instance [bright_cyan]{item_hash}[/bright_cyan] is registered to be deployed on aleph.cloud.\n"
+                    f"Your instance [bright_cyan]{item_hash}[/bright_cyan] is registered"
+                    "to be deployed on aleph.cloud.\n"
                     "The scheduler usually takes a few minutes to set it up and start it.\n"
                 )
             ]
