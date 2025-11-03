@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from aleph.sdk.chains.ethereum import ETHAccount
-from aleph.sdk.conf import settings
+from aleph.sdk.conf import AccountType, MainConfiguration, settings
 from aleph.sdk.exceptions import (
     ForgottenMessageError,
     MessageNotFoundError,
@@ -14,7 +14,7 @@ from aleph.sdk.exceptions import (
 )
 from aleph.sdk.query.responses import MessagesResponse
 from aleph.sdk.types import StorageEnum, StoredContent
-from aleph_message.models import PostMessage, StoreMessage
+from aleph_message.models import Chain, PostMessage, StoreMessage
 from typer.testing import CliRunner
 
 from aleph_client.__main__ import app
@@ -202,11 +202,85 @@ def test_account_import_sol(env_files):
     assert new_key != old_key
 
 
-def test_account_address(env_files):
+def test_account_init(env_files):
+    """Test the new account init command."""
+    settings.CONFIG_FILE = env_files[1]
+
+    # First ensure the config directory exists but is empty
+    config_dir = env_files[1].parent
+    # Removing unused variable
+
+    with (
+        patch("aleph.sdk.conf.settings.CONFIG_FILE", env_files[1]),
+        patch("aleph.sdk.conf.settings.CONFIG_HOME", str(config_dir)),
+        patch("pathlib.Path.mkdir") as mock_mkdir,
+    ):
+
+        result = runner.invoke(app, ["account", "init"])
+        assert result.exit_code == 0
+        assert "Configuration initialized." in result.stdout
+        assert "Run `aleph account create`" in result.stdout
+        assert "Run `aleph account config --account-type external`" in result.stdout
+
+        # Check that directories were created
+        mock_mkdir.assert_any_call(parents=True, exist_ok=True)
+
+
+@patch("aleph.sdk.wallets.ledger.LedgerETHAccount.get_accounts")
+def test_account_address(mock_get_accounts, env_files):
     settings.CONFIG_FILE = env_files[1]
     result = runner.invoke(app, ["account", "address", "--private-key-file", str(env_files[0])])
     assert result.exit_code == 0
     assert result.stdout.startswith("✉  Addresses for Active Account ✉\n\nEVM: 0x")
+
+    # Test with ledger device
+    mock_ledger_account = MagicMock()
+    mock_ledger_account.address = "0xdeadbeef1234567890123456789012345678beef"
+    mock_ledger_account.get_address.return_value = "0xdeadbeef1234567890123456789012345678beef"
+    mock_get_accounts.return_value = [mock_ledger_account]
+
+    # Create a ledger config
+    ledger_config = MainConfiguration(
+        path=None, chain=Chain.ETH, type=AccountType.EXTERNAL, address=mock_ledger_account.address
+    )
+
+    with patch("aleph_client.commands.account.load_main_configuration", return_value=ledger_config):
+        with patch(
+            "aleph_client.commands.account.load_account",
+            side_effect=lambda _, __, chain: (
+                mock_ledger_account if chain == Chain.ETH else Exception("Ledger doesn't support SOL")
+            ),
+        ):
+            result = runner.invoke(app, ["account", "address"])
+            assert result.exit_code == 0
+            assert result.stdout.startswith("✉  Addresses for Active Account (Ledger) ✉\n\nEVM: 0x")
+
+
+def test_account_init_with_isolated_filesystem():
+    """Test the new account init command that creates base configuration for new users."""
+    # Set up a test directory for config
+    with runner.isolated_filesystem():
+        config_dir = Path("test_config")
+        config_file = config_dir / "config.json"
+
+        # Create the directory first
+        config_dir.mkdir(parents=True, exist_ok=True)
+
+        with (
+            patch("aleph.sdk.conf.settings.CONFIG_FILE", config_file),
+            patch("aleph.sdk.conf.settings.CONFIG_HOME", str(config_dir)),
+        ):
+
+            result = runner.invoke(app, ["account", "init"])
+
+            # Verify command executed successfully
+            assert result.exit_code == 0
+            assert "Configuration initialized." in result.stdout
+            assert "Run `aleph account create`" in result.stdout
+            assert "Run `aleph account config --account-type external`" in result.stdout
+
+            # Verify the config file was created
+            assert config_file.exists()
 
 
 def test_account_chain(env_files):
@@ -236,11 +310,64 @@ def test_account_export_private_key(env_files):
     assert result.stdout.startswith("⚠️  Private Keys for Active Account ⚠️\n\nEVM: 0x")
 
 
+def test_account_export_private_key_ledger():
+    """Test that export-private-key fails for Ledger devices."""
+    # Create a ledger config
+    ledger_config = MainConfiguration(
+        path=None, chain=Chain.ETH, type=AccountType.EXTERNAL, address="0xdeadbeef1234567890123456789012345678beef"
+    )
+
+    with patch("aleph_client.commands.account.load_main_configuration", return_value=ledger_config):
+        result = runner.invoke(app, ["account", "export-private-key"])
+
+        # Command should fail with appropriate message
+        assert result.exit_code == 1
+        assert "Cannot export private key from a Ledger hardware wallet" in result.stdout
+        assert "The private key remains securely stored on your Ledger device" in result.stdout
+
+
 def test_account_list(env_files):
     settings.CONFIG_FILE = env_files[1]
     result = runner.invoke(app, ["account", "list"])
     assert result.exit_code == 0
     assert result.stdout.startswith("🌐  Chain Infos 🌐")
+
+
+@patch("aleph.sdk.wallets.ledger.LedgerETHAccount.get_accounts")
+def test_account_list_with_ledger(mock_get_accounts):
+    """Test that account list shows Ledger devices when available."""
+    # Create mock Ledger accounts
+    mock_account1 = MagicMock()
+    mock_account1.address = "0xdeadbeef1234567890123456789012345678beef"
+    mock_account2 = MagicMock()
+    mock_account2.address = "0xcafebabe5678901234567890123456789012cafe"
+    mock_get_accounts.return_value = [mock_account1, mock_account2]
+
+    # Test with no configuration first
+    with patch("aleph_client.commands.account.load_main_configuration", return_value=None):
+        result = runner.invoke(app, ["account", "list"])
+        assert result.exit_code == 0
+
+        # Check that the ledger accounts are listed
+        assert "Ledger #0" in result.stdout
+        assert "Ledger #1" in result.stdout
+        assert mock_account1.address in result.stdout
+        assert mock_account2.address in result.stdout
+
+    # Test with a ledger account that's active in configuration
+    ledger_config = MainConfiguration(
+        path=None, chain=Chain.ETH, type=AccountType.EXTERNAL, address=mock_account1.address
+    )
+
+    with patch("aleph_client.commands.account.load_main_configuration", return_value=ledger_config):
+        result = runner.invoke(app, ["account", "list"])
+        assert result.exit_code == 0
+
+        # Check that the active ledger account is marked
+        assert "Ledger" in result.stdout
+        assert mock_account1.address in result.stdout
+        # Just check for asterisk since rich formatting tags may not be visible in test output
+        assert "*" in result.stdout
 
 
 def test_account_sign_bytes(env_files):
@@ -376,6 +503,36 @@ def test_account_config(env_files):
     print(result.output)
     assert result.exit_code == 0
     assert result.stdout.startswith("New Default Configuration: ")
+
+
+@patch("aleph.sdk.wallets.ledger.LedgerETHAccount.get_accounts")
+def test_account_config_with_ledger(mock_get_accounts):
+    """Test configuring account with a Ledger device."""
+    # Create mock Ledger accounts
+    mock_account1 = MagicMock()
+    mock_account1.address = "0xdeadbeef1234567890123456789012345678beef"
+    mock_account2 = MagicMock()
+    mock_account2.address = "0xcafebabe5678901234567890123456789012cafe"
+    mock_get_accounts.return_value = [mock_account1, mock_account2]
+
+    # Create a temporary config file
+    with runner.isolated_filesystem():
+        config_dir = Path("test_config")
+        config_dir.mkdir()
+        config_file = config_dir / "config.json"
+
+        with (
+            patch("aleph.sdk.conf.settings.CONFIG_FILE", config_file),
+            patch("aleph.sdk.conf.settings.CONFIG_HOME", str(config_dir)),
+            patch("aleph_client.commands.account.Prompt.ask", return_value="1"),
+            patch("aleph_client.commands.account.yes_no_input", return_value=True),
+        ):
+
+            result = runner.invoke(app, ["account", "config", "--account-type", "external", "--chain", "ETH"])
+
+            assert result.exit_code == 0
+            assert "New Default Configuration" in result.stdout
+            assert mock_account1.address in result.stdout
 
 
 def test_message_get(mocker, store_message_fixture):
