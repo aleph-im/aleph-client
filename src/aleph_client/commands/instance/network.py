@@ -152,9 +152,9 @@ async def find_crn_of_vm(vm_id: str) -> Optional[str]:
                 # This is InstanceWithScheduler
                 return info.allocations.node.url
         except MessageNotFoundError:
-            echo("Instance does not exist on aleph.im")
+            echo("Instance does not exist on aleph.cloud")
         except ForgottenMessageError:
-            echo("Instance has been deleted on aleph.im")
+            echo("Instance has been deleted on aleph.cloud")
 
         return None
 

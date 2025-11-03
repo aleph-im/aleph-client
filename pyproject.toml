@@ -5,13 +5,11 @@ requires = [ "hatch-vcs", "hatchling" ]
 
 [project]
 name = "aleph-client"
-description = "Python Client library for the Aleph.im network"
+description = "Python Client library for the Aleph Cloud network"
 readme = "README.md"
-keywords = [ "Aleph.im", "Client", "Library", "Python" ]
+keywords = [ "Aleph Cloud", "Client", "Library", "Python" ]
 license = { file = "LICENSE.txt" }
-authors = [
-  { name = "Aleph.im Team", email = "hello@aleph.im" },
-]
+authors = [ { name = "Aleph Cloud Team", email = "hello@aleph.cloud" } ]
 requires-python = ">=3.9"
 classifiers = [
   "Development Status :: 4 - Beta",
@@ -52,8 +50,8 @@ optional-dependencies.nuls2 = [ "aleph-nuls2==0.1" ]
 optional-dependencies.polkadot = [ "substrate-interface==1.7.11" ]
 optional-dependencies.solana = [ "base58==2.1.1", "pynacl==1.5" ]
 optional-dependencies.tezos = [ "aleph-pytezos==3.13.4", "pynacl==1.5" ]
-urls.Discussions = "https://community.aleph.im/"
-urls.Documentation = "https://docs.aleph.im/tools/aleph-client/"
+urls.Discussions = "https://community.aleph.cloud/"
+urls.Documentation = "https://docs.aleph.cloud/devhub/sdks-and-tools/aleph-cli/"
 urls.Issues = "https://github.com/aleph-im/aleph-client/issues"
 urls.Source = "https://github.com/aleph-im/aleph-client"
 scripts.aleph = "aleph_client.__main__:app"
@@ -63,9 +61,7 @@ readme-content-type = "text/x-rst; charset=UTF-8"
 allow-direct-references = true
 
 [tool.hatch.build.targets.sdist]
-include = [
-  "src/aleph_client",
-]
+include = [ "src/aleph_client" ]
 
 [tool.hatch.build.targets.wheel]
 packages = [ "src/aleph_client" ]
@@ -105,13 +101,8 @@ dependencies = [
 [tool.hatch.envs.testing.scripts]
 test = "pytest {args:} ./src/aleph_client/ ./tests/"
 test-cov = "pytest --cov {args:} ./src/aleph_client/ ./tests/ --cov-report=xml --cov-report=term ./tests/"
-cov-report = [
-  "coverage report",
-]
-cov = [
-  "test-cov",
-  "cov-report",
-]
+cov-report = [ "coverage report" ]
+cov = [ "test-cov", "cov-report" ]
 
 [[tool.hatch.envs.all.matrix]]
 python = [ "3.9", "3.10", "3.11", "3.12" ]
@@ -146,10 +137,7 @@ fmt = [
   "pyproject-fmt pyproject.toml",
   "style",
 ]
-all = [
-  "style",
-  "typing",
-]
+all = [ "style", "typing" ]
 
 [tool.black]
 line-length = 120
@@ -227,12 +215,8 @@ lint.per-file-ignores."tests/unit/*" = [ "T201" ]
 lint.per-file-ignores."tests/unit/test_instance.py" = [ "S106", "T201" ]
 
 [tool.pytest.ini_options]
-pythonpath = [
-  "src",
-]
-testpaths = [
-  "tests",
-]
+pythonpath = [ "src" ]
+testpaths = [ "tests" ]
 asyncio_default_fixture_loop_scope = "function"
 
 [tool.coverage.run]
@@ -245,11 +229,7 @@ aleph_client = [ "src/aleph_client" ]
 tests = [ "tests" ]
 
 [tool.coverage.report]
-exclude_lines = [
-  "no cov",
-  "if __name__ == .__main__.:",
-  "if TYPE_CHECKING:",
-]
+exclude_lines = [ "no cov", "if __name__ == .__main__.:", "if TYPE_CHECKING:" ]
 
 [tool.mypy]
 python_version = "3.9"

@@ -440,7 +440,7 @@ def test_message_get_with_forgotten(mocker):
 
     # Verify output matches expected response for forgotten messages
     assert result.exit_code == 0
-    assert "Message has been forgotten on aleph.im" in result.stdout
+    assert "Message has been forgotten on aleph.cloud" in result.stdout
 
 
 def test_message_get_not_found(mocker):
@@ -461,7 +461,7 @@ def test_message_get_not_found(mocker):
 
     # Verify output matches expected response for not found messages
     assert result.exit_code == 0
-    assert "Message does not exist on aleph.im" in result.stdout
+    assert "Message does not exist on aleph.cloud" in result.stdout
 
 
 def test_message_get_removed(mocker):
@@ -483,7 +483,7 @@ def test_message_get_removed(mocker):
 
     # Verify output matches expected response for removed messages
     assert result.exit_code == 0
-    assert "Message has been removed on aleph.im" in result.stdout
+    assert "Message has been removed on aleph.cloud" in result.stdout
 
 
 def test_message_find(mocker, store_message_fixture):

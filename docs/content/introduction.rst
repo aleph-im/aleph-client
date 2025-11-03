@@ -1,7 +1,7 @@
-Introduction to Aleph.im
+Introduction to Aleph Cloud
 ========================
 
-The Aleph.im network can be accessed from any API server.
+The Aleph Cloud network can be accessed from any API server.
 To run one yourself, you will need to install
 `PyAleph <https://github.com/aleph-im/PyAleph>`_.
 
@@ -17,7 +17,7 @@ data type).
 Data structures
 ---------------
 
-All data transferred over the aleph.im network are aleph messages.
+All data transferred over the Aleph Cloud network are aleph messages.
 
 .. uml::
 
@@ -56,8 +56,8 @@ Actual content sent by regular users can currently be of two types:
 - AGGREGATE: a key-value storage specific to an address
 - POST: unique data posts (unique data points, events
 
-.. uml:: 
-   
+.. uml::
+
    @startuml
     object Message {
         ...

@@ -251,7 +251,9 @@ class InstanceDisplay:
             name = Text.assemble(name, "\t", status_badge)
 
         # Item hash with explorer link
-        link = f"https://explorer.aleph.im/address/ETH/{self.message.sender}/message/INSTANCE/{self.message.item_hash}"
+        link = (
+            f"https://explorer.aleph.cloud/address/ETH/{self.message.sender}/message/INSTANCE/{self.message.item_hash}"
+        )
         item_hash_link = Text.from_markup(f"[link={link}]{self.message.item_hash}[/link]", style="bright_cyan")
 
         # Payment information

@@ -49,11 +49,11 @@ async def get(
         try:
             message, status = await client.get_message(item_hash=ItemHash(item_hash), with_status=True)
         except MessageNotFoundError:
-            typer.echo("Message does not exist on aleph.im")
+            typer.echo("Message does not exist on aleph.cloud")
         except ForgottenMessageError:
-            typer.echo("Message has been forgotten on aleph.im")
+            typer.echo("Message has been forgotten on aleph.cloud")
         except RemovedMessageError:
-            typer.echo("Message has been removed on aleph.im")
+            typer.echo("Message has been removed on aleph.cloud")
         if message:
             typer.echo(f"Message Status: {colorized_status(status)}")
             if status == MessageStatus.REJECTED:
@@ -134,7 +134,7 @@ async def post(
     ] = settings.PRIVATE_KEY_FILE,
     debug: Annotated[bool, typer.Option()] = False,
 ):
-    """Post a message on aleph.im."""
+    """Post a message on aleph.cloud."""
 
     setup_logging(debug)
 
@@ -184,7 +184,7 @@ async def amend(
     ] = settings.PRIVATE_KEY_FILE,
     debug: Annotated[bool, typer.Option()] = False,
 ):
-    """Amend an existing aleph.im message."""
+    """Amend an existing aleph.cloud message."""
 
     setup_logging(debug)
 
@@ -195,9 +195,9 @@ async def amend(
         try:
             existing_message = await client.get_message(item_hash=item_hash)
         except MessageNotFoundError:
-            typer.echo("Message does not exist on aleph.im")
+            typer.echo("Message does not exist on aleph.cloud")
         except ForgottenMessageError:
-            typer.echo("Message has been forgotten on aleph.im")
+            typer.echo("Message has been forgotten on aleph.cloud")
         if existing_message:
             editor: str = os.getenv("EDITOR", default="nano")
             with tempfile.NamedTemporaryFile(suffix="json") as fd:
@@ -247,7 +247,7 @@ async def forget(
     ] = settings.PRIVATE_KEY_FILE,
     debug: Annotated[bool, typer.Option()] = False,
 ):
-    """Forget an existing aleph.im message."""
+    """Forget an existing aleph.cloud message."""
 
     setup_logging(debug)
 
@@ -273,9 +273,9 @@ async def watch(
         try:
             original = await client.get_message(item_hash=ref)
         except MessageNotFoundError:
-            typer.echo("Message does not exist on aleph.im")
+            typer.echo("Message does not exist on aleph.cloud")
         except ForgottenMessageError:
-            typer.echo("Message has been forgotten on aleph.im")
+            typer.echo("Message has been forgotten on aleph.cloud")
         if original:
             async for message in client.watch_messages(
                 message_filter=MessageFilter(refs=[ref], addresses=[original.content.address])

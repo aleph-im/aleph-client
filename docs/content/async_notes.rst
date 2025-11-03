@@ -2,7 +2,7 @@
 Async vs Sync
 =============
 
-At aleph.im we really like coding using asyncio,
+At Aleph Cloud we really like coding using asyncio,
 using async/await construct on Python 3.
 
 That being said, we totally understand that you might not
@@ -15,7 +15,7 @@ calling the async code behind your back (sneaky!) so you might
 be careful if you are calling it in an environment where you
 already have an asyncio loop used.
 
-Most chain specific code is synchronous, and core aleph.im interaction
+Most chain specific code is synchronous, and core Aleph Cloud interaction
 might by async.
 
 Sync code have to be imported from :py:mod:`aleph_client.synchronous`,
@@ -44,5 +44,4 @@ Example:
     ...         "0x06DE0C46884EbFF46558Cd1a9e7DA6B1c3E9D0a8",
     ...         "profile", session=session)
     ...
-    {"bio": "tester", "name": "Moshe on Ethereum"} 
-
+    {"bio": "tester", "name": "Moshe on Ethereum"}

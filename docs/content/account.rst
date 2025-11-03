@@ -1,7 +1,7 @@
 Accounts
 ========
 
-To send data to the aleph.im network, you need to have an account.
+To send data to the Aleph Cloud network, you need to have an account.
 This account can be made using any of the supported providers.
 
 Common

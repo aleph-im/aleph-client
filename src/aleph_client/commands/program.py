@@ -110,9 +110,9 @@ async def upload(
     verbose: Annotated[bool, typer.Option(help="Display additional information")] = True,
     debug: Annotated[bool, typer.Option(help="Enable debug logging")] = False,
 ) -> Optional[str]:
-    """Register a program to run on aleph.im (create/upload are aliases)
+    """Register a program to run on aleph.cloud (create/upload are aliases)
 
-    For more information, see https://docs.aleph.im/computing"""
+    For more information, see https://docs.aleph.cloud/devhub/compute-resources/"""
 
     setup_logging(debug)
     console = Console()
@@ -280,7 +280,9 @@ async def upload(
             func_url_1 = f"{settings.VM_URL_PATH.format(hash=item_hash)}"
             func_url_2 = f"{settings.VM_URL_HOST.format(hash_base32=hash_base32)}"
             infos = [
-                Text.from_markup(f"Your program [bright_cyan]{item_hash}[/bright_cyan] has been uploaded on aleph.im."),
+                Text.from_markup(
+                    f"Your program [bright_cyan]{item_hash}[/bright_cyan] has been uploaded on aleph.cloud."
+                ),
                 Text.assemble(
                     "\n\nAvailable on:\n",
                     Text.from_markup(
@@ -293,7 +295,7 @@ async def upload(
                     ),
                     "\n\nVisualise on:\n",
                     Text.from_markup(
-                        f"[blue]https://explorer.aleph.im/address/{message.chain.value}/{message.sender}/message/PROGRAM/{item_hash}[/blue]"
+                        f"[blue]https://explorer.aleph.cloud/address/{message.chain.value}/{message.sender}/message/PROGRAM/{item_hash}[/blue]"
                     ),
                 ),
             ]
@@ -345,10 +347,10 @@ async def update(
         try:
             program_message: ProgramMessage = await client.get_message(item_hash=item_hash, message_type=ProgramMessage)
         except MessageNotFoundError:
-            typer.echo("Program does not exist on aleph.im")
+            typer.echo("Program does not exist on aleph.cloud")
             return 1
         except ForgottenMessageError:
-            typer.echo("Program has been deleted on aleph.im")
+            typer.echo("Program has been deleted on aleph.cloud")
             return 1
         if program_message.sender != account.get_address():
             typer.echo("You are not the owner of this program")
@@ -358,10 +360,10 @@ async def update(
         try:
             code_message: StoreMessage = await client.get_message(item_hash=code_ref, message_type=StoreMessage)
         except MessageNotFoundError:
-            typer.echo("Code volume does not exist on aleph.im")
+            typer.echo("Code volume does not exist on aleph.cloud")
             return 1
         except ForgottenMessageError:
-            typer.echo("Code volume has been deleted on aleph.im")
+            typer.echo("Code volume has been deleted on aleph.cloud")
             return 1
         if encoding != program_message.content.code.encoding:
             logger.error(
@@ -449,10 +451,10 @@ async def delete(
                 item_hash=item_hash, message_type=ProgramMessage
             )
         except MessageNotFoundError:
-            typer.echo("Program does not exist on aleph.im")
+            typer.echo("Program does not exist on aleph.cloud")
             return 1
         except ForgottenMessageError:
-            typer.echo("Program has been already deleted on aleph.im")
+            typer.echo("Program has been already deleted on aleph.cloud")
             return 1
         if existing_message.sender != account.get_address():
             typer.echo("You are not the owner of this program")
@@ -542,7 +544,7 @@ async def list_programs(
                 ),
                 style="magenta3",
             )
-            msg_link = f"https://explorer.aleph.im/address/ETH/{message.sender}/message/PROGRAM/{message.item_hash}"
+            msg_link = f"https://explorer.aleph.cloud/address/ETH/{message.sender}/message/PROGRAM/{message.item_hash}"
             item_hash_link = Text.from_markup(f"[link={msg_link}]{message.item_hash}[/link]", style="bright_cyan")
             payment_type = safe_getattr(message.content, "payment.type", PaymentType.hold)
             payment = Text.assemble(
@@ -673,10 +675,10 @@ async def persist(
         try:
             message: ProgramMessage = await client.get_message(item_hash=item_hash, message_type=ProgramMessage)
         except MessageNotFoundError:
-            typer.echo("Program does not exist on aleph.im")
+            typer.echo("Program does not exist on aleph.cloud")
             return None
         except ForgottenMessageError:
-            typer.echo("Program has been deleted on aleph.im")
+            typer.echo("Program has been deleted on aleph.cloud")
             return None
         if message.sender != account.get_address():
             typer.echo("You are not the owner of this program")
@@ -770,10 +772,10 @@ async def unpersist(
         try:
             message: ProgramMessage = await client.get_message(item_hash=item_hash, message_type=ProgramMessage)
         except MessageNotFoundError:
-            typer.echo("Program does not exist on aleph.im")
+            typer.echo("Program does not exist on alepcloud")
             return None
         except ForgottenMessageError:
-            typer.echo("Program has been deleted on aleph.im")
+            typer.echo("Program has been deleted on aleph.cloud")
             return None
         if message.sender != account.get_address():
             typer.echo("You are not the owner of this program")

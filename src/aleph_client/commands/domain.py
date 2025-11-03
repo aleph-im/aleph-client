@@ -133,7 +133,7 @@ async def attach_resource(
 
             console.log("[green bold]Resource attached!")
             console.log(
-                f"Visualise on: https://explorer.aleph.im/address/ETH/{account.get_address()}/message/AGGREGATE/{aggregate_message.item_hash}"
+                f"Visualise on: https://explorer.aleph.cloud/address/ETH/{account.get_address()}/message/AGGREGATE/{aggregate_message.item_hash}"
             )
 
 
@@ -170,7 +170,7 @@ async def detach_resource(account: AccountFromPrivateKey, fqdn: Hostname, intera
 
             console.log("[green bold]Resource detached!")
             console.log(
-                f"Visualise on: https://explorer.aleph.im/address/ETH/{account.get_address()}/message/AGGREGATE/{aggregate_message.item_hash}"
+                f"Visualise on: https://explorer.aleph.cloud/address/ETH/{account.get_address()}/message/AGGREGATE/{aggregate_message.item_hash}"
             )
 
 
