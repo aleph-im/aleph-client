@@ -28,6 +28,7 @@ from aleph.sdk.evm_utils import (
 from aleph.sdk.utils import bytes_from_hex, displayable_amount
 from aleph.sdk.wallets.ledger import LedgerETHAccount
 from aleph_message.models import Chain
+from ledgereth.exceptions import LedgerError
 from rich import box
 from rich.console import Console
 from rich.panel import Panel
@@ -589,24 +590,32 @@ async def configure(
             "[bright_cyan]Loading External keys.[/bright_cyan] [yellow]Do you want to import from Ledger?[/yellow]",
             default="y",
         ):
-            accounts = LedgerETHAccount.get_accounts()
-            account_addresses = [acc.address for acc in accounts]
+            try:
 
-            console.print("[bold cyan]Available addresses on Ledger:[/bold cyan]")
-            for idx, account_address in enumerate(account_addresses, start=1):
-                console.print(f"[{idx}] {account_address}")
+                accounts = LedgerETHAccount.get_accounts()
+                account_addresses = [acc.address for acc in accounts]
 
-            key_choice = Prompt.ask("Choose a address by index")
-            if key_choice.isdigit():
-                key_index = int(key_choice) - 1
-                selected_address = account_addresses[key_index]
+                console.print("[bold cyan]Available addresses on Ledger:[/bold cyan]")
+                for idx, account_address in enumerate(account_addresses, start=1):
+                    console.print(f"[{idx}] {account_address}")
 
-                if not selected_address:
-                    typer.secho("No valid address selected.", fg=typer.colors.RED)
-                    raise typer.Exit()
+                key_choice = Prompt.ask("Choose a address by index")
+                if key_choice.isdigit():
+                    key_index = int(key_choice) - 1
+                    selected_address = account_addresses[key_index]
 
-                address = selected_address
-                account_type = AccountType.EXTERNAL
+                    if not selected_address:
+                        typer.secho("No valid address selected.", fg=typer.colors.RED)
+                        raise typer.Exit()
+
+                    address = selected_address
+                    account_type = AccountType.EXTERNAL
+            except LedgerError as e:
+                logger.warning(f"Ledger Error : {e.message}")
+                raise typer.Exit(code=1) from e
+            except OSError as err:
+                logger.warning("Please ensure Udev rules are set to use Ledger")
+                raise typer.Exit(code=1) from err
         else:
             typer.secho("No private key file provided or found.", fg=typer.colors.RED)
             raise typer.Exit()

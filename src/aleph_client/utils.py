@@ -30,6 +30,7 @@ from aleph.sdk.wallets.ledger import LedgerETHAccount
 from aleph_message.models import Chain
 from aleph_message.models.base import MessageType
 from aleph_message.models.execution.base import Encoding
+from ledgereth.exceptions import LedgerError
 
 # Type alias for account types
 AlephAccount = Union[AccountFromPrivateKey, LedgerETHAccount]
@@ -232,6 +233,11 @@ def load_account(
         chain = config.chain
 
     if config and config.type and config.type == AccountType.EXTERNAL:
-        return _load_account(None, None, chain=chain)
+        try:
+            return _load_account(None, None, chain=chain)
+        except LedgerError as err:
+            raise typer.Exit(code=1) from err
+        except OSError as err:
+            raise typer.Exit(code=1) from err
     else:
         return _load_account(private_key_str, private_key_file, chain=chain)
