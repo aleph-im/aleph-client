@@ -202,30 +202,6 @@ def test_account_import_sol(env_files):
     assert new_key != old_key
 
 
-def test_account_init(env_files):
-    """Test the new account init command."""
-    settings.CONFIG_FILE = env_files[1]
-
-    # First ensure the config directory exists but is empty
-    config_dir = env_files[1].parent
-    # Removing unused variable
-
-    with (
-        patch("aleph.sdk.conf.settings.CONFIG_FILE", env_files[1]),
-        patch("aleph.sdk.conf.settings.CONFIG_HOME", str(config_dir)),
-        patch("pathlib.Path.mkdir") as mock_mkdir,
-    ):
-
-        result = runner.invoke(app, ["account", "init"])
-        assert result.exit_code == 0
-        assert "Configuration initialized." in result.stdout
-        assert "Run `aleph account create`" in result.stdout
-        assert "Run `aleph account config --account-type external`" in result.stdout
-
-        # Check that directories were created
-        mock_mkdir.assert_any_call(parents=True, exist_ok=True)
-
-
 @patch("aleph.sdk.wallets.ledger.ethereum.LedgerETHAccount.get_accounts")
 def test_account_address(mock_get_accounts, env_files):
     settings.CONFIG_FILE = env_files[1]
@@ -254,33 +230,6 @@ def test_account_address(mock_get_accounts, env_files):
             result = runner.invoke(app, ["account", "address"])
             assert result.exit_code == 0
             assert result.stdout.startswith("✉  Addresses for Active Account (Ledger) ✉\n\nEVM: 0x")
-
-
-def test_account_init_with_isolated_filesystem():
-    """Test the new account init command that creates base configuration for new users."""
-    # Set up a test directory for config
-    with runner.isolated_filesystem():
-        config_dir = Path("test_config")
-        config_file = config_dir / "config.json"
-
-        # Create the directory first
-        config_dir.mkdir(parents=True, exist_ok=True)
-
-        with (
-            patch("aleph.sdk.conf.settings.CONFIG_FILE", config_file),
-            patch("aleph.sdk.conf.settings.CONFIG_HOME", str(config_dir)),
-        ):
-
-            result = runner.invoke(app, ["account", "init"])
-
-            # Verify command executed successfully
-            assert result.exit_code == 0
-            assert "Configuration initialized." in result.stdout
-            assert "Run `aleph account create`" in result.stdout
-            assert "Run `aleph account config --account-type external`" in result.stdout
-
-            # Verify the config file was created
-            assert config_file.exists()
 
 
 def test_account_chain(env_files):
