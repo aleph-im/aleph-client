@@ -22,7 +22,7 @@ from rich.table import Table
 
 from aleph_client.commands import help_strings
 from aleph_client.commands.utils import setup_logging
-from aleph_client.utils import AlephAccount, AsyncTyper, load_account
+from aleph_client.utils import AccountTypes, AsyncTyper, load_account
 
 logger = logging.getLogger(__name__)
 app = AsyncTyper(no_args_is_help=True)
@@ -43,7 +43,7 @@ async def pin(
 
     setup_logging(debug)
 
-    account: AlephAccount = load_account(private_key, private_key_file)
+    account: AccountTypes = load_account(private_key, private_key_file)
 
     async with AuthenticatedAlephHttpClient(account=account, api_server=settings.API_HOST) as client:
         result: StoreMessage
@@ -74,7 +74,7 @@ async def upload(
 
     setup_logging(debug)
 
-    account: AlephAccount = load_account(private_key, private_key_file)
+    account: AccountTypes = load_account(private_key, private_key_file)
 
     async with AuthenticatedAlephHttpClient(account=account, api_server=settings.API_HOST) as client:
         if not path.is_file():
@@ -180,7 +180,7 @@ async def forget(
 
     setup_logging(debug)
 
-    account: AlephAccount = load_account(private_key, private_key_file)
+    account: AccountTypes = load_account(private_key, private_key_file)
 
     hashes = [ItemHash(item_hash) for item_hash in item_hash.split(",")]
 
@@ -269,7 +269,7 @@ async def list_files(
     json: Annotated[bool, typer.Option(help="Print as json instead of rich table")] = False,
 ):
     """List all files for a given address"""
-    account: AlephAccount = load_account(private_key, private_key_file)
+    account: AccountTypes = load_account(private_key, private_key_file)
 
     if account and not address:
         address = account.get_address()

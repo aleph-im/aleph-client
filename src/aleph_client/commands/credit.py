@@ -16,7 +16,7 @@ from rich.text import Text
 
 from aleph_client.commands import help_strings
 from aleph_client.commands.utils import setup_logging
-from aleph_client.utils import AlephAccount, AsyncTyper
+from aleph_client.utils import AccountTypes, AsyncTyper
 
 logger = logging.getLogger(__name__)
 app = AsyncTyper(no_args_is_help=True)
@@ -40,7 +40,7 @@ async def show(
 
     setup_logging(debug)
 
-    account: AlephAccount = _load_account(private_key, private_key_file)
+    account: AccountTypes = _load_account(private_key, private_key_file)
 
     if account and not address:
         address = account.get_address()
@@ -86,7 +86,7 @@ async def history(
 ):
     setup_logging(debug)
 
-    account: AlephAccount = _load_account(private_key, private_key_file)
+    account: AccountTypes = _load_account(private_key, private_key_file)
 
     if account and not address:
         address = account.get_address()
