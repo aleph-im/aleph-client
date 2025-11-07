@@ -25,7 +25,7 @@ from rich.table import Table
 
 from aleph_client.commands import help_strings
 from aleph_client.commands.utils import is_environment_interactive
-from aleph_client.utils import AlephAccount, AsyncTyper, load_account
+from aleph_client.utils import AccountTypes, AsyncTyper, load_account
 
 logger = logging.getLogger(__name__)
 
@@ -135,7 +135,7 @@ async def attach_resource(
             )
 
 
-async def detach_resource(account: AlephAccount, fqdn: Hostname, interactive: Optional[bool] = None):
+async def detach_resource(account: AccountTypes, fqdn: Hostname, interactive: Optional[bool] = None):
     domain_info = await get_aggregate_domain_info(account, fqdn)
     interactive = is_environment_interactive() if interactive is None else interactive
 
@@ -185,7 +185,7 @@ async def add(
     ] = settings.PRIVATE_KEY_FILE,
 ):
     """Add and link a Custom Domain."""
-    account: AlephAccount = load_account(private_key, private_key_file)
+    account: AccountTypes = load_account(private_key, private_key_file)
     interactive = False if (not ask) else is_environment_interactive()
 
     console = Console()
@@ -270,7 +270,7 @@ async def attach(
     ] = settings.PRIVATE_KEY_FILE,
 ):
     """Attach resource to a Custom Domain."""
-    account: AlephAccount = load_account(private_key, private_key_file)
+    account: AccountTypes = load_account(private_key, private_key_file)
 
     await attach_resource(
         account,
@@ -292,7 +292,7 @@ async def detach(
     ] = settings.PRIVATE_KEY_FILE,
 ):
     """Unlink Custom Domain."""
-    account: AlephAccount = load_account(private_key, private_key_file)
+    account: AccountTypes = load_account(private_key, private_key_file)
 
     await detach_resource(account, Hostname(fqdn), interactive=False if (not ask) else None)
     raise typer.Exit()
@@ -307,7 +307,7 @@ async def info(
     ] = settings.PRIVATE_KEY_FILE,
 ):
     """Show Custom Domain Details."""
-    account: AlephAccount = load_account(private_key, private_key_file)
+    account: AccountTypes = load_account(private_key, private_key_file)
 
     console = Console()
     domain_validator = DomainValidator()

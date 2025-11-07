@@ -34,7 +34,7 @@ from aleph_client.commands.utils import (
     setup_logging,
     str_to_datetime,
 )
-from aleph_client.utils import AlephAccount, AsyncTyper, load_account
+from aleph_client.utils import AccountTypes, AsyncTyper, load_account
 
 app = AsyncTyper(no_args_is_help=True)
 
@@ -137,7 +137,7 @@ async def post(
 
     setup_logging(debug)
 
-    account: AlephAccount = load_account(private_key, private_key_file)
+    account: AccountTypes = load_account(private_key, private_key_file)
     storage_engine: StorageEnum
     content: dict
 
@@ -187,7 +187,7 @@ async def amend(
 
     setup_logging(debug)
 
-    account: AlephAccount = load_account(private_key, private_key_file)
+    account: AccountTypes = load_account(private_key, private_key_file)
 
     async with AlephHttpClient(api_server=settings.API_HOST) as client:
         existing_message: Optional[AlephMessage] = None
@@ -252,7 +252,7 @@ async def forget(
 
     hash_list: list[ItemHash] = [ItemHash(h) for h in hashes.split(",")]
 
-    account: AlephAccount = load_account(private_key, private_key_file)
+    account: AccountTypes = load_account(private_key, private_key_file)
     async with AuthenticatedAlephHttpClient(account=account, api_server=settings.API_HOST) as client:
         await client.forget(hashes=hash_list, reason=reason, channel=channel)
 
@@ -295,7 +295,7 @@ def sign(
 
     setup_logging(debug)
 
-    account: AlephAccount = load_account(private_key, private_key_file)
+    account: AccountTypes = load_account(private_key, private_key_file)
 
     if message is None:
         message = input_multiline()
