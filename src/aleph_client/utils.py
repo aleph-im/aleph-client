@@ -5,6 +5,7 @@ import inspect
 import logging
 import os
 import re
+import shutil
 import subprocess
 import sys
 from asyncio import ensure_future
@@ -48,7 +49,11 @@ def create_archive(path: Path) -> tuple[Path, Encoding]:
         if settings.CODE_USES_SQUASHFS:
             logger.debug("Creating squashfs archive...")
             archive_path = Path(f"{path}.squashfs")
-            subprocess.check_call(["/usr/bin/mksquashfs", path, archive_path, "-noappend"])
+            mksquashfs_path = shutil.which("mksquashfs")
+            if not mksquashfs_path:
+                msg = "mksquashfs not found in PATH"
+                raise FileNotFoundError(msg)
+            subprocess.check_call([mksquashfs_path, path, archive_path, "-noappend"])
             assert archive_path.is_file()
             return archive_path, Encoding.squashfs
         else:
