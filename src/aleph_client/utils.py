@@ -18,7 +18,7 @@ from zipfile import BadZipFile, ZipFile
 import aiohttp
 import typer
 from aiohttp import ClientSession
-from aleph.sdk.account import AccountLike, _load_account
+from aleph.sdk.account import AccountTypes, _load_account
 from aleph.sdk.conf import (
     AccountType,
     MainConfiguration,
@@ -202,7 +202,7 @@ def async_lru_cache(async_function):
 
 def load_account(
     private_key_str: Optional[str], private_key_file: Optional[Path], chain: Optional[Chain] = None
-) -> AccountLike:
+) -> AccountTypes:
     """
     Two Case Possible
         - Account from private key
