@@ -226,7 +226,7 @@ def test_account_init(env_files):
         mock_mkdir.assert_any_call(parents=True, exist_ok=True)
 
 
-@patch("aleph.sdk.wallets.ledger.LedgerETHAccount.get_accounts")
+@patch("aleph.sdk.wallets.ledger.ethereum.LedgerETHAccount.get_accounts")
 def test_account_address(mock_get_accounts, env_files):
     settings.CONFIG_FILE = env_files[1]
     result = runner.invoke(app, ["account", "address", "--private-key-file", str(env_files[0])])
@@ -241,7 +241,7 @@ def test_account_address(mock_get_accounts, env_files):
 
     # Create a ledger config
     ledger_config = MainConfiguration(
-        path=None, chain=Chain.ETH, type=AccountType.EXTERNAL, address=mock_ledger_account.address
+        path=None, chain=Chain.ETH, type=AccountType.HARDWARE, address=mock_ledger_account.address
     )
 
     with patch("aleph_client.commands.account.load_main_configuration", return_value=ledger_config):
@@ -314,7 +314,7 @@ def test_account_export_private_key_ledger():
     """Test that export-private-key fails for Ledger devices."""
     # Create a ledger config
     ledger_config = MainConfiguration(
-        path=None, chain=Chain.ETH, type=AccountType.EXTERNAL, address="0xdeadbeef1234567890123456789012345678beef"
+        path=None, chain=Chain.ETH, type=AccountType.HARDWARE, address="0xdeadbeef1234567890123456789012345678beef"
     )
 
     with patch("aleph_client.commands.account.load_main_configuration", return_value=ledger_config):
@@ -333,7 +333,7 @@ def test_account_list(env_files):
     assert result.stdout.startswith("🌐  Chain Infos 🌐")
 
 
-@patch("aleph.sdk.wallets.ledger.LedgerETHAccount.get_accounts")
+@patch("aleph.sdk.wallets.ledger.ethereum.LedgerETHAccount.get_accounts")
 def test_account_list_with_ledger(mock_get_accounts):
     """Test that account list shows Ledger devices when available."""
     # Create mock Ledger accounts
@@ -356,7 +356,7 @@ def test_account_list_with_ledger(mock_get_accounts):
 
     # Test with a ledger account that's active in configuration
     ledger_config = MainConfiguration(
-        path=None, chain=Chain.ETH, type=AccountType.EXTERNAL, address=mock_account1.address
+        path=None, chain=Chain.ETH, type=AccountType.HARDWARE, address=mock_account1.address
     )
 
     with patch("aleph_client.commands.account.load_main_configuration", return_value=ledger_config):
@@ -500,12 +500,11 @@ def test_account_vouchers_no_vouchers(mocker, env_files):
 def test_account_config(env_files):
     settings.CONFIG_FILE = env_files[1]
     result = runner.invoke(app, ["account", "config", "--private-key-file", str(env_files[0]), "--chain", "ETH"])
-    print(result.output)
     assert result.exit_code == 0
     assert result.stdout.startswith("New Default Configuration: ")
 
 
-@patch("aleph.sdk.wallets.ledger.LedgerETHAccount.get_accounts")
+@patch("aleph.sdk.wallets.ledger.ethereum.LedgerETHAccount.get_accounts")
 def test_account_config_with_ledger(mock_get_accounts):
     """Test configuring account with a Ledger device."""
     # Create mock Ledger accounts
@@ -528,7 +527,7 @@ def test_account_config_with_ledger(mock_get_accounts):
             patch("aleph_client.commands.account.yes_no_input", return_value=True),
         ):
 
-            result = runner.invoke(app, ["account", "config", "--account-type", "external", "--chain", "ETH"])
+            result = runner.invoke(app, ["account", "config", "--account-type", "hardware", "--chain", "ETH"])
 
             assert result.exit_code == 0
             assert "New Default Configuration" in result.stdout

@@ -25,6 +25,7 @@ from aleph.sdk.evm_utils import (
     get_chains_with_super_token,
     get_compatible_chains,
 )
+from aleph.sdk.types import AccountFromPrivateKey
 from aleph.sdk.utils import bytes_from_hex, displayable_amount
 from aleph.sdk.wallets.ledger import LedgerETHAccount
 from aleph_message.models import Chain
@@ -45,12 +46,7 @@ from aleph_client.commands.utils import (
     validated_prompt,
     yes_no_input,
 )
-from aleph_client.utils import (
-    AlephAccount,
-    AsyncTyper,
-    list_unlinked_keys,
-    load_account,
-)
+from aleph_client.utils import AsyncTyper, list_unlinked_keys, load_account
 
 logger = logging.getLogger(__name__)
 app = AsyncTyper(no_args_is_help=True)
@@ -194,7 +190,7 @@ def display_active_address(
     config = load_main_configuration(config_file_path)
     account_type = config.type if config else None
 
-    account_type_str = " (Ledger)" if account_type == AccountType.EXTERNAL else ""
+    account_type_str = " (Ledger)" if account_type == AccountType.HARDWARE else ""
 
     console.print(
         f"✉  [bold italic blue]Addresses for Active Account{account_type_str}[/bold italic blue] ✉\n\n"
@@ -266,7 +262,7 @@ def export_private_key(
     config_file_path = Path(settings.CONFIG_FILE)
     config = load_main_configuration(config_file_path)
 
-    if config and config.type == AccountType.EXTERNAL:
+    if config and config.type == AccountType.HARDWARE:
         typer.secho("Cannot export private key from a Ledger hardware wallet", fg=RED)
         typer.secho("The private key remains securely stored on your Ledger device", fg=RED)
         raise typer.Exit(code=1)
@@ -278,9 +274,15 @@ def export_private_key(
         typer.secho("No private key available", fg=RED)
         raise typer.Exit(code=1)
 
-    evm_pk = _load_account(private_key, private_key_file, chain=Chain.ETH).export_private_key()
-    sol_pk = _load_account(private_key, private_key_file, chain=Chain.SOL).export_private_key()
+    eth_account = _load_account(private_key, private_key_file, chain=Chain.ETH)
+    sol_account = _load_account(private_key, private_key_file, chain=Chain.SOL)
 
+    evm_pk = "Not Available"
+    if isinstance(eth_account, AccountFromPrivateKey):
+        evm_pk = eth_account.export_private_key()
+    sol_pk = "Not Available"
+    if isinstance(sol_account, AccountFromPrivateKey):
+        sol_pk = sol_account.export_private_key()
     console.print(
         "⚠️  [bold italic red]Private Keys for Active Account[/bold italic red] ⚠️\n\n"
         f"[italic]EVM[/italic]: [cyan]{evm_pk}[/cyan]\n"
@@ -303,7 +305,7 @@ def sign_bytes(
 
     setup_logging(debug)
 
-    account: AlephAccount = load_account(private_key, private_key_file, chain=chain)
+    account = load_account(private_key, private_key_file, chain=chain)
 
     if not message:
         message = input_multiline()
@@ -338,7 +340,7 @@ async def balance(
     chain: Annotated[Optional[Chain], typer.Option(help=help_strings.ADDRESS_CHAIN)] = None,
 ):
     """Display your ALEPH balance and basic voucher information."""
-    account: AlephAccount = load_account(private_key, private_key_file, chain=chain)
+    account = load_account(private_key, private_key_file, chain=chain)
 
     if account and not address:
         address = account.get_address()
@@ -426,7 +428,7 @@ async def list_accounts():
     if config and config.path:
         active_chain = config.chain
         table.add_row(config.path.stem, str(config.path), "[bold green]*[/bold green]")
-    elif config and config.address and config.type == AccountType.EXTERNAL:
+    elif config and config.address and config.type == AccountType.HARDWARE:
         active_chain = config.chain
         table.add_row(f"Ledger ({config.address[:8]}...)", "External (Ledger)", "[bold green]*[/bold green]")
     else:
@@ -445,7 +447,7 @@ async def list_accounts():
         ledger_accounts = LedgerETHAccount.get_accounts()
         if ledger_accounts:
             for idx, ledger_acc in enumerate(ledger_accounts):
-                is_active = config and config.type == AccountType.EXTERNAL and config.address == ledger_acc.address
+                is_active = config and config.type == AccountType.HARDWARE and config.address == ledger_acc.address
                 status = "[bold green]*[/bold green]" if is_active else "[bold red]-[/bold red]"
                 table.add_row(f"Ledger #{idx}", f"{ledger_acc.address}", status)
     except Exception:
@@ -459,7 +461,7 @@ async def list_accounts():
         if config.path:
             account = _load_account(private_key_path=config.path, chain=active_chain)
             active_address = account.get_address()
-        elif config.address and config.type == AccountType.EXTERNAL:
+        elif config.address and config.type == AccountType.HARDWARE:
             active_address = config.address
 
     console.print(
@@ -558,7 +560,7 @@ async def configure(
     if private_key_file:
         pass
     elif not account_type or (
-        account_type == AccountType.INTERNAL and config and hasattr(config, "path") and Path(config.path).exists()
+        account_type == AccountType.IMPORTED and config and hasattr(config, "path") and Path(config.path).exists()
     ):
         if not yes_no_input(
             f"Active private key file: [bright_cyan]{config.path}[/bright_cyan]\n[yellow]Keep current active private "
@@ -585,7 +587,7 @@ async def configure(
         else:  # No change
             private_key_file = Path(config.path)
 
-    if not private_key_file and account_type == AccountType.EXTERNAL:
+    if not private_key_file and account_type == AccountType.HARDWARE:
         if yes_no_input(
             "[bright_cyan]Loading External keys.[/bright_cyan] [yellow]Do you want to import from Ledger?[/yellow]",
             default="y",
@@ -609,7 +611,7 @@ async def configure(
                         raise typer.Exit()
 
                     address = selected_address
-                    account_type = AccountType.EXTERNAL
+                    account_type = AccountType.HARDWARE
             except LedgerError as e:
                 logger.warning(f"Ledger Error : {e.message}")
                 raise typer.Exit(code=1) from e
@@ -643,7 +645,7 @@ async def configure(
         raise typer.Exit()
 
     if not account_type:
-        account_type = AccountType.INTERNAL
+        account_type = AccountType.IMPORTED
 
     try:
         config = MainConfiguration(path=private_key_file, chain=chain, address=address, type=account_type)
