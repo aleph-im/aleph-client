@@ -86,7 +86,7 @@ class Pricing:
             infos.append(
                 Text.from_markup(
                     "Service & Availability (Holding): [orange1]"
-                    f"{displayable_amount(price_dict.get('fixed'),decimals=3)}"
+                    f"{displayable_amount(price_dict.get('fixed'), decimals=3)}"
                     " tokens[/orange1]\n"
                 )
             )
@@ -172,7 +172,7 @@ class Pricing:
         row = [
             tier_id,
             str(tier.compute_units),
-            str(entity_info.compute_unit.vcpus),
+            str(entity_info.compute_unit.vcpus * tier.compute_units),
             f"{entity_info.compute_unit.memory_mib * tier.compute_units / 1024:.0f}",
             f"{entity_info.compute_unit.disk_mib * tier.compute_units / 1024:.0f}",
         ]
@@ -416,7 +416,6 @@ async def prices_for_service(
     # Fetch Current availibity
     network_gpu = None
     if (service in [GroupEntity.GPU, GroupEntity.ALL]) and with_current_availability:
-
         crn_lists = await call_program_crn_list()
         network_gpu = crn_lists.find_gpu_on_network()
     if json:
