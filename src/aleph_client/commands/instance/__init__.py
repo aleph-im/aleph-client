@@ -540,7 +540,7 @@ async def create(
         )
 
     requirements, trusted_execution, gpu_requirement, tac_accepted = None, None, None, None
-    if crn and crn_info:
+    if crn_info:
         if is_stream and not crn_info.stream_reward_address:
             echo("Selected CRN does not have a defined or valid receiver address.")
             raise typer.Exit(1)
