@@ -390,12 +390,12 @@ async def create(
     name = name or validated_prompt("Instance name", lambda x: x and len(x) < 65)
     specs = pricing.data[pricing_entity].get_services_specs(tier)
 
-    vcpus = specs.vcpus
-    memory = specs.memory_mib
-    disk_size = specs.disk_mib
+    vcpus = vcpus if vcpus else specs.vcpus
+    memory = memory if memory else specs.memory_mib
+    disk_size = rootfs_size if rootfs_size else specs.disk_mib
     gpu_model = specs.gpu_model
 
-    disk_size_info = f"Rootfs Size: {round(disk_size/1024, 2)} GiB (defaulted to included storage in tier)"
+    disk_size_info = f"Rootfs Size: {round(disk_size / 1024, 2)} GiB (defaulted to included storage in tier)"
     if not isinstance(rootfs_size, int):
         rootfs_size = validated_int_prompt(
             "Custom Rootfs Size (MiB)",
@@ -405,7 +405,7 @@ async def create(
         )
     if rootfs_size > disk_size:
         disk_size = rootfs_size
-        disk_size_info = f"Rootfs Size: {round(rootfs_size/1024, 2)} GiB (extended from included storage in tier)"
+        disk_size_info = f"Rootfs Size: {round(rootfs_size / 1024, 2)} GiB (extended from included storage in tier)"
     echo(disk_size_info)
     volumes = []
     if any([persistent_volume, ephemeral_volume, immutable_volume]) or not skip_volume:
@@ -719,9 +719,9 @@ async def create(
                         f"[orange3]{key}[/orange3]: {value}"
                         for key, value in {
                             "$ALEPH": f"[violet]{displayable_amount(required_tokens, decimals=8)}/sec"
-                            f" | {displayable_amount(3600*required_tokens, decimals=3)}/hour"
-                            f" | {displayable_amount(86400*required_tokens, decimals=3)}/day"
-                            f" | {displayable_amount(2628000*required_tokens, decimals=3)}/month[/violet]",
+                            f" | {displayable_amount(3600 * required_tokens, decimals=3)}/hour"
+                            f" | {displayable_amount(86400 * required_tokens, decimals=3)}/day"
+                            f" | {displayable_amount(2628000 * required_tokens, decimals=3)}/month[/violet]",
                             "Flow Distribution": "\n[bright_cyan]80% ➜ CRN wallet[/bright_cyan]"
                             f"\n  Address: {crn_info.stream_reward_address}\n  Tx: {flow_hash_crn}"
                             f"\n[bright_cyan]20% ➜ Community wallet[/bright_cyan]"
