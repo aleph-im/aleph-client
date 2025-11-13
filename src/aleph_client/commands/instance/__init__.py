@@ -341,9 +341,7 @@ async def create(
         else (
             PricingEntity.INSTANCE_GPU_PREMIUM
             if gpu and premium
-            else PricingEntity.INSTANCE_GPU_STANDARD
-            if gpu
-            else PricingEntity.INSTANCE
+            else PricingEntity.INSTANCE_GPU_STANDARD if gpu else PricingEntity.INSTANCE
         )
     )
 
