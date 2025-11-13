@@ -390,9 +390,10 @@ async def create(
     name = name or validated_prompt("Instance name", lambda x: x and len(x) < 65)
     specs = pricing.data[pricing_entity].get_services_specs(tier)
 
-    vcpus = vcpus if vcpus else specs.vcpus
-    memory = memory if memory else specs.memory_mib
-    disk_size = rootfs_size if rootfs_size else specs.disk_mib
+    vcpus = vcpus if vcpus and payment_type != PaymentType.hold else specs.vcpus
+    memory = memory if memory and payment_type != PaymentType.hold else specs.memory_mib
+    disk_size = rootfs_size if rootfs_size and payment_type != PaymentType.hold else specs.disk_mib
+
     gpu_model = specs.gpu_model
 
     disk_size_info = f"Rootfs Size: {round(disk_size / 1024, 2)} GiB (defaulted to included storage in tier)"
