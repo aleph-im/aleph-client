@@ -14,6 +14,7 @@ from aleph.sdk.account import _load_account
 from aleph.sdk.chains.common import generate_key
 from aleph.sdk.chains.solana import parse_private_key as parse_solana_private_key
 from aleph.sdk.conf import (
+    AccountType,
     MainConfiguration,
     load_main_configuration,
     save_main_configuration,
@@ -24,8 +25,11 @@ from aleph.sdk.evm_utils import (
     get_chains_with_super_token,
     get_compatible_chains,
 )
+from aleph.sdk.types import AccountFromPrivateKey
 from aleph.sdk.utils import bytes_from_hex, displayable_amount
+from aleph.sdk.wallets.ledger import LedgerETHAccount
 from aleph_message.models import Chain
+from ledgereth.exceptions import LedgerError
 from rich import box
 from rich.console import Console
 from rich.panel import Panel
@@ -42,7 +46,7 @@ from aleph_client.commands.utils import (
     validated_prompt,
     yes_no_input,
 )
-from aleph_client.utils import AsyncTyper, list_unlinked_keys
+from aleph_client.utils import AsyncTyper, list_unlinked_keys, load_account
 
 logger = logging.getLogger(__name__)
 app = AsyncTyper(no_args_is_help=True)
@@ -145,26 +149,31 @@ async def create(
 
 @app.command(name="address")
 def display_active_address(
-    private_key: Annotated[Optional[str], typer.Option(help=help_strings.PRIVATE_KEY)] = settings.PRIVATE_KEY_STRING,
-    private_key_file: Annotated[
-        Optional[Path], typer.Option(help=help_strings.PRIVATE_KEY_FILE)
-    ] = settings.PRIVATE_KEY_FILE,
+    private_key: Annotated[Optional[str], typer.Option(help=help_strings.PRIVATE_KEY)] = None,
+    private_key_file: Annotated[Optional[Path], typer.Option(help=help_strings.PRIVATE_KEY_FILE)] = None,
 ):
     """
     Display your public address(es).
     """
+    # For regular accounts and Ledger accounts
+    evm_account = load_account(private_key, private_key_file, chain=Chain.ETH)
+    evm_address = evm_account.get_address()
 
-    if private_key is not None:
-        private_key_file = None
-    elif private_key_file and not private_key_file.exists():
-        typer.secho("No private key available", fg=RED)
-        raise typer.Exit(code=1)
+    # For Ledger accounts, the SOL address might not be available
+    try:
+        sol_address = load_account(private_key, private_key_file, chain=Chain.SOL).get_address()
+    except Exception:
+        sol_address = "Not available (using Ledger device)"
 
-    evm_address = _load_account(private_key, private_key_file, chain=Chain.ETH).get_address()
-    sol_address = _load_account(private_key, private_key_file, chain=Chain.SOL).get_address()
+    # Detect if it's a Ledger account
+    config_file_path = Path(settings.CONFIG_FILE)
+    config = load_main_configuration(config_file_path)
+    account_type = config.type if config else None
+
+    account_type_str = " (Ledger)" if account_type == AccountType.HARDWARE else ""
 
     console.print(
-        "✉  [bold italic blue]Addresses for Active Account[/bold italic blue] ✉\n\n"
+        f"✉  [bold italic blue]Addresses for Active Account{account_type_str}[/bold italic blue] ✉\n\n"
         f"[italic]EVM[/italic]: [cyan]{evm_address}[/cyan]\n"
         f"[italic]SOL[/italic]: [magenta]{sol_address}[/magenta]\n"
     )
@@ -229,16 +238,31 @@ def export_private_key(
     """
     Display your private key.
     """
+    # Check if we're using a Ledger account
+    config_file_path = Path(settings.CONFIG_FILE)
+    config = load_main_configuration(config_file_path)
 
+    if config and config.type == AccountType.HARDWARE:
+        typer.secho("Cannot export private key from a Ledger hardware wallet", fg=RED)
+        typer.secho("The private key remains securely stored on your Ledger device", fg=RED)
+        raise typer.Exit(code=1)
+
+    # Normal private key handling
     if private_key:
         private_key_file = None
     elif private_key_file and not private_key_file.exists():
         typer.secho("No private key available", fg=RED)
         raise typer.Exit(code=1)
 
-    evm_pk = _load_account(private_key, private_key_file, chain=Chain.ETH).export_private_key()
-    sol_pk = _load_account(private_key, private_key_file, chain=Chain.SOL).export_private_key()
+    eth_account = _load_account(private_key, private_key_file, chain=Chain.ETH)
+    sol_account = _load_account(private_key, private_key_file, chain=Chain.SOL)
 
+    evm_pk = "Not Available"
+    if isinstance(eth_account, AccountFromPrivateKey):
+        evm_pk = eth_account.export_private_key()
+    sol_pk = "Not Available"
+    if isinstance(sol_account, AccountFromPrivateKey):
+        sol_pk = sol_account.export_private_key()
     console.print(
         "⚠️  [bold italic red]Private Keys for Active Account[/bold italic red] ⚠️\n\n"
         f"[italic]EVM[/italic]: [cyan]{evm_pk}[/cyan]\n"
@@ -261,7 +285,7 @@ def sign_bytes(
 
     setup_logging(debug)
 
-    account = _load_account(private_key, private_key_file, chain=chain)
+    account = load_account(private_key, private_key_file, chain=chain)
 
     if not message:
         message = input_multiline()
@@ -296,7 +320,7 @@ async def balance(
     chain: Annotated[Optional[Chain], typer.Option(help=help_strings.ADDRESS_CHAIN)] = None,
 ):
     """Display your ALEPH balance and basic voucher information."""
-    account = _load_account(private_key, private_key_file, chain=chain)
+    account = load_account(private_key, private_key_file, chain=chain)
 
     if account and not address:
         address = account.get_address()
@@ -381,9 +405,12 @@ async def list_accounts():
     table.add_column("Active", no_wrap=True)
 
     active_chain = None
-    if config:
+    if config and config.path:
         active_chain = config.chain
         table.add_row(config.path.stem, str(config.path), "[bold green]*[/bold green]")
+    elif config and config.address and config.type == AccountType.HARDWARE:
+        active_chain = config.chain
+        table.add_row(f"Ledger ({config.address[:8]}...)", "External (Ledger)", "[bold green]*[/bold green]")
     else:
         console.print(
             "[red]No private key path selected in the config file.[/red]\nTo set it up, use: [bold "
@@ -395,13 +422,27 @@ async def list_accounts():
             if key_file.stem != "default":
                 table.add_row(key_file.stem, str(key_file), "[bold red]-[/bold red]")
 
+    # Try to detect Ledger devices
+    try:
+        ledger_accounts = LedgerETHAccount.get_accounts()
+        if ledger_accounts:
+            for idx, ledger_acc in enumerate(ledger_accounts):
+                is_active = config and config.type == AccountType.HARDWARE and config.address == ledger_acc.address
+                status = "[bold green]*[/bold green]" if is_active else "[bold red]-[/bold red]"
+                table.add_row(f"Ledger #{idx}", f"{ledger_acc.address}", status)
+    except Exception:
+        logger.info("No ledger detected")
+
     hold_chains = [*get_chains_with_holding(), Chain.SOL.value]
     payg_chains = get_chains_with_super_token()
 
     active_address = None
-    if config and config.path and active_chain:
-        account = _load_account(private_key_path=config.path, chain=active_chain)
-        active_address = account.get_address()
+    if config and active_chain:
+        if config.path:
+            account = _load_account(private_key_path=config.path, chain=active_chain)
+            active_address = account.get_address()
+        elif config.address and config.type == AccountType.HARDWARE:
+            active_address = config.address
 
     console.print(
         "🌐  [bold italic blue]Chain Infos[/bold italic blue] 🌐\n"
@@ -425,7 +466,7 @@ async def vouchers(
     chain: Annotated[Optional[Chain], typer.Option(help=help_strings.ADDRESS_CHAIN)] = None,
 ):
     """Display detailed information about your vouchers."""
-    account = _load_account(private_key, private_key_file, chain=chain)
+    account = load_account(private_key, private_key_file, chain=chain)
 
     if account and not address:
         address = account.get_address()
@@ -476,8 +517,15 @@ async def vouchers(
 async def configure(
     private_key_file: Annotated[Optional[Path], typer.Option(help="New path to the private key file")] = None,
     chain: Annotated[Optional[Chain], typer.Option(help="New active chain")] = None,
+    address: Annotated[Optional[str], typer.Option(help="New active address")] = None,
+    account_type: Annotated[Optional[AccountType], typer.Option(help="Account type")] = None,
 ):
     """Configure current private key file and active chain (default selection)"""
+
+    if settings.CONFIG_HOME:
+        settings.CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)  # Ensure config file is created
+        private_keys_dir = Path(settings.CONFIG_HOME, "private-keys")  # ensure private-keys folder created
+        private_keys_dir.mkdir(parents=True, exist_ok=True)
 
     unlinked_keys, config = await list_unlinked_keys()
 
@@ -493,8 +541,12 @@ async def configure(
         typer.secho(f"Private key file not found: {private_key_file}", fg=typer.colors.RED)
         raise typer.Exit()
 
-    # Configures active private key file
-    if not private_key_file and config and hasattr(config, "path") and Path(config.path).exists():
+    # If private_key_file is specified via command line, prioritize it
+    if private_key_file:
+        pass
+    elif not account_type or (
+        account_type == AccountType.IMPORTED and config and hasattr(config, "path") and Path(config.path).exists()
+    ):
         if not yes_no_input(
             f"Active private key file: [bright_cyan]{config.path}[/bright_cyan]\n[yellow]Keep current active private "
             "key?[/yellow]",
@@ -520,12 +572,45 @@ async def configure(
         else:  # No change
             private_key_file = Path(config.path)
 
-    if not private_key_file:
-        typer.secho("No private key file provided or found.", fg=typer.colors.RED)
-        raise typer.Exit()
+    if not private_key_file and account_type == AccountType.HARDWARE:
+        if yes_no_input(
+            "[bright_cyan]Loading External keys.[/bright_cyan] [yellow]Do you want to import from Ledger?[/yellow]",
+            default="y",
+        ):
+            try:
 
-    # Configure active chain
-    if not chain and config and hasattr(config, "chain"):
+                accounts = LedgerETHAccount.get_accounts()
+                account_addresses = [acc.address for acc in accounts]
+
+                console.print("[bold cyan]Available addresses on Ledger:[/bold cyan]")
+                for idx, account_address in enumerate(account_addresses, start=1):
+                    console.print(f"[{idx}] {account_address}")
+
+                key_choice = Prompt.ask("Choose a address by index")
+                if key_choice.isdigit():
+                    key_index = int(key_choice) - 1
+                    selected_address = account_addresses[key_index]
+
+                    if not selected_address:
+                        typer.secho("No valid address selected.", fg=typer.colors.RED)
+                        raise typer.Exit()
+
+                    address = selected_address
+                    account_type = AccountType.HARDWARE
+            except LedgerError as e:
+                logger.warning(f"Ledger Error : {e.message}")
+                raise typer.Exit(code=1) from e
+            except OSError as err:
+                logger.warning("Please ensure Udev rules are set to use Ledger")
+                raise typer.Exit(code=1) from err
+        else:
+            typer.secho("No private key file provided or found.", fg=typer.colors.RED)
+            raise typer.Exit()
+
+    # If chain is specified via command line, prioritize it
+    if chain:
+        pass
+    elif config and hasattr(config, "chain"):
         if not yes_no_input(
             f"Active chain: [bright_cyan]{config.chain}[/bright_cyan]\n[yellow]Keep current active chain?[/yellow]",
             default="y",
@@ -544,12 +629,15 @@ async def configure(
         typer.secho("No chain provided.", fg=typer.colors.RED)
         raise typer.Exit()
 
+    if not account_type:
+        account_type = AccountType.IMPORTED
+
     try:
-        config = MainConfiguration(path=private_key_file, chain=chain)
+        config = MainConfiguration(path=private_key_file, chain=chain, address=address, type=account_type)
         save_main_configuration(settings.CONFIG_FILE, config)
         console.print(
-            f"New Default Configuration: [italic bright_cyan]{config.path}[/italic bright_cyan] with [italic "
-            f"bright_cyan]{config.chain}[/italic bright_cyan]",
+            f"New Default Configuration: [italic bright_cyan]{config.path or config.address}"
+            f"[/italic bright_cyan] with [italic bright_cyan]{config.chain}[/italic bright_cyan]",
             style=typer.colors.GREEN,
         )
     except ValueError as e:
