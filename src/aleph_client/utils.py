@@ -234,6 +234,7 @@ def load_account(
 
     if config and config.type and config.type == AccountType.HARDWARE:
         try:
+            wait_for_ledger_connection()
             return _load_account(None, None, chain=chain)
         except LedgerError as err:
             raise typer.Exit(code=1) from err
