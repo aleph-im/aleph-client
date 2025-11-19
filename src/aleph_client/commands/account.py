@@ -155,23 +155,19 @@ def display_active_address(
     """
     Display your public address(es).
     """
-    # For regular accounts and Ledger accounts
-    evm_account = load_account(private_key, private_key_file, chain=Chain.ETH)
-    evm_address = evm_account.get_address()
 
-    # For Ledger accounts, the SOL address might not be available
-    try:
-        sol_address = load_account(private_key, private_key_file, chain=Chain.SOL).get_address()
-    except Exception:
-        sol_address = "Not available (using Ledger device)"
-
-    # Detect if it's a Ledger account
     config_file_path = Path(settings.CONFIG_FILE)
     config = load_main_configuration(config_file_path)
     account_type = config.type if config else None
 
-    account_type_str = " (Ledger)" if account_type == AccountType.HARDWARE else ""
+    if not account_type or account_type == AccountType.IMPORTED:
+        evm_address = load_account(private_key, private_key_file, chain=Chain.ETH).get_address()
+        sol_address = load_account(private_key, private_key_file, chain=Chain.SOL).get_address()
+    else:
+        evm_address = config.address if config else "Not available"
+        sol_address = "Not available (using Ledger device)"
 
+    account_type_str = " (Ledger)" if account_type == AccountType.HARDWARE else ""
     console.print(
         f"✉  [bold italic blue]Addresses for Active Account{account_type_str}[/bold italic blue] ✉\n\n"
         f"[italic]EVM[/italic]: [cyan]{evm_address}[/cyan]\n"
@@ -320,10 +316,17 @@ async def balance(
     chain: Annotated[Optional[Chain], typer.Option(help=help_strings.ADDRESS_CHAIN)] = None,
 ):
     """Display your ALEPH balance and basic voucher information."""
-    account = load_account(private_key, private_key_file, chain=chain)
+    config_file_path = Path(settings.CONFIG_FILE)
+    config = load_main_configuration(config_file_path)
+    account_type = config.type if config else None
 
-    if account and not address:
-        address = account.get_address()
+    # Avoid connecting to ledger
+    if not account_type or account_type == AccountType.IMPORTED:
+        account = load_account(private_key, private_key_file, chain=chain)
+        if account and not address:
+            address = account.get_address()
+    elif not address and config and config.address:
+        address = config.address
 
     if address:
         try:
@@ -405,12 +408,23 @@ async def list_accounts():
     table.add_column("Active", no_wrap=True)
 
     active_chain = None
-    if config and config.path:
+    if config and config.path and config.path != Path("None"):
         active_chain = config.chain
         table.add_row(config.path.stem, str(config.path), "[bold green]*[/bold green]")
     elif config and config.address and config.type == AccountType.HARDWARE:
         active_chain = config.chain
-        table.add_row(f"Ledger ({config.address[:8]}...)", "External (Ledger)", "[bold green]*[/bold green]")
+
+        ledger_connected = False
+        try:
+            ledger_accounts = LedgerETHAccount.get_accounts()
+            if ledger_accounts:
+                ledger_connected = True
+        except Exception:
+            ledger_connected = False
+
+        # Only show the config entry if no Ledger is connected
+        if not ledger_connected:
+            table.add_row(f"Ledger ({config.address})", "External (Ledger)", "[bold green]*[/bold green]")
     else:
         console.print(
             "[red]No private key path selected in the config file.[/red]\nTo set it up, use: [bold "

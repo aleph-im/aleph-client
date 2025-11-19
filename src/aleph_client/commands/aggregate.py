@@ -8,8 +8,8 @@ from typing import Annotated, Optional
 
 import typer
 from aiohttp import ClientResponseError, ClientSession
-from aleph.sdk.client import AuthenticatedAlephHttpClient
-from aleph.sdk.conf import settings
+from aleph.sdk.client import AlephHttpClient, AuthenticatedAlephHttpClient
+from aleph.sdk.conf import AccountType, load_main_configuration, settings
 from aleph.sdk.utils import extended_json_encoder
 from aleph_message.models import Chain, MessageType
 from aleph_message.status import MessageStatus
@@ -192,10 +192,19 @@ async def get(
 
     setup_logging(debug)
 
-    account: AccountTypes = load_account(private_key, private_key_file)
-    address = account.get_address() if address is None else address
+    config_file_path = Path(settings.CONFIG_FILE)
+    config = load_main_configuration(config_file_path)
+    account_type = config.type if config else None
 
-    async with AuthenticatedAlephHttpClient(account=account, api_server=settings.API_HOST) as client:
+    # Avoid connecting to ledger
+    if not account_type or account_type == AccountType.IMPORTED:
+        account = load_account(private_key, private_key_file)
+        if account and not address:
+            address = account.get_address()
+    elif not address and config and config.address:
+        address = config.address
+
+    async with AlephHttpClient(api_server=settings.API_HOST) as client:
         aggregates = None
         try:
             aggregates = await client.fetch_aggregate(address=address, key=key)
@@ -227,9 +236,17 @@ async def list_aggregates(
     """Display all aggregates associated to an account"""
 
     setup_logging(debug)
+    config_file_path = Path(settings.CONFIG_FILE)
+    config = load_main_configuration(config_file_path)
+    account_type = config.type if config else None
 
-    account: AccountTypes = load_account(private_key, private_key_file)
-    address = account.get_address() if address is None else address
+    # Avoid connecting to ledger
+    if not account_type or account_type == AccountType.IMPORTED:
+        account = load_account(private_key, private_key_file)
+        if account and not address:
+            address = account.get_address()
+    elif not address and config and config.address:
+        address = config.address
 
     aggr_link = f"{sanitize_url(settings.API_HOST)}/api/v0/aggregates/{address}.json"
     async with ClientSession() as session:
@@ -431,8 +448,17 @@ async def permissions(
 
     setup_logging(debug)
 
-    account: AccountTypes = load_account(private_key, private_key_file)
-    address = account.get_address() if address is None else address
+    config_file_path = Path(settings.CONFIG_FILE)
+    config = load_main_configuration(config_file_path)
+    account_type = config.type if config else None
+
+    # Avoid connecting to ledger
+    if not account_type or account_type == AccountType.IMPORTED:
+        account = load_account(private_key, private_key_file)
+        if account and not address:
+            address = account.get_address()
+    elif not address and config and config.address:
+        address = config.address
 
     data = await get(
         key="security",

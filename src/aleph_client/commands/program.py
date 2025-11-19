@@ -15,7 +15,7 @@ import typer
 from aleph.sdk import AlephHttpClient, AuthenticatedAlephHttpClient
 from aleph.sdk.account import _load_account
 from aleph.sdk.client.vm_client import VmClient
-from aleph.sdk.conf import load_main_configuration, settings
+from aleph.sdk.conf import AccountType, load_main_configuration, settings
 from aleph.sdk.evm_utils import get_chains_with_holding
 from aleph.sdk.exceptions import (
     ForgottenMessageError,
@@ -58,7 +58,7 @@ from aleph_client.commands.utils import (
     validated_prompt,
     yes_no_input,
 )
-from aleph_client.utils import AsyncTyper, create_archive, sanitize_url
+from aleph_client.utils import AsyncTyper, create_archive, load_account, sanitize_url
 
 logger = logging.getLogger(__name__)
 app = AsyncTyper(no_args_is_help=True)
@@ -504,8 +504,23 @@ async def list_programs(
 
     setup_logging(debug)
 
-    account = _load_account(private_key, private_key_file, chain=chain)
-    address = address or settings.ADDRESS_TO_USE or account.get_address()
+    # Load config to check account type
+    config_file_path = Path(settings.CONFIG_FILE)
+    config = load_main_configuration(config_file_path)
+    account_type = config.type if config else None
+
+    # Avoid connecting to ledger
+    if not account_type or account_type == AccountType.IMPORTED:
+        account = load_account(private_key, private_key_file)
+        if account and not address:
+            address = account.get_address()
+    elif not address and config and config.address:
+        address = config.address
+
+    # Ensure we have an address to query
+    if not address:
+        typer.echo("Error: No address found. Please provide an address or use a private key.")
+        raise typer.Exit(code=1)
 
     async with AlephHttpClient(api_server=settings.API_HOST) as client:
         resp = await client.get_messages(
