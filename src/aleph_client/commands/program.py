@@ -630,7 +630,7 @@ async def list_programs(
                 f"Updatable: {'[green]Yes[/green]' if message.content.allow_amend else '[orange3]Code only[/orange3]'}",
             ]
             specifications = Text.from_markup("".join(specs))
-            config = Text.assemble(
+            config_info = Text.assemble(
                 Text.from_markup(
                     f"Runtime: [bright_cyan][link={settings.API_HOST}/api/v0/messages/{message.content.runtime.ref}]"
                     f"{message.content.runtime.ref}[/link][/bright_cyan]\n"
@@ -640,7 +640,7 @@ async def list_programs(
                 ),
                 Text.from_markup(display_mounted_volumes(message)),
             )
-            table.add_row(program, specifications, config)
+            table.add_row(program, specifications, config_info)
             table.add_section()
 
         console = Console()
