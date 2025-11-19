@@ -11,12 +11,12 @@ from typing import Annotated, Any, Optional
 import aiohttp
 import typer
 from aleph.sdk import AlephHttpClient, AuthenticatedAlephHttpClient
-from aleph.sdk.chains.ethereum import ETHAccount
+from aleph.sdk.chains.ethereum import BaseEthAccount
 from aleph.sdk.client.services.crn import NetworkGPUS
 from aleph.sdk.client.services.pricing import Price
 from aleph.sdk.client.vm_client import VmClient
 from aleph.sdk.client.vm_confidential_client import VmConfidentialClient
-from aleph.sdk.conf import load_main_configuration, settings
+from aleph.sdk.conf import AccountType, load_main_configuration, settings
 from aleph.sdk.evm_utils import (
     FlowUpdate,
     get_chains_with_holding,
@@ -153,6 +153,11 @@ async def create(
     setup_logging(debug)
     console = Console()
 
+    # Start CRN list fetch as a background task
+    crn_list_future = call_program_crn_list()
+    crn_list_future.set_name("crn-list")
+    await asyncio.sleep(0.0)  # Yield control to let the task start
+
     # Loads ssh pubkey
     try:
         ssh_pubkey_file = validate_ssh_pubkey_file(ssh_pubkey_file)
@@ -169,11 +174,6 @@ async def create(
     account: AccountTypes = load_account(private_key, private_key_file, chain=payment_chain)
 
     address = address or settings.ADDRESS_TO_USE or account.get_address()
-
-    # Start the fetch in the background (async_lru_cache already returns a future)
-    # We'll await this at the point we need it
-    crn_list_future = call_program_crn_list()
-    crn_list = None
 
     # Loads default configuration if no chain is set
     if payment_chain is None:
@@ -316,8 +316,11 @@ async def create(
             if not firmware_message:
                 raise typer.Exit(code=1)
 
-    if not crn_list:
-        crn_list = await crn_list_future
+    # Now we need the CRN list data, so await the future
+    if crn_list_future.done():
+        crn_list = crn_list_future.result()
+    else:
+        crn_list = await asyncio.wait_for(crn_list_future, timeout=None)
 
     # Filter and prepare the list of available GPUs
     found_gpu_models: Optional[NetworkGPUS] = None
@@ -395,7 +398,7 @@ async def create(
     disk_size = specs.disk_mib
     gpu_model = specs.gpu_model
 
-    disk_size_info = f"Rootfs Size: {round(disk_size/1024, 2)} GiB (defaulted to included storage in tier)"
+    disk_size_info = f"Rootfs Size: {round(disk_size / 1024, 2)} GiB (defaulted to included storage in tier)"
     if not isinstance(rootfs_size, int):
         rootfs_size = validated_int_prompt(
             "Custom Rootfs Size (MiB)",
@@ -405,7 +408,7 @@ async def create(
         )
     if rootfs_size > disk_size:
         disk_size = rootfs_size
-        disk_size_info = f"Rootfs Size: {round(rootfs_size/1024, 2)} GiB (extended from included storage in tier)"
+        disk_size_info = f"Rootfs Size: {round(rootfs_size / 1024, 2)} GiB (extended from included storage in tier)"
     echo(disk_size_info)
     volumes = []
     if any([persistent_volume, ephemeral_volume, immutable_volume]) or not skip_volume:
@@ -421,12 +424,13 @@ async def create(
         async with AlephHttpClient(api_server=settings.API_HOST) as client:
             balance_response = await client.get_balances(address)
         available_amount = balance_response.balance - balance_response.locked_amount
-        available_funds = Decimal(0 if is_stream else available_amount)
+        available_funds = Decimal(available_amount)
         try:
             # Get compute_unit price from PricingPerEntity
-            if is_stream and isinstance(account, ETHAccount):
+            if is_stream and isinstance(account, BaseEthAccount):
                 if account.CHAIN != payment_chain:
                     account.switch_chain(payment_chain)
+
                 if safe_getattr(account, "superfluid_connector"):
                     if isinstance(compute_unit_price, Price) and compute_unit_price.payg:
                         payg_price = Decimal(str(compute_unit_price.payg)) * tier.compute_units
@@ -478,11 +482,6 @@ async def create(
                 raise typer.Exit(1) from e
 
         if crn_url or crn_hash:
-            if not gpu:
-                echo("Fetching compute resource node's list...")
-                if not crn_list:
-                    crn_list = await crn_list_future
-
             crn = crn_list.find_crn(
                 address=crn_url,
                 crn_hash=crn_hash,
@@ -504,8 +503,6 @@ async def create(
                 raise typer.Exit(1)
 
         while not crn_info:
-            if not crn_list:
-                crn_list = await crn_list_future
 
             filtered_crns = crn_list.filter_crn(
                 latest_crn_version=True,
@@ -539,7 +536,7 @@ async def create(
         )
 
     requirements, trusted_execution, gpu_requirement, tac_accepted = None, None, None, None
-    if crn and crn_info:
+    if crn_info:
         if is_stream and not crn_info.stream_reward_address:
             echo("Selected CRN does not have a defined or valid receiver address.")
             raise typer.Exit(1)
@@ -639,7 +636,7 @@ async def create(
             raise typer.Exit(code=1) from e
 
         try:
-            if is_stream and isinstance(account, ETHAccount):
+            if is_stream and isinstance(account, BaseEthAccount):
                 account.can_start_flow(required_tokens)
             elif available_funds < required_tokens:
                 raise InsufficientFundsError(TokenType.ALEPH, float(required_tokens), float(available_funds))
@@ -690,7 +687,7 @@ async def create(
                 await wait_for_processed_instance(session, item_hash)
 
             # Pay-As-You-Go
-            if is_stream and isinstance(account, ETHAccount):
+            if is_stream and isinstance(account, BaseEthAccount):
                 # Start the flows
                 echo("Starting the flows...")
                 fetched_settings = await fetch_settings()
@@ -719,9 +716,9 @@ async def create(
                         f"[orange3]{key}[/orange3]: {value}"
                         for key, value in {
                             "$ALEPH": f"[violet]{displayable_amount(required_tokens, decimals=8)}/sec"
-                            f" | {displayable_amount(3600*required_tokens, decimals=3)}/hour"
-                            f" | {displayable_amount(86400*required_tokens, decimals=3)}/day"
-                            f" | {displayable_amount(2628000*required_tokens, decimals=3)}/month[/violet]",
+                            f" | {displayable_amount(3600 * required_tokens, decimals=3)}/hour"
+                            f" | {displayable_amount(86400 * required_tokens, decimals=3)}/day"
+                            f" | {displayable_amount(2628000 * required_tokens, decimals=3)}/month[/violet]",
                             "Flow Distribution": "\n[bright_cyan]80% ➜ CRN wallet[/bright_cyan]"
                             f"\n  Address: {crn_info.stream_reward_address}\n  Tx: {flow_hash_crn}"
                             f"\n[bright_cyan]20% ➜ Community wallet[/bright_cyan]"
@@ -882,7 +879,12 @@ async def delete(
             echo("No CRN information available for this instance. Skipping VM erasure.")
 
         # Check for streaming payment and eventually stop it
-        if payment and payment.type == PaymentType.superfluid and payment.receiver and isinstance(account, ETHAccount):
+        if (
+            payment
+            and payment.type == PaymentType.superfluid
+            and payment.receiver
+            and isinstance(account, BaseEthAccount)
+        ):
             if account.CHAIN != payment.chain:
                 account.switch_chain(payment.chain)
             if safe_getattr(account, "superfluid_connector") and price:
