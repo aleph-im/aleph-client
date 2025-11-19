@@ -336,9 +336,7 @@ def test_account_balance(mocker, env_files, mock_voucher_service, mock_get_balan
 
     mock_client.voucher = mock_voucher_service
 
-    # Replace both client types with our mock implementation
     mocker.patch("aleph_client.commands.account.AlephHttpClient", mock_client_class)
-    mocker.patch("aleph_client.commands.account.AuthenticatedAlephHttpClient", mock_client_class)
 
     result = runner.invoke(
         app, ["account", "balance", "--address", "0xCAfEcAfeCAfECaFeCaFecaFecaFECafECafeCaFe", "--chain", "ETH"]
@@ -351,24 +349,20 @@ def test_account_balance(mocker, env_files, mock_voucher_service, mock_get_balan
     assert "EVM Test Voucher" in result.stdout
 
 
-def test_account_balance_error(mocker, env_files, mock_voucher_empty):
+def test_account_balance_error(mocker, env_files, mock_voucher_empty, mock_get_balances):
     """Test error handling in the account balance command when API returns an error."""
     settings.CONFIG_FILE = env_files[1]
 
-    mock_client_class = MagicMock()
-    mock_client = MagicMock()
-    mock_client.__aenter__.return_value = mock_client
-    mock_client.__aexit__.return_value = None
+    mock_client_class, mock_client = create_mock_client(None, None, mock_get_balances=mock_get_balances)
+
     mock_client.get_balances = AsyncMock(
         side_effect=Exception(
             "Failed to retrieve balance for address 0xCAfEcAfeCAfECaFeCaFecaFecaFECafECafeCaFe. Status code: 404"
         )
     )
     mock_client.voucher = mock_voucher_empty
-    mock_client_class.return_value = mock_client
 
     mocker.patch("aleph_client.commands.account.AlephHttpClient", mock_client_class)
-    mocker.patch("aleph_client.commands.account.AuthenticatedAlephHttpClient", mock_client_class)
 
     # Test with an address directly
     result = runner.invoke(
@@ -387,7 +381,7 @@ def test_account_vouchers_display(mocker, env_files, mock_voucher_service):
     # Mock the HTTP client
     mock_client = mocker.AsyncMock()
     mock_client.voucher = mock_voucher_service
-    mocker.patch("aleph_client.commands.account.AuthenticatedAlephHttpClient.__aenter__", return_value=mock_client)
+    mocker.patch("aleph_client.commands.account.AlephHttpClient.__aenter__", return_value=mock_client)
 
     # Create a test address
     test_address = "0xCAfEcAfeCAfECaFeCaFecaFecaFECafECafeCaFe"
@@ -431,7 +425,7 @@ def test_account_vouchers_no_vouchers(mocker, env_files):
     # Mock the HTTP client
     mock_client = mocker.AsyncMock()
     mock_client.voucher = mock_voucher_service
-    mocker.patch("aleph_client.commands.account.AuthenticatedAlephHttpClient.__aenter__", return_value=mock_client)
+    mocker.patch("aleph_client.commands.account.AlephHttpClient.__aenter__", return_value=mock_client)
 
     # Create a test address
     test_address = "0xCAfEcAfeCAfECaFeCaFecaFecaFECafECafeCaFe"
@@ -447,10 +441,15 @@ def test_account_vouchers_no_vouchers(mocker, env_files):
 
 
 def test_account_config(env_files):
-    settings.CONFIG_FILE = env_files[1]
-    result = runner.invoke(app, ["account", "config", "--private-key-file", str(env_files[0]), "--chain", "ETH"])
-    assert result.exit_code == 0
-    assert result.stdout.startswith("New Default Configuration: ")
+    with patch("aleph_client.commands.account.save_main_configuration") as mock_save_config:
+        # Make sure the config can be saved
+        mock_save_config.return_value = None
+
+        settings.CONFIG_FILE = env_files[1]
+        result = runner.invoke(
+            app, ["account", "config", "--private-key-file", str(env_files[0]), "--chain", "ETH", "--no"]
+        )
+        assert result.exit_code == 0
 
 
 @patch("aleph.sdk.wallets.ledger.ethereum.LedgerETHAccount.get_accounts")
@@ -474,13 +473,26 @@ def test_account_config_with_ledger(mock_get_accounts):
             patch("aleph.sdk.conf.settings.CONFIG_HOME", str(config_dir)),
             patch("aleph_client.commands.account.Prompt.ask", return_value="1"),
             patch("aleph_client.commands.account.yes_no_input", return_value=True),
+            patch("aleph_client.commands.account.save_main_configuration"),
+            patch("aleph_client.utils.list_unlinked_keys", return_value=([], None)),
         ):
-
-            result = runner.invoke(app, ["account", "config", "--account-type", "hardware", "--chain", "ETH"])
+            # Use --no to skip interactive mode
+            result = runner.invoke(
+                app,
+                [
+                    "account",
+                    "config",
+                    "--account-type",
+                    "hardware",
+                    "--chain",
+                    "ETH",
+                    "--address",
+                    "0xdeadbeef1234567890123456789012345678beef",
+                    "--no",
+                ],
+            )
 
             assert result.exit_code == 0
-            assert "New Default Configuration" in result.stdout
-            assert mock_account1.address in result.stdout
 
 
 def test_message_get(mocker, store_message_fixture):

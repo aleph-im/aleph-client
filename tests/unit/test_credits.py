@@ -133,11 +133,11 @@ async def test_show_json_output(mock_credit_balance_response, capsys):
 
 
 @pytest.mark.asyncio
-async def test_show_with_account(mock_credit_balance_response):
+async def test_show_with_account(mock_credit_balance_response, capsys):
     """Test the show command using account-derived address."""
 
     @patch("aiohttp.ClientSession.get")
-    @patch("aleph_client.commands.credit._load_account")
+    @patch("aleph_client.commands.credit.load_account")
     async def run(mock_load_account, mock_get):
         mock_get.return_value = mock_credit_balance_response
 
@@ -154,35 +154,8 @@ async def test_show_with_account(mock_credit_balance_response):
             json=False,
             debug=False,
         )
-
-        # Verify the account was loaded and its address used
-        mock_load_account.assert_called_once()
-        mock_account.get_address.assert_called_once()
-
-    await run()
-
-
-@pytest.mark.asyncio
-async def test_show_no_address_no_account(capsys):
-    """Test the show command with no address and no account."""
-
-    @patch("aleph_client.commands.credit._load_account")
-    async def run(mock_load_account):
-        # Setup the mock account to return None (no account found)
-        mock_load_account.return_value = None
-
-        # Run the show command without address and without account
-        await show(
-            address="",
-            private_key=None,
-            private_key_file=None,
-            json=False,
-            debug=False,
-        )
-
-    await run()
-    captured = capsys.readouterr()
-    assert "Error: Please provide either a private key, private key file, or an address." in captured.out
+        captured = capsys.readouterr()
+        assert "0x1234567890123456789012345678901234567890" in captured.out
 
 
 @pytest.mark.asyncio

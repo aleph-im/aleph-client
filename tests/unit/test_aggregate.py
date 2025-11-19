@@ -52,6 +52,15 @@ def create_mock_auth_client(return_fetch=FAKE_AGGREGATE_DATA):
     return mock_auth_client_class, mock_auth_client
 
 
+def create_mock_client(return_fetch=FAKE_AGGREGATE_DATA):
+    mock_auth_client = AsyncMock(
+        fetch_aggregate=AsyncMock(return_value=return_fetch),
+    )
+    mock_auth_client_class = MagicMock()
+    mock_auth_client_class.return_value.__aenter__ = AsyncMock(return_value=mock_auth_client)
+    return mock_auth_client_class, mock_auth_client
+
+
 @pytest.mark.parametrize(
     ids=["by_key_only", "by_key_and_subkey", "by_key_and_subkeys"],
     argnames="args",
@@ -133,17 +142,17 @@ async def test_post(capsys, args):
 @pytest.mark.asyncio
 async def test_get(capsys, args, expected):
     mock_load_account = create_mock_load_account()
-    mock_auth_client_class, mock_auth_client = create_mock_auth_client(return_fetch=FAKE_AGGREGATE_DATA["AI"])
+    mock_auth_class, mock__client = create_mock_auth_client(return_fetch=FAKE_AGGREGATE_DATA["AI"])
 
     @patch("aleph_client.commands.aggregate.load_account", mock_load_account)
-    @patch("aleph_client.commands.aggregate.AuthenticatedAlephHttpClient", mock_auth_client_class)
+    @patch("aleph_client.commands.aggregate.AlephHttpClient", mock_auth_class)
     async def run_get(aggr_spec):
         print()  # For better display when pytest -v -s
         return await get(**aggr_spec)
 
     aggregate = await run_get(args)
     mock_load_account.assert_called_once()
-    mock_auth_client.fetch_aggregate.assert_called_once()
+    mock__client.fetch_aggregate.assert_called_once()
     captured = capsys.readouterr()
     assert aggregate == expected and expected == json.loads(captured.out)
 
