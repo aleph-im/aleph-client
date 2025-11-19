@@ -9,10 +9,10 @@ from typing import Annotated, Optional
 
 import aiohttp
 import typer
-from aleph.sdk import AlephHttpClient, AuthenticatedAlephHttpClient
 from aleph.sdk.account import _load_account
 from aleph.sdk.chains.common import generate_key
 from aleph.sdk.chains.solana import parse_private_key as parse_solana_private_key
+from aleph.sdk.client import AlephHttpClient
 from aleph.sdk.conf import (
     AccountType,
     MainConfiguration,
@@ -43,10 +43,17 @@ from aleph_client.commands.help_strings import INVALID_KEY_FORMAT
 from aleph_client.commands.utils import (
     input_multiline,
     setup_logging,
+    validate_non_interactive_args_config,
     validated_prompt,
     yes_no_input,
 )
-from aleph_client.utils import AsyncTyper, list_unlinked_keys, load_account
+from aleph_client.utils import (
+    AsyncTyper,
+    get_first_ledger_name,
+    list_unlinked_keys,
+    load_account,
+    wait_for_ledger_connection,
+)
 
 logger = logging.getLogger(__name__)
 app = AsyncTyper(no_args_is_help=True)
@@ -330,7 +337,7 @@ async def balance(
 
     if address:
         try:
-            async with AlephHttpClient() as client:
+            async with AlephHttpClient(settings.API_HOST) as client:
                 balance_data = await client.get_balances(address)
                 available = balance_data.balance - balance_data.locked_amount
             infos = [
@@ -369,7 +376,7 @@ async def balance(
             ]
 
             # Get vouchers and add them to Account Info panel
-            async with AuthenticatedAlephHttpClient(account=account) as client:
+            async with AlephHttpClient(api_server=settings.API_HOST) as client:
                 vouchers = await client.voucher.get_vouchers(address=address)
             if vouchers:
                 voucher_names = [voucher.name for voucher in vouchers]
@@ -436,16 +443,25 @@ async def list_accounts():
             if key_file.stem != "default":
                 table.add_row(key_file.stem, str(key_file), "[bold red]-[/bold red]")
 
-    # Try to detect Ledger devices
+    active_ledger_address = None
+    if config and config.type == AccountType.HARDWARE and config.address:
+        active_ledger_address = config.address.lower()
+
     try:
         ledger_accounts = LedgerETHAccount.get_accounts()
         if ledger_accounts:
             for idx, ledger_acc in enumerate(ledger_accounts):
-                is_active = config and config.type == AccountType.HARDWARE and config.address == ledger_acc.address
+                if not ledger_acc.address:
+                    continue
+
+                current_address = ledger_acc.address.lower()
+                is_active = active_ledger_address and current_address == active_ledger_address
                 status = "[bold green]*[/bold green]" if is_active else "[bold red]-[/bold red]"
-                table.add_row(f"Ledger #{idx}", f"{ledger_acc.address}", status)
+
+                table.add_row(f"Ledger #{idx}", ledger_acc.address, status)
+
     except Exception:
-        logger.info("No ledger detected")
+        logger.debug("No ledger detected or error communicating with Ledger")
 
     hold_chains = [*get_chains_with_holding(), Chain.SOL.value]
     payg_chains = get_chains_with_super_token()
@@ -480,14 +496,21 @@ async def vouchers(
     chain: Annotated[Optional[Chain], typer.Option(help=help_strings.ADDRESS_CHAIN)] = None,
 ):
     """Display detailed information about your vouchers."""
-    account = load_account(private_key, private_key_file, chain=chain)
+    config_file_path = Path(settings.CONFIG_FILE)
+    config = load_main_configuration(config_file_path)
+    account_type = config.type if config else None
 
-    if account and not address:
-        address = account.get_address()
+    # Avoid connecting to ledger
+    if not account_type or account_type == AccountType.IMPORTED:
+        account = load_account(private_key, private_key_file, chain=chain)
+        if account and not address:
+            address = account.get_address()
+    elif not address and config and config.address:
+        address = config.address
 
     if address:
         try:
-            async with AuthenticatedAlephHttpClient(account=account) as client:
+            async with AlephHttpClient(settings.API_HOST) as client:
                 vouchers = await client.voucher.get_vouchers(address=address)
             if vouchers:
                 voucher_table = Table(title="", show_header=True, box=box.ROUNDED)
@@ -533,15 +556,36 @@ async def configure(
     chain: Annotated[Optional[Chain], typer.Option(help="New active chain")] = None,
     address: Annotated[Optional[str], typer.Option(help="New active address")] = None,
     account_type: Annotated[Optional[AccountType], typer.Option(help="Account type")] = None,
+    no: Annotated[bool, typer.Option("--no", help="Non-interactive mode. Only apply provided options.")] = False,
 ):
     """Configure current private key file and active chain (default selection)"""
 
     if settings.CONFIG_HOME:
-        settings.CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)  # Ensure config file is created
-        private_keys_dir = Path(settings.CONFIG_HOME, "private-keys")  # ensure private-keys folder created
+        settings.CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
+        private_keys_dir = Path(settings.CONFIG_HOME, "private-keys")
         private_keys_dir.mkdir(parents=True, exist_ok=True)
 
     unlinked_keys, config = await list_unlinked_keys()
+
+    if no:
+        validate_non_interactive_args_config(config, account_type, private_key_file, address, chain)
+
+        new_chain = chain or config.chain
+        new_type = account_type or config.type
+        new_address = address or config.address
+        new_key = private_key_file or (Path(config.path) if hasattr(config, "path") else None)
+
+        config = MainConfiguration(
+            path=new_key,
+            chain=new_chain,
+            address=new_address,
+            type=new_type,
+        )
+        save_main_configuration(settings.CONFIG_FILE, config)
+        typer.secho("Configuration updated (non-interactive).", fg=typer.colors.GREEN)
+        return
+
+    current_device = f"{get_first_ledger_name()}" if config.type == AccountType.HARDWARE else f"File: {config.path}"
 
     # Fixes private key file path
     if private_key_file:
@@ -555,20 +599,43 @@ async def configure(
         typer.secho(f"Private key file not found: {private_key_file}", fg=typer.colors.RED)
         raise typer.Exit()
 
-    # If private_key_file is specified via command line, prioritize it
-    if private_key_file:
-        pass
-    elif not account_type or (
-        account_type == AccountType.IMPORTED and config and hasattr(config, "path") and Path(config.path).exists()
-    ):
-        if not yes_no_input(
-            f"Active private key file: [bright_cyan]{config.path}[/bright_cyan]\n[yellow]Keep current active private "
-            "key?[/yellow]",
-            default="y",
-        ):
-            unlinked_keys = list(filter(lambda key_file: key_file.stem != "default", unlinked_keys))
+    console.print(f"Current account type: [bright_cyan]{config.type}[/bright_cyan] - {current_device}")
+
+    if yes_no_input("Do you want to change the account type?", default="n"):
+        account_type = AccountType(
+            Prompt.ask("Select new account type", choices=list(AccountType), default=config.type)
+        )
+    else:
+        account_type = config.type
+
+    address = None
+    if config.type == AccountType.IMPORTED:
+        current_key = Path(config.path) if hasattr(config, "path") else None
+        current_account = _load_account(None, current_key)
+        address = current_account.get_address()
+    else:
+        address = config.address
+
+    console.print(f"Currents address : {address}")
+
+    if account_type == AccountType.IMPORTED:
+        # Determine if we need to ask about keeping or picking a key
+        current_key = Path(config.path) if getattr(config, "path", None) else None
+
+        if config.type == AccountType.IMPORTED:
+            change_key = not yes_no_input("[yellow]Keep current private key?[/yellow]", default="y")
+        else:
+            console.print(
+                "[yellow]Switching from a hardware account to an imported one.[/yellow]\n"
+                "You need to select a private key file to use."
+            )
+            change_key = True
+
+        # If user wants to change key or we must pick one
+        if change_key:
+            unlinked_keys = [k for k in unlinked_keys if k.stem != "default"]
             if not unlinked_keys:
-                typer.secho("No unlinked private keys found.", fg=typer.colors.GREEN)
+                typer.secho("No unlinked private keys found.", fg=typer.colors.YELLOW)
                 raise typer.Exit()
 
             console.print("[bold cyan]Available unlinked private keys:[/bold cyan]")
@@ -577,49 +644,74 @@ async def configure(
 
             key_choice = Prompt.ask("Choose a private key by index")
             if key_choice.isdigit():
-                key_index = int(key_choice) - 1
-                if 0 <= key_index < len(unlinked_keys):
-                    private_key_file = unlinked_keys[key_index]
-            if not private_key_file:
-                typer.secho("Invalid file index.", fg=typer.colors.RED)
+                idx = int(key_choice) - 1
+                if 0 <= idx < len(unlinked_keys):
+                    private_key_file = unlinked_keys[idx]
+                else:
+                    typer.secho("Invalid index.", fg=typer.colors.RED)
+                    raise typer.Exit()
+            else:
+                typer.secho("Invalid input.", fg=typer.colors.RED)
                 raise typer.Exit()
-        else:  # No change
-            private_key_file = Path(config.path)
+        else:
+            private_key_file = current_key
 
-    if not private_key_file and account_type == AccountType.HARDWARE:
-        if yes_no_input(
-            "[bright_cyan]Loading External keys.[/bright_cyan] [yellow]Do you want to import from Ledger?[/yellow]",
-            default="y",
-        ):
+    if account_type == AccountType.HARDWARE:
+        # If the current config is hardware, show its current address
+        if config.type == AccountType.HARDWARE:
+            change_address = not yes_no_input("[yellow]Keep current Ledger address?[/yellow]", default="y")
+        else:
+            # Switching from imported → hardware, must choose an address
+            console.print(
+                "[yellow]Switching from an imported account to a hardware one.[/yellow]\n"
+                "You'll need to select a Ledger address to use."
+            )
+            change_address = True
+
+        if change_address:
             try:
+                # Wait for ledger being UP before continue anythings
+                wait_for_ledger_connection()
 
                 accounts = LedgerETHAccount.get_accounts()
-                account_addresses = [acc.address for acc in accounts]
+                addresses = [acc.address for acc in accounts]
 
-                console.print("[bold cyan]Available addresses on Ledger:[/bold cyan]")
-                for idx, account_address in enumerate(account_addresses, start=1):
-                    console.print(f"[{idx}] {account_address}")
+                console.print(f"[bold cyan]Available addresses on {get_first_ledger_name()}:[/bold cyan]")
+                for idx, addr in enumerate(addresses, start=1):
+                    console.print(f"[{idx}] {addr}")
 
-                key_choice = Prompt.ask("Choose a address by index")
+                key_choice = Prompt.ask("Choose an address by index")
                 if key_choice.isdigit():
                     key_index = int(key_choice) - 1
-                    selected_address = account_addresses[key_index]
-
-                    if not selected_address:
-                        typer.secho("No valid address selected.", fg=typer.colors.RED)
+                    if 0 <= key_index < len(addresses):
+                        address = addresses[key_index]
+                    else:
+                        typer.secho("Invalid address index.", fg=typer.colors.RED)
                         raise typer.Exit()
+                else:
+                    typer.secho("Invalid input.", fg=typer.colors.RED)
+                    raise typer.Exit()
 
-                    address = selected_address
-                    account_type = AccountType.HARDWARE
             except LedgerError as e:
-                logger.warning(f"Ledger Error : {e.message}")
+                logger.warning(f"Ledger Error: {getattr(e, 'message', str(e))}")
+                typer.secho(
+                    "Failed to communicate with Ledger device. Make sure it's unlocked with the Ethereum app open.",
+                    fg=RED,
+                )
                 raise typer.Exit(code=1) from e
-            except OSError as err:
-                logger.warning("Please ensure Udev rules are set to use Ledger")
-                raise typer.Exit(code=1) from err
+            except OSError as e:
+                logger.warning(f"OS Error accessing Ledger: {e!s}")
+                typer.secho(
+                    "Please ensure Udev rules are set to use Ledger and you have proper USB permissions.", fg=RED
+                )
+                raise typer.Exit(code=1) from e
+            except BaseException as e:
+                logger.warning(f"Unexpected error with Ledger: {e!s}")
+                typer.secho("An unexpected error occurred while communicating with the Ledger device.", fg=RED)
+                typer.secho("Please ensure your device is connected and working correctly.", fg=RED)
+                raise typer.Exit(code=1) from e
         else:
-            typer.secho("No private key file provided or found.", fg=typer.colors.RED)
-            raise typer.Exit()
+            address = config.address
 
     # If chain is specified via command line, prioritize it
     if chain:
