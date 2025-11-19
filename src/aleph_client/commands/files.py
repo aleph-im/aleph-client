@@ -10,7 +10,7 @@ import aiohttp
 import typer
 from aiohttp import ClientResponseError
 from aleph.sdk import AlephHttpClient, AuthenticatedAlephHttpClient
-from aleph.sdk.conf import settings
+from aleph.sdk.conf import AccountType, load_main_configuration, settings
 from aleph.sdk.types import StorageEnum, StoredContent
 from aleph.sdk.utils import safe_getattr
 from aleph_message.models import ItemHash, StoreMessage
@@ -269,10 +269,17 @@ async def list_files(
     json: Annotated[bool, typer.Option(help="Print as json instead of rich table")] = False,
 ):
     """List all files for a given address"""
-    account: AccountTypes = load_account(private_key, private_key_file)
+    config_file_path = Path(settings.CONFIG_FILE)
+    config = load_main_configuration(config_file_path)
+    account_type = config.type if config else None
 
-    if account and not address:
-        address = account.get_address()
+    # Avoid connecting to ledger
+    if not account_type or account_type == AccountType.IMPORTED:
+        account = load_account(private_key, private_key_file)
+        if account and not address:
+            address = account.get_address()
+    elif not address and config and config.address:
+        address = config.address
 
     if address:
         # Build the query parameters

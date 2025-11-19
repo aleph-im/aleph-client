@@ -942,8 +942,18 @@ async def list_instances(
 
     setup_logging(debug)
 
-    account: AccountTypes = load_account(private_key, private_key_file, chain=chain)
-    address = address or settings.ADDRESS_TO_USE or account.get_address()
+    # Load config to check account type
+    config_file_path = Path(settings.CONFIG_FILE)
+    config = load_main_configuration(config_file_path)
+    account_type = config.type if config else None
+
+    # Avoid connecting to ledger
+    if not account_type or account_type == AccountType.IMPORTED:
+        account = load_account(private_key, private_key_file)
+        if account and not address:
+            address = account.get_address()
+    elif not address and config and config.address:
+        address = config.address
 
     async with AlephHttpClient(api_server=settings.API_HOST) as client:
         instances: list[InstanceMessage] = await client.instance.get_instances(address=address)
