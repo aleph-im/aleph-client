@@ -1076,7 +1076,9 @@ async def test_gpu_create():
 
 
 @pytest.mark.asyncio
-async def test_gpu_create_no_gpus_available(mock_crn_list_obj, mock_pricing_info_response, mock_settings_info):
+async def test_gpu_create_no_gpus_available(
+    mock_crn_list_obj, mock_pricing_info_response, mock_settings_info, mock_get_balances
+):
     """Test creating a GPU instance when no GPUs are available on the network.
 
     This test verifies that typer.Exit is raised when no GPUs are available,
@@ -1085,7 +1087,7 @@ async def test_gpu_create_no_gpus_available(mock_crn_list_obj, mock_pricing_info
     mock_load_account = create_mock_load_account()
     mock_validate_ssh_pubkey_file = create_mock_validate_ssh_pubkey_file()
     mock_client_class, mock_client = create_mock_client(
-        mock_crn_list_obj, mock_pricing_info_response, mock_settings_info, payment_type="superfluid"
+        mock_crn_list_obj, mock_pricing_info_response, mock_get_balances, payment_type="superfluid"
     )
     mock_fetch_latest_crn_version = create_mock_fetch_latest_crn_version()
     mock_validated_prompt = MagicMock(return_value="1")
