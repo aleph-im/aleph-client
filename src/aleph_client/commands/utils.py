@@ -10,14 +10,21 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Optional, TypeVar, Union, get_args
 
+import typer
 from aiohttp import ClientSession
 from aleph.sdk import AlephHttpClient
 from aleph.sdk.chains.ethereum import ETHAccount
-from aleph.sdk.conf import settings
+from aleph.sdk.conf import AccountType, settings
 from aleph.sdk.exceptions import ForgottenMessageError, MessageNotFoundError
 from aleph.sdk.types import GenericMessage
 from aleph.sdk.utils import safe_getattr
-from aleph_message.models import AlephMessage, InstanceMessage, ItemHash, ProgramMessage
+from aleph_message.models import (
+    AlephMessage,
+    Chain,
+    InstanceMessage,
+    ItemHash,
+    ProgramMessage,
+)
 from aleph_message.models.execution.volume import (
     EphemeralVolumeSize,
     PersistentVolumeSizeMib,
@@ -406,3 +413,92 @@ def find_sevctl_or_exit() -> Path:
         echo("Instructions for setup https://docs.aleph.im/computing/confidential/requirements/")
         raise Exit(code=1)
     return Path(sevctl_path)
+
+
+def validate_non_interactive_args_config(
+    config,
+    account_type: Optional[AccountType],
+    private_key_file: Optional[Path],
+    address: Optional[str],
+    chain: Optional[Chain],
+) -> None:
+    """
+    Validate argument combinations when running in non-interactive (--no) mode.
+
+    This function enforces logical consistency for non-interactive configuration
+    updates, ensuring that only valid combinations of arguments are accepted
+    when prompts are disabled.
+
+    Validation Rules
+    ----------------
+    1. Hardware accounts require an address.
+       `--account-type hardware --no`
+       `--account-type hardware --address 0xABC --no`
+
+    2. Imported accounts require a private key file.
+       `--account-type imported --no`
+       `--account-type imported --private-key-file my.key --no`
+
+    3. Private key file and address cannot be combined.
+       `--address 0xABC --private-key-file key.key --no`
+
+    4. Private key files are invalid for hardware accounts.
+       Applies both when the *new* or *existing* account type is hardware.
+
+    5. Addresses are invalid for imported accounts.
+       Applies both when the *new* or *existing* account type is imported.
+
+    6. Chain updates are always allowed.
+       `--chain ETH --no`
+
+    7. If no arguments are provided with `--no`, the command performs no changes
+       and simply keeps the existing configuration.
+
+    Parameters
+    ----------
+    config : MainConfiguration
+        The currently loaded configuration object.
+    account_type : Optional[AccountType]
+        The new account type to set (e.g. HARDWARE, IMPORTED).
+    private_key_file : Optional[Path]
+        A path to a private key file (for imported accounts only).
+    address : Optional[str]
+        The account address (for hardware accounts only).
+    chain : Optional[Chain]
+        The blockchain chain to switch to.
+
+    Raises
+    ------
+    typer.Exit
+        If an invalid argument combination is detected.
+    """
+
+    # 1. Hardware requires address
+    if account_type == AccountType.HARDWARE and not address:
+        typer.secho("--no mode: hardware accounts require --address.", fg=typer.colors.RED)
+        raise typer.Exit(1)
+
+    # 2. Imported requires private key file
+    if account_type == AccountType.IMPORTED and not private_key_file:
+        typer.secho("--no mode: imported accounts require --private-key-file.", fg=typer.colors.RED)
+        raise typer.Exit(1)
+
+    # 3. Both address + private key provided
+    if private_key_file and address:
+        typer.secho("Cannot specify both --address and --private-key-file.", fg=typer.colors.RED)
+        raise typer.Exit(1)
+
+    # 4. Private key invalid for hardware
+    if private_key_file and (account_type == AccountType.HARDWARE or (config and config.type == AccountType.HARDWARE)):
+        typer.secho("Cannot use private key file for hardware accounts.", fg=typer.colors.RED)
+        raise typer.Exit(1)
+
+    # 5. Address invalid for imported
+    if address and (account_type == AccountType.IMPORTED or (config and config.type == AccountType.IMPORTED)):
+        typer.secho("Cannot use address for imported accounts.", fg=typer.colors.RED)
+        raise typer.Exit(1)
+
+    # 7. No arguments provided = no-op
+    if not any([private_key_file, chain, address, account_type]):
+        typer.secho("No changes provided. Keeping existing configuration.", fg=typer.colors.YELLOW)
+        raise typer.Exit(0)
