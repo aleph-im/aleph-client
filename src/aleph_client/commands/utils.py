@@ -421,6 +421,7 @@ def validate_non_interactive_args_config(
     private_key_file: Optional[Path],
     address: Optional[str],
     chain: Optional[Chain],
+    derivation_path: Optional[str] = None,
 ) -> None:
     """
     Validate argument combinations when running in non-interactive (--no) mode.
@@ -431,9 +432,9 @@ def validate_non_interactive_args_config(
 
     Validation Rules
     ----------------
-    1. Hardware accounts require an address.
-       `--account-type hardware --no`
+    1. Hardware accounts require an address OR a derivation path.
        `--account-type hardware --address 0xABC --no`
+       `--account-type hardware --derivation-path "44'/60'/0'/0/0" --no`
 
     2. Imported accounts require a private key file.
        `--account-type imported --no`
@@ -448,10 +449,13 @@ def validate_non_interactive_args_config(
     5. Addresses are invalid for imported accounts.
        Applies both when the *new* or *existing* account type is imported.
 
-    6. Chain updates are always allowed.
+    6. Derivation paths are invalid for imported accounts.
+       Applies both when the *new* or *existing* account type is imported.
+
+    7. Chain updates are always allowed.
        `--chain ETH --no`
 
-    7. If no arguments are provided with `--no`, the command performs no changes
+    8. If no arguments are provided with `--no`, the command performs no changes
        and simply keeps the existing configuration.
 
     Parameters
@@ -466,6 +470,8 @@ def validate_non_interactive_args_config(
         The account address (for hardware accounts only).
     chain : Optional[Chain]
         The blockchain chain to switch to.
+    derivation_path : Optional[str]
+        The derivation path for ledger hardware wallets.
 
     Raises
     ------
@@ -473,9 +479,9 @@ def validate_non_interactive_args_config(
         If an invalid argument combination is detected.
     """
 
-    # 1. Hardware requires address
-    if account_type == AccountType.HARDWARE and not address:
-        typer.secho("--no mode: hardware accounts require --address.", fg=typer.colors.RED)
+    # 1. Hardware requires address or derivation path
+    if account_type == AccountType.HARDWARE and not (address or derivation_path):
+        typer.secho("--no mode: hardware accounts require either --address or --derivation-path.", fg=typer.colors.RED)
         raise typer.Exit(1)
 
     # 2. Imported requires private key file
@@ -498,7 +504,12 @@ def validate_non_interactive_args_config(
         typer.secho("Cannot use address for imported accounts.", fg=typer.colors.RED)
         raise typer.Exit(1)
 
-    # 7. No arguments provided = no-op
-    if not any([private_key_file, chain, address, account_type]):
+    # 6. Derivation path invalid for imported
+    if derivation_path and (account_type == AccountType.IMPORTED or (config and config.type == AccountType.IMPORTED)):
+        typer.secho("Cannot use derivation path for imported accounts.", fg=typer.colors.RED)
+        raise typer.Exit(1)
+
+    # 8. No arguments provided = no-op
+    if not any([private_key_file, chain, address, account_type, derivation_path]):
         typer.secho("No changes provided. Keeping existing configuration.", fg=typer.colors.YELLOW)
         raise typer.Exit(0)

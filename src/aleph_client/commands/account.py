@@ -556,6 +556,9 @@ async def configure(
     chain: Annotated[Optional[Chain], typer.Option(help="New active chain")] = None,
     address: Annotated[Optional[str], typer.Option(help="New active address")] = None,
     account_type: Annotated[Optional[AccountType], typer.Option(help="Account type")] = None,
+    derivation_path: Annotated[
+        Optional[str], typer.Option(help="Derivation path for ledger (e.g. \"44'/60'/0'/0/0\")")
+    ] = None,
     no: Annotated[bool, typer.Option("--no", help="Non-interactive mode. Only apply provided options.")] = False,
 ):
     """Configure current private key file and active chain (default selection)"""
@@ -568,24 +571,23 @@ async def configure(
     unlinked_keys, config = await list_unlinked_keys()
 
     if no:
-        validate_non_interactive_args_config(config, account_type, private_key_file, address, chain)
+        validate_non_interactive_args_config(config, account_type, private_key_file, address, chain, derivation_path)
 
         new_chain = chain or config.chain
         new_type = account_type or config.type
         new_address = address or config.address
         new_key = private_key_file or (Path(config.path) if hasattr(config, "path") else None)
+        new_derivation_path = derivation_path or getattr(config, "derivation_path", None)
 
         config = MainConfiguration(
-            path=new_key,
-            chain=new_chain,
-            address=new_address,
-            type=new_type,
+            path=new_key, chain=new_chain, address=new_address, type=new_type, derivation_path=new_derivation_path
         )
         save_main_configuration(settings.CONFIG_FILE, config)
         typer.secho("Configuration updated (non-interactive).", fg=typer.colors.GREEN)
         return
 
     current_device = f"{get_first_ledger_name()}" if config.type == AccountType.HARDWARE else f"File: {config.path}"
+    current_derivation_path = getattr(config, "derivation_path", None)
 
     # Fixes private key file path
     if private_key_file:
@@ -600,6 +602,8 @@ async def configure(
         raise typer.Exit()
 
     console.print(f"Current account type: [bright_cyan]{config.type}[/bright_cyan] - {current_device}")
+    if current_derivation_path:
+        console.print(f"Current derivation path: [bright_cyan]{current_derivation_path}[/bright_cyan]")
 
     if yes_no_input("Do you want to change the account type?", default="n"):
         account_type = AccountType(
@@ -616,7 +620,7 @@ async def configure(
     else:
         address = config.address
 
-    console.print(f"Currents address : {address}")
+    console.print(f"Current address: {address}")
 
     if account_type == AccountType.IMPORTED:
         # Determine if we need to ask about keeping or picking a key
@@ -656,9 +660,29 @@ async def configure(
         else:
             private_key_file = current_key
 
+        # Clear derivation path when switching to imported
+        derivation_path = None
+
     if account_type == AccountType.HARDWARE:
+        # Handle derivation path for hardware wallet
+        if derivation_path:
+            console.print(f"Using provided derivation path: [bright_cyan]{derivation_path}[/bright_cyan]")
+        elif current_derivation_path and not yes_no_input(
+            f"Current derivation path: [bright_cyan]{current_derivation_path}[/bright_cyan]\n"
+            f"[yellow]Keep current derivation path?[/yellow]",
+            default="y",
+        ):
+            derivation_path = Prompt.ask("Enter new derivation path", default="44'/60'/0'/0/0")
+        elif not current_derivation_path:
+            if yes_no_input("Do you want to specify a derivation path?", default="n"):
+                derivation_path = Prompt.ask("Enter derivation path", default="44'/60'/0'/0/0")
+            else:
+                derivation_path = None
+        else:
+            derivation_path = current_derivation_path
+
         # If the current config is hardware, show its current address
-        if config.type == AccountType.HARDWARE:
+        if config.type == AccountType.HARDWARE and not derivation_path:
             change_address = not yes_no_input("[yellow]Keep current Ledger address?[/yellow]", default="y")
         else:
             # Switching from imported → hardware, must choose an address
@@ -673,24 +697,35 @@ async def configure(
                 # Wait for ledger being UP before continue anythings
                 wait_for_ledger_connection()
 
-                accounts = LedgerETHAccount.get_accounts()
-                addresses = [acc.address for acc in accounts]
-
-                console.print(f"[bold cyan]Available addresses on {get_first_ledger_name()}:[/bold cyan]")
-                for idx, addr in enumerate(addresses, start=1):
-                    console.print(f"[{idx}] {addr}")
-
-                key_choice = Prompt.ask("Choose an address by index")
-                if key_choice.isdigit():
-                    key_index = int(key_choice) - 1
-                    if 0 <= key_index < len(addresses):
-                        address = addresses[key_index]
-                    else:
-                        typer.secho("Invalid address index.", fg=typer.colors.RED)
-                        raise typer.Exit()
+                if derivation_path:
+                    console.print(f"Using derivation path: [bright_cyan]{derivation_path}[/bright_cyan]")
+                    try:
+                        ledger_account = LedgerETHAccount.from_path(derivation_path)
+                        address = ledger_account.get_address()
+                        console.print(f"Derived address: [bright_cyan]{address}[/bright_cyan]")
+                    except Exception as e:
+                        logger.warning(f"Error getting account from path: {e}")
+                        raise typer.Exit(code=1) from e
                 else:
-                    typer.secho("Invalid input.", fg=typer.colors.RED)
-                    raise typer.Exit()
+                    # Normal flow - show available accounts and let user choose
+                    accounts = LedgerETHAccount.get_accounts()
+                    addresses = [acc.address for acc in accounts]
+
+                    console.print(f"[bold cyan]Available addresses on {get_first_ledger_name()}:[/bold cyan]")
+                    for idx, addr in enumerate(addresses, start=1):
+                        console.print(f"[{idx}] {addr}")
+
+                    key_choice = Prompt.ask("Choose an address by index")
+                    if key_choice.isdigit():
+                        key_index = int(key_choice) - 1
+                        if 0 <= key_index < len(addresses):
+                            address = addresses[key_index]
+                        else:
+                            typer.secho("Invalid address index.", fg=typer.colors.RED)
+                            raise typer.Exit()
+                    else:
+                        typer.secho("Invalid input.", fg=typer.colors.RED)
+                        raise typer.Exit()
 
             except LedgerError as e:
                 logger.warning(f"Ledger Error: {getattr(e, 'message', str(e))}")
@@ -739,10 +774,21 @@ async def configure(
         account_type = AccountType.IMPORTED
 
     try:
-        config = MainConfiguration(path=private_key_file, chain=chain, address=address, type=account_type)
+        config = MainConfiguration(
+            path=private_key_file, chain=chain, address=address, type=account_type, derivation_path=derivation_path
+        )
         save_main_configuration(settings.CONFIG_FILE, config)
+
+        # Display appropriate configuration details based on account type
+        if account_type == AccountType.HARDWARE:
+            config_details = f"{config.address}"
+            if derivation_path:
+                config_details += f" (derivation path: {derivation_path})"
+        else:
+            config_details = f"{config.path}"
+
         console.print(
-            f"New Default Configuration: [italic bright_cyan]{config.path or config.address}"
+            f"New Default Configuration: [italic bright_cyan]{config_details}"
             f"[/italic bright_cyan] with [italic bright_cyan]{config.chain}[/italic bright_cyan]",
             style=typer.colors.GREEN,
         )
