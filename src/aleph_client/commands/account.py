@@ -403,9 +403,7 @@ async def balance(
 
 @app.command(name="list")
 async def list_accounts(
-    ledger_count: Annotated[
-        Optional[int], typer.Option(help="Number of ledger account you want to get (default: 5)")
-    ] = 5,
+    ledger_count: Annotated[int, typer.Option(help="Number of ledger account you want to get (default: 5)")] = 5,
 ):
     """Display available private keys, along with currenlty active chain and account (from config file)."""
 
