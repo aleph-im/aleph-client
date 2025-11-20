@@ -41,7 +41,7 @@ async def list_ports(
 
     setup_logging(debug)
 
-    account: AccountTypes = load_account(private_key, private_key_file)
+    account: AccountTypes = load_account(private_key, private_key_file, chain=chain)
     address = address or settings.ADDRESS_TO_USE or account.get_address()
 
     async with AlephHttpClient(api_server=settings.API_HOST) as client:
@@ -159,7 +159,7 @@ async def create(
         typer.echo("Error: Port must be between 1 and 65535")
         raise typer.Exit(code=1)
 
-    account: AccountTypes = load_account(private_key, private_key_file)
+    account: AccountTypes = load_account(private_key, private_key_file, chain)
 
     # Create the port flags
     port_flags = PortFlags(tcp=tcp, udp=udp)
