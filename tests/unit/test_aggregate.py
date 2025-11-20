@@ -6,6 +6,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import aiohttp
 import pytest
+from aleph.sdk.conf import AccountType, MainConfiguration
+from aleph_message.models import Chain
 
 from aleph_client.commands.aggregate import (
     authorize,
@@ -158,6 +160,33 @@ async def test_get(capsys, args, expected):
 
 
 @pytest.mark.asyncio
+async def test_get_with_ledger():
+    """Test get aggregate using a Ledger hardware wallet."""
+    # Mock configuration for Ledger device
+    ledger_config = MainConfiguration(
+        path=None,
+        chain=Chain.ETH,
+        type=AccountType.HARDWARE,
+        address="0xdeadbeef1234567890123456789012345678beef",
+    )
+
+    mock_client_class, mock_client = create_mock_client(return_fetch=FAKE_AGGREGATE_DATA["AI"])
+
+    async def run_get_with_ledger():
+        with patch("aleph_client.commands.aggregate.load_main_configuration", return_value=ledger_config):
+            with patch("aleph_client.commands.aggregate.AlephHttpClient", mock_client_class):
+                return await get(key="AI")
+
+    # Call the function
+    aggregate = await run_get_with_ledger()
+
+    # Verify result
+    assert aggregate == FAKE_AGGREGATE_DATA["AI"]
+    # Verify that fetch_aggregate was called with the correct ledger address
+    mock_client.fetch_aggregate.assert_called_with(address="0xdeadbeef1234567890123456789012345678beef", key="AI")
+
+
+@pytest.mark.asyncio
 async def test_list_aggregates():
     mock_load_account = create_mock_load_account()
 
@@ -169,6 +198,29 @@ async def test_list_aggregates():
 
     aggregates = await run_list_aggregates()
     mock_load_account.assert_called_once()
+    assert aggregates == FAKE_AGGREGATE_DATA
+
+
+@pytest.mark.asyncio
+async def test_list_aggregates_with_ledger():
+    """Test listing aggregates using a Ledger hardware wallet."""
+    # Mock configuration for Ledger device
+    ledger_config = MainConfiguration(
+        path=None,
+        chain=Chain.ETH,
+        type=AccountType.HARDWARE,
+        address="0xdeadbeef1234567890123456789012345678beef",
+    )
+
+    async def run_list_aggregates_with_ledger():
+        with patch("aleph_client.commands.aggregate.load_main_configuration", return_value=ledger_config):
+            with patch.object(aiohttp.ClientSession, "get", mock_client_session_get):
+                return await list_aggregates()
+
+    # Call the function
+    aggregates = await run_list_aggregates_with_ledger()
+
+    # Verify result
     assert aggregates == FAKE_AGGREGATE_DATA
 
 
