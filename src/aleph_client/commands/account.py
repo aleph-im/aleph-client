@@ -402,7 +402,11 @@ async def balance(
 
 
 @app.command(name="list")
-async def list_accounts():
+async def list_accounts(
+    ledger_count: Annotated[
+        Optional[int], typer.Option(help="Number of ledger account you want to get (default: 5)")
+    ] = 5,
+):
     """Display available private keys, along with currenlty active chain and account (from config file)."""
 
     config_file_path = Path(settings.CONFIG_FILE)
@@ -423,7 +427,7 @@ async def list_accounts():
 
         ledger_connected = False
         try:
-            ledger_accounts = LedgerETHAccount.get_accounts()
+            ledger_accounts = LedgerETHAccount.get_accounts(count=ledger_count)
             if ledger_accounts:
                 ledger_connected = True
         except Exception:
@@ -448,7 +452,7 @@ async def list_accounts():
         active_ledger_address = config.address.lower()
 
     try:
-        ledger_accounts = LedgerETHAccount.get_accounts()
+        ledger_accounts = LedgerETHAccount.get_accounts(count=ledger_count)
         if ledger_accounts:
             for idx, ledger_acc in enumerate(ledger_accounts):
                 if not ledger_acc.address:
