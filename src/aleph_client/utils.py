@@ -309,6 +309,45 @@ def get_first_ledger_name() -> str:
     return get_ledger_name(devices[0])
 
 
+def get_account_and_address(
+    private_key: Optional[str],
+    private_key_file: Optional[Path],
+    address: Optional[str] = None,
+    chain: Optional[Chain] = None,
+) -> tuple[Optional[AccountTypes], Optional[str]]:
+    """
+    Gets the account and address based on configuration and provided parameters.
+
+    This utility function handles the common pattern of loading an account and address
+    from either a configuration file or private key/file, avoiding ledger connections
+    when not needed.
+
+    Args:
+        private_key: Optional private key string
+        private_key_file: Optional private key file path
+        address: Optional address (will be returned if provided)
+        chain: Optional chain for account loading
+
+    Returns:
+        A tuple of (account, address) where either or both may be None
+    """
+    config_file_path = Path(settings.CONFIG_FILE)
+    config = load_main_configuration(config_file_path)
+    account_type = config.type if config else None
+
+    account = None
+
+    # Avoid connecting to ledger
+    if not account_type or account_type == AccountType.IMPORTED:
+        account = load_account(private_key, private_key_file, chain=chain)
+        if account and not address:
+            address = account.get_address()
+    elif not address and config and config.address:
+        address = config.address
+
+    return account, address
+
+
 def wait_for_ledger_connection(poll_interval: float = 1.0) -> None:
     """
     Wait until a Ledger device is connected and ready.

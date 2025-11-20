@@ -49,6 +49,7 @@ from aleph_client.commands.utils import (
 )
 from aleph_client.utils import (
     AsyncTyper,
+    get_account_and_address,
     get_first_ledger_name,
     list_unlinked_keys,
     load_account,
@@ -323,17 +324,7 @@ async def balance(
     chain: Annotated[Optional[Chain], typer.Option(help=help_strings.ADDRESS_CHAIN)] = None,
 ):
     """Display your ALEPH balance and basic voucher information."""
-    config_file_path = Path(settings.CONFIG_FILE)
-    config = load_main_configuration(config_file_path)
-    account_type = config.type if config else None
-
-    # Avoid connecting to ledger
-    if not account_type or account_type == AccountType.IMPORTED:
-        account = load_account(private_key, private_key_file, chain=chain)
-        if account and not address:
-            address = account.get_address()
-    elif not address and config and config.address:
-        address = config.address
+    account, address = get_account_and_address(private_key, private_key_file, address, chain)
 
     if address:
         try:
@@ -498,17 +489,7 @@ async def vouchers(
     chain: Annotated[Optional[Chain], typer.Option(help=help_strings.ADDRESS_CHAIN)] = None,
 ):
     """Display detailed information about your vouchers."""
-    config_file_path = Path(settings.CONFIG_FILE)
-    config = load_main_configuration(config_file_path)
-    account_type = config.type if config else None
-
-    # Avoid connecting to ledger
-    if not account_type or account_type == AccountType.IMPORTED:
-        account = load_account(private_key, private_key_file, chain=chain)
-        if account and not address:
-            address = account.get_address()
-    elif not address and config and config.address:
-        address = config.address
+    account, address = get_account_and_address(private_key, private_key_file, address, chain)
 
     if address:
         try:

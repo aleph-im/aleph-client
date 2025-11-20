@@ -16,7 +16,7 @@ from aleph.sdk.client.services.crn import NetworkGPUS
 from aleph.sdk.client.services.pricing import Price
 from aleph.sdk.client.vm_client import VmClient
 from aleph.sdk.client.vm_confidential_client import VmConfidentialClient
-from aleph.sdk.conf import AccountType, load_main_configuration, settings
+from aleph.sdk.conf import load_main_configuration, settings
 from aleph.sdk.evm_utils import (
     FlowUpdate,
     get_chains_with_holding,
@@ -81,7 +81,13 @@ from aleph_client.commands.utils import (
     yes_no_input,
 )
 from aleph_client.models import CRNInfo
-from aleph_client.utils import AccountTypes, AsyncTyper, load_account, sanitize_url
+from aleph_client.utils import (
+    AccountTypes,
+    AsyncTyper,
+    get_account_and_address,
+    load_account,
+    sanitize_url,
+)
 
 logger = logging.getLogger(__name__)
 app = AsyncTyper(no_args_is_help=True)
@@ -948,18 +954,7 @@ async def list_instances(
 
     setup_logging(debug)
 
-    # Load config to check account type
-    config_file_path = Path(settings.CONFIG_FILE)
-    config = load_main_configuration(config_file_path)
-    account_type = config.type if config else None
-
-    # Avoid connecting to ledger
-    if not account_type or account_type == AccountType.IMPORTED:
-        account = load_account(private_key, private_key_file)
-        if account and not address:
-            address = account.get_address()
-    elif not address and config and config.address:
-        address = config.address
+    account, address = get_account_and_address(private_key, private_key_file, address, chain)
 
     async with AlephHttpClient(api_server=settings.API_HOST) as client:
         instances: list[InstanceMessage] = await client.instance.get_instances(address=address)
