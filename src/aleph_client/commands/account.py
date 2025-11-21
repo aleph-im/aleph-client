@@ -546,7 +546,9 @@ async def configure(
     derivation_path: Annotated[
         Optional[str], typer.Option(help="Derivation path for ledger (e.g. \"44'/60'/0'/0/0\")")
     ] = None,
-    non_it: Annotated[bool, typer.Option("--non-it", help="Non-interactive mode. Only apply provided options.")] = False,
+    non_it: Annotated[
+        bool, typer.Option("--non-it", help="Non-interactive mode. Only apply provided options.")
+    ] = False,
 ):
     """Configure current private key file and active chain (default selection)"""
 

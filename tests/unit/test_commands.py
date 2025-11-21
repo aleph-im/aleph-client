@@ -447,7 +447,7 @@ def test_account_config(env_files):
 
         settings.CONFIG_FILE = env_files[1]
         result = runner.invoke(
-            app, ["account", "config", "--private-key-file", str(env_files[0]), "--chain", "ETH", "--no"]
+            app, ["account", "config", "--private-key-file", str(env_files[0]), "--chain", "ETH", "--non-it"]
         )
         assert result.exit_code == 0
 
@@ -488,7 +488,7 @@ def test_account_config_with_ledger(mock_get_accounts):
                     "ETH",
                     "--address",
                     "0xdeadbeef1234567890123456789012345678beef",
-                    "--no",
+                    "--non-it",
                 ],
             )
 
