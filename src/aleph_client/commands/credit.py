@@ -7,6 +7,7 @@ from aiohttp import ClientResponseError
 from aleph.sdk import AlephHttpClient
 from aleph.sdk.conf import settings
 from aleph.sdk.utils import displayable_amount
+from aleph_message.models import Chain
 from rich import box
 from rich.console import Console
 from rich.panel import Panel
@@ -32,6 +33,7 @@ async def show(
     private_key_file: Annotated[
         Optional[Path], typer.Option(help=help_strings.PRIVATE_KEY_FILE)
     ] = settings.PRIVATE_KEY_FILE,
+    chain: Annotated[Optional[Chain], typer.Option(help=help_strings.ADDRESS_CHAIN)] = None,
     json: Annotated[bool, typer.Option(help="Display as json")] = False,
     debug: Annotated[bool, typer.Option()] = False,
 ):
@@ -39,7 +41,9 @@ async def show(
 
     setup_logging(debug)
 
-    _, address = get_account_and_address(private_key, private_key_file, address)
+    _, address = get_account_and_address(
+        private_key=private_key, private_key_file=private_key_file, chain=chain, address=address
+    )
 
     if address:
         async with AlephHttpClient(api_server=settings.API_HOST) as client:
@@ -75,6 +79,7 @@ async def history(
     private_key_file: Annotated[
         Optional[Path], typer.Option(help=help_strings.PRIVATE_KEY_FILE)
     ] = settings.PRIVATE_KEY_FILE,
+    chain: Annotated[Optional[Chain], typer.Option(help=help_strings.ADDRESS_CHAIN)] = None,
     page_size: Annotated[int, typer.Option(help="Numbers of element per page")] = 100,
     page: Annotated[int, typer.Option(help="Current Page")] = 1,
     json: Annotated[bool, typer.Option(help="Display as json")] = False,
@@ -82,7 +87,9 @@ async def history(
 ):
     setup_logging(debug)
 
-    _, address = get_account_and_address(private_key, private_key_file, address)
+    _, address = get_account_and_address(
+        private_key=private_key, private_key_file=private_key_file, chain=chain, address=address
+    )
 
     try:
         # Comment the original API call for testing

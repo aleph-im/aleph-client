@@ -509,7 +509,9 @@ async def list_programs(
 
     setup_logging(debug)
 
-    account, address = get_account_and_address(private_key, private_key_file, address)
+    account, address = get_account_and_address(
+        private_key=private_key, private_key_file=private_key_file, address=address, chain=chain
+    )
 
     # Ensure we have an address to query
     if not address:

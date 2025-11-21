@@ -55,6 +55,7 @@ async def forget(
     private_key_file: Annotated[
         Optional[Path], typer.Option(help=help_strings.PRIVATE_KEY_FILE)
     ] = settings.PRIVATE_KEY_FILE,
+    chain: Annotated[Optional[Chain], typer.Option(help=help_strings.ADDRESS_CHAIN)] = None,
     print_message: bool = False,
     verbose: bool = True,
     debug: bool = False,
@@ -63,7 +64,7 @@ async def forget(
 
     setup_logging(debug)
 
-    account: AccountTypes = load_account(private_key, private_key_file)
+    account: AccountTypes = load_account(private_key_str=private_key, private_key_file=private_key_file, chain=chain)
     address = account.get_address() if address is None else address
 
     if key == "security" and not is_same_context():
@@ -128,6 +129,7 @@ async def post(
     private_key_file: Annotated[
         Optional[Path], typer.Option(help=help_strings.PRIVATE_KEY_FILE)
     ] = settings.PRIVATE_KEY_FILE,
+    chain: Annotated[Optional[Chain], typer.Option(help=help_strings.ADDRESS_CHAIN)] = None,
     print_message: bool = False,
     verbose: bool = True,
     debug: bool = False,
@@ -136,7 +138,7 @@ async def post(
 
     setup_logging(debug)
 
-    account: AccountTypes = load_account(private_key, private_key_file)
+    account: AccountTypes = load_account(private_key_str=private_key, private_key_file=private_key_file, chain=chain)
     address = account.get_address() if address is None else address
 
     if key == "security" and not is_same_context():
@@ -191,6 +193,7 @@ async def get(
     private_key_file: Annotated[
         Optional[Path], typer.Option(help=help_strings.PRIVATE_KEY_FILE)
     ] = settings.PRIVATE_KEY_FILE,
+    chain: Annotated[Optional[Chain], typer.Option(help=help_strings.ADDRESS_CHAIN)] = None,
     verbose: bool = True,
     debug: bool = False,
 ) -> Optional[dict]:
@@ -198,7 +201,9 @@ async def get(
 
     setup_logging(debug)
 
-    _, address = get_account_and_address(private_key, private_key_file, address)
+    _, address = get_account_and_address(
+        private_key=private_key, private_key_file=private_key_file, chain=chain, address=address
+    )
 
     async with AlephHttpClient(api_server=settings.API_HOST) as client:
         aggregates = None
@@ -225,6 +230,7 @@ async def list_aggregates(
     private_key_file: Annotated[
         Optional[Path], typer.Option(help=help_strings.PRIVATE_KEY_FILE)
     ] = settings.PRIVATE_KEY_FILE,
+    chain: Annotated[Optional[Chain], typer.Option(help=help_strings.ADDRESS_CHAIN)] = None,
     json: Annotated[bool, typer.Option(help="Print as json instead of rich table")] = False,
     verbose: bool = True,
     debug: bool = False,
@@ -232,7 +238,9 @@ async def list_aggregates(
     """Display all aggregates associated to an account"""
 
     setup_logging(debug)
-    _, address = get_account_and_address(private_key, private_key_file, address)
+    _, address = get_account_and_address(
+        private_key=private_key, private_key_file=private_key_file, chain=chain, address=address
+    )
 
     aggr_link = f"{sanitize_url(settings.API_HOST)}/api/v0/aggregates/{address}.json"
     async with ClientSession() as session:
@@ -305,7 +313,7 @@ async def authorize(
 
     setup_logging(debug)
 
-    account: AccountTypes = load_account(private_key, private_key_file)
+    account: AccountTypes = load_account(private_key_str=private_key, private_key_file=private_key_file, chain=chain)
 
     data = await get(
         key="security",
@@ -371,6 +379,7 @@ async def revoke(
     private_key_file: Annotated[
         Optional[Path], typer.Option(help=help_strings.PRIVATE_KEY_FILE)
     ] = settings.PRIVATE_KEY_FILE,
+    chain: Annotated[Optional[Chain], typer.Option(help=help_strings.ADDRESS_CHAIN)] = None,
     print_message: bool = False,
     verbose: bool = True,
     debug: bool = False,
@@ -379,7 +388,7 @@ async def revoke(
 
     setup_logging(debug)
 
-    account: AccountTypes = load_account(private_key, private_key_file)
+    account: AccountTypes = load_account(private_key_file=private_key, private_key_str=private_key_file, chain=chain)
 
     data = await get(
         key="security",
@@ -426,6 +435,7 @@ async def permissions(
     private_key_file: Annotated[
         Optional[Path], typer.Option(help=help_strings.PRIVATE_KEY_FILE)
     ] = settings.PRIVATE_KEY_FILE,
+    chain: Annotated[Optional[Chain], typer.Option(help=help_strings.ADDRESS_CHAIN)] = None,
     json: Annotated[bool, typer.Option(help="Print as json instead of rich table")] = False,
     verbose: bool = True,
     debug: bool = False,
@@ -434,7 +444,9 @@ async def permissions(
 
     setup_logging(debug)
 
-    _, address = get_account_and_address(private_key, private_key_file, address)
+    _, address = get_account_and_address(
+        private_key=private_key, private_key_file=private_key_file, chain=chain, address=address
+    )
 
     data = await get(
         key="security",

@@ -17,7 +17,7 @@ from aleph.sdk.domain import (
 )
 from aleph.sdk.exceptions import DomainConfigurationError
 from aleph.sdk.query.filters import MessageFilter
-from aleph_message.models import AggregateMessage
+from aleph_message.models import AggregateMessage, Chain
 from aleph_message.models.base import MessageType
 from rich.console import Console
 from rich.prompt import Confirm, Prompt
@@ -183,9 +183,10 @@ async def add(
     private_key_file: Annotated[
         Optional[Path], typer.Option(help=help_strings.PRIVATE_KEY_FILE)
     ] = settings.PRIVATE_KEY_FILE,
+    chain: Annotated[Optional[Chain], typer.Option(help=help_strings.ADDRESS_CHAIN)] = None,
 ):
     """Add and link a Custom Domain."""
-    account: AccountTypes = load_account(private_key, private_key_file)
+    account: AccountTypes = load_account(private_key_str=private_key, private_key_file=private_key_file, chain=chain)
     interactive = False if (not ask) else is_environment_interactive()
 
     console = Console()
@@ -268,9 +269,10 @@ async def attach(
     private_key_file: Annotated[
         Optional[Path], typer.Option(help=help_strings.PRIVATE_KEY_FILE)
     ] = settings.PRIVATE_KEY_FILE,
+    chain: Annotated[Optional[Chain], typer.Option(help=help_strings.ADDRESS_CHAIN)] = None,
 ):
     """Attach resource to a Custom Domain."""
-    account: AccountTypes = load_account(private_key, private_key_file)
+    account: AccountTypes = load_account(private_key_str=private_key, private_key_file=private_key_file, chain=chain)
 
     await attach_resource(
         account,
@@ -290,9 +292,10 @@ async def detach(
     private_key_file: Annotated[
         Optional[Path], typer.Option(help=help_strings.PRIVATE_KEY_FILE)
     ] = settings.PRIVATE_KEY_FILE,
+    chain: Annotated[Optional[Chain], typer.Option(help=help_strings.ADDRESS_CHAIN)] = None,
 ):
     """Unlink Custom Domain."""
-    account: AccountTypes = load_account(private_key, private_key_file)
+    account: AccountTypes = load_account(private_key_str=private_key, private_key_file=private_key_file, chain=chain)
 
     await detach_resource(account, Hostname(fqdn), interactive=False if (not ask) else None)
     raise typer.Exit()
@@ -305,9 +308,10 @@ async def info(
     private_key_file: Annotated[
         Optional[Path], typer.Option(help=help_strings.PRIVATE_KEY_FILE)
     ] = settings.PRIVATE_KEY_FILE,
+    chain: Annotated[Optional[Chain], typer.Option(help=help_strings.ADDRESS_CHAIN)] = None,
 ):
     """Show Custom Domain Details."""
-    account: AccountTypes = load_account(private_key, private_key_file)
+    account: AccountTypes = load_account(private_key_str=private_key, private_key_file=private_key_file, chain=chain)
 
     console = Console()
     domain_validator = DomainValidator()

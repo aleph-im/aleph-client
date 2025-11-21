@@ -13,7 +13,7 @@ from aleph.sdk import AlephHttpClient, AuthenticatedAlephHttpClient
 from aleph.sdk.conf import settings
 from aleph.sdk.types import StorageEnum, StoredContent
 from aleph.sdk.utils import safe_getattr
-from aleph_message.models import ItemHash, StoreMessage
+from aleph_message.models import Chain, ItemHash, StoreMessage
 from aleph_message.status import MessageStatus
 from pydantic import BaseModel, Field
 from rich import box
@@ -41,6 +41,7 @@ async def pin(
     private_key_file: Annotated[
         Optional[Path], typer.Option(help=help_strings.PRIVATE_KEY_FILE)
     ] = settings.PRIVATE_KEY_FILE,
+    chain: Annotated[Optional[Chain], typer.Option(help=help_strings.ADDRESS_CHAIN)] = None,
     ref: Annotated[Optional[str], typer.Option(help=help_strings.REF)] = None,
     debug: Annotated[bool, typer.Option()] = False,
 ):
@@ -48,7 +49,7 @@ async def pin(
 
     setup_logging(debug)
 
-    account: AccountTypes = load_account(private_key, private_key_file)
+    account: AccountTypes = load_account(private_key_str=private_key, private_key_file=private_key_file, chain=chain)
 
     async with AuthenticatedAlephHttpClient(account=account, api_server=settings.API_HOST) as client:
         result: StoreMessage
@@ -72,6 +73,7 @@ async def upload(
     private_key_file: Annotated[
         Optional[Path], typer.Option(help=help_strings.PRIVATE_KEY_FILE)
     ] = settings.PRIVATE_KEY_FILE,
+    chain: Annotated[Optional[Chain], typer.Option(help=help_strings.ADDRESS_CHAIN)] = None,
     ref: Annotated[Optional[str], typer.Option(help=help_strings.REF)] = None,
     debug: Annotated[bool, typer.Option()] = False,
 ):
@@ -79,7 +81,7 @@ async def upload(
 
     setup_logging(debug)
 
-    account: AccountTypes = load_account(private_key, private_key_file)
+    account: AccountTypes = load_account(private_key_str=private_key, private_key_file=private_key_file, chain=chain)
 
     async with AuthenticatedAlephHttpClient(account=account, api_server=settings.API_HOST) as client:
         if not path.is_file():
@@ -179,13 +181,14 @@ async def forget(
     private_key_file: Annotated[
         Optional[Path], typer.Option(help=help_strings.PRIVATE_KEY_FILE)
     ] = settings.PRIVATE_KEY_FILE,
+    chain: Annotated[Optional[Chain], typer.Option(help=help_strings.ADDRESS_CHAIN)] = None,
     debug: Annotated[bool, typer.Option()] = False,
 ):
     """Forget a file and his message on Aleph Cloud."""
 
     setup_logging(debug)
 
-    account: AccountTypes = load_account(private_key, private_key_file)
+    account: AccountTypes = load_account(private_key_str=private_key, private_key_file=private_key_file, chain=chain)
 
     hashes = [ItemHash(item_hash) for item_hash in item_hash.split(",")]
 
@@ -262,6 +265,7 @@ async def list_files(
     private_key_file: Annotated[
         Optional[Path], typer.Option(help=help_strings.PRIVATE_KEY_FILE)
     ] = settings.PRIVATE_KEY_FILE,
+    chain: Annotated[Optional[Chain], typer.Option(help=help_strings.ADDRESS_CHAIN)] = None,
     pagination: Annotated[int, typer.Option(help="Maximum number of files to return.")] = 100,
     page: Annotated[int, typer.Option(help="Offset in pages.")] = 1,
     sort_order: Annotated[
@@ -274,7 +278,9 @@ async def list_files(
     json: Annotated[bool, typer.Option(help="Print as json instead of rich table")] = False,
 ):
     """List all files for a given address"""
-    account, address = get_account_and_address(private_key, private_key_file, address)
+    account, address = get_account_and_address(
+        private_key=private_key, private_key_file=private_key_file, address=address, chain=chain
+    )
 
     if address:
         # Build the query parameters

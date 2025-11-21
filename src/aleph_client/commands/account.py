@@ -324,7 +324,9 @@ async def balance(
     chain: Annotated[Optional[Chain], typer.Option(help=help_strings.ADDRESS_CHAIN)] = None,
 ):
     """Display your ALEPH balance and basic voucher information."""
-    account, address = get_account_and_address(private_key, private_key_file, address, chain)
+    account, address = get_account_and_address(
+        private_key=private_key, private_key_file=private_key_file, chain=chain, address=address
+    )
 
     if address:
         try:
@@ -489,7 +491,9 @@ async def vouchers(
     chain: Annotated[Optional[Chain], typer.Option(help=help_strings.ADDRESS_CHAIN)] = None,
 ):
     """Display detailed information about your vouchers."""
-    account, address = get_account_and_address(private_key, private_key_file, address, chain)
+    account, address = get_account_and_address(
+        private_key=private_key, private_key_file=private_key_file, chain=chain, address=address
+    )
 
     if address:
         try:
@@ -598,7 +602,7 @@ async def configure(
     address = None
     if config.type == AccountType.IMPORTED:
         current_key = Path(config.path) if hasattr(config, "path") else None
-        current_account = _load_account(None, current_key)
+        current_account = _load_account(private_key_str=None, private_key_path=current_key, chain=chain)
         address = current_account.get_address()
     else:
         address = config.address

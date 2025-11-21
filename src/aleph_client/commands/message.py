@@ -21,7 +21,7 @@ from aleph.sdk.query.filters import MessageFilter
 from aleph.sdk.query.responses import MessagesResponse
 from aleph.sdk.types import StorageEnum
 from aleph.sdk.utils import extended_json_encoder
-from aleph_message.models import AlephMessage, ProgramMessage
+from aleph_message.models import AlephMessage, Chain, ProgramMessage
 from aleph_message.models.base import MessageType
 from aleph_message.models.item_hash import ItemHash
 from aleph_message.status import MessageStatus
@@ -131,13 +131,14 @@ async def post(
     private_key_file: Annotated[
         Optional[Path], typer.Option(help=help_strings.PRIVATE_KEY_FILE)
     ] = settings.PRIVATE_KEY_FILE,
+    chain: Annotated[Optional[Chain], typer.Option(help=help_strings.ADDRESS_CHAIN)] = None,
     debug: Annotated[bool, typer.Option()] = False,
 ):
     """Post a message on aleph.cloud."""
 
     setup_logging(debug)
 
-    account: AccountTypes = load_account(private_key, private_key_file)
+    account: AccountTypes = load_account(private_key_str=private_key, private_key_file=private_key_file, chain=chain)
     storage_engine: StorageEnum
     content: dict
 
@@ -181,13 +182,14 @@ async def amend(
     private_key_file: Annotated[
         Optional[Path], typer.Option(help=help_strings.PRIVATE_KEY_FILE)
     ] = settings.PRIVATE_KEY_FILE,
+    chain: Annotated[Optional[Chain], typer.Option(help=help_strings.ADDRESS_CHAIN)] = None,
     debug: Annotated[bool, typer.Option()] = False,
 ):
     """Amend an existing aleph.cloud message."""
 
     setup_logging(debug)
 
-    account: AccountTypes = load_account(private_key, private_key_file)
+    account: AccountTypes = load_account(private_key_str=private_key, private_key_file=private_key_file, chain=chain)
 
     async with AlephHttpClient(api_server=settings.API_HOST) as client:
         existing_message: Optional[AlephMessage] = None
@@ -244,6 +246,7 @@ async def forget(
     private_key_file: Annotated[
         Optional[Path], typer.Option(help=help_strings.PRIVATE_KEY_FILE)
     ] = settings.PRIVATE_KEY_FILE,
+    chain: Annotated[Optional[Chain], typer.Option(help=help_strings.ADDRESS_CHAIN)] = None,
     debug: Annotated[bool, typer.Option()] = False,
 ):
     """Forget an existing aleph.cloud message."""
@@ -252,7 +255,7 @@ async def forget(
 
     hash_list: list[ItemHash] = [ItemHash(h) for h in hashes.split(",")]
 
-    account: AccountTypes = load_account(private_key, private_key_file)
+    account: AccountTypes = load_account(private_key_str=private_key, private_key_file=private_key_file, chain=chain)
     async with AuthenticatedAlephHttpClient(account=account, api_server=settings.API_HOST) as client:
         await client.forget(hashes=hash_list, reason=reason, channel=channel)
 
@@ -289,13 +292,14 @@ def sign(
     private_key_file: Annotated[
         Optional[Path], typer.Option(help=help_strings.PRIVATE_KEY_FILE)
     ] = settings.PRIVATE_KEY_FILE,
+    chain: Annotated[Optional[Chain], typer.Option(help=help_strings.ADDRESS_CHAIN)] = None,
     debug: Annotated[bool, typer.Option()] = False,
 ):
     """Sign an aleph message with a private key. If no --message is provided, the message will be read from stdin."""
 
     setup_logging(debug)
 
-    account: AccountTypes = load_account(private_key, private_key_file)
+    account: AccountTypes = load_account(private_key_str=private_key, private_key_file=private_key_file, chain=chain)
 
     if message is None:
         message = input_multiline()
