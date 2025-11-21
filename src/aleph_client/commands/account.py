@@ -546,6 +546,7 @@ async def configure(
     derivation_path: Annotated[
         Optional[str], typer.Option(help="Derivation path for ledger (e.g. \"44'/60'/0'/0/0\")")
     ] = None,
+    ledger_count: Annotated[int, typer.Option(help="Number of ledger account you want to fetch (default: 5)")] = 5,
     non_it: Annotated[
         bool, typer.Option("--non-it", help="Non-interactive mode. Only apply provided options.")
     ] = False,
@@ -697,7 +698,7 @@ async def configure(
                         raise typer.Exit(code=1) from e
                 else:
                     # Normal flow - show available accounts and let user choose
-                    accounts = LedgerETHAccount.get_accounts()
+                    accounts = LedgerETHAccount.get_accounts(count=ledger_count)
                     addresses = [acc.address for acc in accounts]
 
                     console.print(f"[bold cyan]Available addresses on {get_first_ledger_name()}:[/bold cyan]")
