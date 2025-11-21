@@ -373,7 +373,7 @@ async def create(
 
         # Options shown to the user
         if pricing_entity == PricingEntity.INSTANCE and payment_type == PaymentType.hold:
-            options = ["1", "2", "3", "4"]  # hold instances up to tier 4
+            options = ["1", "2", "3"]  # hold instances up to tier 3 (4 compute units)
             pool = eligible or tiers
         else:
             pool = eligible or tiers
