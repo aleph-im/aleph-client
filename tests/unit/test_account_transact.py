@@ -26,7 +26,7 @@ def test_account_can_transact_success(mock_account):
     assert mock_account.can_transact() is True
 
 
-@patch("aleph_client.commands.account._load_account")
+@patch("aleph_client.commands.account.load_account")
 def test_account_can_transact_error_handling(mock_load_account):
     """Test that error is handled properly when account.can_transact() fails."""
     # Setup mock account that will raise InsufficientFundsError

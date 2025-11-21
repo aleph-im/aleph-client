@@ -23,18 +23,17 @@ logger = logging.getLogger(__name__)
 latest_crn_version_link = "https://api.github.com/repos/aleph-im/aleph-vm/releases/latest"
 
 settings_link = (
-    f"{sanitize_url(settings.API_HOST)}"
-    "/api/v0/aggregates/0xFba561a84A537fCaa567bb7A2257e7142701ae2A.json?keys=settings"
+    f"{sanitize_url(settings.API_HOST)}/api/v0/aggregates/0xFba561a84A537fCaa567bb7A2257e7142701ae2A.json?keys=settings"
 )
 
 
 @async_lru_cache
-async def call_program_crn_list() -> CrnList:
+async def call_program_crn_list(only_active: bool = False) -> CrnList:
     """Call program to fetch the compute resource node list."""
     error = None
     try:
         async with AlephHttpClient() as client:
-            return await client.crn.get_crns_list(False)
+            return await client.crn.get_crns_list(only_active)
     except InvalidURL as e:
         error = f"Invalid URL: {settings.CRN_LIST_URL}: {e}"
     except TimeoutError as e:

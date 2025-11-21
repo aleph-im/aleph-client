@@ -24,7 +24,7 @@ from aleph.sdk.exceptions import (
 )
 from aleph.sdk.query.filters import MessageFilter
 from aleph.sdk.query.responses import PriceResponse
-from aleph.sdk.types import AccountFromPrivateKey, StorageEnum, TokenType
+from aleph.sdk.types import StorageEnum, TokenType
 from aleph.sdk.utils import displayable_amount, make_program_content, safe_getattr
 from aleph_message.models import (
     Chain,
@@ -58,7 +58,12 @@ from aleph_client.commands.utils import (
     validated_prompt,
     yes_no_input,
 )
-from aleph_client.utils import AsyncTyper, create_archive, sanitize_url
+from aleph_client.utils import (
+    AsyncTyper,
+    create_archive,
+    get_account_and_address,
+    sanitize_url,
+)
 
 logger = logging.getLogger(__name__)
 app = AsyncTyper(no_args_is_help=True)
@@ -127,7 +132,7 @@ async def upload(
         typer.echo("No such file or directory")
         raise typer.Exit(code=4) from error
 
-    account: AccountFromPrivateKey = _load_account(private_key, private_key_file, chain=payment_chain)
+    account = _load_account(private_key, private_key_file, chain=payment_chain)
     address = address or settings.ADDRESS_TO_USE or account.get_address()
 
     # Loads default configuration if no chain is set
@@ -341,7 +346,7 @@ async def update(
         typer.echo("No such file or directory")
         raise typer.Exit(code=4) from error
 
-    account: AccountFromPrivateKey = _load_account(private_key, private_key_file, chain=chain)
+    account = _load_account(private_key, private_key_file, chain=chain)
 
     async with AuthenticatedAlephHttpClient(account=account, api_server=settings.API_HOST) as client:
         try:
@@ -504,8 +509,14 @@ async def list_programs(
 
     setup_logging(debug)
 
-    account = _load_account(private_key, private_key_file, chain=chain)
-    address = address or settings.ADDRESS_TO_USE or account.get_address()
+    account, address = get_account_and_address(
+        private_key=private_key, private_key_file=private_key_file, address=address, chain=chain
+    )
+
+    # Ensure we have an address to query
+    if not address:
+        typer.echo("Error: No address found. Please provide an address or use a private key.")
+        raise typer.Exit(code=1)
 
     async with AlephHttpClient(api_server=settings.API_HOST) as client:
         resp = await client.get_messages(
@@ -617,7 +628,7 @@ async def list_programs(
                 f"Updatable: {'[green]Yes[/green]' if message.content.allow_amend else '[orange3]Code only[/orange3]'}",
             ]
             specifications = Text.from_markup("".join(specs))
-            config = Text.assemble(
+            config_info = Text.assemble(
                 Text.from_markup(
                     f"Runtime: [bright_cyan][link={settings.API_HOST}/api/v0/messages/{message.content.runtime.ref}]"
                     f"{message.content.runtime.ref}[/link][/bright_cyan]\n"
@@ -627,7 +638,7 @@ async def list_programs(
                 ),
                 Text.from_markup(display_mounted_volumes(message)),
             )
-            table.add_row(program, specifications, config)
+            table.add_row(program, specifications, config_info)
             table.add_section()
 
         console = Console()

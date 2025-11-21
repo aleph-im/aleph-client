@@ -98,7 +98,7 @@ async def test_list_ports(mock_auth_setup):
     mock_console = MagicMock()
 
     with (
-        patch("aleph_client.commands.instance.port_forwarder._load_account", mock_load_account),
+        patch("aleph_client.commands.instance.port_forwarder.load_account", mock_load_account),
         patch("aleph_client.commands.instance.port_forwarder.AlephHttpClient", mock_client_class),
         patch("aleph_client.commands.instance.port_forwarder.Console", return_value=mock_console),
     ):
@@ -118,7 +118,7 @@ async def test_list_ports(mock_auth_setup):
     )
 
     with (
-        patch("aleph_client.commands.instance.port_forwarder._load_account", mock_load_account),
+        patch("aleph_client.commands.instance.port_forwarder.load_account", mock_load_account),
         patch("aleph_client.commands.instance.port_forwarder.AlephHttpClient", mock_client_class),
         patch("aleph_client.commands.instance.port_forwarder.typer.echo") as mock_echo,
         patch("aleph_client.commands.instance.port_forwarder.typer.Exit", side_effect=SystemExit),
@@ -142,7 +142,7 @@ async def test_create_port(mock_auth_setup):
     mock_client_class = mock_auth_setup["mock_client_class"]
 
     with (
-        patch("aleph_client.commands.instance.port_forwarder._load_account", mock_load_account),
+        patch("aleph_client.commands.instance.port_forwarder.load_account", mock_load_account),
         patch("aleph_client.commands.instance.port_forwarder.AuthenticatedAlephHttpClient", mock_client_class),
         patch("aleph_client.commands.instance.port_forwarder.typer.echo") as mock_echo,
     ):
@@ -177,7 +177,7 @@ async def test_update_port(mock_auth_setup):
     mock_client.port_forwarder.get_ports.return_value = mock_existing_ports
 
     with (
-        patch("aleph_client.commands.instance.port_forwarder._load_account", mock_load_account),
+        patch("aleph_client.commands.instance.port_forwarder.load_account", mock_load_account),
         patch("aleph_client.commands.instance.port_forwarder.AlephHttpClient", mock_client_class),
         patch("aleph_client.commands.instance.port_forwarder.AuthenticatedAlephHttpClient", mock_client_class),
         patch("aleph_client.commands.instance.port_forwarder.typer.echo") as mock_echo,
@@ -211,7 +211,7 @@ async def test_delete_port(mock_auth_setup):
     mock_client.port_forwarder.get_ports.return_value = mock_existing_ports
 
     with (
-        patch("aleph_client.commands.instance.port_forwarder._load_account", mock_load_account),
+        patch("aleph_client.commands.instance.port_forwarder.load_account", mock_load_account),
         patch("aleph_client.commands.instance.port_forwarder.AlephHttpClient", mock_client_class),
         patch("aleph_client.commands.instance.port_forwarder.AuthenticatedAlephHttpClient", mock_client_class),
         patch("aleph_client.commands.instance.port_forwarder.typer.echo") as mock_echo,
@@ -236,7 +236,7 @@ async def test_delete_port(mock_auth_setup):
     mock_client.port_forwarder.delete_ports.reset_mock()
 
     with (
-        patch("aleph_client.commands.instance.port_forwarder._load_account", mock_load_account),
+        patch("aleph_client.commands.instance.port_forwarder.load_account", mock_load_account),
         patch("aleph_client.commands.instance.port_forwarder.AlephHttpClient", mock_client_class),
         patch("aleph_client.commands.instance.port_forwarder.AuthenticatedAlephHttpClient", mock_client_class),
         patch("aleph_client.commands.instance.port_forwarder.typer.echo") as mock_echo,
@@ -268,7 +268,7 @@ async def test_delete_port_last_port(mock_auth_setup):
     mock_client.port_forwarder.update_ports = None
 
     with (
-        patch("aleph_client.commands.instance.port_forwarder._load_account", mock_load_account),
+        patch("aleph_client.commands.instance.port_forwarder.load_account", mock_load_account),
         patch("aleph_client.commands.instance.port_forwarder.AlephHttpClient", mock_client_class),
         patch("aleph_client.commands.instance.port_forwarder.AuthenticatedAlephHttpClient", mock_client_class),
         patch("aleph_client.commands.instance.port_forwarder.typer.echo") as mock_echo,
@@ -310,7 +310,7 @@ async def test_refresh_port(mock_auth_setup):
     mock_client.instance.get_instance_allocation_info.return_value = (None, mock_allocation)
 
     with (
-        patch("aleph_client.commands.instance.port_forwarder._load_account", mock_load_account),
+        patch("aleph_client.commands.instance.port_forwarder.load_account", mock_load_account),
         patch("aleph_client.commands.instance.port_forwarder.AuthenticatedAlephHttpClient", mock_client_class),
         patch("aleph_client.commands.instance.port_forwarder.typer.echo") as mock_echo,
     ):
@@ -340,7 +340,7 @@ async def test_refresh_port_no_allocation(mock_auth_setup):
     mock_client.instance.get_instance_allocation_info.return_value = (None, None)
 
     with (
-        patch("aleph_client.commands.instance.port_forwarder._load_account", mock_load_account),
+        patch("aleph_client.commands.instance.port_forwarder.load_account", mock_load_account),
         patch("aleph_client.commands.instance.port_forwarder.AuthenticatedAlephHttpClient", mock_client_class),
         patch("aleph_client.commands.instance.port_forwarder.typer.echo") as mock_echo,
         patch("aleph_client.commands.instance.port_forwarder.typer.Exit", side_effect=SystemExit),
@@ -376,7 +376,7 @@ async def test_refresh_port_scheduler_allocation(mock_auth_setup):
     mock_client.instance.get_instance_allocation_info.return_value = (None, mock_allocation)
 
     with (
-        patch("aleph_client.commands.instance.port_forwarder._load_account", mock_load_account),
+        patch("aleph_client.commands.instance.port_forwarder.load_account", mock_load_account),
         patch("aleph_client.commands.instance.port_forwarder.AuthenticatedAlephHttpClient", mock_client_class),
         patch("aleph_client.commands.instance.port_forwarder.typer.echo") as mock_echo,
     ):
@@ -415,7 +415,7 @@ async def test_non_processed_message_statuses():
     mock_http_client.port_forwarder.get_ports = AsyncMock(return_value=mock_existing_ports)
 
     with (
-        patch("aleph_client.commands.instance.port_forwarder._load_account", mock_load_account),
+        patch("aleph_client.commands.instance.port_forwarder.load_account", mock_load_account),
         patch("aleph_client.commands.instance.port_forwarder.AlephHttpClient", mock_http_client_class),
         patch("aleph_client.commands.instance.port_forwarder.AuthenticatedAlephHttpClient", mock_auth_client_class),
         patch("aleph_client.commands.instance.port_forwarder.typer.echo") as mock_echo,
@@ -432,7 +432,7 @@ async def test_non_processed_message_statuses():
         mock_echo.reset_mock()
 
     with (
-        patch("aleph_client.commands.instance.port_forwarder._load_account", mock_load_account),
+        patch("aleph_client.commands.instance.port_forwarder.load_account", mock_load_account),
         patch("aleph_client.commands.instance.port_forwarder.AlephHttpClient", mock_http_client_class),
         patch("aleph_client.commands.instance.port_forwarder.AuthenticatedAlephHttpClient", mock_auth_client_class),
         patch("aleph_client.commands.instance.port_forwarder.typer.echo") as mock_echo,
@@ -450,7 +450,7 @@ async def test_non_processed_message_statuses():
         mock_echo.reset_mock()
 
     with (
-        patch("aleph_client.commands.instance.port_forwarder._load_account", mock_load_account),
+        patch("aleph_client.commands.instance.port_forwarder.load_account", mock_load_account),
         patch("aleph_client.commands.instance.port_forwarder.AlephHttpClient", mock_http_client_class),
         patch("aleph_client.commands.instance.port_forwarder.AuthenticatedAlephHttpClient", mock_auth_client_class),
         patch("aleph_client.commands.instance.port_forwarder.typer.echo") as mock_echo,
