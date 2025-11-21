@@ -546,7 +546,7 @@ async def configure(
     derivation_path: Annotated[
         Optional[str], typer.Option(help="Derivation path for ledger (e.g. \"44'/60'/0'/0/0\")")
     ] = None,
-    no: Annotated[bool, typer.Option("--no", help="Non-interactive mode. Only apply provided options.")] = False,
+    non_it: Annotated[bool, typer.Option("--non-it", help="Non-interactive mode. Only apply provided options.")] = False,
 ):
     """Configure current private key file and active chain (default selection)"""
 
@@ -557,7 +557,7 @@ async def configure(
 
     unlinked_keys, config = await list_unlinked_keys()
 
-    if no:
+    if non_it:
         validate_non_interactive_args_config(config, account_type, private_key_file, address, chain, derivation_path)
 
         new_chain = chain or config.chain
