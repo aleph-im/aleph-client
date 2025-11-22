@@ -1,0 +1,41 @@
+{
+  "boot-source": {
+    "kernel_image_path": "bin/vmlinux.bin",
+    "boot_args": "console=ttyS0 reboot=k panic=1 pci=off noapic nomodules random.trust_cpu=on ro",
+    "initrd_path": null
+  },
+  "drives": [
+    {
+      "drive_id": "rootfs",
+      "path_on_host": "runtimes/test.squashfs",
+      "is_root_device": true,
+      "partuuid": null,
+      "is_read_only": false,
+      "cache_type": "Unsafe",
+      "io_engine": "Sync",
+      "rate_limiter": null
+    }
+  ],
+  "machine-config": {
+    "vcpu_count": 1,
+    "mem_size_mib": 512,
+    "smt": false,
+    "track_dirty_pages": false
+  },
+  "balloon": null,
+  "network-interfaces": [
+    {
+      "iface_id": "eth0",
+      "guest_mac": "AA:FC:00:00:00:01",
+      "host_dev_name": ""
+    }
+  ],
+  "vsock": {
+    "vsock_id": "1",
+    "guest_cid": 3,
+    "uds_path": "/tmp/v.sock"
+  },
+  "logger": null,
+  "metrics": null,
+  "mmds-config": null
+}

@@ -55,3 +55,8 @@ venv/*
 .env.local
 
 .gitsigners
+
+# Devtools
+devtools/bin
+devtools/programs
+devtools/built_programs
