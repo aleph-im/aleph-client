@@ -1067,9 +1067,16 @@ async def test_gpu_create_no_gpus_available(
     """
     mock_load_account = create_mock_load_account()
     mock_validate_ssh_pubkey_file = create_mock_validate_ssh_pubkey_file()
+    
+    mock_fetch_settings = AsyncMock(return_value=mock_settings_info)
+    
     mock_client_class, mock_client = create_mock_client(
         mock_crn_list_obj, mock_pricing_info_response, mock_get_balances, payment_type="superfluid"
     )
+    
+    mock_crn_list_without_gpus = CrnList.from_api({"crns": []})
+    mock_client.crn.get_crns_list = AsyncMock(return_value=mock_crn_list_without_gpus)
+    
     mock_validated_prompt = MagicMock(return_value="1")
 
     @patch("aleph_client.commands.instance.load_account", mock_load_account)
@@ -1078,7 +1085,7 @@ async def test_gpu_create_no_gpus_available(
     @patch("aleph_client.commands.pricing.AlephHttpClient", mock_client_class)
     @patch("aleph_client.commands.instance.network.AlephHttpClient", mock_client_class)
     @patch("aleph_client.commands.utils.validated_prompt", mock_validated_prompt)
-    @patch("aleph_client.commands.instance.network.fetch_settings", mock_settings_info)
+    @patch("aleph_client.commands.instance.network.fetch_settings", mock_fetch_settings)
     @patch("aleph_client.commands.utils.yes_no_input", MagicMock(return_value=False))  # Mock yes_no_input function
     @patch(
         "aleph_client.commands.instance.yes_no_input", MagicMock(return_value=False)
