@@ -633,17 +633,12 @@ async def test_list_instances(mock_crn_list_obj, mock_pricing_info_response, moc
 
 
 @pytest.mark.asyncio
-async def test_delete_instance(mock_api_response):
+async def test_delete_instance(mock_api_response, mock_settings_info):
     mock_load_account = create_mock_load_account()
     mock_account = mock_load_account.return_value
     mock_auth_client_class, mock_auth_client = create_mock_auth_client(mock_account, mock_crn_list_obj=[])
     mock_vm_client_class, mock_vm_client = create_mock_vm_client()
-    mock_fetch_settings = AsyncMock(
-        return_value={
-            "community_wallet_timestamp": 900000,  # Before creation time
-            "community_wallet_address": "0xcommunity",
-        }
-    )
+    mock_fetch_settings = AsyncMock(return_value=mock_settings_info)
 
     # Mock port forwarder
     mock_auth_client.port_forwarder = MagicMock(
@@ -671,7 +666,7 @@ async def test_delete_instance(mock_api_response):
 
 
 @pytest.mark.asyncio
-async def test_delete_instance_with_insufficient_funds():
+async def test_delete_instance_with_insufficient_funds(mock_settings_info):
     """Test that InsufficientFundsError is handled correctly in delete()."""
     # Setup mocks
     mock_load_account = create_mock_load_account()
@@ -698,12 +693,7 @@ async def test_delete_instance_with_insufficient_funds():
     mock_auth_client.get_program_price = AsyncMock(return_value=MagicMock(required_tokens=0.00001527777777777777))
 
     # Configure settings
-    mock_fetch_settings = AsyncMock(
-        return_value={
-            "community_wallet_timestamp": 900000,
-            "community_wallet_address": "0xcommunity",
-        }
-    )
+    mock_fetch_settings = AsyncMock(return_value=mock_settings_info)
 
     @patch("aleph_client.commands.instance.load_account", mock_load_account)
     @patch("aleph_client.commands.instance.AuthenticatedAlephHttpClient", mock_auth_client_class)
@@ -723,7 +713,7 @@ async def test_delete_instance_with_insufficient_funds():
 
 
 @pytest.mark.asyncio
-async def test_delete_instance_with_detailed_insufficient_funds_error(capsys, mock_crn_list_obj):
+async def test_delete_instance_with_detailed_insufficient_funds_error(capsys, mock_crn_list_obj, mock_settings_info):
     """Test improved error handling for InsufficientFundsError with detailed information in instance/__init__.py"""
     mock_load_account = create_mock_load_account()
     mock_account = mock_load_account.return_value
@@ -742,12 +732,7 @@ async def test_delete_instance_with_detailed_insufficient_funds_error(capsys, mo
     )
     mock_vm_client_class, mock_vm_client = create_mock_vm_client()
 
-    mock_fetch_settings = AsyncMock(
-        return_value={
-            "community_wallet_timestamp": 900000,  # Before creation time
-            "community_wallet_address": "0xcommunity",
-        }
-    )
+    mock_fetch_settings = AsyncMock(return_value=mock_settings_info)
 
     @patch("aleph_client.commands.instance.load_account", mock_load_account)
     @patch("aleph_client.commands.instance.AuthenticatedAlephHttpClient", mock_auth_client_class)
