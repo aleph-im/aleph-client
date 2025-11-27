@@ -315,7 +315,7 @@ def mock_settings_info():
             "community_wallet_address", "0x5aBd3258C5492fD378EBC2e0017416E199e5Da56"
         ),
         community_wallet_timestamp=settings_data["data"]["settings"].get("community_wallet_timestamp", 1739996239),
-        last_crn_version="0.0.0",  # Add missing required field for tests
+        last_crn_version=settings_data["data"]["settings"].get("last_crn_version", "1.7.0")
     )
 
 
