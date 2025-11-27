@@ -10,9 +10,9 @@ import aiohttp
 import pytest
 import typer
 from aiohttp import InvalidURL
+from aleph.sdk.client.services.crn import CrnList
 from aleph.sdk.exceptions import InsufficientFundsError
 from aleph.sdk.types import TokenType
-from aleph.sdk.client.services.crn import CrnList
 from aleph_message.models import Chain
 from aleph_message.models.execution.base import Payment, PaymentType
 from aleph_message.models.execution.environment import (
@@ -271,6 +271,7 @@ def create_mock_client(
     mock_crn_list_obj,
     mock_pricing_info_response,
     mock_get_balances,
+    mock_settings_info=None,
     payment_type="superfluid",
     mock_voucher_service=None,
 ):
@@ -281,6 +282,9 @@ def create_mock_client(
     # Create a proper mock for the pricing service
     mock_pricing_service = MagicMock()
     mock_pricing_service.get_pricing_aggregate = AsyncMock(return_value=mock_pricing_info_response)
+
+    mock_network_settings_service = MagicMock()
+    mock_network_settings_service.get_settings_aggregate = AsyncMock(return_value=mock_settings_info)
 
     # Define required tokens based on payment type
     required_tokens = 0.00001527777777777777 if payment_type == "superfluid" else 1000
@@ -303,6 +307,7 @@ def create_mock_client(
     # Set the crn attribute to the properly mocked service
     mock_client.crn = mock_crn_service
     mock_client.voucher = mock_voucher_service
+    mock_client.network_settings = mock_network_settings_service
 
     mock_client_class = MagicMock()
     mock_client_class.return_value.__aenter__ = AsyncMock(return_value=mock_client)
@@ -316,6 +321,7 @@ def create_mock_auth_client(
     mock_crn_list_obj=None,
     mock_pricing_info_response=None,
     mock_get_balances=None,
+    mock_settings_info=None,
 ):
 
     def response_get_program_price(ptype):
@@ -333,6 +339,9 @@ def create_mock_auth_client(
     # Create a proper mock for the pricing service
     mock_pricing_service = MagicMock()
     mock_pricing_service.get_pricing_aggregate = AsyncMock(return_value=mock_pricing_info_response)
+
+    mock_network_settings_service = MagicMock()
+    mock_network_settings_service.get_settings_aggregate = AsyncMock(return_value=mock_settings_info)
 
     mock_response_get_message = create_mock_instance_message(mock_account, payg=True)
     mock_response_create_instance = MagicMock(item_hash=FAKE_VM_HASH)
@@ -360,6 +369,7 @@ def create_mock_auth_client(
     mock_auth_client.crn = mock_crn_service
     mock_auth_client.port_forwarder = mock_port_forwarder
     mock_auth_client.pricing = mock_pricing_service
+    mock_auth_client.network_settings = mock_network_settings_service
 
     if payment_types:
         mock_auth_client.get_program_price = AsyncMock(
@@ -513,7 +523,11 @@ async def test_create_instance(
     mock_load_account = create_mock_load_account()
     mock_account = mock_load_account.return_value
     mock_client_class, mock_client = create_mock_client(
-        mock_crn_list_obj, mock_pricing_info_response, mock_get_balances, payment_type=args["payment_type"]
+        mock_crn_list_obj,
+        mock_pricing_info_response,
+        mock_get_balances,
+        mock_settings_info,
+        payment_type=args["payment_type"],
     )
     mock_auth_client_class, mock_auth_client = create_mock_auth_client(
         mock_account,
@@ -1068,16 +1082,16 @@ async def test_gpu_create_no_gpus_available(
     """
     mock_load_account = create_mock_load_account()
     mock_validate_ssh_pubkey_file = create_mock_validate_ssh_pubkey_file()
-    
+
     mock_fetch_settings = AsyncMock(return_value=mock_settings_info)
-    
+
     mock_client_class, mock_client = create_mock_client(
-        mock_crn_list_obj, mock_pricing_info_response, mock_get_balances, payment_type="superfluid"
+        mock_crn_list_obj, mock_pricing_info_response, mock_get_balances, mock_settings_info, payment_type="superfluid"
     )
-    
+
     mock_crn_list_without_gpus = CrnList.from_api({"crns": []})
     mock_client.crn.get_crns_list = AsyncMock(return_value=mock_crn_list_without_gpus)
-    
+
     mock_validated_prompt = MagicMock(return_value="1")
 
     @patch("aleph_client.commands.instance.load_account", mock_load_account)
