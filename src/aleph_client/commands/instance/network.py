@@ -142,7 +142,7 @@ async def fetch_settings() -> NetworkSettingsModel:
 
     async with AlephHttpClient(api_server=settings.API_HOST) as client:
         try:
-            return await client.settings.get_settings_aggregate()
+            return await client.network_settings.get_settings_aggregate()
         except Exception as e:
             logger.error(f"Error while fetching settings: {e}")
             raise Exit(code=1) from e
