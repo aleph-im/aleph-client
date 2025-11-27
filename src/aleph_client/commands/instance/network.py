@@ -4,9 +4,10 @@ import logging
 from json import JSONDecodeError
 from typing import Optional
 
-from aiohttp import ClientConnectorError, ClientResponseError, ClientSession, InvalidURL
+from aiohttp import ClientConnectorError, ClientResponseError, InvalidURL
 from aleph.sdk import AlephHttpClient
 from aleph.sdk.client.services.crn import CRN, CrnList
+from aleph.sdk.client.services.settings import NetworkSettingsModel
 from aleph.sdk.conf import settings
 from aleph.sdk.exceptions import ForgottenMessageError, MessageNotFoundError
 from aleph_message.models import InstanceMessage
@@ -16,15 +17,9 @@ from pydantic import ValidationError
 from typer import Exit
 
 from aleph_client.models import CRNInfo
-from aleph_client.utils import async_lru_cache, fetch_json, sanitize_url
+from aleph_client.utils import async_lru_cache, sanitize_url
 
 logger = logging.getLogger(__name__)
-
-latest_crn_version_link = "https://api.github.com/repos/aleph-im/aleph-vm/releases/latest"
-
-settings_link = (
-    f"{sanitize_url(settings.API_HOST)}/api/v0/aggregates/0xFba561a84A537fCaa567bb7A2257e7142701ae2A.json?keys=settings"
-)
 
 
 @async_lru_cache
@@ -47,27 +42,6 @@ async def call_program_crn_list(only_active: bool = False) -> CrnList:
     except Exception as e:
         error = f"Unexpected error while fetching: {settings.CRN_LIST_URL}: {e}"
     raise RuntimeError(error)
-
-
-@async_lru_cache
-async def fetch_latest_crn_version() -> str:
-    """Fetch the latest crn version.
-
-    Returns:
-        str: Latest crn version as x.x.x.
-    """
-
-    async with ClientSession() as session:
-        try:
-            data = await fetch_json(session, latest_crn_version_link)
-            version = data.get("tag_name")
-            if not version:
-                msg = "No tag_name found in GitHub release data"
-                raise ValueError(msg)
-            return version
-        except Exception as e:
-            logger.error(f"Error while fetching latest crn version: {e}")
-            raise Exit(code=1) from e
 
 
 @async_lru_cache
@@ -159,17 +133,16 @@ async def find_crn_of_vm(vm_id: str) -> Optional[str]:
 
 
 @async_lru_cache
-async def fetch_settings() -> dict:
+async def fetch_settings() -> NetworkSettingsModel:
     """Fetch the settings from aggregate for flows and gpu instances.
 
     Returns:
         dict: Dictionary containing the settings.
     """
 
-    async with ClientSession() as session:
+    async with AlephHttpClient(api_server=settings.API_HOST) as client:
         try:
-            data = await fetch_json(session, settings_link)
-            return data.get("data", {}).get("settings")
+            return await client.network_settings.get_settings_aggregate()
         except Exception as e:
             logger.error(f"Error while fetching settings: {e}")
             raise Exit(code=1) from e

@@ -161,8 +161,8 @@ async def create(
 
     # Start CRN list fetch as a background task
     crn_list_future = call_program_crn_list()
-    crn_list_future.set_name("crn-list")
-    await asyncio.sleep(0.0)  # Yield control to let the task start
+    settings_aggregate_future = fetch_settings()
+    await asyncio.sleep(0.0)  # Yield control to let the tasks start
 
     # Loads ssh pubkey
     try:
@@ -326,7 +326,13 @@ async def create(
     if crn_list_future.done():
         crn_list = crn_list_future.result()
     else:
-        crn_list = await asyncio.wait_for(crn_list_future, timeout=None)
+        crn_list = await crn_list_future
+
+    # Now we need the Settings aggregates, so await the future
+    if settings_aggregate_future.done():
+        fetched_settings = settings_aggregate_future.result()
+    else:
+        fetched_settings = await settings_aggregate_future
 
     # Filter and prepare the list of available GPUs
     found_gpu_models: Optional[NetworkGPUS] = None
@@ -335,7 +341,9 @@ async def create(
 
         # Await the future to get the actual crn_list before first use
 
-        filtered_crns = crn_list.filter_crn(latest_crn_version=True, ipv6=True, stream_address=True, gpu=True)
+        filtered_crns = crn_list.filter_crn(
+            crn_version=fetched_settings.last_crn_version, ipv6=True, stream_address=True, gpu=True
+        )
         found_gpu_models = crn_list.find_gpu_on_network()
         if not found_gpu_models or not found_gpu_models.total_gpu_count:
             echo("No available GPU found. Try again later.")
@@ -512,7 +520,7 @@ async def create(
         while not crn_info:
 
             filtered_crns = crn_list.filter_crn(
-                latest_crn_version=True,
+                crn_version=fetched_settings.last_crn_version,
                 ipv6=True,
                 stream_address=is_stream,
                 gpu=gpu,
@@ -697,8 +705,7 @@ async def create(
             if is_stream and isinstance(account, BaseEthAccount):
                 # Start the flows
                 echo("Starting the flows...")
-                fetched_settings = await fetch_settings()
-                community_wallet_address = fetched_settings.get("community_wallet_address")
+                community_wallet_address = fetched_settings.community_wallet_address
                 flow_crn_amount = required_tokens * Decimal("0.8")
                 flow_hash_crn = await account.manage_flow(
                     receiver=crn_info.stream_reward_address,
@@ -899,8 +906,8 @@ async def delete(
                 account.switch_chain(payment.chain)
             if safe_getattr(account, "superfluid_connector") and price:
                 fetched_settings = await fetch_settings()
-                community_wallet_timestamp = fetched_settings.get("community_wallet_timestamp")
-                community_wallet_address = fetched_settings.get("community_wallet_address")
+                community_wallet_timestamp = fetched_settings.community_wallet_timestamp
+                community_wallet_address = fetched_settings.community_wallet_address
 
                 echo("Deleting the flows...")
                 flow_crn_percent = Decimal("0.8") if community_wallet_timestamp < creation_time else Decimal("1")

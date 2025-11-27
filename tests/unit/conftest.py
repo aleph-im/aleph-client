@@ -21,6 +21,7 @@ from aleph.sdk.chains.common import generate_key
 from aleph.sdk.chains.ethereum import ETHAccount, get_fallback_private_key
 from aleph.sdk.client.services.crn import CrnList
 from aleph.sdk.client.services.pricing import PricingModel
+from aleph.sdk.client.services.settings import NetworkSettingsModel
 from aleph.sdk.query.responses import BalanceResponse
 from aleph.sdk.types import StoredContent, Voucher, VoucherAttribute
 from aleph_message.models import Chain, ItemHash, ItemType, StoreContent, StoreMessage
@@ -307,13 +308,15 @@ def mock_settings_info():
     with open(settings_file) as f:
         settings_data = json.load(f)
 
-    # Create a mock response for the HTTP get call
-    mock_response = AsyncMock()
-    mock_response.__aenter__.return_value = mock_response
-    mock_response.status = 200
-    mock_response.json = AsyncMock(return_value=settings_data)
-
-    return mock_response
+    # Create a proper NetworkSettingsModel using the settings data
+    return NetworkSettingsModel(
+        compatible_gpus=settings_data["data"]["settings"].get("compatible_gpus", []),
+        community_wallet_address=settings_data["data"]["settings"].get(
+            "community_wallet_address", "0x5aBd3258C5492fD378EBC2e0017416E199e5Da56"
+        ),
+        community_wallet_timestamp=settings_data["data"]["settings"].get("community_wallet_timestamp", 1739996239),
+        last_crn_version=settings_data["data"]["settings"].get("last_crn_version", "1.7.0"),
+    )
 
 
 @pytest.fixture
