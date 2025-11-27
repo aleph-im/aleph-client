@@ -119,7 +119,8 @@
         }
       ],
       "community_wallet_address": "0x5aBd3258C5492fD378EBC2e0017416E199e5Da56",
-      "community_wallet_timestamp": 1739996239
+      "community_wallet_timestamp": 1739996239,
+      "last_crn_version": "1.7.2"
     }
   },
   "info": {

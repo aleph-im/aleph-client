@@ -505,7 +505,9 @@ def create_mock_vm_coco_client():
     ],
 )
 @pytest.mark.asyncio
-async def test_create_instance(args, expected, mock_crn_list_obj, mock_pricing_info_response, mock_get_balances):
+async def test_create_instance(
+    args, expected, mock_crn_list_obj, mock_pricing_info_response, mock_get_balances, mock_settings_info
+):
     mock_validate_ssh_pubkey_file = create_mock_validate_ssh_pubkey_file()
     mock_load_account = create_mock_load_account()
     mock_account = mock_load_account.return_value
@@ -522,7 +524,6 @@ async def test_create_instance(args, expected, mock_crn_list_obj, mock_pricing_i
     mock_vm_client_class, mock_vm_client = create_mock_vm_client()
     mock_validated_prompt = MagicMock(return_value="1")
     mock_validated_int_prompt = MagicMock(return_value=20480)  # Match default disk_mib from pricing model
-    mock_fetch_latest_crn_version = create_mock_fetch_latest_crn_version()
 
     mock_yes_no_input = MagicMock(side_effect=[False, True, True])
     mock_wait_for_processed_instance = AsyncMock()
@@ -539,7 +540,7 @@ async def test_create_instance(args, expected, mock_crn_list_obj, mock_pricing_i
         patch(
             "aleph_client.commands.instance.network.call_program_crn_list", AsyncMock(return_value=mock_crn_list_obj)
         ),
-        patch("aleph_client.commands.instance.network.fetch_latest_crn_version", mock_fetch_latest_crn_version),
+        patch("aleph_client.commands.instance.network.fetch_settings", AsyncMock(return_value=mock_settings_info)),
         patch("aleph_client.commands.instance.yes_no_input", mock_yes_no_input),
         patch("aleph_client.commands.utils.validated_prompt", mock_validated_prompt),
         patch("aleph_client.commands.utils.validated_int_prompt", mock_validated_int_prompt),
@@ -547,10 +548,6 @@ async def test_create_instance(args, expected, mock_crn_list_obj, mock_pricing_i
         patch("aleph_client.commands.instance.wait_for_confirmed_flow", mock_wait_for_confirmed_flow),
         patch("aleph_client.commands.instance.VmClient", mock_vm_client_class),
         patch("aleph_client.commands.instance.display.CRNTable.run_async", AsyncMock(return_value=(None, 0))),
-        patch(
-            "aleph_client.commands.instance.fetch_settings",
-            AsyncMock(return_value={"community_wallet_address": "0x5aBd3258C5492fD378EBC2e0017416E199e5Da56"}),
-        ),
     ):
 
         # Prepare the arguments for create
@@ -595,10 +592,9 @@ async def test_create_instance(args, expected, mock_crn_list_obj, mock_pricing_i
 
 
 @pytest.mark.asyncio
-async def test_list_instances(mock_crn_list_obj, mock_pricing_info_response, mock_get_balances):
+async def test_list_instances(mock_crn_list_obj, mock_pricing_info_response, mock_get_balances, mock_settings_info):
     mock_load_account = create_mock_load_account()
     mock_account = mock_load_account.return_value
-    mock_fetch_latest_crn_version = create_mock_fetch_latest_crn_version()
     mock_client_class, mock_client = create_mock_client(
         mock_crn_list_obj, mock_pricing_info_response, mock_get_balances
     )
@@ -621,7 +617,7 @@ async def test_list_instances(mock_crn_list_obj, mock_pricing_info_response, moc
 
     # Setup all patches
     @patch("aleph_client.commands.instance.load_account", mock_load_account)
-    @patch("aleph_client.commands.instance.network.fetch_latest_crn_version", mock_fetch_latest_crn_version)
+    @patch("aleph_client.commands.instance.network.fetch_settings", mock_settings_info)
     @patch("aleph_client.commands.files.AlephHttpClient", mock_client_class)
     @patch("aleph_client.commands.instance.AlephHttpClient", mock_auth_client_class)
     @patch("aleph_client.commands.instance.show_instances", AsyncMock())
@@ -1089,7 +1085,6 @@ async def test_gpu_create_no_gpus_available(
     mock_client_class, mock_client = create_mock_client(
         mock_crn_list_obj, mock_pricing_info_response, mock_get_balances, payment_type="superfluid"
     )
-    mock_fetch_latest_crn_version = create_mock_fetch_latest_crn_version()
     mock_validated_prompt = MagicMock(return_value="1")
 
     @patch("aleph_client.commands.instance.load_account", mock_load_account)
@@ -1098,7 +1093,7 @@ async def test_gpu_create_no_gpus_available(
     @patch("aleph_client.commands.pricing.AlephHttpClient", mock_client_class)
     @patch("aleph_client.commands.instance.network.AlephHttpClient", mock_client_class)
     @patch("aleph_client.commands.utils.validated_prompt", mock_validated_prompt)
-    @patch("aleph_client.commands.instance.network.fetch_latest_crn_version", mock_fetch_latest_crn_version)
+    @patch("aleph_client.commands.instance.network.fetch_settings", mock_settings_info)
     @patch("aleph_client.commands.utils.yes_no_input", MagicMock(return_value=False))  # Mock yes_no_input function
     @patch(
         "aleph_client.commands.instance.yes_no_input", MagicMock(return_value=False)
