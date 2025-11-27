@@ -11,8 +11,7 @@ from typing import Annotated, Any, Optional
 import aiohttp
 import typer
 from aleph.sdk import AlephHttpClient, AuthenticatedAlephHttpClient
-from aleph.sdk.account import _load_account
-from aleph.sdk.chains.ethereum import ETHAccount
+from aleph.sdk.chains.ethereum import BaseEthAccount
 from aleph.sdk.client.services.crn import NetworkGPUS
 from aleph.sdk.client.services.pricing import Price
 from aleph.sdk.client.vm_client import VmClient
@@ -82,7 +81,13 @@ from aleph_client.commands.utils import (
     yes_no_input,
 )
 from aleph_client.models import CRNInfo
-from aleph_client.utils import AsyncTyper, sanitize_url
+from aleph_client.utils import (
+    AccountTypes,
+    AsyncTyper,
+    get_account_and_address,
+    load_account,
+    sanitize_url,
+)
 
 logger = logging.getLogger(__name__)
 app = AsyncTyper(no_args_is_help=True)
@@ -154,6 +159,11 @@ async def create(
     setup_logging(debug)
     console = Console()
 
+    # Start CRN list fetch as a background task
+    crn_list_future = call_program_crn_list()
+    crn_list_future.set_name("crn-list")
+    await asyncio.sleep(0.0)  # Yield control to let the task start
+
     # Loads ssh pubkey
     try:
         ssh_pubkey_file = validate_ssh_pubkey_file(ssh_pubkey_file)
@@ -167,13 +177,9 @@ async def create(
     ssh_pubkey: str = ssh_pubkey_file.read_text(encoding="utf-8").strip()
 
     # Populates account / address
-    account = _load_account(private_key, private_key_file, chain=payment_chain)
-    address = address or settings.ADDRESS_TO_USE or account.get_address()
+    account: AccountTypes = load_account(private_key, private_key_file, chain=payment_chain)
 
-    # Start the fetch in the background (async_lru_cache already returns a future)
-    # We'll await this at the point we need it
-    crn_list_future = call_program_crn_list()
-    crn_list = None
+    address = address or settings.ADDRESS_TO_USE or account.get_address()
 
     # Loads default configuration if no chain is set
     if payment_chain is None:
@@ -316,8 +322,11 @@ async def create(
             if not firmware_message:
                 raise typer.Exit(code=1)
 
-    if not crn_list:
-        crn_list = await crn_list_future
+    # Now we need the CRN list data, so await the future
+    if crn_list_future.done():
+        crn_list = crn_list_future.result()
+    else:
+        crn_list = await asyncio.wait_for(crn_list_future, timeout=None)
 
     # Filter and prepare the list of available GPUs
     found_gpu_models: Optional[NetworkGPUS] = None
@@ -422,12 +431,13 @@ async def create(
         async with AlephHttpClient(api_server=settings.API_HOST) as client:
             balance_response = await client.get_balances(address)
         available_amount = balance_response.balance - balance_response.locked_amount
-        available_funds = Decimal(0 if is_stream else available_amount)
+        available_funds = Decimal(available_amount)
         try:
             # Get compute_unit price from PricingPerEntity
-            if is_stream and isinstance(account, ETHAccount):
+            if is_stream and isinstance(account, BaseEthAccount):
                 if account.CHAIN != payment_chain:
                     account.switch_chain(payment_chain)
+
                 if safe_getattr(account, "superfluid_connector"):
                     if isinstance(compute_unit_price, Price) and compute_unit_price.payg:
                         payg_price = Decimal(str(compute_unit_price.payg)) * tier.compute_units
@@ -479,11 +489,6 @@ async def create(
                 raise typer.Exit(1) from e
 
         if crn_url or crn_hash:
-            if not gpu:
-                echo("Fetching compute resource node's list...")
-                if not crn_list:
-                    crn_list = await crn_list_future
-
             crn = crn_list.find_crn(
                 address=crn_url,
                 crn_hash=crn_hash,
@@ -505,8 +510,6 @@ async def create(
                 raise typer.Exit(1)
 
         while not crn_info:
-            if not crn_list:
-                crn_list = await crn_list_future
 
             filtered_crns = crn_list.filter_crn(
                 latest_crn_version=True,
@@ -640,7 +643,7 @@ async def create(
             raise typer.Exit(code=1) from e
 
         try:
-            if is_stream and isinstance(account, ETHAccount):
+            if is_stream and isinstance(account, BaseEthAccount):
                 account.can_start_flow(required_tokens)
             elif available_funds < required_tokens:
                 raise InsufficientFundsError(TokenType.ALEPH, float(required_tokens), float(available_funds))
@@ -691,7 +694,7 @@ async def create(
                 await wait_for_processed_instance(session, item_hash)
 
             # Pay-As-You-Go
-            if is_stream and isinstance(account, ETHAccount):
+            if is_stream and isinstance(account, BaseEthAccount):
                 # Start the flows
                 echo("Starting the flows...")
                 fetched_settings = await fetch_settings()
@@ -834,7 +837,7 @@ async def delete(
 
     setup_logging(debug)
 
-    account = _load_account(private_key, private_key_file, chain=chain)
+    account: AccountTypes = load_account(private_key, private_key_file, chain=chain)
     async with AuthenticatedAlephHttpClient(account=account, api_server=settings.API_HOST) as client:
         try:
             existing_message: InstanceMessage = await client.get_message(
@@ -886,7 +889,12 @@ async def delete(
             echo("No CRN information available for this instance. Skipping VM erasure.")
 
         # Check for streaming payment and eventually stop it
-        if payment and payment.type == PaymentType.superfluid and payment.receiver and isinstance(account, ETHAccount):
+        if (
+            payment
+            and payment.type == PaymentType.superfluid
+            and payment.receiver
+            and isinstance(account, BaseEthAccount)
+        ):
             if account.CHAIN != payment.chain:
                 account.switch_chain(payment.chain)
             if safe_getattr(account, "superfluid_connector") and price:
@@ -946,8 +954,7 @@ async def list_instances(
 
     setup_logging(debug)
 
-    account = _load_account(private_key, private_key_file, chain=chain)
-    address = address or settings.ADDRESS_TO_USE or account.get_address()
+    account, address = get_account_and_address(private_key, private_key_file, address, chain)
 
     async with AlephHttpClient(api_server=settings.API_HOST) as client:
         instances: list[InstanceMessage] = await client.instance.get_instances(address=address)
@@ -983,7 +990,7 @@ async def reboot(
         or Prompt.ask("URL of the CRN (Compute node) on which the VM is running")
     )
 
-    account = _load_account(private_key, private_key_file, chain=chain)
+    account: AccountTypes = load_account(private_key, private_key_file, chain=chain)
 
     async with VmClient(account, domain) as manager:
         status, result = await manager.reboot_instance(vm_id=vm_id)
@@ -1016,7 +1023,7 @@ async def allocate(
         or Prompt.ask("URL of the CRN (Compute node) on which the VM will be allocated")
     )
 
-    account = _load_account(private_key, private_key_file, chain=chain)
+    account: AccountTypes = load_account(private_key, private_key_file, chain=chain)
 
     async with VmClient(account, domain) as manager:
         status, result = await manager.start_instance(vm_id=vm_id)
@@ -1044,7 +1051,7 @@ async def logs(
 
     domain = (domain and sanitize_url(domain)) or await find_crn_of_vm(vm_id) or Prompt.ask(help_strings.PROMPT_CRN_URL)
 
-    account = _load_account(private_key, private_key_file, chain=chain)
+    account: AccountTypes = load_account(private_key, private_key_file, chain=chain)
 
     async with VmClient(account, domain) as manager:
         try:
@@ -1075,7 +1082,7 @@ async def stop(
 
     domain = (domain and sanitize_url(domain)) or await find_crn_of_vm(vm_id) or Prompt.ask(help_strings.PROMPT_CRN_URL)
 
-    account = _load_account(private_key, private_key_file, chain=chain)
+    account: AccountTypes = load_account(private_key, private_key_file, chain=chain)
 
     async with VmClient(account, domain) as manager:
         status, result = await manager.stop_instance(vm_id=vm_id)
@@ -1114,7 +1121,7 @@ async def confidential_init_session(
         or Prompt.ask("URL of the CRN (Compute node) on which the session will be initialized")
     )
 
-    account = _load_account(private_key, private_key_file, chain=chain)
+    account: AccountTypes = load_account(private_key, private_key_file, chain=chain)
 
     sevctl_path = find_sevctl_or_exit()
 
@@ -1191,7 +1198,7 @@ async def confidential_start(
     session_dir.mkdir(exist_ok=True, parents=True)
 
     vm_hash = ItemHash(vm_id)
-    account = _load_account(private_key, private_key_file, chain=chain)
+    account: AccountTypes = load_account(private_key, private_key_file, chain=chain)
     sevctl_path = find_sevctl_or_exit()
 
     domain = (

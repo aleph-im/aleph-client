@@ -7,7 +7,6 @@ from typing import Annotated, Optional
 import typer
 from aiohttp import ClientResponseError
 from aleph.sdk import AlephHttpClient, AuthenticatedAlephHttpClient
-from aleph.sdk.account import _load_account
 from aleph.sdk.conf import settings
 from aleph.sdk.exceptions import MessageNotProcessed, NotAuthorize
 from aleph.sdk.types import InstanceManual, PortFlags, Ports
@@ -21,7 +20,7 @@ from rich.text import Text
 
 from aleph_client.commands import help_strings
 from aleph_client.commands.utils import setup_logging
-from aleph_client.utils import AsyncTyper
+from aleph_client.utils import AccountTypes, AsyncTyper, load_account
 
 logger = logging.getLogger(__name__)
 app = AsyncTyper(no_args_is_help=True)
@@ -42,7 +41,7 @@ async def list_ports(
 
     setup_logging(debug)
 
-    account = _load_account(private_key, private_key_file, chain=chain)
+    account: AccountTypes = load_account(private_key, private_key_file, chain=chain)
     address = address or settings.ADDRESS_TO_USE or account.get_address()
 
     async with AlephHttpClient(api_server=settings.API_HOST) as client:
@@ -160,7 +159,7 @@ async def create(
         typer.echo("Error: Port must be between 1 and 65535")
         raise typer.Exit(code=1)
 
-    account = _load_account(private_key, private_key_file, chain=chain)
+    account: AccountTypes = load_account(private_key, private_key_file, chain)
 
     # Create the port flags
     port_flags = PortFlags(tcp=tcp, udp=udp)
@@ -213,7 +212,7 @@ async def update(
         typer.echo("Error: Port must be between 1 and 65535")
         raise typer.Exit(code=1)
 
-    account = _load_account(private_key, private_key_file, chain=chain)
+    account: AccountTypes = load_account(private_key, private_key_file, chain)
 
     # First check if the port forward exists
     async with AlephHttpClient(api_server=settings.API_HOST) as client:
@@ -293,7 +292,7 @@ async def delete(
         typer.echo("Error: Port must be between 1 and 65535")
         raise typer.Exit(code=1)
 
-    account = _load_account(private_key, private_key_file, chain=chain)
+    account: AccountTypes = load_account(private_key, private_key_file, chain)
 
     # First check if the port forward exists
     async with AlephHttpClient(api_server=settings.API_HOST) as client:
@@ -376,7 +375,7 @@ async def refresh(
 
     setup_logging(debug)
 
-    account = _load_account(private_key, private_key_file, chain=chain)
+    account: AccountTypes = load_account(private_key, private_key_file, chain)
 
     try:
         async with AuthenticatedAlephHttpClient(api_server=settings.API_HOST, account=account) as client:

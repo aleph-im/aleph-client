@@ -6,7 +6,6 @@ from time import sleep
 from typing import Annotated, Optional, cast
 
 import typer
-from aleph.sdk.account import _load_account
 from aleph.sdk.client import AlephHttpClient, AuthenticatedAlephHttpClient
 from aleph.sdk.conf import settings
 from aleph.sdk.domain import (
@@ -18,8 +17,7 @@ from aleph.sdk.domain import (
 )
 from aleph.sdk.exceptions import DomainConfigurationError
 from aleph.sdk.query.filters import MessageFilter
-from aleph.sdk.types import AccountFromPrivateKey
-from aleph_message.models import AggregateMessage
+from aleph_message.models import AggregateMessage, Chain
 from aleph_message.models.base import MessageType
 from rich.console import Console
 from rich.prompt import Confirm, Prompt
@@ -27,7 +25,7 @@ from rich.table import Table
 
 from aleph_client.commands import help_strings
 from aleph_client.commands.utils import is_environment_interactive
-from aleph_client.utils import AsyncTyper
+from aleph_client.utils import AccountTypes, AsyncTyper, load_account
 
 logger = logging.getLogger(__name__)
 
@@ -65,7 +63,7 @@ async def check_domain_records(fqdn, target, owner):
 
 
 async def attach_resource(
-    account: AccountFromPrivateKey,
+    account,
     fqdn: Hostname,
     item_hash: Optional[str] = None,
     catch_all_path: Optional[str] = None,
@@ -137,7 +135,7 @@ async def attach_resource(
             )
 
 
-async def detach_resource(account: AccountFromPrivateKey, fqdn: Hostname, interactive: Optional[bool] = None):
+async def detach_resource(account: AccountTypes, fqdn: Hostname, interactive: Optional[bool] = None):
     domain_info = await get_aggregate_domain_info(account, fqdn)
     interactive = is_environment_interactive() if interactive is None else interactive
 
@@ -185,9 +183,10 @@ async def add(
     private_key_file: Annotated[
         Optional[Path], typer.Option(help=help_strings.PRIVATE_KEY_FILE)
     ] = settings.PRIVATE_KEY_FILE,
+    chain: Annotated[Optional[Chain], typer.Option(help=help_strings.ADDRESS_CHAIN)] = None,
 ):
     """Add and link a Custom Domain."""
-    account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
+    account: AccountTypes = load_account(private_key_str=private_key, private_key_file=private_key_file, chain=chain)
     interactive = False if (not ask) else is_environment_interactive()
 
     console = Console()
@@ -270,9 +269,10 @@ async def attach(
     private_key_file: Annotated[
         Optional[Path], typer.Option(help=help_strings.PRIVATE_KEY_FILE)
     ] = settings.PRIVATE_KEY_FILE,
+    chain: Annotated[Optional[Chain], typer.Option(help=help_strings.ADDRESS_CHAIN)] = None,
 ):
     """Attach resource to a Custom Domain."""
-    account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
+    account: AccountTypes = load_account(private_key_str=private_key, private_key_file=private_key_file, chain=chain)
 
     await attach_resource(
         account,
@@ -292,9 +292,10 @@ async def detach(
     private_key_file: Annotated[
         Optional[Path], typer.Option(help=help_strings.PRIVATE_KEY_FILE)
     ] = settings.PRIVATE_KEY_FILE,
+    chain: Annotated[Optional[Chain], typer.Option(help=help_strings.ADDRESS_CHAIN)] = None,
 ):
     """Unlink Custom Domain."""
-    account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
+    account: AccountTypes = load_account(private_key_str=private_key, private_key_file=private_key_file, chain=chain)
 
     await detach_resource(account, Hostname(fqdn), interactive=False if (not ask) else None)
     raise typer.Exit()
@@ -307,9 +308,10 @@ async def info(
     private_key_file: Annotated[
         Optional[Path], typer.Option(help=help_strings.PRIVATE_KEY_FILE)
     ] = settings.PRIVATE_KEY_FILE,
+    chain: Annotated[Optional[Chain], typer.Option(help=help_strings.ADDRESS_CHAIN)] = None,
 ):
     """Show Custom Domain Details."""
-    account: AccountFromPrivateKey = _load_account(private_key, private_key_file)
+    account: AccountTypes = load_account(private_key_str=private_key, private_key_file=private_key_file, chain=chain)
 
     console = Console()
     domain_validator = DomainValidator()
