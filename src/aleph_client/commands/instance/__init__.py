@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import asyncio
-import json
+import json as json_lib
 import logging
 import shutil
 from decimal import Decimal
@@ -971,7 +971,25 @@ async def list_instances(
             raise typer.Exit(code=1)
 
         execution = await client.instance.get_instance_executions_info(allocations)
-        await show_instances(messages=instances, allocations=allocations, executions=execution)
+
+        if not json:
+            await show_instances(messages=instances, allocations=allocations, executions=execution)
+        else:
+            # Create a single JSON array with one object per instance, combining all related data
+            instances_data = []
+            for message in instances:
+                allocation = allocations.root.get(message.item_hash, None)
+                execution_info = execution.root.get(message.item_hash, None)
+
+                instance_entry = {
+                    "instance": message.model_dump(),
+                    "allocation": allocation.model_dump() if allocation else None,
+                    "execution": execution_info.model_dump() if execution_info else None,
+                }
+                instances_data.append(instance_entry)
+
+            console = Console()
+            console.print(json_lib.dumps(instances_data, indent=2, default=str))
 
 
 @app.command()
@@ -1063,7 +1081,7 @@ async def logs(
     async with VmClient(account, domain) as manager:
         try:
             async for log in manager.get_logs(vm_id=vm_id):
-                log_data = json.loads(log)
+                log_data = json_lib.loads(log)
                 if "message" in log_data:
                     echo(log_data["message"])
         except aiohttp.ClientConnectorError as e:
