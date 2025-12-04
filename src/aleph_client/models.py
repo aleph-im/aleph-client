@@ -2,6 +2,7 @@ from datetime import datetime
 from typing import Any, Optional
 
 from aiohttp import InvalidURL
+from aleph.sdk.client.services.crn import SystemUsage
 from aleph.sdk.types import StoredContent
 from aleph_message.models import ItemHash
 from aleph_message.models.execution.environment import CpuProperties, GpuDeviceClass
@@ -68,19 +69,9 @@ class GPUProperties(BaseModel):
     available_devices: list[GpuDevice]
 
 
-class MachineUsage(BaseModel):
-    cpu: CpuUsage
-    mem: MemoryUsage
-    disk: DiskUsage
-    period: UsagePeriod
-    properties: MachineProperties
-    gpu: Optional[GPUProperties]
-    active: bool = True
-
-
 class MachineInfo(BaseModel):
     hash: str
-    machine_usage: MachineUsage
+    system_usage: Optional[SystemUsage]
     score: float
     name: str
     version: Optional[str]
@@ -90,13 +81,13 @@ class MachineInfo(BaseModel):
     @classmethod
     def from_unsanitized_input(
         cls,
-        machine_usage: MachineUsage,
         score: float,
         name: str,
         version: Optional[str],
         reward_address: str,
         url: str,
         hash: str,
+        system_usage: Optional[SystemUsage] = None,
     ) -> "MachineInfo":
         """Create a MachineInfo instance from unsanitized input.
 
@@ -104,12 +95,13 @@ class MachineInfo(BaseModel):
         This method ensures that the input is sanitized before creating a MachineInfo object.
 
         Args:
-            machine_usage: MachineUsage object from the CRN API.
             score: Score of the CRN.
             name: Name of the CRN.
             version: Version of the CRN.
             reward_address: Reward address of the CRN.
             url: URL of the CRN.
+            hash: Hash of the CRN.
+            system_usage: MachineUsage object from the CRN API.
         """
         node_name: str = _remove_ansi_escape(_escape_and_normalize(name))
 
@@ -118,7 +110,7 @@ class MachineInfo(BaseModel):
         version = _remove_ansi_escape(_escape_and_normalize(raw_version)) if raw_version else None
 
         return cls(
-            machine_usage=MachineUsage.model_validate(machine_usage),
+            system_usage=system_usage,
             score=score,
             name=node_name,
             version=version,
@@ -139,7 +131,7 @@ class CRNInfo(BaseModel):
     score: float
     reward_address: str
     stream_reward_address: str
-    machine_usage: Optional[MachineUsage]
+    system_usage: Optional[SystemUsage]
     ipv6: bool
     qemu_support: bool
     confidential_computing: bool
@@ -154,7 +146,7 @@ class CRNInfo(BaseModel):
         payment_receiver_address = crn.get("payment_receiver_address")
         stream_reward_address = extract_valid_eth_address(payment_receiver_address) if payment_receiver_address else ""
         system_usage = crn.get("system_usage")
-        machine_usage = MachineUsage.model_validate(system_usage) if system_usage else None
+        system_usage = SystemUsage.model_validate(system_usage) if system_usage else None
         ipv6_check = crn.get("ipv6_check")
         ipv6 = bool(ipv6_check and all(ipv6_check.values()))
         try:
@@ -172,7 +164,7 @@ class CRNInfo(BaseModel):
             score=crn["score"],
             reward_address=crn["reward"],
             stream_reward_address=stream_reward_address,
-            machine_usage=machine_usage,
+            system_usage=system_usage,
             ipv6=ipv6,
             qemu_support=bool(crn["qemu_support"]),
             confidential_computing=bool(crn["confidential_support"]),
@@ -183,25 +175,25 @@ class CRNInfo(BaseModel):
 
     @property
     def display_cpu(self) -> str:
-        if self.machine_usage:
-            return f"{self.machine_usage.cpu.count:>3}"
+        if self.system_usage:
+            return f"{self.system_usage.cpu.count:>3}"
         return ""
 
     @property
     def display_ram(self) -> str:
-        if self.machine_usage:
+        if self.system_usage:
             return (
-                f"{self.machine_usage.mem.available_kB / 1_000_000:>3.0f} / "
-                f"{self.machine_usage.mem.total_kB / 1_000_000:>3.0f} GB"
+                f"{self.system_usage.mem.available_kB / 1_000_000:>3.0f} / "
+                f"{self.system_usage.mem.total_kB / 1_000_000:>3.0f} GB"
             )
         return ""
 
     @property
     def display_hdd(self) -> str:
-        if self.machine_usage:
+        if self.system_usage:
             return (
-                f"{self.machine_usage.disk.available_kB / 1_000_000:>4.0f} / "
-                f"{self.machine_usage.disk.total_kB / 1_000_000:>4.0f} GB"
+                f"{self.system_usage.disk.available_kB / 1_000_000:>4.0f} / "
+                f"{self.system_usage.disk.total_kB / 1_000_000:>4.0f} GB"
             )
         return ""
 
@@ -247,7 +239,7 @@ class CRNInfo(BaseModel):
                     "Available RAM": self.display_ram,
                     "Available Disk": self.display_hdd,
                 }
-                if isinstance(self.machine_usage, MachineUsage)
+                if isinstance(self.system_usage, SystemUsage)
                 else {}
             ),
             "Support Qemu": self.qemu_support,
