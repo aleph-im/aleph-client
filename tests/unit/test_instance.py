@@ -10,7 +10,7 @@ import aiohttp
 import pytest
 import typer
 from aiohttp import InvalidURL
-from aleph.sdk.client.services.crn import CrnList
+from aleph.sdk.client.services.crn import CrnList, SystemUsage
 from aleph.sdk.exceptions import InsufficientFundsError
 from aleph.sdk.types import TokenType
 from aleph_message.models import Chain
@@ -45,7 +45,6 @@ from aleph_client.models import (
     LoadAverage,
     MachineInfo,
     MachineProperties,
-    MachineUsage,
     MemoryUsage,
     UsagePeriod,
 )
@@ -93,7 +92,7 @@ def dummy_machine_info() -> MachineInfo:
         version="123.420.69",
         score=0.5,
         reward_address=FAKE_ADDRESS_EVM,
-        machine_usage=MachineUsage(
+        system_usage=SystemUsage(
             cpu=CpuUsage(
                 count=8,
                 load_average=LoadAverage(load1=0.5, load5=0.4, load15=0.3),
@@ -140,7 +139,7 @@ async def test_fetch_crn_info(mock_crn_list):
     node_url = "https://test.basic.crn.com"
     info = await fetch_crn_info(mock_crn_list, node_url)
     assert info
-    assert hasattr(info, "machine_usage")
+    assert hasattr(info, "system_usage")
 
     node_url = "https://test.gpu.crn.com"
     info = await fetch_crn_info(mock_crn_list, node_url)
