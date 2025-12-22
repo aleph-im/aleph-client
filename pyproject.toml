@@ -26,8 +26,8 @@ classifiers = [
 
 dynamic = [ "version" ]
 dependencies = [
-  "aiodns==3.2",
-  "aiohttp==3.11.13",
+  "aiodns==3.1.1",
+  "aiohttp==3.11.15",
   "aleph-message>=1.0.5",
   "aleph-sdk-python>=2.2",
   "base58==2.1.1",               # Needed now as default with _load_account changement
