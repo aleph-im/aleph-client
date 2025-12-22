@@ -7,7 +7,12 @@ from aleph.sdk.types import CrnExecutionV1, CrnExecutionV2, InstanceManual
 from aleph_message.models.execution.base import PaymentType
 from rich.text import Text
 
-from aleph_client.commands.instance.display import display_vm_status
+from aleph_client.commands.instance.display import (
+    CRNTable,
+    InstanceTableBuilder,
+    display_vm_status,
+)
+from aleph_client.models import CRNInfo
 
 
 def test_display_vm_status():
@@ -73,7 +78,7 @@ async def test_mock_crn_table():
         mock_crn_table.return_value = mock_instance
 
         _ = mock_crn_table(
-            only_latest_crn_version=True,
+            crn_version="1.51",
             only_reward_address=True,
             only_qemu=True,
             only_confidentials=True,
@@ -83,7 +88,7 @@ async def test_mock_crn_table():
 
         # Check that the constructor was called with the expected arguments
         mock_crn_table.assert_called_once_with(
-            only_latest_crn_version=True,
+            crn_version="1.51",
             only_reward_address=True,
             only_qemu=True,
             only_confidentials=True,
@@ -341,7 +346,6 @@ async def test_instance_table_builder():
 @pytest.mark.asyncio
 async def test_instance_table_builder_with_unallocated():
     """Test the InstanceTableBuilder class with unallocated instances."""
-    from aleph_client.commands.instance.display import InstanceTableBuilder
 
     mock_messages = [MagicMock()]
     mock_messages[0].item_hash = "vm_hash_0"
@@ -368,6 +372,101 @@ async def test_instance_table_builder_with_unallocated():
     builder.display_summary_panel()
 
     mock_console.print.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_crn_table_initialization():
+    """Test the CRNTable class initialization with different parameters."""
+
+    # Create mock CRN list
+    mock_crn = MagicMock()
+    mock_crn_list = [mock_crn]
+
+    # Test with different initialization parameters
+    crn_table = CRNTable(
+        crn_list=mock_crn_list,
+        crn_version="1.5.1",
+        only_reward_address=True,
+        only_qemu=True,
+        only_confidentials=True,
+        only_gpu=True,
+        only_gpu_model="RTX 4090",
+    )
+
+    # Verify the initialization attributes
+    assert crn_table.crn_list == mock_crn_list
+    assert crn_table.crn_version == "1.5.1"
+    assert crn_table.only_reward_address is True
+    assert crn_table.only_qemu is True
+    assert crn_table.only_confidentials is True
+    assert crn_table.only_gpu is True
+    assert crn_table.only_gpu_model == "RTX 4090"
+
+
+@pytest.mark.asyncio
+async def test_crn_table_gpu_filtering(mock_crn_list):
+    """Test the CRNTable GPU filtering logic from add_crn_info method."""
+
+    # Create a CRNInfo object from the mock_crn_list's GPU CRN (first item)
+    gpu_crn_info = CRNInfo.from_unsanitized_input(mock_crn_list[0])
+
+    # Get the GPU model from the mock data
+    gpu_model = gpu_crn_info.compatible_available_gpus[0]["model"]
+
+    # Create CRNTable instances with mocked table attribute
+    crn_table_matching = CRNTable(
+        crn_list=[],
+        only_gpu=True,
+        only_gpu_model=gpu_model,  # Matches the CRN's GPU model
+    )
+    crn_table_matching.table = MagicMock()
+
+    crn_table_non_matching = CRNTable(
+        crn_list=[],
+        only_gpu=True,
+        only_gpu_model="NonExistentModel",  # Different model
+    )
+    crn_table_non_matching.table = MagicMock()
+
+    # For matching GPU model
+    await crn_table_matching.add_crn_info(gpu_crn_info, 0)
+
+    # For non-matching GPU model
+    await crn_table_non_matching.add_crn_info(gpu_crn_info, 0)
+
+    # Assert filter results
+    assert crn_table_matching.filtered_crns == 1  # Filter passes
+    assert crn_table_non_matching.filtered_crns == 0  # Filter doesn't pass
+    # Verify table.add_row was called for the matching table
+    crn_table_matching.table.add_row.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_crn_table_no_system_usage_handling(mock_crn_list):
+    """Test that CRNTable correctly handles CRNs with no system_usage data."""
+
+    # Create a CRNInfo object from the mock_crn_list
+    crn_data = mock_crn_list[2].copy()
+    crn_data["system_usage"] = None
+    basic_crn_info = CRNInfo.from_unsanitized_input(crn_data)
+
+    # Verify system_usage is None
+    assert basic_crn_info.system_usage is None
+
+    # Create CRNTable instance and mock the table
+    crn_table = CRNTable(
+        crn_list=[],
+    )
+    crn_table.table = MagicMock()
+
+    # Add CRN without system_usage
+    await crn_table.add_crn_info(basic_crn_info, 0)
+
+    # Verify it was processed correctly
+    assert crn_table.active_crns == 1
+    assert crn_table.filtered_crns == 1
+    # Verify the table.add_row was called
+    crn_table.table.add_row.assert_called_once()
 
 
 @pytest.mark.asyncio
