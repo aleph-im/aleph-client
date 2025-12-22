@@ -1,4 +1,3 @@
-from datetime import datetime
 from typing import Any, Optional
 
 from aiohttp import InvalidURL
@@ -16,38 +15,6 @@ from typer import echo
 from aleph_client.commands.files import download
 from aleph_client.commands.node import _escape_and_normalize, _remove_ansi_escape
 from aleph_client.utils import extract_valid_eth_address, sanitize_url
-
-
-class LoadAverage(BaseModel):
-    load1: float
-    load5: float
-    load15: float
-
-
-class CoreFrequencies(BaseModel):
-    min: float
-    max: float
-
-
-class CpuUsage(BaseModel):
-    count: int
-    load_average: LoadAverage
-    core_frequencies: CoreFrequencies
-
-
-class MemoryUsage(BaseModel):
-    total_kB: int
-    available_kB: int
-
-
-class DiskUsage(BaseModel):
-    total_kB: int
-    available_kB: int
-
-
-class UsagePeriod(BaseModel):
-    start_timestamp: datetime
-    duration_seconds: float
 
 
 class MachineProperties(BaseModel):
