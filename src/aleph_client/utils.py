@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import inspect
 import logging
 import os
@@ -16,7 +17,6 @@ from typing import Optional, Union
 from urllib.parse import ParseResult, urlparse
 from zipfile import BadZipFile, ZipFile
 
-import asyncio
 import aiohttp
 import hid
 import typer
@@ -101,6 +101,7 @@ class AsyncTyper(typer.Typer):
                 # This is needed because aiodns requires SelectorEventLoop
                 if sys.platform == "win32":
                     from asyncio import windows_events
+
                     asyncio.set_event_loop_policy(windows_events.WindowsSelectorEventLoopPolicy())
                 return asyncio.run(f(*args, **kwargs))
 
