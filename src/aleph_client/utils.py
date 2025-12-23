@@ -97,6 +97,12 @@ class AsyncTyper(typer.Typer):
 
             @wraps(f)
             def runner(*args, **kwargs):
+                # Fix for Windows: use SelectorEventLoop instead of ProactorEventLoop
+                # This is needed because aiodns requires SelectorEventLoop
+                if sys.platform == "win32":
+                    from asyncio import windows_events
+
+                    asyncio.set_event_loop_policy(windows_events.WindowsSelectorEventLoopPolicy())
                 return asyncio.run(f(*args, **kwargs))
 
             decorator(runner)
