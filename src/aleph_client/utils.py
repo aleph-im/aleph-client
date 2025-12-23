@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+import asyncio.windows_events
 import inspect
 import logging
 import os
@@ -99,8 +101,6 @@ class AsyncTyper(typer.Typer):
                 # Fix for Windows: use SelectorEventLoop instead of ProactorEventLoop
                 # This is needed because aiodns requires SelectorEventLoop
                 if sys.platform == "win32":
-                    import asyncio.windows_events
-
                     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
                 return asyncio.run(f(*args, **kwargs))
 
