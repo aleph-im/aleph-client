@@ -126,7 +126,14 @@ async def create(
     vcpus: Annotated[Optional[int], typer.Option(help=help_strings.VCPUS)] = None,
     memory: Annotated[Optional[int], typer.Option(help=help_strings.MEMORY)] = None,
     rootfs_size: Annotated[
-        Optional[int], typer.Option(help=help_strings.ROOTFS_SIZE, max=max_persistent_volume_size)
+        Optional[int],
+        typer.Option(
+            "--disk-size",
+            "--rootfs-size",
+            help=help_strings.ROOTFS_SIZE,
+            max=max_persistent_volume_size,
+            show_default=False,
+        ),
     ] = None,
     timeout_seconds: Annotated[float, typer.Option(help=help_strings.TIMEOUT_SECONDS)] = settings.DEFAULT_VM_TIMEOUT,
     ssh_pubkey_file: Annotated[Path, typer.Option(help=help_strings.SSH_PUBKEY_FILE)] = Path(
@@ -518,7 +525,6 @@ async def create(
                 raise typer.Exit(1)
 
         while not crn_info:
-
             filtered_crns = crn_list.filter_crn(
                 crn_version=fetched_settings.last_crn_version,
                 ipv6=True,

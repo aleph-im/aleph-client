@@ -23,9 +23,9 @@ ROOTFS = (
     "Hash of the rootfs to use for your instance. Defaults to Ubuntu 22. You can also create your own rootfs and pin it"
 )
 COMPUTE_UNITS = "Number of compute units to allocate. Compute units correspond to a tier that includes vcpus, memory, disk and gpu presets. For reference, run: `aleph pricing --help`"
-ROOTFS_SIZE = "Rootfs size in MiB to allocate. Set to 0 to use default tier value and to not get prompted"
-VCPUS = "Number of virtual CPUs to allocate"
-MEMORY = "Maximum memory (RAM) in MiB to allocate"
+ROOTFS_SIZE = "Main VM partition size in MiB to allocate. Set to 0 to use default tier value and to not get prompted (overrides Compute Unit)"
+VCPUS = "Number of virtual CPUs to allocate (overrides Compute Unit)"
+MEMORY = "Maximum memory (RAM) in MiB to allocate (overrides Compute Unit)"
 TIMEOUT_SECONDS = "If vm is not called after [timeout_seconds] it will shutdown"
 SSH_PUBKEY_FILE = "Path to a public ssh key to be added to the instance"
 CRN_HASH = "Hash of the CRN to deploy to (only applicable for confidential and/or Pay-As-You-Go instances)"
