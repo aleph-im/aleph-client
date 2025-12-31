@@ -252,7 +252,8 @@ async def upload(
             typer.echo(f"Failed to estimate program cost, error: {e}")
             raise typer.Exit(code=1) from e
 
-        available_funds = Decimal((await client.get_balances(address))["available_amount"])
+        balance_response = await client.get_balances(address)
+        available_funds = balance_response.balance - balance_response.locked_amount
         try:
             if available_funds < required_tokens:
                 raise InsufficientFundsError(TokenType.ALEPH, float(required_tokens), float(available_funds))

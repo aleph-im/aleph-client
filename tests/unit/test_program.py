@@ -3,6 +3,7 @@ from __future__ import annotations
 import contextlib
 import random
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import aiohttp
@@ -162,8 +163,10 @@ async def test_upload_program(mock_pricing_info_response, mock_crn_list_obj, moc
     mock_load_account = create_mock_load_account()
     mock_account = mock_load_account.return_value
     mock_auth_client_class, mock_auth_client = create_mock_auth_client(mock_account)
-    # Update: Using get_balances which returns a dict with available_amount instead of get_balance
-    mock_auth_client.get_balances = AsyncMock(return_value={"available_amount": 100000})
+    # Update: Using a mocked get_balances
+    mock_auth_client.get_balances = AsyncMock(
+        return_value=SimpleNamespace(balance=100000, locked_amount=0, credit_balance=0)
+    )
 
     # Import the create_mock_client function from test_instance
     from .test_instance import create_mock_client
