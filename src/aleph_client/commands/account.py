@@ -406,13 +406,15 @@ async def list_accounts(
 
     table = Table(title="\n🔑  Found Private Keys 🔑", title_justify="left", show_lines=True)
     table.add_column("Name", style="cyan", no_wrap=True)
+    table.add_column("Address", style="cyan", no_wrap=True)
     table.add_column("Path", style="green")
     table.add_column("Active", no_wrap=True)
 
     active_chain = None
     if config and config.path and config.path != Path("None"):
         active_chain = config.chain
-        table.add_row(config.path.stem, str(config.path), "[bold green]*[/bold green]")
+        acc_address = load_account(None, config.path, chain=active_chain).get_address()
+        table.add_row(config.path.stem, str(acc_address), str(config.path), "[bold green]*[/bold green]")
     elif config and config.address and config.type == AccountType.HARDWARE:
         active_chain = config.chain
 
@@ -436,7 +438,8 @@ async def list_accounts(
     if unlinked_keys:
         for key_file in unlinked_keys:
             if key_file.stem != "default":
-                table.add_row(key_file.stem, str(key_file), "[bold red]-[/bold red]")
+                acc_address = load_account(None, key_file, chain=active_chain).get_address()
+                table.add_row(key_file.stem, str(acc_address), str(key_file), "[bold red]-[/bold red]")
 
     active_ledger_address = None
     if config and config.type == AccountType.HARDWARE and config.address:
