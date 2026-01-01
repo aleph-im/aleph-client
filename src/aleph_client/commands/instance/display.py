@@ -291,9 +291,9 @@ class InstanceDisplay:
             aleph_price = Text(f"{displayable_amount(required_tokens, decimals=3)} (fixed)", style="magenta3")
         else:
             psec = f"{displayable_amount(required_tokens, decimals=8)}/sec"
-            phour = f"{displayable_amount(3600*required_tokens, decimals=3)}/hour"
-            pday = f"{displayable_amount(86400*required_tokens, decimals=3)}/day"
-            pmonth = f"{displayable_amount(2628000*required_tokens, decimals=3)}/month"
+            phour = f"{displayable_amount(3600 * required_tokens, decimals=3)}/hour"
+            pday = f"{displayable_amount(86400 * required_tokens, decimals=3)}/day"
+            pmonth = f"{displayable_amount(2628000 * required_tokens, decimals=3)}/month"
             aleph_price = Text.assemble(psec, " | ", phour, " | ", pday, " | ", pmonth, style="magenta3")
 
         cost_str = "\n$ALEPH: " if not self.is_credit else "\nCredits: "
@@ -551,7 +551,6 @@ class CRNTable(App[tuple[CRNInfo, int]]):
     table: DataTable
     tasks: set[asyncio.Task] = set()
     crns: dict[RowKey, tuple[CRNInfo, int]] = {}
-    current_crn_version: str
     total_crns: int
     active_crns: int = 0
     filtered_crns: int = 0
@@ -583,7 +582,7 @@ class CRNTable(App[tuple[CRNInfo, int]]):
     def __init__(
         self,
         crn_list: list[CRN],
-        only_latest_crn_version: bool = False,
+        crn_version: Optional[str] = None,
         only_reward_address: bool = False,
         only_qemu: bool = False,
         only_confidentials: bool = False,
@@ -591,7 +590,7 @@ class CRNTable(App[tuple[CRNInfo, int]]):
         only_gpu_model: Optional[str] = None,
     ):
         super().__init__()
-        self.only_latest_crn_version = only_latest_crn_version
+        self.crn_version = crn_version
         self.only_reward_address = only_reward_address
         self.only_qemu = only_qemu
         self.only_confidentials = only_confidentials
@@ -629,12 +628,11 @@ class CRNTable(App[tuple[CRNInfo, int]]):
 
     async def on_mount(self):
         self.table.styles.height = "95%"
-        task = asyncio.create_task(self.fetch_node_list())
+        task = asyncio.create_task(self.build_node_list())
         self.tasks.add(task)
         task.add_done_callback(self.tasks.discard)
 
-    async def fetch_node_list(self):
-
+    async def build_node_list(self):
         crn_info = await build_crn_info(self.crn_list)
 
         self.crns = (
@@ -646,10 +644,6 @@ class CRNTable(App[tuple[CRNInfo, int]]):
                 for gpu_id in range(len(crn.compatible_available_gpus))
             }
         )
-        # self.current_crn_version = await fetch_latest_crn_version()
-        # Relax current filter to allow use aleph-vm versions since 1.5.1.
-        # TODO: Allow to specify that option on settings aggregate on maybe on GitHub
-        self.current_crn_version = "1.5.1"
 
         # Initialize the progress bar
         self.total_crns = len(self.crns)
@@ -668,42 +662,19 @@ class CRNTable(App[tuple[CRNInfo, int]]):
 
     async def add_crn_info(self, crn: CRNInfo, gpu_id: int):
         self.active_crns += 1
-        # Skip CRNs with legacy version
-        if self.only_latest_crn_version and (crn.version or "0.0.0") < self.current_crn_version:
-            logger.debug(f"Skipping CRN {crn.hash}, legacy version")
-            return
-        # Skip CRNs without machine usage
-        if not crn.machine_usage:
-            logger.debug(f"Skipping CRN {crn.hash}, no machine usage")
-            return
-        # Skip CRNs without ipv6 connectivity
-        if not crn.ipv6:
-            logger.debug(f"Skipping CRN {crn.hash}, no ipv6 connectivity")
-            return
-        # Skip CRNs without reward address if only_reward_address is set
-        if self.only_reward_address and not crn.stream_reward_address:
-            logger.debug(f"Skipping CRN {crn.hash}, no reward address")
-            return
-        # Skip non-qemu CRNs if only_qemu is set
-        if self.only_qemu and not crn.qemu_support:
-            logger.debug(f"Skipping CRN {crn.hash}, no qemu support")
-            return
-        # Skip non-confidential CRNs if only_confidentials is set
-        if self.only_confidentials and not crn.confidential_computing:
-            logger.debug(f"Skipping CRN {crn.hash}, no confidential support")
-            return
-        # Skip non-gpu CRNs if only-gpu is set
-        if self.only_gpu and not (crn.gpu_support and crn.compatible_available_gpus):
-            logger.debug(f"Skipping CRN {crn.hash}, no GPU support or without GPU available")
-            return
-        # Skip CRNs without compatible GPU if only-gpu-model is set
-        elif (
+        if (
             self.only_gpu
             and self.only_gpu_model
+            and crn.compatible_available_gpus  # This check added to prevent errors
+            and gpu_id < len(crn.compatible_available_gpus)  # This check added to prevent index errors
             and self.only_gpu_model != crn.compatible_available_gpus[gpu_id]["model"]
         ):
             logger.debug(f"Skipping CRN {crn.hash}, no {self.only_gpu_model} GPU support")
             return
+
+        if not crn.system_usage:
+            logger.debug(f"CRN {crn.hash} has no system usage data, but keeping for display")
+
         self.filtered_crns += 1
 
         # Fetch terms and conditions

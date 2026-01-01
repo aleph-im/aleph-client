@@ -35,6 +35,7 @@ from aleph.sdk.types import (
     Ports,
     StorageEnum,
     TokenType,
+    VmResources,
 )
 from aleph.sdk.utils import (
     calculate_firmware_hash,
@@ -517,18 +518,27 @@ async def create(
                 echo(f"* Provided CRN *\nUrl: {crn_url}\nHash: {crn_hash}\n\nProvided CRN not found")
                 raise typer.Exit(1)
 
-        while not crn_info:
+        # Get Total Size of vm
+        total_size = disk_size
+        if volumes:
+            for volume in volumes:
+                # Add size of persistent and ephemeral volumes
+                if "size_mib" in volume:
+                    total_size += volume["size_mib"]
 
+        vm_requirement = VmResources(vcpus=vcpus, memory=memory, disk_mib=total_size)
+        while not crn_info:
             filtered_crns = crn_list.filter_crn(
                 crn_version=fetched_settings.last_crn_version,
                 ipv6=True,
                 stream_address=is_stream,
                 gpu=gpu,
                 confidential=confidential,
+                vm_resources=vm_requirement,
             )
             crn_table = CRNTable(
                 crn_list=filtered_crns,
-                only_latest_crn_version=True,
+                crn_version=fetched_settings.last_crn_version,
                 only_reward_address=is_stream,
                 only_qemu=True,
                 only_confidentials=confidential,
