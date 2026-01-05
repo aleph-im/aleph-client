@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import asyncio
 import random
-from datetime import datetime, timezone
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -15,11 +14,7 @@ from aleph.sdk.exceptions import InsufficientFundsError
 from aleph.sdk.types import TokenType
 from aleph_message.models import Chain
 from aleph_message.models.execution.base import Payment, PaymentType
-from aleph_message.models.execution.environment import (
-    CpuProperties,
-    GpuDeviceClass,
-    HypervisorType,
-)
+from aleph_message.models.execution.environment import GpuDeviceClass, HypervisorType
 from multidict import CIMultiDict, CIMultiDictProxy
 
 from aleph_client.commands.instance import (
@@ -36,19 +31,7 @@ from aleph_client.commands.instance import (
     stop,
 )
 from aleph_client.commands.instance.network import fetch_crn_info
-from aleph_client.models import (
-    CoreFrequencies,
-    CpuUsage,
-    DiskUsage,
-    GpuDevice,
-    GPUProperties,
-    LoadAverage,
-    MachineInfo,
-    MachineProperties,
-    MachineUsage,
-    MemoryUsage,
-    UsagePeriod,
-)
+from aleph_client.models import GpuDevice
 from aleph_client.utils import FORBIDDEN_HOSTS, sanitize_url
 
 from .mocks import (
@@ -82,49 +65,6 @@ def dummy_gpu_device() -> GpuDevice:
     )
 
 
-def dummy_machine_info() -> MachineInfo:
-    """Create a dummy MachineInfo object for testing purposes."""
-
-    gpu_devices = [dummy_gpu_device()]
-    return MachineInfo(
-        hash=FAKE_CRN_BASIC_HASH,
-        name="Mock CRN",
-        url=FAKE_CRN_BASIC_URL,
-        version="123.420.69",
-        score=0.5,
-        reward_address=FAKE_ADDRESS_EVM,
-        machine_usage=MachineUsage(
-            cpu=CpuUsage(
-                count=8,
-                load_average=LoadAverage(load1=0.5, load5=0.4, load15=0.3),
-                core_frequencies=CoreFrequencies(min=1.0, max=2.0),
-            ),
-            mem=MemoryUsage(
-                total_kB=32_000_000,
-                available_kB=28_000_000,
-            ),
-            disk=DiskUsage(
-                total_kB=1_000_000_000,
-                available_kB=500_000_000,
-            ),
-            period=UsagePeriod(
-                start_timestamp=datetime.now(tz=timezone.utc),
-                duration_seconds=60,
-            ),
-            properties=MachineProperties(
-                cpu=CpuProperties(
-                    architecture="x86_64",
-                    vendor="AuthenticAMD",
-                ),
-            ),
-            gpu=GPUProperties(
-                devices=gpu_devices,
-                available_devices=gpu_devices,
-            ),
-        ),
-    )
-
-
 def dict_to_ci_multi_dict_proxy(d: dict) -> CIMultiDictProxy:
     """Return a read-only proxy to a case-insensitive multi-dict created from a dict."""
     return CIMultiDictProxy(CIMultiDict(d))
@@ -140,7 +80,7 @@ async def test_fetch_crn_info(mock_crn_list):
     node_url = "https://test.basic.crn.com"
     info = await fetch_crn_info(mock_crn_list, node_url)
     assert info
-    assert hasattr(info, "machine_usage")
+    assert hasattr(info, "system_usage")
 
     node_url = "https://test.gpu.crn.com"
     info = await fetch_crn_info(mock_crn_list, node_url)
