@@ -349,7 +349,7 @@ async def create(
         # Await the future to get the actual crn_list before first use
 
         filtered_crns = crn_list.filter_crn(
-            crn_version=fetched_settings.last_crn_version, ipv6=True, stream_address=True, gpu=True
+            crn_version=fetched_settings.last_crn_version, ipv6=False, stream_address=True, gpu=True
         )
         found_gpu_models = crn_list.find_gpu_on_network()
         if not found_gpu_models or not found_gpu_models.total_gpu_count:
@@ -536,7 +536,7 @@ async def create(
         while not crn_info:
             filtered_crns = crn_list.filter_crn(
                 crn_version=fetched_settings.last_crn_version,
-                ipv6=True,
+                ipv6=False,
                 stream_address=is_stream,
                 gpu=gpu,
                 confidential=confidential,
