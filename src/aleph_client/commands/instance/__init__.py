@@ -128,7 +128,6 @@ async def create(
     rootfs_size: Annotated[
         Optional[int],
         typer.Option(
-            "--disk-size",
             "--rootfs-size",
             help=help_strings.ROOTFS_SIZE,
             max=max_persistent_volume_size,
