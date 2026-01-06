@@ -2,12 +2,13 @@ from __future__ import annotations
 
 import json as json_lib
 import logging
+import time
 from datetime import datetime
 from decimal import Decimal
 from hashlib import sha256
 from pathlib import Path
-import time
 from typing import Annotated, Optional
+from urllib.parse import urlparse
 
 import aiohttp
 import typer
@@ -17,14 +18,12 @@ from aleph.sdk.conf import settings
 from aleph.sdk.exceptions import InsufficientFundsError
 from aleph.sdk.types import StorageEnum, StoredContent, TokenType
 from aleph.sdk.utils import safe_getattr
-from aleph_message.models import Chain, ItemHash, StoreMessage, StoreContent, ItemType, MessageType
+from aleph_message.models import Chain, ItemHash, ItemType, MessageType, StoreMessage
 from aleph_message.status import MessageStatus
-from aleph_message import parse_message
 from pydantic import BaseModel, Field
 from rich import box
 from rich.console import Console
 from rich.table import Table
-from urllib.parse import urlparse
 
 from aleph_client.commands import help_strings
 from aleph_client.commands.utils import setup_logging
@@ -106,7 +105,7 @@ async def upload(
                 channel="TEST",
             )
             m = signed_message.model_dump(exclude_none=True)
-            response = await client.http_session.post("/api/v0/price/estimate", json=dict(message=m))
+            response = await client.http_session.post("/api/v0/price/estimate", json={"message": m})
 
             if response.status == 200:
                 price = await response.json()
@@ -166,12 +165,11 @@ async def upload(
             async def upload_directory(directory: Path):
                 params = {"recursive": "true", "wrap-with-directory": "true"}
 
-                # Prepare file data like curl -F file=@./dir/
                 files = {}
-                for path in directory.rglob("*"):
-                    if path.is_file():
-                        relative_path = path.relative_to(directory)
-                        files[str(relative_path)] = open(path, "rb")
+                for _path in directory.rglob("*"):
+                    if _path.is_file():
+                        relative_path = _path.relative_to(directory)
+                        files[str(relative_path)] = open(_path, "rb")
 
                 url = urlparse(settings.IPFS_GATEWAY)._replace(path="/api/v0/add").geturl()
                 async with aiohttp.ClientSession() as session:
@@ -186,7 +184,7 @@ async def upload(
                         cid_v0 = entry.get("Hash")
 
                     if not cid_v0:
-                        raise RuntimeError("CID not found in response.")
+                        return None
 
                     return cid_v0
 
@@ -197,6 +195,9 @@ async def upload(
 
             await check_spending_capacity_for_account(total_size / 1_024 / 1_024, account)
             cid = await upload_directory(path)
+            if not cid:
+                typer.echo("CID not found in response.")
+                typer.Exit(code=1)
             await pin(cid, channel, private_key, private_key_file, chain, ref, debug)
         else:
             typer.echo(f"Error: File not found: '{path}'")
