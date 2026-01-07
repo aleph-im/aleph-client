@@ -54,7 +54,6 @@ from aleph_message.models.execution.environment import (
 )
 from aleph_message.models.execution.volume import PersistentVolumeSizeMib
 from aleph_message.models.item_hash import ItemHash
-from aleph_message import parse_message
 from click import echo
 from rich.console import Console
 from rich.panel import Panel
@@ -686,7 +685,11 @@ async def create(
                         )
                     ]
 
-                confirmation_msg = "Confirm these GPU devices?" if isinstance(gpu_id, list) and len(gpu_id) > 1 else "Confirm this GPU device?"
+                confirmation_msg = (
+                    "Confirm these GPU devices?"
+                    if isinstance(gpu_id, list) and len(gpu_id) > 1
+                    else "Confirm this GPU device?"
+                )
                 if not yes_no_input(confirmation_msg, default=True):
                     echo("GPU device selection cancelled.")
                     raise typer.Exit(1)

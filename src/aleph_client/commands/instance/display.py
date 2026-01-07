@@ -618,7 +618,8 @@ class CRNTable(App[Union[tuple[CRNInfo, int], list[tuple[CRNInfo, int]]]]):
         self.table.add_column("Free Disk 💿", key="hdd")
         self.table.add_column("URL", key="url")
         self.table.add_column("Terms & Conditions 📝", key="tac")
-        label_text = f"Choose a Compute Resource Node (CRN) {'x GPU ' if self.only_gpu_model else ''}to run your instance"
+        gpu_suffix = "x GPU " if self.only_gpu_model else ""
+        label_text = f"Choose a Compute Resource Node (CRN) {gpu_suffix}to run your instance"
         if self.only_gpu:
             label_text += " - Press SPACE to select, ENTER to confirm"
         yield Label(label_text)
@@ -790,7 +791,11 @@ class CRNTable(App[Union[tuple[CRNInfo, int], list[tuple[CRNInfo, int]]]]):
         # Check if all selections are from the same CRN
         if len(crn_hashes) > 1:
             # Show error - selections must be from same CRN
-            self.notify("Error: All selections must be from the same CRN (same hash prefix)", severity="error", timeout=3)
+            self.notify(
+                "Error: All selections must be from the same CRN (same hash prefix)",
+                severity="error",
+                timeout=3,
+            )
             return
 
         # Return all selected rows
