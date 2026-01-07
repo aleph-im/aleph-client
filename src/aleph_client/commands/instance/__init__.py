@@ -1215,7 +1215,7 @@ async def stop(
 
 @app.command()
 async def start(
-    vm_id: Annotated[str, typer.Argument(help="VM item hash to reboot")],
+    vm_id: Annotated[str, typer.Argument(help="VM item hash to start")],
     domain: Annotated[Optional[str], typer.Option(help="CRN domain on which the VM is running")] = None,
     chain: Annotated[
         Optional[Chain], typer.Option(help=help_strings.PAYMENT_CHAIN_USED, metavar=metavar_valid_chains)
@@ -1226,14 +1226,14 @@ async def start(
     ] = settings.PRIVATE_KEY_FILE,
     debug: Annotated[bool, typer.Option(help="Enable debug logging")] = False,
 ):
-    """Reboot an instance"""
+    """Start an instance"""
 
     setup_logging(debug)
 
     domain = (
         (domain and sanitize_url(domain))
         or await find_crn_of_vm(vm_id)
-        or Prompt.ask("URL of the CRN (Compute node) on which the VM is running")
+        or Prompt.ask("URL of the CRN (Compute node) on which the VM is allocated")
     )
 
     account: AccountTypes = load_account(private_key, private_key_file, chain=chain)
