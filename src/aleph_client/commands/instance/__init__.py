@@ -54,6 +54,7 @@ from aleph_message.models.execution.environment import (
 )
 from aleph_message.models.execution.volume import PersistentVolumeSizeMib
 from aleph_message.models.item_hash import ItemHash
+from aleph_message import parse_message
 from click import echo
 from rich.console import Console
 from rich.panel import Panel
@@ -542,6 +543,11 @@ async def create(
                 confidential=confidential,
                 vm_resources=vm_requirement,
             )
+
+            if not filtered_crns:
+                typer.echo("No crn available")
+                typer.Exit(1)
+
             crn_table = CRNTable(
                 crn_list=filtered_crns,
                 crn_version=fetched_settings.last_crn_version,
@@ -555,7 +561,18 @@ async def create(
             if not selection:
                 # User has ctrl-c
                 raise typer.Exit(1)
-            crn_info, gpu_id = selection
+
+            # Handle both single and multi-selection
+            if isinstance(selection, list):
+                # Multi-selection mode (multiple GPUs from same CRN)
+                crn_info = selection[0][0]  # Get CRN info from first selection
+                gpu_ids = [item[1] for item in selection]  # Extract all GPU IDs
+                gpu_id = gpu_ids  # Store as list for later processing
+            else:
+                # Single selection mode
+                crn_info, gpu_id = selection
+                gpu_ids = [gpu_id] if gpu_id is not None else []
+
             crn_info.display_crn_specs()
             if not yes_no_input("Deploy on this node?", default=True):
                 crn_info = None
@@ -587,34 +604,93 @@ async def create(
                 echo("Selected CRN does not have any GPU available.")
                 raise typer.Exit(1)
             else:
-                # If gpu_id is None, default to the first available GPU
-                if gpu_id is None:
+                # Handle both single GPU and multiple GPU selections
+                if isinstance(gpu_id, list):
+                    # Multiple GPUs selected
+                    selected_gpus = [crn_info.compatible_available_gpus[gid] for gid in gpu_id]
+                    gpu_selection_lines = []
+                    for idx, selected_gpu in enumerate(selected_gpus, 1):
+                        gpu_selection_lines.append(
+                            f"[bright_cyan]GPU {idx}:[/bright_cyan]\n"
+                            f"  [orange3]Vendor[/orange3]: {selected_gpu['vendor']}\n"
+                            f"  [orange3]Model[/orange3]: {selected_gpu['model']}\n"
+                            f"  [orange3]Device[/orange3]: {selected_gpu['device_name']}"
+                        )
+                    gpu_selection = Text.from_markup("\n\n".join(gpu_selection_lines))
+                    console.print(
+                        Panel(
+                            gpu_selection,
+                            title=f"Selected GPUs ({len(selected_gpus)})",
+                            border_style="bright_cyan",
+                            expand=False,
+                            title_align="left",
+                        )
+                    )
+                    # Create GPU requirements for all selected GPUs
+                    gpu_requirement = [
+                        GpuProperties(
+                            vendor=gpu["vendor"],
+                            device_name=gpu["device_name"],
+                            device_class=gpu["device_class"],
+                            device_id=gpu["device_id"],
+                        )
+                        for gpu in selected_gpus
+                    ]
+                elif gpu_id is None:
+                    # Default to first available GPU
                     gpu_id = 0
-                selected_gpu = crn_info.compatible_available_gpus[gpu_id]
-                gpu_selection = Text.from_markup(
-                    f"[orange3]Vendor[/orange3]: {selected_gpu['vendor']}\n[orange3]Model[/orange3]: "
-                    f"{selected_gpu['model']}\n[orange3]Device[/orange3]: {selected_gpu['device_name']}"
-                )
-                console.print(
-                    Panel(
-                        gpu_selection,
-                        title="Selected GPU",
-                        border_style="bright_cyan",
-                        expand=False,
-                        title_align="left",
+                    selected_gpu = crn_info.compatible_available_gpus[gpu_id]
+                    gpu_selection = Text.from_markup(
+                        f"[orange3]Vendor[/orange3]: {selected_gpu['vendor']}\n[orange3]Model[/orange3]: "
+                        f"{selected_gpu['model']}\n[orange3]Device[/orange3]: {selected_gpu['device_name']}"
                     )
-                )
-                gpu_requirement = [
-                    GpuProperties(
-                        vendor=selected_gpu["vendor"],
-                        device_name=selected_gpu["device_name"],
-                        device_class=selected_gpu["device_class"],
-                        device_id=selected_gpu["device_id"],
+                    console.print(
+                        Panel(
+                            gpu_selection,
+                            title="Selected GPU",
+                            border_style="bright_cyan",
+                            expand=False,
+                            title_align="left",
+                        )
                     )
-                ]
-                if not yes_no_input("Confirm this GPU device?", default=True):
+                    gpu_requirement = [
+                        GpuProperties(
+                            vendor=selected_gpu["vendor"],
+                            device_name=selected_gpu["device_name"],
+                            device_class=selected_gpu["device_class"],
+                            device_id=selected_gpu["device_id"],
+                        )
+                    ]
+                else:
+                    # Single GPU selected
+                    selected_gpu = crn_info.compatible_available_gpus[gpu_id]
+                    gpu_selection = Text.from_markup(
+                        f"[orange3]Vendor[/orange3]: {selected_gpu['vendor']}\n[orange3]Model[/orange3]: "
+                        f"{selected_gpu['model']}\n[orange3]Device[/orange3]: {selected_gpu['device_name']}"
+                    )
+                    console.print(
+                        Panel(
+                            gpu_selection,
+                            title="Selected GPU",
+                            border_style="bright_cyan",
+                            expand=False,
+                            title_align="left",
+                        )
+                    )
+                    gpu_requirement = [
+                        GpuProperties(
+                            vendor=selected_gpu["vendor"],
+                            device_name=selected_gpu["device_name"],
+                            device_class=selected_gpu["device_class"],
+                            device_id=selected_gpu["device_id"],
+                        )
+                    ]
+
+                confirmation_msg = "Confirm these GPU devices?" if isinstance(gpu_id, list) and len(gpu_id) > 1 else "Confirm this GPU device?"
+                if not yes_no_input(confirmation_msg, default=True):
                     echo("GPU device selection cancelled.")
                     raise typer.Exit(1)
+
         if crn_info.terms_and_conditions:
             tac_accepted = await crn_info.display_terms_and_conditions(auto_accept=crn_auto_tac)
             if tac_accepted is None:
@@ -661,6 +737,7 @@ async def create(
         try:
             content = make_instance_content(**content_dict)
             price: PriceResponse = await client.get_estimated_price(content)
+
             required_tokens = price.required_tokens if price.cost is None else Decimal(price.cost)
         except Exception as e:
             echo(f"Failed to estimate instance cost, error: {e}")
@@ -1132,6 +1209,38 @@ async def stop(
             return 1
         echo(f"VM stopped on CRN: {domain}")
 
+
+@app.command()
+async def start(
+    vm_id: Annotated[str, typer.Argument(help="VM item hash to reboot")],
+    domain: Annotated[Optional[str], typer.Option(help="CRN domain on which the VM is running")] = None,
+    chain: Annotated[
+        Optional[Chain], typer.Option(help=help_strings.PAYMENT_CHAIN_USED, metavar=metavar_valid_chains)
+    ] = None,
+    private_key: Annotated[Optional[str], typer.Option(help=help_strings.PRIVATE_KEY)] = settings.PRIVATE_KEY_STRING,
+    private_key_file: Annotated[
+        Optional[Path], typer.Option(help=help_strings.PRIVATE_KEY_FILE)
+    ] = settings.PRIVATE_KEY_FILE,
+    debug: Annotated[bool, typer.Option(help="Enable debug logging")] = False,
+):
+    """Reboot an instance"""
+
+    setup_logging(debug)
+
+    domain = (
+        (domain and sanitize_url(domain))
+        or await find_crn_of_vm(vm_id)
+        or Prompt.ask("URL of the CRN (Compute node) on which the VM is running")
+    )
+
+    account: AccountTypes = load_account(private_key, private_key_file, chain=chain)
+
+    async with VmClient(account, domain) as manager:
+        status, result = await manager.start_instance(vm_id=vm_id)
+        if status != 200:
+            echo(f"Status: {status}")
+            return 1
+        echo(f"VM started on CRN: {domain}")
 
 @app.command()
 async def confidential_init_session(

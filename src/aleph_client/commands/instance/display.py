@@ -547,7 +547,7 @@ class InstanceDisplay:
             )
 
 
-class CRNTable(App[tuple[CRNInfo, int]]):
+class CRNTable(App[Union[tuple[CRNInfo, int], list[tuple[CRNInfo, int]]]]):
     table: DataTable
     tasks: set[asyncio.Task] = set()
     crns: dict[RowKey, tuple[CRNInfo, int]] = {}
@@ -576,6 +576,7 @@ class CRNTable(App[tuple[CRNInfo, int]]):
         ## ("q", "sort_by_qemu", "Sort By Qemu"),
         ("g", "sort_by_gpu", "Sort By GPU"),
         ("u", "sort_by_url", "Sort By URL"),
+        ("space", "toggle_selection", "Toggle Selection"),
         ("x", "quit", "Exit"),
     ]
 
@@ -597,11 +598,15 @@ class CRNTable(App[tuple[CRNInfo, int]]):
         self.only_gpu = only_gpu
         self.only_gpu_model = only_gpu_model
         self.crn_list = crn_list
+        self.selected_rows = set()
 
     def compose(self):
         """Create child widgets for the app."""
         self.table = DataTable(cursor_type="row", name="Select CRN")
         self.table.add_column("Score", key="score")
+        # Add hash prefix column when in GPU mode
+        if self.only_gpu:
+            self.table.add_column("H", key="hash_prefix")
         self.table.add_column("Name", key="name")
         self.table.add_column("Version", key="version")
         self.table.add_column("Reward Address", key="stream_reward_address")
@@ -613,9 +618,10 @@ class CRNTable(App[tuple[CRNInfo, int]]):
         self.table.add_column("Free Disk 💿", key="hdd")
         self.table.add_column("URL", key="url")
         self.table.add_column("Terms & Conditions 📝", key="tac")
-        yield Label(
-            f"Choose a Compute Resource Node (CRN) {'x GPU ' if self.only_gpu_model else ''}to run your instance"
-        )
+        label_text = f"Choose a Compute Resource Node (CRN) {'x GPU ' if self.only_gpu_model else ''}to run your instance"
+        if self.only_gpu:
+            label_text += " - Press SPACE to select, ENTER to confirm"
+        yield Label(label_text)
         with Horizontal():
             self.loader_label_start = Label(self.label_start)
             yield self.loader_label_start
@@ -679,8 +685,16 @@ class CRNTable(App[tuple[CRNInfo, int]]):
 
         # Fetch terms and conditions
         tac = await crn.terms_and_conditions_content
-        self.table.add_row(
-            _format_score(crn.score),
+
+        # Prepare row data based on GPU mode
+        row_data = [_format_score(crn.score)]
+
+        # Add hash prefix when in GPU mode
+        if self.only_gpu:
+            row_data.append(crn.hash[0] if crn.hash else "?")
+
+        # Add remaining columns
+        row_data.extend([
             crn.name,
             crn.version,
             crn.stream_reward_address,
@@ -696,6 +710,10 @@ class CRNTable(App[tuple[CRNInfo, int]]):
             crn.display_hdd,
             crn.url,
             tac.url if tac else "✖",
+        ])
+
+        self.table.add_row(
+            *row_data,
             key=f"{crn.hash}_{gpu_id}" if self.only_gpu_model else crn.hash,
         )
 
@@ -709,10 +727,74 @@ class CRNTable(App[tuple[CRNInfo, int]]):
         if len(self.tasks) == 0:
             self.loader_label_start.update(f"Fetched {self.total_crns} CRNs ")
 
+    def action_toggle_selection(self):
+        """Toggle selection of current row (only in GPU mode)"""
+        if not self.only_gpu:
+            return
+
+        table = self.query_one(DataTable)
+        if table.cursor_row is None:
+            return
+
+        # Get the row key from cursor position using the row index
+        row_keys = list(table.rows.keys())
+        if table.cursor_row >= len(row_keys):
+            return
+
+        row_key = row_keys[table.cursor_row]
+
+        # Toggle selection
+        if row_key in self.selected_rows:
+            self.selected_rows.remove(row_key)
+            # Reset styling for deselected row
+            for col_key in table.columns.keys():
+                cell_value = table.get_cell(row_key, col_key)
+                # Remove the marker if present
+                if isinstance(cell_value, str) and cell_value.startswith("✓ "):
+                    table.update_cell(row_key, col_key, cell_value[2:], update_width=False)
+        else:
+            self.selected_rows.add(row_key)
+            # Highlight selected row by adding a visual marker
+            for col_key in table.columns.keys():
+                cell_value = table.get_cell(row_key, col_key)
+                # Add a marker to show selection
+                if isinstance(cell_value, str) and not cell_value.startswith("✓ "):
+                    table.update_cell(row_key, col_key, f"✓ {cell_value}", update_width=False)
+
     def on_data_table_row_selected(self, message: DataTable.RowSelected):
-        """Return the selected row"""
-        selected_crn: Optional[CRNInfo] = self.crns.get(message.row_key)
-        self.exit(selected_crn)
+        """Return the selected row or validate multi-selection"""
+        # If not in GPU mode, return single selection
+        if not self.only_gpu or not self.only_gpu_model:
+            selected_crn: Optional[tuple[CRNInfo, int]] = self.crns.get(message.row_key)
+            self.exit(selected_crn)
+            return
+
+        # In GPU multi-selection mode, validate selections
+        if not self.selected_rows:
+            # If no rows selected via spacebar, just select current row
+            self.selected_rows.add(message.row_key)
+
+        # Validate all selections are from the same CRN
+        selected_crns_data = [self.crns.get(row_key) for row_key in self.selected_rows if row_key in self.crns]
+
+        if not selected_crns_data:
+            return
+
+        # Extract CRN hashes from all selections
+        crn_hashes = set()
+        for crn_data in selected_crns_data:
+            if crn_data:
+                crn_info, _ = crn_data
+                crn_hashes.add(crn_info.hash)
+
+        # Check if all selections are from the same CRN
+        if len(crn_hashes) > 1:
+            # Show error - selections must be from same CRN
+            self.notify("Error: All selections must be from the same CRN (same hash prefix)", severity="error", timeout=3)
+            return
+
+        # Return all selected rows
+        self.exit(selected_crns_data)
 
     def sort_reverse(self, sort_type: str) -> bool:
         """Determine if `sort_type` is ascending or descending."""
