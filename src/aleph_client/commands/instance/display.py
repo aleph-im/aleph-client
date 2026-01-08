@@ -598,7 +598,7 @@ class CRNTable(App[Union[tuple[CRNInfo, int], list[tuple[CRNInfo, int]]]]):
         self.only_gpu = only_gpu
         self.only_gpu_model = only_gpu_model
         self.crn_list = crn_list
-        self.selected_rows = set()
+        self.selected_rows: set[RowKey] = set()
 
     def compose(self):
         """Create child widgets for the app."""

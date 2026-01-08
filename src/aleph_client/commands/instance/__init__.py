@@ -6,7 +6,7 @@ import logging
 import shutil
 from decimal import Decimal
 from pathlib import Path
-from typing import Annotated, Any, Optional, Union
+from typing import Annotated, Any, Optional, Union, cast
 
 import aiohttp
 import typer
@@ -494,7 +494,8 @@ async def create(
                 echo(f"Failed to fetch credit info, error: {e}")
                 raise typer.Exit(code=1) from e
 
-    crn, crn_info, gpu_id = None, None, None
+    crn, crn_info = None, None
+    gpu_id: Union[int, list[int], None] = None
     if is_stream or confidential or gpu or is_credit:
         if crn_url:
             try:
@@ -562,7 +563,6 @@ async def create(
                 raise typer.Exit(1)
 
             # Handle both single and multi-selection
-            gpu_id: Union[int, list[int], None]
             if isinstance(selection, list):
                 # Multi-selection mode (multiple GPUs from same CRN)
                 crn_info = selection[0][0]  # Get CRN info from first selection
@@ -636,34 +636,13 @@ async def create(
                         )
                         for gpu in selected_gpus
                     ]
-                elif gpu_id is None:
-                    # Default to first available GPU
-                    gpu_id = 0
-                    selected_gpu = crn_info.compatible_available_gpus[gpu_id]
-                    gpu_selection = Text.from_markup(
-                        f"[orange3]Vendor[/orange3]: {selected_gpu['vendor']}\n[orange3]Model[/orange3]: "
-                        f"{selected_gpu['model']}\n[orange3]Device[/orange3]: {selected_gpu['device_name']}"
-                    )
-                    console.print(
-                        Panel(
-                            gpu_selection,
-                            title="Selected GPU",
-                            border_style="bright_cyan",
-                            expand=False,
-                            title_align="left",
-                        )
-                    )
-                    gpu_requirement = [
-                        GpuProperties(
-                            vendor=selected_gpu["vendor"],
-                            device_name=selected_gpu["device_name"],
-                            device_class=selected_gpu["device_class"],
-                            device_id=selected_gpu["device_id"],
-                        )
-                    ]
                 else:
-                    # Single GPU selected
-                    selected_gpu = crn_info.compatible_available_gpus[gpu_id]
+                    # Handle single GPU or None
+                    single_gpu_id: int = gpu_id if gpu_id is not None else 0
+                    if gpu_id is None:
+                        gpu_id = single_gpu_id
+
+                    selected_gpu = crn_info.compatible_available_gpus[single_gpu_id]
                     gpu_selection = Text.from_markup(
                         f"[orange3]Vendor[/orange3]: {selected_gpu['vendor']}\n[orange3]Model[/orange3]: "
                         f"{selected_gpu['model']}\n[orange3]Device[/orange3]: {selected_gpu['device_name']}"
