@@ -413,6 +413,7 @@ def mock_authenticated_aleph_http_client():
             return msg, status
 
         instance.create_store = AsyncMock(side_effect=create_store)
+        instance.http_session = AsyncMock()
 
         yield mock_client
 

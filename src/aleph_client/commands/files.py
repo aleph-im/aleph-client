@@ -2,18 +2,23 @@ from __future__ import annotations
 
 import json as json_lib
 import logging
+import time
 from datetime import datetime
+from decimal import Decimal
+from hashlib import sha256
 from pathlib import Path
 from typing import Annotated, Optional
+from urllib.parse import urlparse
 
 import aiohttp
 import typer
 from aiohttp import ClientResponseError
 from aleph.sdk import AlephHttpClient, AuthenticatedAlephHttpClient
 from aleph.sdk.conf import settings
-from aleph.sdk.types import StorageEnum, StoredContent
+from aleph.sdk.exceptions import InsufficientFundsError
+from aleph.sdk.types import StorageEnum, StoredContent, TokenType
 from aleph.sdk.utils import safe_getattr
-from aleph_message.models import Chain, ItemHash, StoreMessage
+from aleph_message.models import Chain, ItemHash, ItemType, MessageType, StoreMessage
 from aleph_message.status import MessageStatus
 from pydantic import BaseModel, Field
 from rich import box
@@ -66,7 +71,7 @@ async def pin(
 
 @app.command()
 async def upload(
-    path: Annotated[Path, typer.Argument(help="Path of the file to upload")],
+    path: Annotated[Path, typer.Argument(help="Path of the file or directory to upload")],
     storage_engine: Annotated[Optional[StorageEnum], typer.Option(help=help_strings.STORAGE_ENGINE)] = None,
     channel: Annotated[Optional[str], typer.Option(help=help_strings.CHANNEL)] = settings.DEFAULT_CHANNEL,
     private_key: Annotated[Optional[str], typer.Option(help=help_strings.PRIVATE_KEY)] = settings.PRIVATE_KEY_STRING,
@@ -77,49 +82,126 @@ async def upload(
     ref: Annotated[Optional[str], typer.Option(help=help_strings.REF)] = None,
     debug: Annotated[bool, typer.Option()] = False,
 ):
-    """Upload and store a file on Aleph Cloud."""
+    """Upload and store a file or directory on Aleph Cloud."""
 
     setup_logging(debug)
 
     account: AccountTypes = load_account(private_key_str=private_key, private_key_file=private_key_file, chain=chain)
 
     async with AuthenticatedAlephHttpClient(account=account, api_server=settings.API_HOST) as client:
-        if not path.is_file():
+
+        async def check_spending_capacity_for_account(storage_size_mib: float, account: AccountTypes):
+            # estimate and check before uploading
+            content = {
+                "address": account.get_address(),
+                "time": time.time(),
+                "item_type": ItemType.storage,
+                "estimated_size_mib": int(storage_size_mib),
+                "item_hash": sha256(b"dummy value").hexdigest(),
+            }
+            signed_message = await client.generate_signed_message(
+                message_type=MessageType.store,
+                content=content,
+                channel="TEST",
+            )
+            m = signed_message.model_dump(exclude_none=True)
+            response = await client.http_session.post("/api/v0/price/estimate", json={"message": m})
+
+            if response.status == 200:
+                price = await response.json()
+                required_tokens = price["required_tokens"] if price["cost"] is None else Decimal(price["cost"])
+
+                balance_response = await client.get_balances(account.get_address())
+                available_funds = balance_response.balance - balance_response.locked_amount
+
+                try:
+                    if available_funds < required_tokens:
+                        raise InsufficientFundsError(TokenType.ALEPH, float(required_tokens), float(available_funds))
+                except InsufficientFundsError as e:
+                    typer.echo(e)
+                    raise typer.Exit(code=1) from e
+
+        if path.is_file():
+            with open(path, "rb") as fd:
+                logger.debug("Reading file")
+                # TODO: Read in lazy mode instead of copying everything in memory
+                file_content = fd.read()
+                file_size = len(file_content)
+
+                # check spending limit
+                await check_spending_capacity_for_account(file_size / 1_024 / 1_024, account)
+
+                storage_limit = 4 * 1024 * 1024  # 4MB
+                if storage_engine is None:
+                    storage_engine = StorageEnum.ipfs if file_size > storage_limit else StorageEnum.storage
+                if storage_engine == StorageEnum.storage and file_size > storage_limit:
+                    typer.echo("Warning: File is larger than 4MB, switching to IPFS storage.")
+                    storage_engine = StorageEnum.ipfs
+
+                logger.debug("Uploading file")
+                result: StoreMessage
+                status: MessageStatus
+                try:
+                    result, status = await client.create_store(
+                        file_content=file_content,
+                        storage_engine=storage_engine,
+                        channel=channel,
+                        guess_mime_type=True,
+                        ref=ref,
+                    )
+                    logger.debug("Upload finished")
+                    typer.echo(f"{result.model_dump_json(indent=4)}")
+                except ClientResponseError as e:
+                    typer.echo(f"{e}")
+
+                    if e.status == 413:
+                        typer.echo("File is too large to be uploaded. Please use aleph file pin")
+                    else:
+                        typer.echo(f"Error uploading file\nstatus: {e.status}\nmessage: {e.message}")
+
+        elif path.is_dir():
+            typer.echo(f"Upload directory {path}...")
+
+            async def upload_directory(directory: Path):
+                params = {"recursive": "true", "wrap-with-directory": "true"}
+
+                files = {}
+                for _path in directory.rglob("*"):
+                    if _path.is_file():
+                        relative_path = _path.relative_to(directory)
+                        files[str(relative_path)] = open(_path, "rb")
+
+                url = urlparse(settings.IPFS_GATEWAY)._replace(path="/api/v0/add").geturl()
+                async with aiohttp.ClientSession() as session:
+                    response = await session.post(url, params=params, data=files)
+                    response.raise_for_status()
+
+                    # Parse the response line-by-line
+                    cid_v0 = None
+                    data = await response.text()
+                    for line in data.strip().splitlines():
+                        entry = json_lib.loads(line)
+                        cid_v0 = entry.get("Hash")
+
+                    if not cid_v0:
+                        return None
+
+                    return cid_v0
+
+            total_size = 0
+            for fp in path.rglob("*"):
+                if fp.is_file():
+                    total_size += fp.stat().st_size
+
+            await check_spending_capacity_for_account(total_size / 1_024 / 1_024, account)
+            cid = await upload_directory(path)
+            if not cid:
+                typer.echo("CID not found in response.")
+                typer.Exit(code=1)
+            await pin(cid, channel, private_key, private_key_file, chain, ref, debug)
+        else:
             typer.echo(f"Error: File not found: '{path}'")
             raise typer.Exit(code=1)
-
-        with open(path, "rb") as fd:
-            logger.debug("Reading file")
-            # TODO: Read in lazy mode instead of copying everything in memory
-            file_content = fd.read()
-            file_size = len(file_content)
-            storage_limit = 4 * 1024 * 1024  # 4MB
-            if storage_engine is None:
-                storage_engine = StorageEnum.ipfs if file_size > storage_limit else StorageEnum.storage
-            if storage_engine == StorageEnum.storage and file_size > storage_limit:
-                typer.echo("Warning: File is larger than 4MB, switching to IPFS storage.")
-                storage_engine = StorageEnum.ipfs
-
-            logger.debug("Uploading file")
-            result: StoreMessage
-            status: MessageStatus
-            try:
-                result, status = await client.create_store(
-                    file_content=file_content,
-                    storage_engine=storage_engine,
-                    channel=channel,
-                    guess_mime_type=True,
-                    ref=ref,
-                )
-                logger.debug("Upload finished")
-                typer.echo(f"{result.model_dump_json(indent=4)}")
-            except ClientResponseError as e:
-                typer.echo(f"{e}")
-
-                if e.status == 413:
-                    typer.echo("File is too large to be uploaded. Please use aleph file pin")
-                else:
-                    typer.echo(f"Error uploading file\nstatus: {e.status}\nmessage: {e.message}")
 
 
 @app.command()
