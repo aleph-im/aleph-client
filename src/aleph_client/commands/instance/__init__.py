@@ -6,7 +6,7 @@ import logging
 import shutil
 from decimal import Decimal
 from pathlib import Path
-from typing import Annotated, Any, Optional
+from typing import Annotated, Any, Optional, Union
 
 import aiohttp
 import typer
@@ -562,6 +562,7 @@ async def create(
                 raise typer.Exit(1)
 
             # Handle both single and multi-selection
+            gpu_id: Union[int, list[int], None]
             if isinstance(selection, list):
                 # Multi-selection mode (multiple GPUs from same CRN)
                 crn_info = selection[0][0]  # Get CRN info from first selection

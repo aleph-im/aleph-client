@@ -778,17 +778,19 @@ class CRNTable(App[Union[tuple[CRNInfo, int], list[tuple[CRNInfo, int]]]]):
             self.selected_rows.add(message.row_key)
 
         # Validate all selections are from the same CRN
-        selected_crns_data = [self.crns.get(row_key) for row_key in self.selected_rows if row_key in self.crns]
+        selected_crns_data: list[tuple[CRNInfo, int]] = []
+        for row_key in self.selected_rows:
+            crn_data = self.crns.get(row_key)
+            if crn_data:
+                selected_crns_data.append(crn_data)
 
         if not selected_crns_data:
             return
 
         # Extract CRN hashes from all selections
         crn_hashes = set()
-        for crn_data in selected_crns_data:
-            if crn_data:
-                crn_info, _ = crn_data
-                crn_hashes.add(crn_info.hash)
+        for crn_info, _ in selected_crns_data:
+            crn_hashes.add(crn_info.hash)
 
         # Check if all selections are from the same CRN
         if len(crn_hashes) > 1:
