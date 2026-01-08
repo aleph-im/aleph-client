@@ -695,23 +695,25 @@ class CRNTable(App[Union[tuple[CRNInfo, int], list[tuple[CRNInfo, int]]]]):
             row_data.append(crn.hash[0] if crn.hash else "?")
 
         # Add remaining columns
-        row_data.extend([
-            crn.name,
-            crn.version,
-            crn.stream_reward_address,
-            "✅" if crn.confidential_computing else "✖",
-            # "✅" if crn.qemu_support else "✖", ## Qemu computing enabled by default on crns
-            (
-                crn.compatible_available_gpus[gpu_id]["device_name"]
-                if self.only_gpu_model
-                else "✅" if crn.gpu_support else "✖"
-            ),
-            crn.display_cpu,
-            crn.display_ram,
-            crn.display_hdd,
-            crn.url,
-            tac.url if tac else "✖",
-        ])
+        row_data.extend(
+            [
+                crn.name,
+                crn.version,
+                crn.stream_reward_address,
+                "✅" if crn.confidential_computing else "✖",
+                # "✅" if crn.qemu_support else "✖", ## Qemu computing enabled by default on crns
+                (
+                    crn.compatible_available_gpus[gpu_id]["device_name"]
+                    if self.only_gpu_model
+                    else "✅" if crn.gpu_support else "✖"
+                ),
+                crn.display_cpu,
+                crn.display_ram,
+                crn.display_hdd,
+                crn.url,
+                tac.url if tac else "✖",
+            ]
+        )
 
         self.table.add_row(
             *row_data,

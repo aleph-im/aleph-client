@@ -1245,6 +1245,7 @@ async def start(
             return 1
         echo(f"VM started on CRN: {domain}")
 
+
 @app.command()
 async def confidential_init_session(
     vm_id: Annotated[str, typer.Argument(help="VM item hash to initialize the session for")],
