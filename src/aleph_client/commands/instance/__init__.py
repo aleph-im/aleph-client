@@ -6,7 +6,7 @@ import logging
 import shutil
 from decimal import Decimal
 from pathlib import Path
-from typing import Annotated, Any, Optional, Union, cast
+from typing import Annotated, Any, Optional, Union
 
 import aiohttp
 import typer
