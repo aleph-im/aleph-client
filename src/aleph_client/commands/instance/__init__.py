@@ -1101,6 +1101,7 @@ async def reboot(
         echo(f"VM rebooted on CRN: {domain}")
 
 
+@app.command("start")
 @app.command()
 async def allocate(
     vm_id: Annotated[str, typer.Argument(help="VM item hash to allocate")],
@@ -1191,39 +1192,6 @@ async def stop(
             echo(f"Status : {status}")
             return 1
         echo(f"VM stopped on CRN: {domain}")
-
-
-@app.command()
-async def start(
-    vm_id: Annotated[str, typer.Argument(help="VM item hash to start")],
-    domain: Annotated[Optional[str], typer.Option(help="CRN domain on which the VM is running")] = None,
-    chain: Annotated[
-        Optional[Chain], typer.Option(help=help_strings.PAYMENT_CHAIN_USED, metavar=metavar_valid_chains)
-    ] = None,
-    private_key: Annotated[Optional[str], typer.Option(help=help_strings.PRIVATE_KEY)] = settings.PRIVATE_KEY_STRING,
-    private_key_file: Annotated[
-        Optional[Path], typer.Option(help=help_strings.PRIVATE_KEY_FILE)
-    ] = settings.PRIVATE_KEY_FILE,
-    debug: Annotated[bool, typer.Option(help="Enable debug logging")] = False,
-):
-    """Start an instance"""
-
-    setup_logging(debug)
-
-    domain = (
-        (domain and sanitize_url(domain))
-        or await find_crn_of_vm(vm_id)
-        or Prompt.ask("URL of the CRN (Compute node) on which the VM is allocated")
-    )
-
-    account: AccountTypes = load_account(private_key, private_key_file, chain=chain)
-
-    async with VmClient(account, domain) as manager:
-        status, result = await manager.start_instance(vm_id=vm_id)
-        if status != 200:
-            echo(f"Status: {status}")
-            return 1
-        echo(f"VM started on CRN: {domain}")
 
 
 @app.command()
