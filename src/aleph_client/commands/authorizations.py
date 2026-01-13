@@ -13,20 +13,17 @@ from rich.table import Table
 
 from aleph_client.commands import help_strings
 from aleph_client.commands.utils import setup_logging
-from aleph_client.utils import (
-    AccountTypes,
-    AsyncTyper,
-    load_account,
-)
+from aleph_client.utils import AccountTypes, AsyncTyper, load_account
 
 try:
-    from aleph.sdk.types import Authorization, AuthorizationBuilder
+    from aleph.sdk.types import AuthorizationBuilder
 except ImportError:
     # Fallback to dict if SDK is not updated yet (though it should be)
     pass
 
 logger = logging.getLogger(__name__)
 app = AsyncTyper(no_args_is_help=True)
+
 
 @app.command()
 async def list(
@@ -43,7 +40,9 @@ async def list(
     setup_logging(debug)
 
     if address is None:
-        account: AccountTypes = load_account(private_key_str=private_key, private_key_file=private_key_file, chain=chain)
+        account: AccountTypes = load_account(
+            private_key_str=private_key, private_key_file=private_key_file, chain=chain
+        )
         address = account.get_address()
 
     async with AlephHttpClient(api_server=settings.API_HOST) as client:
@@ -51,10 +50,7 @@ async def list(
         authorizations = await client.get_authorizations(address)
 
     if delegate:
-        authorizations = [
-            auth for auth in authorizations 
-            if auth.address == delegate
-        ]
+        authorizations = [auth for auth in authorizations if auth.address == delegate]
 
     console = Console()
     table = Table(title=f"Authorizations for {address}")
@@ -111,14 +107,12 @@ async def add(
     if aggregate_keys:
         for ak in aggregate_keys.split(","):
             builder.aggregate_key(ak.strip())
-    
+
     authorization = builder.build()
 
-    async with AuthenticatedAlephHttpClient(
-        account=account, api_server=settings.API_HOST
-    ) as client:
+    async with AuthenticatedAlephHttpClient(account=account, api_server=settings.API_HOST) as client:
         await client.add_authorization(authorization)
-    
+
     typer.echo(f"Added authorization for {delegate_address}")
 
 
@@ -142,9 +136,7 @@ async def revoke(
 
     account: AccountTypes = load_account(private_key_str=private_key, private_key_file=private_key_file, chain=chain)
 
-    async with AuthenticatedAlephHttpClient(
-        account=account, api_server=settings.API_HOST
-    ) as client:
+    async with AuthenticatedAlephHttpClient(account=account, api_server=settings.API_HOST) as client:
         if all:
             await client.update_all_authorizations([])
             typer.echo("Revoked all authorizations")
