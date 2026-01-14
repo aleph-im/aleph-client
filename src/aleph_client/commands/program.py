@@ -148,7 +148,7 @@ async def upload(
     payment = Payment(
         chain=payment_chain,
         receiver=None,
-        type=None,  # Payment Type should be None for program
+        type=PaymentType.hold,
     )
 
     async with AuthenticatedAlephHttpClient(account=account, api_server=settings.API_HOST) as client:
