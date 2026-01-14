@@ -196,8 +196,8 @@ async def upload(
 
         specs = pricing.data[pricing_entity].get_services_specs(tier)
         name = name or validated_prompt("Program name", lambda x: x and len(x) < 65)
-        vcpus = specs.vcpus
-        memory = specs.memory_mib
+        vcpus = vcpus if vcpus else specs.vcpus
+        memory = memory if memory else specs.memory_mib
         runtime = runtime or input(f"Ref of runtime? [{settings.DEFAULT_RUNTIME_ID}] ") or settings.DEFAULT_RUNTIME_ID
 
         volumes = []
