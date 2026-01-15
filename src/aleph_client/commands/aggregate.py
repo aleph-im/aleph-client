@@ -11,7 +11,7 @@ from aiohttp import ClientResponseError, ClientSession
 from aleph.sdk.client import AlephHttpClient, AuthenticatedAlephHttpClient
 from aleph.sdk.conf import settings
 from aleph.sdk.utils import extended_json_encoder
-from aleph_message.models import Chain, MessageType
+from aleph_message.models import Chain
 from aleph_message.status import MessageStatus
 from rich.console import Console
 from rich.panel import Panel
