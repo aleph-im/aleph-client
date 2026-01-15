@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 import logging
+from json import dumps as json_dumps
 from pathlib import Path
 from typing import Annotated, Optional
 
 import typer
 from aleph.sdk.client import AlephHttpClient, AuthenticatedAlephHttpClient
 from aleph.sdk.conf import settings
+from aleph.sdk.types import AuthorizationBuilder
+from aleph.sdk.utils import extended_json_encoder
 from aleph_message.models import Chain, MessageType
 from rich.console import Console
 from rich.table import Table
@@ -14,12 +17,6 @@ from rich.table import Table
 from aleph_client.commands import help_strings
 from aleph_client.commands.utils import setup_logging
 from aleph_client.utils import AccountTypes, AsyncTyper, load_account
-
-try:
-    from aleph.sdk.types import AuthorizationBuilder
-except ImportError:
-    # Fallback to dict if SDK is not updated yet (though it should be)
-    pass
 
 logger = logging.getLogger(__name__)
 app = AsyncTyper(no_args_is_help=True)
@@ -34,6 +31,7 @@ async def list(
         Optional[Path], typer.Option(help=help_strings.PRIVATE_KEY_FILE)
     ] = settings.PRIVATE_KEY_FILE,
     chain: Annotated[Optional[Chain], typer.Option(help=help_strings.ADDRESS_CHAIN)] = None,
+    json: Annotated[bool, typer.Option(help="Print as json instead of rich table")] = False,
     debug: bool = False,
 ):
     """List authorizations for an address"""
@@ -51,6 +49,10 @@ async def list(
 
     if delegate:
         authorizations = [auth for auth in authorizations if auth.address == delegate]
+
+    if json:
+        typer.echo(json_dumps(authorizations, indent=4, default=extended_json_encoder))
+        return
 
     console = Console()
     table = Table(title=f"Authorizations for {address}")
