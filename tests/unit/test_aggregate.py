@@ -7,15 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import aiohttp
 import pytest
 
-from aleph_client.commands.aggregate import (
-    authorize,
-    forget,
-    get,
-    list_aggregates,
-    permissions,
-    post,
-    revoke,
-)
+from aleph_client.commands.aggregate import forget, get, list_aggregates, post
 
 from .mocks import FAKE_ADDRESS_EVM, create_mock_load_account
 
@@ -29,7 +21,6 @@ FAKE_AGGREGATE_DATA = {
         },
         "active": True,
     },
-    "security": {"authorizations": [{"address": FAKE_ADDRESS_EVM, "types": ["POST"]}]},
 }
 
 
@@ -131,11 +122,11 @@ async def test_post(capsys, args):
         ({"key": "AI"}, FAKE_AGGREGATE_DATA["AI"]),  # by key only
         (  # with subkey
             {"key": "AI", "subkeys": "subscription"},
-            {"subscription": FAKE_AGGREGATE_DATA["AI"]["subscription"]},  # type: ignore
+            {"subscription": FAKE_AGGREGATE_DATA["AI"]["subscription"]},
         ),
         (  # with subkeys
             {"key": "AI", "subkeys": "subscription,models"},
-            {"subscription": FAKE_AGGREGATE_DATA["AI"]["subscription"], "models": FAKE_AGGREGATE_DATA["AI"]["models"]},  # type: ignore
+            {"subscription": FAKE_AGGREGATE_DATA["AI"]["subscription"], "models": FAKE_AGGREGATE_DATA["AI"]["models"]},
         ),
     ],
 )
@@ -214,64 +205,3 @@ async def test_list_aggregates_with_ledger():
 
     # Verify result
     assert aggregates == FAKE_AGGREGATE_DATA
-
-
-@pytest.mark.asyncio
-async def test_authorize(capsys):
-    mock_load_account = create_mock_load_account()
-    mock_get = AsyncMock(return_value=FAKE_AGGREGATE_DATA["security"])
-    mock_post = AsyncMock(return_value=True)
-
-    @patch("aleph_client.commands.aggregate.load_account", mock_load_account)
-    @patch("aleph_client.commands.aggregate.get", mock_get)
-    @patch("aleph_client.commands.aggregate.post", mock_post)
-    async def run_authorize():
-        print()  # For better display when pytest -v -s
-        return await authorize(address=FAKE_ADDRESS_EVM, types="PROGRAM,FORGET")
-
-    await run_authorize()
-    mock_load_account.assert_called_once()
-    mock_get.assert_called_once()
-    mock_post.assert_called_once()
-    captured = capsys.readouterr()
-    assert captured.out.endswith(f"Permissions has been added for {FAKE_ADDRESS_EVM}\n")
-
-
-@pytest.mark.asyncio
-async def test_revoke(capsys):
-    mock_load_account = create_mock_load_account()
-    mock_get = AsyncMock(return_value=FAKE_AGGREGATE_DATA["security"])
-    mock_post = AsyncMock(return_value=True)
-
-    @patch("aleph_client.commands.aggregate.load_account", mock_load_account)
-    @patch("aleph_client.commands.aggregate.get", mock_get)
-    @patch("aleph_client.commands.aggregate.post", mock_post)
-    async def run_revoke():
-        print()  # For better display when pytest -v -s
-        return await revoke(address=FAKE_ADDRESS_EVM)
-
-    await run_revoke()
-    mock_load_account.assert_called_once()
-    mock_get.assert_called_once()
-    mock_post.assert_called_once()
-    captured = capsys.readouterr()
-    assert captured.out.endswith(f"Permissions has been deleted for {FAKE_ADDRESS_EVM}\n")
-
-
-@pytest.mark.asyncio
-async def test_permissions():
-    mock_load_account = create_mock_load_account()
-    mock_get = AsyncMock(return_value=FAKE_AGGREGATE_DATA["security"])
-
-    @patch(
-        "aleph_client.commands.aggregate.get_account_and_address",
-        return_value=(mock_load_account.return_value, FAKE_ADDRESS_EVM),
-    )
-    @patch("aleph_client.commands.aggregate.get", mock_get)
-    async def run_permissions(mock_get_account):
-        print()  # For better display when pytest -v -s
-        return await permissions(address=FAKE_ADDRESS_EVM, json=True)
-
-    authorizations = await run_permissions()
-    mock_get.assert_called_once()
-    assert authorizations == FAKE_AGGREGATE_DATA["security"]["authorizations"]  # type: ignore
