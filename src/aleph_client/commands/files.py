@@ -48,6 +48,7 @@ async def pin(
     ] = settings.PRIVATE_KEY_FILE,
     chain: Annotated[Optional[Chain], typer.Option(help=help_strings.ADDRESS_CHAIN)] = None,
     ref: Annotated[Optional[str], typer.Option(help=help_strings.REF)] = None,
+    address: Annotated[Optional[str], typer.Option(help="Address")] = None,
     debug: Annotated[bool, typer.Option()] = False,
 ):
     """Persist a file from IPFS on Aleph Cloud."""
@@ -55,11 +56,13 @@ async def pin(
     setup_logging(debug)
 
     account: AccountTypes = load_account(private_key_str=private_key, private_key_file=private_key_file, chain=chain)
+    address = address or settings.ADDRESS_TO_USE or account.get_address()
 
     async with AuthenticatedAlephHttpClient(account=account, api_server=settings.API_HOST) as client:
         result: StoreMessage
         status: MessageStatus
         result, status = await client.create_store(
+            address=address,
             file_hash=item_hash,
             storage_engine=StorageEnum.ipfs,
             channel=channel,
@@ -80,6 +83,7 @@ async def upload(
     ] = settings.PRIVATE_KEY_FILE,
     chain: Annotated[Optional[Chain], typer.Option(help=help_strings.ADDRESS_CHAIN)] = None,
     ref: Annotated[Optional[str], typer.Option(help=help_strings.REF)] = None,
+    address: Annotated[Optional[str], typer.Option(help="Address")] = None,
     debug: Annotated[bool, typer.Option()] = False,
 ):
     """Upload and store a file or directory on Aleph Cloud."""
@@ -87,13 +91,14 @@ async def upload(
     setup_logging(debug)
 
     account: AccountTypes = load_account(private_key_str=private_key, private_key_file=private_key_file, chain=chain)
+    address = address or settings.ADDRESS_TO_USE or account.get_address()
 
     async with AuthenticatedAlephHttpClient(account=account, api_server=settings.API_HOST) as client:
 
-        async def check_spending_capacity_for_account(storage_size_mib: float, account: AccountTypes):
+        async def check_spending_capacity_for_account(storage_size_mib: float, address):
             # estimate and check before uploading
             content = {
-                "address": account.get_address(),
+                "address": address,
                 "time": time.time(),
                 "item_type": ItemType.storage,
                 "estimated_size_mib": int(storage_size_mib),
@@ -111,7 +116,7 @@ async def upload(
                 price = await response.json()
                 required_tokens = price["required_tokens"] if price["cost"] is None else Decimal(price["cost"])
 
-                balance_response = await client.get_balances(account.get_address())
+                balance_response = await client.get_balances(address)
                 available_funds = balance_response.balance - balance_response.locked_amount
 
                 try:
@@ -129,7 +134,7 @@ async def upload(
                 file_size = len(file_content)
 
                 # check spending limit
-                await check_spending_capacity_for_account(file_size / 1_024 / 1_024, account)
+                await check_spending_capacity_for_account(file_size / 1_024 / 1_024, address)
 
                 storage_limit = 4 * 1024 * 1024  # 4MB
                 if storage_engine is None:
@@ -143,6 +148,7 @@ async def upload(
                 status: MessageStatus
                 try:
                     result, status = await client.create_store(
+                        address=address,
                         file_content=file_content,
                         storage_engine=storage_engine,
                         channel=channel,
@@ -193,12 +199,12 @@ async def upload(
                 if fp.is_file():
                     total_size += fp.stat().st_size
 
-            await check_spending_capacity_for_account(total_size / 1_024 / 1_024, account)
+            await check_spending_capacity_for_account(total_size / 1_024 / 1_024, address)
             cid = await upload_directory(path)
             if not cid:
                 typer.echo("CID not found in response.")
                 typer.Exit(code=1)
-            await pin(cid, channel, private_key, private_key_file, chain, ref, debug)
+            await pin(cid, channel, private_key, private_key_file, chain, ref, address, debug)
         else:
             typer.echo(f"Error: File not found: '{path}'")
             raise typer.Exit(code=1)
