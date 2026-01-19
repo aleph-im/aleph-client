@@ -162,6 +162,7 @@ async def upload(
             user_code: StoreMessage
             status: MessageStatus
             user_code, status = await client.create_store(
+                address=address,
                 file_content=file_content,
                 storage_engine=storage_engine,
                 channel=channel,
@@ -330,6 +331,7 @@ async def update(
     ] = settings.PRIVATE_KEY_FILE,
     print_message: Annotated[bool, typer.Option(help="Print the message after creation")] = False,
     verbose: Annotated[bool, typer.Option(help="Display additional information")] = True,
+    address: Annotated[Optional[str], typer.Option(help=help_strings.ADDRESS_PAYER)] = None,
     debug: Annotated[bool, typer.Option(help="Enable debug logging")] = False,
 ):
     """Update the code of an existing program (item hash will not change)"""
@@ -348,6 +350,7 @@ async def update(
         raise typer.Exit(code=4) from error
 
     account = _load_account(private_key, private_key_file, chain=chain)
+    address = address or settings.ADDRESS_TO_USE or account.get_address()
 
     async with AuthenticatedAlephHttpClient(account=account, api_server=settings.API_HOST) as client:
         try:
@@ -386,6 +389,7 @@ async def update(
             logger.debug("Uploading file")
             message: StoreMessage
             message, status = await client.create_store(
+                address=address,
                 file_content=file_content,
                 storage_engine=StorageEnum(code_message.content.item_type),
                 channel=code_message.channel,
