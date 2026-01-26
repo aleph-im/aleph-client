@@ -637,7 +637,8 @@ async def configure(
 
             console.print("[bold cyan]Available unlinked private keys:[/bold cyan]")
             for idx, key in enumerate(unlinked_keys, start=1):
-                console.print(f"[{idx}] {key}")
+                acc = _load_account(private_key_str=None, private_key_path=key, chain=chain)
+                console.print(f"[{idx}] {key} - {acc.get_address()}")
 
             key_choice = Prompt.ask("Choose a private key by index")
             if key_choice.isdigit():
