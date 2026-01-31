@@ -1,27 +1,116 @@
 # aleph-client
 
-Python Client for the [Aleph Cloud network](https://www.aleph.cloud), next generation network of
-decentralized big data applications. Development follows the [Aleph
-Whitepaper](https://github.com/aleph-im/aleph-whitepaper).
+The official command-line interface (CLI) for [Aleph Cloud](https://www.aleph.cloud) — a decentralized cloud computing platform.
+
+## What is Aleph Cloud?
+
+Aleph Cloud provides decentralized computing, storage, and indexing services. With `aleph-client`, you can:
+
+- **Deploy VMs (Instances)** — Run persistent virtual machines on decentralized infrastructure
+- **Deploy Functions (Programs)** — Deploy serverless functions that scale automatically  
+- **Store Data** — Upload files and data to decentralized storage
+- **Send Messages** — Post, aggregate, and forget messages on the Aleph network
+- **Manage Domains** — Configure custom domains for your deployments
+
+## Quick Start
+
+### Installation
+
+```bash
+# Install from PyPI
+pip install aleph-client
+
+# Verify installation
+aleph --help
+```
+
+### Create Your First Instance
+
+```bash
+# Create a new account (generates keys)
+aleph account create
+
+# Deploy an Ubuntu instance with pay-as-you-go credits
+aleph instance create --payment-type=credit --name="my-first-vm"
+
+# List your instances
+aleph instance list
+
+# SSH into your instance
+ssh root@<ipv6-address>
+```
+
+### Deploy a Serverless Function
+
+```bash
+# Create a simple FastAPI app
+mkdir my-app && cd my-app
+cat > main.py << 'EOF'
+from fastapi import FastAPI
+app = FastAPI()
+
+@app.get("/")
+def hello():
+    return {"message": "Hello from Aleph Cloud!"}
+EOF
+
+# Deploy it
+aleph program upload . main:app --name="my-function"
+```
+
+### Store Data
+
+```bash
+# Upload a file
+aleph file upload myfile.txt
+
+# Pin existing content by hash
+aleph file pin QmYourContentHash
+```
+
+## Commands Overview
+
+| Command | Description |
+|---------|-------------|
+| `aleph account` | Manage accounts and keys |
+| `aleph instance` | Manage virtual machines (create, list, delete, logs) |
+| `aleph program` | Deploy serverless functions |
+| `aleph file` | Upload and manage files |
+| `aleph message` | Send messages to the network |
+| `aleph aggregate` | Manage key-value aggregates |
+| `aleph domain` | Configure custom domains |
+| `aleph node` | Interact with Compute Resource Nodes |
+| `aleph credits` | Check credit balance |
+| `aleph pricing` | View compute pricing |
+
+Run `aleph <command> --help` for detailed usage of each command.
+
+## Payment Options
+
+Aleph Cloud supports multiple payment methods:
+
+- **Credits (Pay-as-you-go)** — No token staking required, pay only for what you use
+- **Hold** — Stake ALEPH tokens for allocation
+- **Superfluid** — Stream payments for continuous services
+- **NFT** — Use NFT vouchers for payment
 
 ## Documentation
 
-Documentation can be found on https://docs.aleph.cloud/devhub/sdks-and-tools/aleph-cli/
+- **Full Documentation**: https://docs.aleph.cloud/devhub/sdks-and-tools/aleph-cli/
+- **API Reference**: https://docs.aleph.cloud/devhub/api/
+- **Tutorials**: https://docs.aleph.cloud/devhub/tutorials/
 
 ## Requirements
 
 ### Linux
 
-Some cryptographic functionalities use curve secp256k1 and require
-installing [libsecp256k1](https://github.com/bitcoin-core/secp256k1).
-
-```sh
+```bash
 apt-get install -y python3-pip libsecp256k1-dev squashfs-tools
 ```
 
-### macOs
+### macOS
 
-```sh
+```bash
 brew tap cuber/homebrew-libsecp256k1
 brew install libsecp256k1
 ```
@@ -30,93 +119,71 @@ brew install libsecp256k1
 
 We recommend using [WSL](https://learn.microsoft.com/en-us/windows/wsl/install) (Windows Subsystem for Linux).
 
-## Installation
+## Using Docker
 
-### From PyPI
+Run the CLI without installing locally:
 
-Using pip and [PyPI](https://pypi.org/project/aleph-client/):
-
-```sh
-pip install aleph-client
+```bash
+docker run --rm -ti -v $(pwd)/data:/data ghcr.io/aleph-im/aleph-client/aleph-client:master --help
 ```
 
-### Using a container
+Note: This uses an ephemeral key pair that is discarded when the container stops.
 
-Use the Aleph client and it\'s CLI from within Docker or Podman with:
+## Development
 
-```sh
-docker run --rm -ti -v $(pwd)/<data:/data> ghcr.io/aleph-im/aleph-client/aleph-client:master --help
-```
+### Setup
 
-Warning: This will use an ephemeral key pair that will be discarded when
-stopping the container
+We use [hatch](https://hatch.pypa.io/) for development:
 
-## Installation for development
-
-We recommend using [hatch](https://hatch.pypa.io/) for development.
-
-Hatch is a modern, extensible Python project manager.
-It creates a virtual environment for each project and manages dependencies.
-
-```sh
+```bash
 pip install hatch
 ```
 
-### Running tests
+### Running Tests
 
-```sh
+```bash
 hatch test
-```
-
-or
-
-```sh
+# or with coverage
 hatch run testing:cov
 ```
 
-### Formatting code
+### Code Quality
 
-```sh
+```bash
+# Format code
 hatch run linting:fmt
-```
 
-### Checking types
-
-```
+# Type checking
 hatch run linting:typing
 ```
 
-## Publish to PyPI
+### Publishing
 
-```sh
+```bash
 hatch build
 hatch upload
 ```
 
-If you want NULS2 support you will need to install nuls2-python
-(currently only available on github):
+## Additional Chains
 
-```
+For NULS2 support:
+
+```bash
 pip install aleph-sdk-python[nuls2]
 ```
 
-To install from source and still be able to modify the source code:
+## Contributing
 
-```sh
-pip install -e .
-```
+Contributions are welcome! Please see our [contribution guidelines](CONTRIBUTING.md) and open a pull request.
 
-## Updating the User Documentation
+## Links
 
-The user documentation for Aleph is maintained in the [aleph-docs](https://github.com/aleph-im/aleph-docs) repository. The CLI page is generated using the `typer` command. When releasing a new version, it's important to update the documentation as part of the release process.
+- **Website**: https://aleph.cloud
+- **Documentation**: https://docs.aleph.cloud
+- **GitHub**: https://github.com/aleph-im
+- **Discord**: https://discord.gg/aleph-im
+- **Twitter**: https://twitter.com/alaboratory
 
-If you have the `aleph-docs` repository cloned as a sibling folder to your current directory, you can use the following
-command to generate updated documentation:
+## License
 
-```shell
-./scripts/gendoc.py src/aleph_client/__main__.py docs \
-    --name aleph --title 'Aleph CLI Documentation' \
-    --output ../aleph-docs/docs/tools/aleph-client/usage.md
-```
-
-Then, open a Pull Request (PR) on the [aleph-docs](https://github.com/aleph-im/aleph-docs/pulls) repository with your changes.
+MIT License - see [LICENSE](LICENSE) for details.
