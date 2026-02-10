@@ -40,7 +40,7 @@ def mock_auth_setup():
     # Mock port forwarder service
     mock_port_forwarder = MagicMock()
     mock_port_forwarder.create_ports = AsyncMock(return_value=(mock_port_message, MessageStatus.PROCESSED))
-    mock_port_forwarder.get_ports = AsyncMock()
+    mock_port_forwarder.get_ports = AsyncMock(return_value=None)
     mock_port_forwarder.get_address_ports = AsyncMock()
     mock_port_forwarder.update_ports = AsyncMock(return_value=(mock_port_message, MessageStatus.PROCESSED))
     mock_port_forwarder.delete_ports = AsyncMock(return_value=(mock_port_message, MessageStatus.PROCESSED))

@@ -164,12 +164,18 @@ async def create(
     # Create the port flags
     port_flags = PortFlags(tcp=tcp, udp=udp)
 
-    # Create the ports configuration
-    ports = Ports(ports={port: port_flags})
-
     try:
         async with AuthenticatedAlephHttpClient(account=account, api_server=settings.API_HOST) as client:
             try:
+                # Fetch existing ports for this item_hash to avoid replacing them
+                existing_ports = await client.port_forwarder.get_ports(item_hash=ItemHash(item_hash))
+                if existing_ports and existing_ports.ports:
+                    merged = dict(existing_ports.ports)
+                    merged[port] = port_flags
+                    ports = Ports(ports=merged)
+                else:
+                    ports = Ports(ports={port: port_flags})
+
                 message, status = await client.port_forwarder.create_ports(item_hash=ItemHash(item_hash), ports=ports)
                 typer.echo(f"Currents status: {status}")
                 typer.echo(f"Port forward created successfully for {item_hash} on port {port}")
