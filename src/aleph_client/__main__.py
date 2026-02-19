@@ -15,6 +15,7 @@ from aleph_client.commands import (
     node,
     pricing,
     program,
+    website,
 )
 from aleph_client.utils import AsyncTyper
 
@@ -35,6 +36,7 @@ app.add_typer(credit.app, name="credits", help="Credits commands oAleph Cloud")
 app.add_typer(domain.app, name="domain", help="Manage custom domain (DNS) on Aleph Cloud")
 app.add_typer(node.app, name="node", help="Get node info on Aleph Cloud")
 app.add_typer(about.app, name="about", help="Display the information of Aleph CLI")
+app.add_typer(website.app, name="website", help="Manage IPFS-hosted websites on Aleph Cloud")
 
 app.command("pricing")(pricing.prices_for_service)
 

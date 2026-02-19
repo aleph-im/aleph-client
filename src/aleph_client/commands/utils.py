@@ -42,6 +42,17 @@ from aleph_client.utils import fetch_json
 logger = logging.getLogger(__name__)
 
 
+def ipfs_cid_v0_to_v1(cid_v0: str) -> str:
+    """Convert an IPFS CID v0 (base58, Qm...) to CID v1 (base32)."""
+    import base58
+    import multibase
+    import multicodec
+
+    decoded = base58.b58decode(cid_v0)
+    cid_v1_bytes = multicodec.add_prefix(multicodec.get_codec("cidv1"), decoded)
+    return multibase.encode("base32lower", cid_v1_bytes).decode()
+
+
 def colorful_json(obj: str):
     """Render a JSON string with colors."""
     return highlight(

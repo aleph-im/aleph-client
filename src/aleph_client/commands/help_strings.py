@@ -82,3 +82,9 @@ PORT_FORWARDER_PROTOCOL = "Protocol to forward (tcp, udp, or both)"
 PORT_FORWARDER_TCP = "Enable TCP forwarding for this port"
 PORT_FORWARDER_UDP = "Enable UDP forwarding for this port"
 STORAGE_ENGINE = "Storage engine to use. Either IPFS or Aleph Storage"
+
+# Website help strings
+WEBSITE_NAME = "Unique name for your website"
+WEBSITE_PATH = "Path to your static website directory (e.g., build output like `out` or `dist`)"
+WEBSITE_CID = "IPFS CID v0 of an already uploaded static website directory"
+WEBSITE_FRAMEWORK = "Framework used to build the website (e.g., next, react, vue)"

@@ -35,6 +35,8 @@ dependencies = [
   "ledgerblue>=0.1.48",
   "ledgereth>=0.10",
   "py-sr25519-bindings==0.2",    # Needed for DOT signatures
+  "py-multibase>=1,<2",          # Needed for IPFS CID v0 to v1 conversion
+  "py-multicodec<0.3",           # Needed for IPFS CID v0 to v1 conversion
   "pydantic>=2",
   "pygments==2.19.1",
   "pynacl==1.5",                 # Needed now as default with _load_account changement
