@@ -10,15 +10,14 @@ from urllib.parse import urlparse
 
 import aiohttp
 import typer
-from aleph.sdk import AlephHttpClient, AuthenticatedAlephHttpClient
-from aleph.sdk.conf import settings
-from aleph.sdk.types import StorageEnum
 from aleph_message.models import Chain
-from aleph_message.status import MessageStatus
 from rich import box
 from rich.console import Console
 from rich.table import Table
 
+from aleph.sdk import AlephHttpClient, AuthenticatedAlephHttpClient
+from aleph.sdk.conf import settings
+from aleph.sdk.types import StorageEnum
 from aleph_client.commands import help_strings
 from aleph_client.commands.utils import setup_logging
 from aleph_client.utils import AsyncTyper, load_account
@@ -194,7 +193,7 @@ async def deploy(
     async with AuthenticatedAlephHttpClient(account=account, api_server=settings.API_HOST) as client:
         websites = await _fetch_websites_aggregate(client, address)
 
-        if name in websites and websites[name]:
+        if websites.get(name):
             typer.echo(f"Error: Website '{name}' already exists. Use 'aleph website update' to update it.")
             raise typer.Exit(code=1)
 
