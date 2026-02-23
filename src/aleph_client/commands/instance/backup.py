@@ -161,10 +161,7 @@ async def info(
             echo("A backup is currently in progress.")
             return
         if status == 404:
-            echo(
-                "No backup found. Create one with:\n\n"
-                f"  aleph instance backup create {vm_id}\n"
-            )
+            echo(f"No backup found. Create one with:\n\n  aleph instance backup create {vm_id}\n")
             return
         if status != 200:
             echo(f"Failed to get backup info (status {status}): {result}")
@@ -208,9 +205,7 @@ async def _download_from_url(url: str, output: Path):
                     TransferSpeedColumn(),
                     TimeRemainingColumn(),
                 ) as progress:
-                    task = progress.add_task(
-                        f"Downloading to {output}", total=total
-                    )
+                    task = progress.add_task(f"Downloading to {output}", total=total)
                     with open(output, "wb") as f:
                         async for chunk in response.content.iter_chunked(8192):
                             f.write(chunk)
@@ -224,9 +219,7 @@ async def _download_from_url(url: str, output: Path):
 
 @app.command()
 async def download(
-    url: Annotated[
-        Optional[str], typer.Argument(help="Presigned download URL from backup create")
-    ] = None,
+    url: Annotated[Optional[str], typer.Argument(help="Presigned download URL from backup create")] = None,
     vm_id: Annotated[
         Optional[str],
         typer.Option("--vm-id", help="VM item hash to fetch latest backup for"),
@@ -273,10 +266,7 @@ async def download(
             status, result = await manager.get_backup(vm_id=vm_id)
 
             if status == 202:
-                echo(
-                    "A backup is currently in progress. "
-                    "Please wait for it to complete and try again."
-                )
+                echo("A backup is currently in progress. Please wait for it to complete and try again.")
                 raise typer.Exit(1)
             if status == 404:
                 echo(
@@ -328,9 +318,7 @@ async def delete(
     account: AccountTypes = load_account(private_key, private_key_file, chain=chain)
 
     async with VmClient(account, domain) as manager:
-        status, result = await manager.delete_backup(
-            vm_id=vm_id, backup_id=backup_id
-        )
+        status, result = await manager.delete_backup(vm_id=vm_id, backup_id=backup_id)
         if status != 200:
             echo(f"Delete failed (status {status}): {result}")
             raise typer.Exit(1)
@@ -411,9 +399,7 @@ async def restore(
                 TransferSpeedColumn(),
                 TimeRemainingColumn(),
             ) as progress:
-                task = progress.add_task(
-                    f"Uploading {rootfs_file.name}", total=file_size
-                )
+                task = progress.add_task(f"Uploading {rootfs_file.name}", total=file_size)
 
                 class ProgressFile(io.RawIOBase):
                     def __init__(self, path, pg, pg_task):
@@ -451,18 +437,14 @@ async def restore(
                     content_type="application/octet-stream",
                 )
                 try:
-                    async with manager.session.post(
-                        url, headers=header, data=data
-                    ) as response:
+                    async with manager.session.post(url, headers=header, data=data) as response:
                         status = response.status
                         result = await response.text()
                 finally:
                     pf.close()
         else:
             echo(f"Restoring from volume {volume_ref}...")
-            status, result = await manager.restore_from_volume(
-                vm_id=vm_id, volume_ref=volume_ref
-            )
+            status, result = await manager.restore_from_volume(vm_id=vm_id, volume_ref=volume_ref)
 
         if status != 200:
             echo(f"Restore failed (status {status}): {result}")

@@ -1164,9 +1164,7 @@ async def reinstall(
     account: AccountTypes = load_account(private_key, private_key_file, chain=chain)
 
     async with VmClient(account, domain) as manager:
-        status, result = await manager.reinstall_instance(
-            vm_id=vm_id, erase_volumes=not keep_data
-        )
+        status, result = await manager.reinstall_instance(vm_id=vm_id, erase_volumes=not keep_data)
         if status != 200:
             echo(f"Status: {status}\n{result}")
             return 1
