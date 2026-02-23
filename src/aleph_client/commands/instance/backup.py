@@ -9,8 +9,6 @@ from typing import Annotated, Optional
 
 import aiohttp
 import typer
-from aleph.sdk.client.vm_client import VmClient
-from aleph.sdk.conf import settings
 from aleph_message.models import Chain
 from click import echo
 from rich.console import Console
@@ -23,6 +21,8 @@ from rich.progress import (
     TransferSpeedColumn,
 )
 
+from aleph.sdk.client.vm_client import VmClient
+from aleph.sdk.conf import settings
 from aleph_client.commands import help_strings
 from aleph_client.commands.instance.network import find_crn_of_vm
 from aleph_client.commands.utils import setup_logging, yes_no_input
@@ -217,7 +217,7 @@ async def _download_from_url(url: str, output: Path):
                             progress.advance(task, len(chunk))
     except aiohttp.ClientError as e:
         echo(f"Download failed: {e}")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from e
 
     echo(f"Backup downloaded to {output}")
 
