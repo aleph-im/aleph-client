@@ -20,7 +20,7 @@ runner = CliRunner()
 def reset_no_format():
     """Reset _no_format flag after each test."""
     yield
-    import aleph_client.commands.utils  # noqa: PLC0415
+    import aleph_client.commands.utils
 
     aleph_client.commands.utils._format_state["no_format"] = False
 
@@ -117,7 +117,7 @@ def test_no_format_flag_with_file_list(mock_aiohttp_client_session):
 
 def test_no_format_flag_with_account_balance(mocker, env_files, mock_voucher_service, mock_get_balances):
     """Test --no-format strips formatting from balance display."""
-    from .test_instance import create_mock_client  # noqa: PLC0415
+    from .test_instance import create_mock_client
 
     settings.CONFIG_FILE = env_files[1]
     mock_client_class, mock_client = create_mock_client(None, None, mock_get_balances=mock_get_balances)

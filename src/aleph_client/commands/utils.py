@@ -60,7 +60,7 @@ def set_no_format(value: bool):
 
 def _apply_no_format_patches():
     """Monkey-patch Rich and typer to disable all formatting."""
-    from functools import wraps  # noqa: PLC0415
+    from functools import wraps
 
     _original_console_init = rich.console.Console.__init__
 
@@ -90,7 +90,7 @@ def _apply_no_format_patches():
     typer.style = _plain_style  # type: ignore[assignment]
 
     # Re-create module-level Console instances that were created before the patch
-    from aleph_client.commands import account, credit  # noqa: PLC0415
+    from aleph_client.commands import account, credit
 
     account.console = rich.console.Console()
     credit.console = rich.console.Console()
