@@ -37,6 +37,7 @@ def main(
     if no_format:
         set_no_format(True)
 
+
 app.add_typer(account.app, name="account", help="Manage accounts")
 app.add_typer(
     message.app,

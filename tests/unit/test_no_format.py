@@ -20,7 +20,7 @@ runner = CliRunner()
 def reset_no_format():
     """Reset _no_format flag after each test."""
     yield
-    import aleph_client.commands.utils  # noqa: PLC0415
+    import aleph_client.commands.utils
 
     aleph_client.commands.utils._format_state["no_format"] = False
 
@@ -84,9 +84,7 @@ def test_no_format_flag_with_account_chain(env_files):
 def test_no_format_flag_with_account_address(env_files):
     """Test --no-format strips colors from address display."""
     settings.CONFIG_FILE = env_files[1]
-    result = runner.invoke(
-        app, ["--no-format", "account", "address", "--private-key-file", str(env_files[0])]
-    )
+    result = runner.invoke(app, ["--no-format", "account", "address", "--private-key-file", str(env_files[0])])
     assert result.exit_code == 0
     # Should contain address text but no ANSI escape codes
     assert "Addresses for Active Account" in result.stdout
@@ -117,11 +115,9 @@ def test_no_format_flag_with_file_list(mock_aiohttp_client_session):
     assert "╰" not in result.stdout
 
 
-def test_no_format_flag_with_account_balance(
-    mocker, env_files, mock_voucher_service, mock_get_balances
-):
+def test_no_format_flag_with_account_balance(mocker, env_files, mock_voucher_service, mock_get_balances):
     """Test --no-format strips formatting from balance display."""
-    from .test_instance import create_mock_client  # noqa: PLC0415
+    from .test_instance import create_mock_client
 
     settings.CONFIG_FILE = env_files[1]
     mock_client_class, mock_client = create_mock_client(None, None, mock_get_balances=mock_get_balances)
@@ -131,9 +127,13 @@ def test_no_format_flag_with_account_balance(
     result = runner.invoke(
         app,
         [
-            "--no-format", "account", "balance",
-            "--address", "0xCAfEcAfeCAfECaFeCaFecaFecaFECafECafeCaFe",
-            "--chain", "ETH",
+            "--no-format",
+            "account",
+            "balance",
+            "--address",
+            "0xCAfEcAfeCAfECaFeCaFecaFecaFECafECafeCaFe",
+            "--chain",
+            "ETH",
         ],
     )
     assert result.exit_code == 0
