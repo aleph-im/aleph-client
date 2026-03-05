@@ -106,7 +106,7 @@ def _revert_no_format_patches():
     """Restore original Rich and typer implementations."""
     rich.console.Console.__init__ = _originals["console_init"]  # type: ignore[method-assign]
     rich.table.Table.__init__ = _originals["table_init"]  # type: ignore[method-assign]
-    typer.style = _originals["typer_style"]  # type: ignore[assignment]
+    typer.style = _originals["typer_style"]
     _originals.clear()
 
     # Re-create module-level Console instances with original behavior
