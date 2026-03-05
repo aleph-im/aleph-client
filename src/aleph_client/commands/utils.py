@@ -71,7 +71,7 @@ def _apply_no_format_patches():
         kwargs["highlight"] = False
         _original_console_init(self, *args, **kwargs)
 
-    rich.console.Console.__init__ = _patched_console_init
+    rich.console.Console.__init__ = _patched_console_init  # type: ignore[method-assign]
 
     _original_table_init = rich.table.Table.__init__
 
@@ -82,13 +82,13 @@ def _apply_no_format_patches():
         kwargs["pad_edge"] = False
         _original_table_init(self, *args, **kwargs)
 
-    rich.table.Table.__init__ = _patched_table_init
+    rich.table.Table.__init__ = _patched_table_init  # type: ignore[method-assign]
 
     # Patch typer.style to return plain text
     def _plain_style(text, **_kwargs):
         return str(text)
 
-    typer.style = _plain_style
+    typer.style = _plain_style  # type: ignore[assignment]
 
     # Re-create module-level Console instances that were created before the patch
     from aleph_client.commands import account, credit
