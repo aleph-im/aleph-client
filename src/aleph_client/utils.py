@@ -43,7 +43,7 @@ try:
     import magic
 except ImportError:
     logger.info("Could not import library 'magic', MIME type detection disabled")
-    magic = None  # type:ignore
+    magic = None  # type: ignore
 
 
 def try_open_zip(path: Path) -> None:

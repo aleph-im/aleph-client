@@ -1,9 +1,9 @@
 """
-    Dummy conftest.py for aleph_client.
+Dummy conftest.py for aleph_client.
 
-    If you don't know what this is for, just leave it empty.
-    Read more about conftest.py under:
-    https://pytest.org/latest/plugins.html
+If you don't know what this is for, just leave it empty.
+Read more about conftest.py under:
+https://pytest.org/latest/plugins.html
 """
 
 import hashlib
