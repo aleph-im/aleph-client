@@ -41,9 +41,66 @@ from aleph_client.utils import fetch_json
 
 logger = logging.getLogger(__name__)
 
+_format_state: dict[str, bool] = {"no_format": False}
+
+
+def is_no_format() -> bool:
+    """Check if formatting is disabled."""
+    return _format_state["no_format"]
+
+
+def set_no_format(value: bool):
+    """Enable or disable formatting globally."""
+    _format_state["no_format"] = value
+    if value:
+        _apply_no_format_patches()
+
+
+def _apply_no_format_patches():
+    """Monkey-patch Rich and typer to disable all formatting."""
+    from functools import wraps
+
+    import rich.console
+    import rich.table
+
+    _original_console_init = rich.console.Console.__init__
+
+    @wraps(_original_console_init)
+    def _patched_console_init(self, *args, **kwargs):
+        kwargs["no_color"] = True
+        kwargs["highlight"] = False
+        _original_console_init(self, *args, **kwargs)
+
+    rich.console.Console.__init__ = _patched_console_init
+
+    _original_table_init = rich.table.Table.__init__
+
+    @wraps(_original_table_init)
+    def _patched_table_init(self, *args, **kwargs):
+        kwargs["box"] = None
+        kwargs["show_edge"] = False
+        kwargs["pad_edge"] = False
+        _original_table_init(self, *args, **kwargs)
+
+    rich.table.Table.__init__ = _patched_table_init
+
+    # Patch typer.style to return plain text
+    def _plain_style(text, **_kwargs):
+        return str(text)
+
+    typer.style = _plain_style
+
+    # Re-create module-level Console instances that were created before the patch
+    from aleph_client.commands import account, credit
+
+    account.console = rich.console.Console()
+    credit.console = rich.console.Console()
+
 
 def colorful_json(obj: str):
     """Render a JSON string with colors."""
+    if _format_state["no_format"]:
+        return obj
     return highlight(
         obj,
         lexer=JsonLexer(),
@@ -53,6 +110,8 @@ def colorful_json(obj: str):
 
 def colorized_status(status: MessageStatus) -> str:
     """Return a colored status string based on its value."""
+    if _format_state["no_format"]:
+        return str(status)
     status_colors = {
         MessageStatus.REJECTED: colors.RED,
         MessageStatus.PROCESSED: colors.GREEN,
