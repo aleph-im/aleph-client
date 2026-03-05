@@ -18,11 +18,9 @@ runner = CliRunner()
 
 @pytest.fixture(autouse=True)
 def reset_no_format():
-    """Reset _no_format flag after each test."""
+    """Reset no_format flag and revert monkey-patches after each test."""
     yield
-    import aleph_client.commands.utils
-
-    aleph_client.commands.utils._format_state["no_format"] = False
+    set_no_format(False)
 
 
 def test_set_no_format():

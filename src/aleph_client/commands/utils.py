@@ -45,6 +45,9 @@ logger = logging.getLogger(__name__)
 
 _format_state: dict[str, bool] = {"no_format": False}
 
+# Store original implementations so patches can be reversed
+_originals: dict[str, Any] = {}
+
 
 def is_no_format() -> bool:
     """Check if formatting is disabled."""
@@ -56,30 +59,33 @@ def set_no_format(value: bool):
     _format_state["no_format"] = value
     if value:
         _apply_no_format_patches()
+    elif _originals:
+        _revert_no_format_patches()
 
 
 def _apply_no_format_patches():
     """Monkey-patch Rich and typer to disable all formatting."""
     from functools import wraps
 
-    _original_console_init = rich.console.Console.__init__
+    if not _originals:
+        _originals["console_init"] = rich.console.Console.__init__
+        _originals["table_init"] = rich.table.Table.__init__
+        _originals["typer_style"] = typer.style
 
-    @wraps(_original_console_init)
+    @wraps(_originals["console_init"])
     def _patched_console_init(self, *args, **kwargs):
         kwargs["no_color"] = True
         kwargs["highlight"] = False
-        _original_console_init(self, *args, **kwargs)
+        _originals["console_init"](self, *args, **kwargs)
 
     rich.console.Console.__init__ = _patched_console_init  # type: ignore[method-assign]
 
-    _original_table_init = rich.table.Table.__init__
-
-    @wraps(_original_table_init)
+    @wraps(_originals["table_init"])
     def _patched_table_init(self, *args, **kwargs):
         kwargs["box"] = None
         kwargs["show_edge"] = False
         kwargs["pad_edge"] = False
-        _original_table_init(self, *args, **kwargs)
+        _originals["table_init"](self, *args, **kwargs)
 
     rich.table.Table.__init__ = _patched_table_init  # type: ignore[method-assign]
 
@@ -90,6 +96,20 @@ def _apply_no_format_patches():
     typer.style = _plain_style  # type: ignore[assignment]
 
     # Re-create module-level Console instances that were created before the patch
+    from aleph_client.commands import account, credit
+
+    account.console = rich.console.Console()
+    credit.console = rich.console.Console()
+
+
+def _revert_no_format_patches():
+    """Restore original Rich and typer implementations."""
+    rich.console.Console.__init__ = _originals["console_init"]  # type: ignore[method-assign]
+    rich.table.Table.__init__ = _originals["table_init"]  # type: ignore[method-assign]
+    typer.style = _originals["typer_style"]  # type: ignore[assignment]
+    _originals.clear()
+
+    # Re-create module-level Console instances with original behavior
     from aleph_client.commands import account, credit
 
     account.console = rich.console.Console()
