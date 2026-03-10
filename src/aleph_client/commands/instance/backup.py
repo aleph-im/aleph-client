@@ -42,11 +42,11 @@ async def create(
             help="Include persistent data volumes in the backup (default: rootfs only)",
         ),
     ] = False,
-    background: Annotated[
+    follow: Annotated[
         bool,
         typer.Option(
-            "--background",
-            help="Run backup in the background and poll until done",
+            "--follow",
+            help="Wait and poll until the backup completes",
         ),
     ] = False,
     skip_fsfreeze: Annotated[
@@ -91,19 +91,16 @@ async def create(
             vm_id=vm_id,
             include_volumes=include_volumes,
             skip_fsfreeze=skip_fsfreeze,
-            run_async=background,
         )
 
-        if status == 202 and background:
+        if status == 202:
+            if not follow:
+                echo(f"Backup started. Check status with:\n\n  aleph instance backup info {vm_id}\n")
+                return
             with console.status("Backup in progress..."):
                 while status == 202:
                     await asyncio.sleep(5)
-                    status, result = await manager.create_backup(
-                        vm_id=vm_id,
-                        include_volumes=include_volumes,
-                        skip_fsfreeze=skip_fsfreeze,
-                        run_async=background,
-                    )
+                    status, result = await manager.get_backup(vm_id=vm_id)
 
         if status != 200:
             echo(f"Backup failed (status {status}): {result}")
