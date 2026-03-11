@@ -20,6 +20,7 @@ from rich.progress import (
     TimeRemainingColumn,
     TransferSpeedColumn,
 )
+from rich.prompt import Prompt
 
 from aleph.sdk.client.vm_client import VmClient
 from aleph.sdk.conf import settings
@@ -30,6 +31,44 @@ from aleph_client.utils import AccountTypes, AsyncTyper, load_account, sanitize_
 
 logger = logging.getLogger(__name__)
 app = AsyncTyper(no_args_is_help=True)
+
+
+class _ProgressFile(io.RawIOBase):
+    """File wrapper that reports read progress to a Rich Progress bar."""
+
+    def __init__(self, path: Path, progress: Progress, task_id):
+        self._file = open(path, "rb")
+        self._progress = progress
+        self._task = task_id
+
+    def read(self, size=-1):
+        chunk = self._file.read(size)
+        if chunk:
+            self._progress.advance(self._task, len(chunk))
+        return chunk
+
+    def readinto(self, b):
+        chunk = self._file.read(len(b))
+        n = len(chunk)
+        b[:n] = chunk
+        if n:
+            self._progress.advance(self._task, n)
+        return n
+
+    def readable(self):
+        return True
+
+    def close(self):
+        self._file.close()
+        super().close()
+
+
+async def _resolve_domain(domain: str | None, vm_id: str) -> str:
+    return (
+        (domain and sanitize_url(domain))
+        or await find_crn_of_vm(vm_id)
+        or Prompt.ask("URL of the CRN (Compute node) on which the VM is running")
+    )
 
 
 @app.command()
@@ -76,12 +115,7 @@ async def create(
 
     setup_logging(debug)
 
-    domain = (
-        (domain and sanitize_url(domain))
-        or await find_crn_of_vm(vm_id)
-        or typer.prompt("URL of the CRN (Compute node) on which the VM is running")
-    )
-
+    domain = await _resolve_domain(domain, vm_id)
     account: AccountTypes = load_account(private_key, private_key_file, chain=chain)
 
     async with VmClient(account, domain) as manager:
@@ -143,12 +177,7 @@ async def info(
 
     setup_logging(debug)
 
-    domain = (
-        (domain and sanitize_url(domain))
-        or await find_crn_of_vm(vm_id)
-        or typer.prompt("URL of the CRN (Compute node) on which the VM is running")
-    )
-
+    domain = await _resolve_domain(domain, vm_id)
     account: AccountTypes = load_account(private_key, private_key_file, chain=chain)
 
     async with VmClient(account, domain) as manager:
@@ -186,6 +215,7 @@ async def info(
 
 async def _download_from_url(url: str, output: Path):
     """Stream a backup tar from a presigned URL with progress bar."""
+    tmp = output.with_suffix(output.suffix + ".tmp")
     try:
         async with aiohttp.ClientSession() as session:
             async with session.get(url) as response:
@@ -203,13 +233,14 @@ async def _download_from_url(url: str, output: Path):
                     TimeRemainingColumn(),
                 ) as progress:
                     task = progress.add_task(f"Downloading to {output}", total=total)
-                    with open(output, "wb") as f:
+                    with open(tmp, "wb") as f:
                         async for chunk in response.content.iter_chunked(8192):
                             f.write(chunk)
                             progress.advance(task, len(chunk))
-    except aiohttp.ClientError as e:
-        echo(f"Download failed: {e}")
-        raise typer.Exit(1) from e
+        tmp.rename(output)
+    except BaseException:
+        tmp.unlink(missing_ok=True)
+        raise
 
     echo(f"Backup downloaded to {output}")
 
@@ -252,11 +283,7 @@ async def download(
         raise typer.Exit(1)
 
     if vm_id:
-        domain = (
-            (domain and sanitize_url(domain))
-            or await find_crn_of_vm(vm_id)
-            or typer.prompt("URL of the CRN (Compute node) on which the VM is running")
-        )
+        domain = await _resolve_domain(domain, vm_id)
         account: AccountTypes = load_account(private_key, private_key_file, chain=chain)
 
         async with VmClient(account, domain) as manager:
@@ -306,12 +333,11 @@ async def delete(
 
     setup_logging(debug)
 
-    domain = (
-        (domain and sanitize_url(domain))
-        or await find_crn_of_vm(vm_id)
-        or typer.prompt("URL of the CRN (Compute node) on which the VM is running")
-    )
+    if not yes_no_input(f"Delete backup {backup_id}?", default=False):
+        echo("Delete cancelled.")
+        return
 
+    domain = await _resolve_domain(domain, vm_id)
     account: AccountTypes = load_account(private_key, private_key_file, chain=chain)
 
     async with VmClient(account, domain) as manager:
@@ -376,12 +402,7 @@ async def restore(
         echo("Restore cancelled.")
         return
 
-    domain = (
-        (domain and sanitize_url(domain))
-        or await find_crn_of_vm(vm_id)
-        or typer.prompt("URL of the CRN (Compute node) on which the VM is running")
-    )
-
+    domain = await _resolve_domain(domain, vm_id)
     account: AccountTypes = load_account(private_key, private_key_file, chain=chain)
 
     async with VmClient(account, domain) as manager:
@@ -398,34 +419,7 @@ async def restore(
             ) as progress:
                 task = progress.add_task(f"Uploading {rootfs_file.name}", total=file_size)
 
-                class ProgressFile(io.RawIOBase):
-                    def __init__(self, path, pg, pg_task):
-                        self._file = open(path, "rb")
-                        self._progress = pg
-                        self._task = pg_task
-
-                    def read(self, size=-1):
-                        chunk = self._file.read(size)
-                        if chunk:
-                            self._progress.advance(self._task, len(chunk))
-                        return chunk
-
-                    def readinto(self, b):
-                        chunk = self._file.read(len(b))
-                        n = len(chunk)
-                        b[:n] = chunk
-                        if n:
-                            self._progress.advance(self._task, n)
-                        return n
-
-                    def readable(self):
-                        return True
-
-                    def close(self):
-                        self._file.close()
-                        super().close()
-
-                pf = ProgressFile(rootfs_file, progress, task)
+                pf = _ProgressFile(rootfs_file, progress, task)
                 data = aiohttp.FormData()
                 data.add_field(
                     "rootfs",

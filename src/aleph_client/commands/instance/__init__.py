@@ -1167,7 +1167,7 @@ async def reinstall(
         status, result = await manager.reinstall_instance(vm_id=vm_id, erase_volumes=not keep_data)
         if status != 200:
             echo(f"Status: {status}\n{result}")
-            return 1
+            raise typer.Exit(1)
         if keep_data:
             echo(f"VM rootfs reinstalled on CRN: {domain} (data volumes preserved)")
         else:
