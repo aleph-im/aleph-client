@@ -21,7 +21,7 @@ RUN pip install --upgrade pip wheel twine
 # Preinstall dependencies for faster steps
 RUN pip install --upgrade secp256k1 coincurve aiohttp eciespy python-magic typer
 RUN pip install --upgrade 'aleph-message~=0.3.2' eth_account pynacl base58
-RUN pip install --upgrade hatch
+RUN pip install --upgrade "hatch>=1.16" "virtualenv>=21"
 
 WORKDIR /opt/aleph-client/
 COPY . .
