@@ -58,12 +58,19 @@ class _ProgressFile(io.RawIOBase):
     def readable(self):
         return True
 
+    def writable(self):
+        return False
+
+    def seekable(self):
+        return False
+
     def close(self):
         self._file.close()
         super().close()
 
 
-async def _resolve_domain(domain: str | None, vm_id: str) -> str:
+async def resolve_crn_domain(domain: str | None, vm_id: str) -> str:
+    """Resolve CRN domain from user input, allocation lookup, or interactive prompt."""
     return (
         (domain and sanitize_url(domain))
         or await find_crn_of_vm(vm_id)
@@ -115,7 +122,7 @@ async def create(
 
     setup_logging(debug)
 
-    domain = await _resolve_domain(domain, vm_id)
+    domain = await resolve_crn_domain(domain, vm_id)
     account: AccountTypes = load_account(private_key, private_key_file, chain=chain)
 
     async with VmClient(account, domain) as manager:
@@ -177,7 +184,7 @@ async def info(
 
     setup_logging(debug)
 
-    domain = await _resolve_domain(domain, vm_id)
+    domain = await resolve_crn_domain(domain, vm_id)
     account: AccountTypes = load_account(private_key, private_key_file, chain=chain)
 
     async with VmClient(account, domain) as manager:
@@ -224,7 +231,7 @@ async def _download_from_url(url: str, output: Path):
                     echo(f"Download failed (status {response.status}): {text}")
                     raise typer.Exit(1)
 
-                total = response.content_length
+                total = response.content_length or 0
                 with Progress(
                     TextColumn("[bold blue]{task.description}"),
                     BarColumn(),
@@ -232,7 +239,10 @@ async def _download_from_url(url: str, output: Path):
                     TransferSpeedColumn(),
                     TimeRemainingColumn(),
                 ) as progress:
-                    task = progress.add_task(f"Downloading to {output}", total=total)
+                    task = progress.add_task(
+                        f"Downloading to {output}",
+                        total=total if total else None,
+                    )
                     with open(tmp, "wb") as f:
                         async for chunk in response.content.iter_chunked(8192):
                             f.write(chunk)
@@ -282,8 +292,9 @@ async def download(
         echo("Error: provide a presigned URL or --vm-id.")
         raise typer.Exit(1)
 
+    download_url = url
     if vm_id:
-        domain = await _resolve_domain(domain, vm_id)
+        domain = await resolve_crn_domain(domain, vm_id)
         account: AccountTypes = load_account(private_key, private_key_file, chain=chain)
 
         async with VmClient(account, domain) as manager:
@@ -304,14 +315,14 @@ async def download(
                 raise typer.Exit(1)
 
             backup_info = json.loads(result)
-            url = backup_info.get("download_url")
-            if not url:
+            download_url = backup_info.get("download_url")
+            if not download_url:
                 echo("Backup exists but no download URL available.")
                 raise typer.Exit(1)
 
             echo(f"Found backup {backup_info.get('backup_id', 'N/A')}")
 
-    await _download_from_url(url, output)
+    await _download_from_url(download_url, output)
 
 
 @app.command()
@@ -337,7 +348,7 @@ async def delete(
         echo("Delete cancelled.")
         return
 
-    domain = await _resolve_domain(domain, vm_id)
+    domain = await resolve_crn_domain(domain, vm_id)
     account: AccountTypes = load_account(private_key, private_key_file, chain=chain)
 
     async with VmClient(account, domain) as manager:
@@ -402,12 +413,17 @@ async def restore(
         echo("Restore cancelled.")
         return
 
-    domain = await _resolve_domain(domain, vm_id)
+    domain = await resolve_crn_domain(domain, vm_id)
     account: AccountTypes = load_account(private_key, private_key_file, chain=chain)
 
     async with VmClient(account, domain) as manager:
         if rootfs_file:
-            url, header = await manager.get_restore_endpoint(vm_id=vm_id)
+            try:
+                url, header = await manager.get_restore_endpoint(vm_id=vm_id)
+            except aiohttp.ClientError as e:
+                echo(f"Failed to connect to CRN restore endpoint: {e}")
+                raise typer.Exit(1) from e
+
             file_size = rootfs_file.stat().st_size
 
             with Progress(

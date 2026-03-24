@@ -62,6 +62,7 @@ from aleph.sdk.utils import (
 )
 from aleph_client.commands import help_strings
 from aleph_client.commands.instance.backup import app as backup_app
+from aleph_client.commands.instance.backup import resolve_crn_domain
 from aleph_client.commands.instance.display import CRNTable, show_instances
 from aleph_client.commands.instance.network import (
     call_program_crn_list,
@@ -1155,15 +1156,12 @@ async def reinstall(
         echo("Reinstall cancelled.")
         return
 
-    domain = (
-        (domain and sanitize_url(domain))
-        or await find_crn_of_vm(vm_id)
-        or Prompt.ask("URL of the CRN (Compute node) on which the VM is running")
-    )
+    domain = await resolve_crn_domain(domain, vm_id)
 
     account: AccountTypes = load_account(private_key, private_key_file, chain=chain)
 
     async with VmClient(account, domain) as manager:
+        # SDK param is erase_volumes (default True); CLI exposes --keep-data to opt out
         status, result = await manager.reinstall_instance(vm_id=vm_id, erase_volumes=not keep_data)
         if status != 200:
             echo(f"Status: {status}\n{result}")
