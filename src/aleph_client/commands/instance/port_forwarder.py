@@ -6,10 +6,6 @@ from typing import Annotated, Optional
 
 import typer
 from aiohttp import ClientResponseError
-from aleph.sdk import AlephHttpClient, AuthenticatedAlephHttpClient
-from aleph.sdk.conf import settings
-from aleph.sdk.exceptions import MessageNotProcessed, NotAuthorize
-from aleph.sdk.types import InstanceManual, PortFlags, Ports
 from aleph_message.models import Chain, InstanceMessage, ItemHash
 from aleph_message.status import MessageStatus
 from rich import box
@@ -18,6 +14,10 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
+from aleph.sdk import AlephHttpClient, AuthenticatedAlephHttpClient
+from aleph.sdk.conf import settings
+from aleph.sdk.exceptions import MessageNotProcessed, NotAuthorize
+from aleph.sdk.types import InstanceManual, PortFlags, Ports
 from aleph_client.commands import help_strings
 from aleph_client.commands.utils import setup_logging
 from aleph_client.utils import AccountTypes, AsyncTyper, load_account

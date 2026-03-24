@@ -9,14 +9,14 @@ import aiohttp
 import pytest
 import typer
 from aiohttp import InvalidURL
-from aleph.sdk.client.services.crn import CrnList
-from aleph.sdk.exceptions import InsufficientFundsError
-from aleph.sdk.types import TokenType
 from aleph_message.models import Chain
 from aleph_message.models.execution.base import Payment, PaymentType
 from aleph_message.models.execution.environment import GpuDeviceClass, HypervisorType
 from multidict import CIMultiDict, CIMultiDictProxy
 
+from aleph.sdk.client.services.crn import CrnList
+from aleph.sdk.exceptions import InsufficientFundsError
+from aleph.sdk.types import TokenType
 from aleph_client.commands.instance import (
     allocate,
     confidential_create,

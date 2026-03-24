@@ -10,6 +10,11 @@ from pathlib import Path
 from typing import Annotated, Optional
 
 import typer
+from aleph_message.models import AlephMessage, Chain, ProgramMessage
+from aleph_message.models.base import MessageType
+from aleph_message.models.item_hash import ItemHash
+from aleph_message.status import MessageStatus
+
 from aleph.sdk import AlephHttpClient, AuthenticatedAlephHttpClient
 from aleph.sdk.conf import settings
 from aleph.sdk.exceptions import (
@@ -21,11 +26,6 @@ from aleph.sdk.query.filters import MessageFilter
 from aleph.sdk.query.responses import MessagesResponse
 from aleph.sdk.types import StorageEnum
 from aleph.sdk.utils import extended_json_encoder
-from aleph_message.models import AlephMessage, Chain, ProgramMessage
-from aleph_message.models.base import MessageType
-from aleph_message.models.item_hash import ItemHash
-from aleph_message.status import MessageStatus
-
 from aleph_client.commands import help_strings
 from aleph_client.commands.utils import (
     colorful_json,

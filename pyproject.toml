@@ -209,12 +209,12 @@ lint.ignore = [
   # since python 3.9 doesn't support it
   "UP007",
 ]
-#[tool.ruff.isort]
-#known-first-party = ["aleph_client"]
 lint.per-file-ignores."src/aleph_client/commands/help_strings.py" = [ "E501" ]
 lint.per-file-ignores."tests/unit/*" = [ "T201" ]
-
 lint.per-file-ignores."tests/unit/test_instance.py" = [ "S106", "T201" ]
+
+[tool.ruff.lint.isort]
+known-first-party = ["aleph_client"]
 
 [tool.pytest.ini_options]
 pythonpath = [ "src" ]

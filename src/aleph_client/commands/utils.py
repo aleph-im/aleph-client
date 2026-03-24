@@ -12,12 +12,6 @@ from typing import Any, Callable, Optional, TypeVar, Union, get_args
 
 import typer
 from aiohttp import ClientSession
-from aleph.sdk import AlephHttpClient
-from aleph.sdk.chains.ethereum import ETHAccount
-from aleph.sdk.conf import AccountType, settings
-from aleph.sdk.exceptions import ForgottenMessageError, MessageNotFoundError
-from aleph.sdk.types import GenericMessage
-from aleph.sdk.utils import safe_getattr
 from aleph_message.models import (
     AlephMessage,
     Chain,
@@ -37,6 +31,12 @@ from pygments.lexers import JsonLexer
 from rich.prompt import IntPrompt, Prompt, PromptError
 from typer import Exit, colors, echo, style
 
+from aleph.sdk import AlephHttpClient
+from aleph.sdk.chains.ethereum import ETHAccount
+from aleph.sdk.conf import AccountType, settings
+from aleph.sdk.exceptions import ForgottenMessageError, MessageNotFoundError
+from aleph.sdk.types import GenericMessage
+from aleph.sdk.utils import safe_getattr
 from aleph_client.utils import fetch_json
 
 logger = logging.getLogger(__name__)

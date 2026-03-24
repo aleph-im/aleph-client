@@ -5,6 +5,9 @@ from tempfile import NamedTemporaryFile
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from aleph_message.models import Chain, PostMessage, StoreMessage
+from typer.testing import CliRunner
+
 from aleph.sdk.chains.ethereum import ETHAccount
 from aleph.sdk.conf import AccountType, MainConfiguration, settings
 from aleph.sdk.exceptions import (
@@ -14,9 +17,6 @@ from aleph.sdk.exceptions import (
 )
 from aleph.sdk.query.responses import MessagesResponse
 from aleph.sdk.types import StorageEnum, StoredContent
-from aleph_message.models import Chain, PostMessage, StoreMessage
-from typer.testing import CliRunner
-
 from aleph_client.__main__ import app
 from aleph_client.commands.files import upload
 

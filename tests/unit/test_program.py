@@ -8,9 +8,9 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import aiohttp
 import pytest
-from aleph.sdk.conf import settings
 from aleph_message.models import Chain
 
+from aleph.sdk.conf import settings
 from aleph_client.commands.program import (
     delete,
     list_programs,

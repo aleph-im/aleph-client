@@ -2,10 +2,10 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 import typer
-from aleph.sdk.exceptions import InsufficientFundsError
-from aleph.sdk.types import TokenType
 from typer.testing import CliRunner
 
+from aleph.sdk.exceptions import InsufficientFundsError
+from aleph.sdk.types import TokenType
 from aleph_client.__main__ import app
 
 from .mocks import create_mock_load_account

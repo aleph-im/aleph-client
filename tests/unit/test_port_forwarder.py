@@ -4,10 +4,10 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from aiohttp import ClientResponseError
-from aleph.sdk.types import PortFlags
 from aleph_message.models import InstanceMessage, ItemHash
 from aleph_message.status import MessageStatus
 
+from aleph.sdk.types import PortFlags
 from aleph_client.commands.instance.port_forwarder import (
     create,
     delete,

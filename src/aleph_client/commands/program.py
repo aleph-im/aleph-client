@@ -12,20 +12,6 @@ from zipfile import BadZipFile
 
 import aiohttp
 import typer
-from aleph.sdk import AlephHttpClient, AuthenticatedAlephHttpClient
-from aleph.sdk.account import _load_account
-from aleph.sdk.client.vm_client import VmClient
-from aleph.sdk.conf import load_main_configuration, settings
-from aleph.sdk.evm_utils import get_chains_with_holding
-from aleph.sdk.exceptions import (
-    ForgottenMessageError,
-    InsufficientFundsError,
-    MessageNotFoundError,
-)
-from aleph.sdk.query.filters import MessageFilter
-from aleph.sdk.query.responses import PriceResponse
-from aleph.sdk.types import StorageEnum, TokenType
-from aleph.sdk.utils import displayable_amount, make_program_content, safe_getattr
 from aleph_message.models import (
     Chain,
     MessageType,
@@ -45,6 +31,20 @@ from rich.prompt import Prompt
 from rich.table import Table
 from rich.text import Text
 
+from aleph.sdk import AlephHttpClient, AuthenticatedAlephHttpClient
+from aleph.sdk.account import _load_account
+from aleph.sdk.client.vm_client import VmClient
+from aleph.sdk.conf import load_main_configuration, settings
+from aleph.sdk.evm_utils import get_chains_with_holding
+from aleph.sdk.exceptions import (
+    ForgottenMessageError,
+    InsufficientFundsError,
+    MessageNotFoundError,
+)
+from aleph.sdk.query.filters import MessageFilter
+from aleph.sdk.query.responses import PriceResponse
+from aleph.sdk.types import StorageEnum, TokenType
+from aleph.sdk.utils import displayable_amount, make_program_content, safe_getattr
 from aleph_client.commands import help_strings
 from aleph_client.commands.pricing import PricingEntity, fetch_pricing_aggregate
 from aleph_client.commands.utils import (

@@ -8,15 +8,15 @@ from typing import Annotated, Optional
 
 import typer
 from aiohttp import ClientResponseError, ClientSession
-from aleph.sdk.client import AlephHttpClient, AuthenticatedAlephHttpClient
-from aleph.sdk.conf import settings
-from aleph.sdk.utils import extended_json_encoder
 from aleph_message.models import Chain
 from aleph_message.status import MessageStatus
 from rich.console import Console
 from rich.panel import Panel
 from rich.text import Text
 
+from aleph.sdk.client import AlephHttpClient, AuthenticatedAlephHttpClient
+from aleph.sdk.conf import settings
+from aleph.sdk.utils import extended_json_encoder
 from aleph_client.commands import help_strings
 from aleph_client.commands.utils import setup_logging
 from aleph_client.utils import (

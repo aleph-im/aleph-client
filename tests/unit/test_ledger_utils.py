@@ -3,10 +3,10 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 import typer
-from aleph.sdk.conf import AccountType, MainConfiguration
 from aleph_message.models import Chain
 from ledgereth.exceptions import LedgerError
 
+from aleph.sdk.conf import AccountType, MainConfiguration
 from aleph_client.utils import (
     get_first_ledger_name,
     list_ledger_dongles,

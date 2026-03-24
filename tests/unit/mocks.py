@@ -2,10 +2,10 @@ from decimal import Decimal
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
-from aleph.sdk.chains.evm import EVMAccount
-from aleph.sdk.conf import settings
 from pydantic import BaseModel, ConfigDict
 
+from aleph.sdk.chains.evm import EVMAccount
+from aleph.sdk.conf import settings
 from aleph_client.commands.node import NodeInfo
 
 # Change to Aleph testnet
