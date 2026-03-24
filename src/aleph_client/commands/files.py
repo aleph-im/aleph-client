@@ -13,11 +13,6 @@ from urllib.parse import urlparse
 import aiohttp
 import typer
 from aiohttp import ClientResponseError
-from aleph.sdk import AlephHttpClient, AuthenticatedAlephHttpClient
-from aleph.sdk.conf import settings
-from aleph.sdk.exceptions import InsufficientFundsError
-from aleph.sdk.types import StorageEnum, StoredContent, TokenType
-from aleph.sdk.utils import safe_getattr
 from aleph_message.models import Chain, ItemHash, ItemType, MessageType, StoreMessage
 from aleph_message.status import MessageStatus
 from pydantic import BaseModel, Field
@@ -25,6 +20,11 @@ from rich import box
 from rich.console import Console
 from rich.table import Table
 
+from aleph.sdk import AlephHttpClient, AuthenticatedAlephHttpClient
+from aleph.sdk.conf import settings
+from aleph.sdk.exceptions import InsufficientFundsError
+from aleph.sdk.types import StorageEnum, StoredContent, TokenType
+from aleph.sdk.utils import safe_getattr
 from aleph_client.commands import help_strings
 from aleph_client.commands.utils import setup_logging
 from aleph_client.utils import (

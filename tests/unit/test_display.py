@@ -3,10 +3,10 @@ from __future__ import annotations
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from aleph.sdk.types import CrnExecutionV1, CrnExecutionV2, InstanceManual
 from aleph_message.models.execution.base import PaymentType
 from rich.text import Text
 
+from aleph.sdk.types import CrnExecutionV1, CrnExecutionV2, InstanceManual
 from aleph_client.commands.instance.display import (
     CRNTable,
     InstanceTableBuilder,

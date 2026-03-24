@@ -48,7 +48,7 @@ jobs:
       - name: Install required Python packages
         run: |
           python3 -m venv /tmp/venv
-          /tmp/venv/bin/python3 -m pip install --upgrade hatch hatch-vcs
+          /tmp/venv/bin/python3 -m pip install --upgrade hatch hatch-vcs "virtualenv<21"
 
       - name: Build source and wheel packages
         run: |

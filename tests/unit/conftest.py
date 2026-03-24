@@ -17,6 +17,9 @@ from tempfile import NamedTemporaryFile
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from aleph_message.models import Chain, ItemHash, ItemType, StoreContent, StoreMessage
+from aleph_message.models.base import MessageType
+
 from aleph.sdk.chains.common import generate_key
 from aleph.sdk.chains.ethereum import ETHAccount, get_fallback_private_key
 from aleph.sdk.client.services.crn import CrnList
@@ -24,9 +27,6 @@ from aleph.sdk.client.services.pricing import PricingModel
 from aleph.sdk.client.services.settings import NetworkSettingsModel
 from aleph.sdk.query.responses import BalanceResponse
 from aleph.sdk.types import StoredContent, Voucher, VoucherAttribute
-from aleph_message.models import Chain, ItemHash, ItemType, StoreContent, StoreMessage
-from aleph_message.models.base import MessageType
-
 from aleph_client.models import CRNInfo
 
 from .mocks import (

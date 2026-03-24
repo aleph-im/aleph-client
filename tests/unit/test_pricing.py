@@ -3,9 +3,9 @@ from __future__ import annotations
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from aleph.sdk.client.services.pricing import PricingEntity
 from rich.console import Console
 
+from aleph.sdk.client.services.pricing import PricingEntity
 from aleph_client.commands.pricing import (
     GroupEntity,
     Pricing,

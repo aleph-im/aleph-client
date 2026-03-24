@@ -6,6 +6,12 @@ from time import sleep
 from typing import Annotated, Optional, cast
 
 import typer
+from aleph_message.models import AggregateMessage, Chain
+from aleph_message.models.base import MessageType
+from rich.console import Console
+from rich.prompt import Confirm, Prompt
+from rich.table import Table
+
 from aleph.sdk.client import AlephHttpClient, AuthenticatedAlephHttpClient
 from aleph.sdk.conf import settings
 from aleph.sdk.domain import (
@@ -17,12 +23,6 @@ from aleph.sdk.domain import (
 )
 from aleph.sdk.exceptions import DomainConfigurationError
 from aleph.sdk.query.filters import MessageFilter
-from aleph_message.models import AggregateMessage, Chain
-from aleph_message.models.base import MessageType
-from rich.console import Console
-from rich.prompt import Confirm, Prompt
-from rich.table import Table
-
 from aleph_client.commands import help_strings
 from aleph_client.commands.utils import is_environment_interactive
 from aleph_client.utils import AccountTypes, AsyncTyper, load_account

@@ -114,7 +114,6 @@ dependencies = [
   "black==24.4.2",
   "mypy==1.10.0",
   "ruff==0.9.*",
-  "isort==5.13.2",
   "yamlfix==1.17.0",
   "pyproject-fmt==2.2.1",
 
@@ -127,14 +126,12 @@ typing = "mypy --config-file=pyproject.toml {args:} ./src/ ./tests/"
 style = [
   "ruff check {args:}",
   "black --check --diff {args:} ./src/ ./tests/",
-  "isort --check-only --profile black {args:} ./src/ ./tests/",
   "yamlfix --check .",
   "pyproject-fmt --check pyproject.toml",
 ]
 fmt = [
   "black {args:} ./src/ ./tests/",
   "ruff check --fix {args:}",
-  "isort --profile black {args:} ./src/ ./tests/",
   "yamlfix .",
   "pyproject-fmt pyproject.toml",
   "style",
@@ -209,12 +206,11 @@ lint.ignore = [
   # since python 3.9 doesn't support it
   "UP007",
 ]
-#[tool.ruff.isort]
-#known-first-party = ["aleph_client"]
 lint.per-file-ignores."src/aleph_client/commands/help_strings.py" = [ "E501" ]
 lint.per-file-ignores."tests/unit/*" = [ "T201" ]
-
 lint.per-file-ignores."tests/unit/test_instance.py" = [ "S106", "T201" ]
+
+lint.isort.known-first-party = [ "aleph_client", "aleph" ]
 
 [tool.pytest.ini_options]
 pythonpath = [ "src" ]

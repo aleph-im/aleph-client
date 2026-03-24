@@ -5,6 +5,13 @@ from decimal import Decimal
 from typing import Annotated, Optional
 
 import typer
+from aleph_message.models.execution.base import PaymentType
+from rich import box
+from rich.console import Console, Group
+from rich.panel import Panel
+from rich.table import Table
+from rich.text import Text
+
 from aleph.sdk import AlephHttpClient
 from aleph.sdk.client.services.crn import NetworkGPUS
 from aleph.sdk.client.services.pricing import (
@@ -19,13 +26,6 @@ from aleph.sdk.client.services.pricing import (
 )
 from aleph.sdk.conf import settings
 from aleph.sdk.utils import displayable_amount
-from aleph_message.models.execution.base import PaymentType
-from rich import box
-from rich.console import Console, Group
-from rich.panel import Panel
-from rich.table import Table
-from rich.text import Text
-
 from aleph_client.commands.instance.network import call_program_crn_list
 from aleph_client.commands.utils import colorful_json, setup_logging
 from aleph_client.utils import async_lru_cache

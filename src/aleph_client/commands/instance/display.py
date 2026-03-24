@@ -5,19 +5,6 @@ import logging
 from decimal import Decimal
 from typing import Optional, Union, cast
 
-from aleph.sdk.client.http import AlephHttpClient
-from aleph.sdk.client.services.crn import CRN
-from aleph.sdk.query.responses import PriceResponse
-from aleph.sdk.types import (
-    CrnExecutionV1,
-    CrnExecutionV2,
-    InstanceAllocationsInfo,
-    InstanceManual,
-    InstancesExecutionList,
-    InstanceWithScheduler,
-    VmStatus,
-)
-from aleph.sdk.utils import displayable_amount, safe_getattr
 from aleph_message.models import InstanceMessage
 from aleph_message.models.execution.base import PaymentType
 from rich import box
@@ -32,6 +19,19 @@ from textual.reactive import reactive
 from textual.widgets import DataTable, Footer, Label, ProgressBar
 from textual.widgets._data_table import RowKey
 
+from aleph.sdk.client.http import AlephHttpClient
+from aleph.sdk.client.services.crn import CRN
+from aleph.sdk.query.responses import PriceResponse
+from aleph.sdk.types import (
+    CrnExecutionV1,
+    CrnExecutionV2,
+    InstanceAllocationsInfo,
+    InstanceManual,
+    InstancesExecutionList,
+    InstanceWithScheduler,
+    VmStatus,
+)
+from aleph.sdk.utils import displayable_amount, safe_getattr
 from aleph_client.commands.files import download
 from aleph_client.commands.help_strings import ALLOCATION_AUTO, ALLOCATION_MANUAL
 from aleph_client.commands.instance.network import build_crn_info
@@ -567,6 +567,8 @@ class CRNTable(App[Union[tuple[CRNInfo, int], list[tuple[CRNInfo, int]]]]):
     loader_label_end: Label
     progress_bar: ProgressBar
 
+    REFRESH_SENTINEL = "__REFRESH__"
+
     BINDINGS = [
         ("s", "sort_by_score", "Sort By Score"),
         ("n", "sort_by_name", "Sort By Name"),
@@ -576,6 +578,7 @@ class CRNTable(App[Union[tuple[CRNInfo, int], list[tuple[CRNInfo, int]]]]):
         ## ("q", "sort_by_qemu", "Sort By Qemu"),
         ("g", "sort_by_gpu", "Sort By GPU"),
         ("u", "sort_by_url", "Sort By URL"),
+        ("r", "refresh", "Refresh List"),
         ("space", "toggle_selection", "Toggle Selection"),
         ("x", "quit", "Exit"),
     ]
@@ -846,6 +849,10 @@ class CRNTable(App[Union[tuple[CRNInfo, int], list[tuple[CRNInfo, int]]]]):
 
     def action_sort_by_url(self):
         self.sort_by("url")
+
+    def action_refresh(self):
+        """Signal the caller to re-fetch the CRN list."""
+        self.exit(self.REFRESH_SENTINEL)  # type: ignore[arg-type]
 
 
 async def show_instances(

@@ -9,6 +9,16 @@ from typing import Annotated, Optional
 
 import aiohttp
 import typer
+from aleph_message.models import Chain
+from ledgereth.exceptions import LedgerError
+from rich import box
+from rich.console import Console
+from rich.panel import Panel
+from rich.prompt import Prompt
+from rich.table import Table
+from rich.text import Text
+from typer.colors import GREEN, RED
+
 from aleph.sdk.account import _load_account
 from aleph.sdk.chains.common import generate_key
 from aleph.sdk.chains.solana import parse_private_key as parse_solana_private_key
@@ -28,16 +38,6 @@ from aleph.sdk.evm_utils import (
 from aleph.sdk.types import AccountFromPrivateKey
 from aleph.sdk.utils import bytes_from_hex, displayable_amount
 from aleph.sdk.wallets.ledger import LedgerETHAccount
-from aleph_message.models import Chain
-from ledgereth.exceptions import LedgerError
-from rich import box
-from rich.console import Console
-from rich.panel import Panel
-from rich.prompt import Prompt
-from rich.table import Table
-from rich.text import Text
-from typer.colors import GREEN, RED
-
 from aleph_client.commands import help_strings
 from aleph_client.commands.help_strings import INVALID_KEY_FORMAT
 from aleph_client.commands.utils import (

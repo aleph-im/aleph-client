@@ -4,9 +4,6 @@ from typing import Annotated, Optional
 
 import typer
 from aiohttp import ClientResponseError
-from aleph.sdk import AlephHttpClient
-from aleph.sdk.conf import settings
-from aleph.sdk.utils import displayable_amount
 from aleph_message.models import Chain
 from rich import box
 from rich.console import Console
@@ -14,6 +11,9 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
+from aleph.sdk import AlephHttpClient
+from aleph.sdk.conf import settings
+from aleph.sdk.utils import displayable_amount
 from aleph_client.commands import help_strings
 from aleph_client.commands.utils import setup_logging
 from aleph_client.utils import AsyncTyper, get_account_and_address

@@ -21,6 +21,11 @@ import aiohttp
 import hid
 import typer
 from aiohttp import ClientSession
+from aleph_message.models import Chain
+from aleph_message.models.base import MessageType
+from aleph_message.models.execution.base import Encoding
+from ledgereth.exceptions import LedgerError
+
 from aleph.sdk.account import AccountTypes, _load_account
 from aleph.sdk.conf import (
     AccountType,
@@ -30,10 +35,6 @@ from aleph.sdk.conf import (
 )
 from aleph.sdk.types import GenericMessage
 from aleph.sdk.wallets.ledger import LedgerETHAccount
-from aleph_message.models import Chain
-from aleph_message.models.base import MessageType
-from aleph_message.models.execution.base import Encoding
-from ledgereth.exceptions import LedgerError
 
 logger = logging.getLogger(__name__)
 LEDGER_VENDOR_ID = 0x2C97

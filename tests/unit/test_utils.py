@@ -2,7 +2,6 @@ from pathlib import Path
 
 import pytest
 import typer
-from aleph.sdk.conf import AccountType, MainConfiguration
 from aleph_message.models import (
     AggregateMessage,
     Chain,
@@ -13,6 +12,7 @@ from aleph_message.models import (
 )
 from aleph_message.models.base import MessageType
 
+from aleph.sdk.conf import AccountType, MainConfiguration
 from aleph_client.commands.utils import validate_non_interactive_args_config
 from aleph_client.utils import get_message_type_value
 

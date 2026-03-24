@@ -9,12 +9,12 @@ from typing import Annotated, Optional
 
 import aiohttp
 import typer
-from aleph.sdk.conf import settings
 from rich import text
 from rich.console import Console
 from rich.markup import escape
 from rich.table import Table
 
+from aleph.sdk.conf import settings
 from aleph_client.commands.utils import setup_logging
 from aleph_client.utils import AsyncTyper, sanitize_url
 

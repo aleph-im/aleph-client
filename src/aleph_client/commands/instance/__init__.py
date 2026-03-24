@@ -10,6 +10,23 @@ from typing import Annotated, Any, Optional, Union
 
 import aiohttp
 import typer
+from aleph_message.models import Chain, InstanceMessage, StoreMessage
+from aleph_message.models.execution.base import Payment, PaymentType
+from aleph_message.models.execution.environment import (
+    GpuProperties,
+    HostRequirements,
+    HypervisorType,
+    NodeRequirements,
+    TrustedExecutionEnvironment,
+)
+from aleph_message.models.execution.volume import PersistentVolumeSizeMib
+from aleph_message.models.item_hash import ItemHash
+from click import echo
+from rich.console import Console
+from rich.panel import Panel
+from rich.prompt import Prompt
+from rich.text import Text
+
 from aleph.sdk import AlephHttpClient, AuthenticatedAlephHttpClient
 from aleph.sdk.chains.ethereum import BaseEthAccount
 from aleph.sdk.client.services.crn import NetworkGPUS
@@ -43,24 +60,8 @@ from aleph.sdk.utils import (
     make_instance_content,
     safe_getattr,
 )
-from aleph_message.models import Chain, InstanceMessage, StoreMessage
-from aleph_message.models.execution.base import Payment, PaymentType
-from aleph_message.models.execution.environment import (
-    GpuProperties,
-    HostRequirements,
-    HypervisorType,
-    NodeRequirements,
-    TrustedExecutionEnvironment,
-)
-from aleph_message.models.execution.volume import PersistentVolumeSizeMib
-from aleph_message.models.item_hash import ItemHash
-from click import echo
-from rich.console import Console
-from rich.panel import Panel
-from rich.prompt import Prompt
-from rich.text import Text
-
 from aleph_client.commands import help_strings
+from aleph_client.commands.instance.backup import app as backup_app
 from aleph_client.commands.instance.display import CRNTable, show_instances
 from aleph_client.commands.instance.network import (
     call_program_crn_list,
@@ -561,6 +562,12 @@ async def create(
             if not selection:
                 # User has ctrl-c
                 raise typer.Exit(1)
+
+            # User pressed 'r' to refresh — re-fetch the CRN list
+            if selection == CRNTable.REFRESH_SENTINEL:
+                call_program_crn_list.cache_clear()
+                crn_list = await call_program_crn_list(only_active=True)
+                continue
 
             # Handle both single and multi-selection
             if isinstance(selection, list):
@@ -1101,6 +1108,78 @@ async def reboot(
         echo(f"VM rebooted on CRN: {domain}")
 
 
+@app.command()
+async def reinstall(
+    vm_id: Annotated[str, typer.Argument(help="VM item hash to reinstall")],
+    keep_data: Annotated[
+        bool, typer.Option("--keep-data", help="Only reset the rootfs image, preserve persistent data volumes")
+    ] = False,
+    domain: Annotated[Optional[str], typer.Option(help="CRN domain on which the VM is running")] = None,
+    chain: Annotated[
+        Optional[Chain], typer.Option(help=help_strings.PAYMENT_CHAIN_USED, metavar=metavar_valid_chains)
+    ] = None,
+    private_key: Annotated[Optional[str], typer.Option(help=help_strings.PRIVATE_KEY)] = settings.PRIVATE_KEY_STRING,
+    private_key_file: Annotated[
+        Optional[Path], typer.Option(help=help_strings.PRIVATE_KEY_FILE)
+    ] = settings.PRIVATE_KEY_FILE,
+    debug: Annotated[bool, typer.Option(help="Enable debug logging")] = False,
+):
+    """Reinstall an instance from its initial OS image.
+
+    By default, ALL non-read-only volumes (rootfs + persistent data) are
+    erased. Use --keep-data to only reset the rootfs and preserve
+    persistent data volumes.
+    """
+
+    setup_logging(debug)
+
+    console = Console()
+    if keep_data:
+        console.print(
+            "[bold yellow]WARNING:[/bold yellow] This will reinstall "
+            "the instance OS image.\n"
+            "  - Rootfs will be [bold]erased[/bold] and reinstalled "
+            "from the original image\n"
+            "  - Persistent data volumes will be [bold green]preserved"
+            "[/bold green]\n"
+            "  - External mounted volumes will be [bold green]preserved"
+            "[/bold green]"
+        )
+    else:
+        console.print(
+            "[bold red]WARNING:[/bold red] This will fully reinstall "
+            "the instance.\n"
+            "  - Rootfs will be [bold]erased[/bold] and reinstalled "
+            "from the original image\n"
+            "  - Persistent data volumes will be [bold red]deleted"
+            "[/bold red]\n"
+            "  - External mounted volumes will be [bold red]deleted"
+            "[/bold red]"
+        )
+
+    if not yes_no_input("Proceed with reinstall?", default=False):
+        echo("Reinstall cancelled.")
+        return
+
+    domain = (
+        (domain and sanitize_url(domain))
+        or await find_crn_of_vm(vm_id)
+        or Prompt.ask("URL of the CRN (Compute node) on which the VM is running")
+    )
+
+    account: AccountTypes = load_account(private_key, private_key_file, chain=chain)
+
+    async with VmClient(account, domain) as manager:
+        status, result = await manager.reinstall_instance(vm_id=vm_id, erase_volumes=not keep_data)
+        if status != 200:
+            echo(f"Status: {status}\n{result}")
+            raise typer.Exit(1)
+        if keep_data:
+            echo(f"VM rootfs reinstalled on CRN: {domain} (data volumes preserved)")
+        else:
+            echo(f"VM reinstalled on CRN: {domain}")
+
+
 @app.command("start")
 @app.command()
 async def allocate(
@@ -1620,5 +1699,6 @@ async def gpu_create(
     )
 
 
-# Add port-forwarder sub-command
+# Add sub-commands
+app.add_typer(backup_app, name="backup", help="Manage instance backups (create, download, delete, restore)")
 app.add_typer(port_forwarder_app, name="port-forwarder", help="Manage port forwarding for instances")

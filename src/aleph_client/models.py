@@ -1,8 +1,6 @@
 from typing import Any, Optional
 
 from aiohttp import InvalidURL
-from aleph.sdk.client.services.crn import SystemUsage
-from aleph.sdk.types import StoredContent
 from aleph_message.models import ItemHash
 from aleph_message.models.execution.environment import CpuProperties, GpuDeviceClass
 from pydantic import BaseModel
@@ -12,6 +10,8 @@ from rich.prompt import Prompt
 from rich.text import Text
 from typer import echo
 
+from aleph.sdk.client.services.crn import SystemUsage
+from aleph.sdk.types import StoredContent
 from aleph_client.commands.files import download
 from aleph_client.commands.node import _escape_and_normalize, _remove_ansi_escape
 from aleph_client.utils import extract_valid_eth_address, sanitize_url
