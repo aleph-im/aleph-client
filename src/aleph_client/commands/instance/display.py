@@ -567,6 +567,8 @@ class CRNTable(App[Union[tuple[CRNInfo, int], list[tuple[CRNInfo, int]]]]):
     loader_label_end: Label
     progress_bar: ProgressBar
 
+    REFRESH_SENTINEL = "__REFRESH__"
+
     BINDINGS = [
         ("s", "sort_by_score", "Sort By Score"),
         ("n", "sort_by_name", "Sort By Name"),
@@ -576,6 +578,7 @@ class CRNTable(App[Union[tuple[CRNInfo, int], list[tuple[CRNInfo, int]]]]):
         ## ("q", "sort_by_qemu", "Sort By Qemu"),
         ("g", "sort_by_gpu", "Sort By GPU"),
         ("u", "sort_by_url", "Sort By URL"),
+        ("r", "refresh", "Refresh List"),
         ("space", "toggle_selection", "Toggle Selection"),
         ("x", "quit", "Exit"),
     ]
@@ -846,6 +849,10 @@ class CRNTable(App[Union[tuple[CRNInfo, int], list[tuple[CRNInfo, int]]]]):
 
     def action_sort_by_url(self):
         self.sort_by("url")
+
+    def action_refresh(self):
+        """Signal the caller to re-fetch the CRN list."""
+        self.exit(self.REFRESH_SENTINEL)
 
 
 async def show_instances(

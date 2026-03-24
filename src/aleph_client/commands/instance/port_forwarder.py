@@ -19,6 +19,7 @@ from aleph.sdk.conf import settings
 from aleph.sdk.exceptions import MessageNotProcessed, NotAuthorize
 from aleph.sdk.types import InstanceManual, PortFlags, Ports
 from aleph_client.commands import help_strings
+from aleph_client.commands.instance.network import find_crn_of_vm
 from aleph_client.commands.utils import setup_logging
 from aleph_client.utils import AccountTypes, AsyncTyper, load_account
 
@@ -63,6 +64,7 @@ async def list_ports(
             table.add_column("Item Hash", style="bright_blue")
             table.add_column("Name", style="bright_blue")
             table.add_column("Port", style="bright_green")
+            table.add_column("External Port", style="bright_cyan")
             table.add_column("TCP", style="bright_yellow")
             table.add_column("UDP", style="bright_magenta")
 
@@ -81,9 +83,27 @@ async def list_ports(
                     if item_hash and ih != item_hash:
                         continue
 
+                    # Fetch mapped ports from CRN execution info
+                    mapped_ports = {}
+                    try:
+                        crn_url = await find_crn_of_vm(ih)
+                        if crn_url:
+                            executions = await client.crn.get_active_vms(crn_url)
+                            execution = executions.root.get(ih)
+                            if execution and hasattr(execution, "networking"):
+                                mapped_ports = getattr(
+                                    execution.networking, "mapped_ports", {}
+                                ) or {}
+                    except Exception as e:
+                        logger.debug(f"Could not fetch mapped ports for {ih}: {e}")
+
                     for port_num, flags in ports.ports.items():
                         tcp_check = "+" if flags.tcp else "-"
                         udp_check = "+" if flags.udp else "-"
+
+                        # Look up the external host port
+                        mapping = mapped_ports.get(str(port_num))
+                        ext_port = str(mapping.host) if mapping else "N/A"
 
                         # Create stylized display for hash and name
                         item_hash_display = f"[bright_cyan]{ih}[/bright_cyan]"
@@ -92,7 +112,7 @@ async def list_ports(
                         # Format port display
                         port_display = f"[bold]{port_num}[/bold]"
 
-                        table.add_row(item_hash_display, name_display, port_display, tcp_check, udp_check)
+                        table.add_row(item_hash_display, name_display, port_display, ext_port, tcp_check, udp_check)
 
             if table.row_count == 0:
                 if item_hash:

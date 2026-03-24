@@ -62,7 +62,7 @@ from aleph.sdk.utils import (
 )
 from aleph_client.commands import help_strings
 from aleph_client.commands.instance.backup import app as backup_app
-from aleph_client.commands.instance.backup import resolve_crn_domain
+from aleph_client.commands.instance.crn import app as crn_app
 from aleph_client.commands.instance.display import CRNTable, show_instances
 from aleph_client.commands.instance.network import (
     call_program_crn_list,
@@ -563,6 +563,12 @@ async def create(
             if not selection:
                 # User has ctrl-c
                 raise typer.Exit(1)
+
+            # User pressed 'r' to refresh — re-fetch the CRN list
+            if selection == CRNTable.REFRESH_SENTINEL:
+                call_program_crn_list.cache_clear()
+                crn_list = await call_program_crn_list(only_active=True)
+                continue
 
             # Handle both single and multi-selection
             if isinstance(selection, list):
@@ -1156,12 +1162,15 @@ async def reinstall(
         echo("Reinstall cancelled.")
         return
 
-    domain = await resolve_crn_domain(domain, vm_id)
+    domain = (
+        (domain and sanitize_url(domain))
+        or await find_crn_of_vm(vm_id)
+        or Prompt.ask("URL of the CRN (Compute node) on which the VM is running")
+    )
 
     account: AccountTypes = load_account(private_key, private_key_file, chain=chain)
 
     async with VmClient(account, domain) as manager:
-        # SDK param is erase_volumes (default True); CLI exposes --keep-data to opt out
         status, result = await manager.reinstall_instance(vm_id=vm_id, erase_volumes=not keep_data)
         if status != 200:
             echo(f"Status: {status}\n{result}")
@@ -1693,4 +1702,5 @@ async def gpu_create(
 
 # Add sub-commands
 app.add_typer(backup_app, name="backup", help="Manage instance backups (create, download, delete, restore)")
+app.add_typer(crn_app, name="crn", help="Debug and inspect Compute Resource Nodes (CRNs)")
 app.add_typer(port_forwarder_app, name="port-forwarder", help="Manage port forwarding for instances")
