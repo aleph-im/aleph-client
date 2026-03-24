@@ -852,7 +852,7 @@ class CRNTable(App[Union[tuple[CRNInfo, int], list[tuple[CRNInfo, int]]]]):
 
     def action_refresh(self):
         """Signal the caller to re-fetch the CRN list."""
-        self.exit(self.REFRESH_SENTINEL)
+        self.exit(self.REFRESH_SENTINEL)  # type: ignore[arg-type]
 
 
 async def show_instances(

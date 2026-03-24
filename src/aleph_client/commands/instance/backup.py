@@ -322,6 +322,7 @@ async def download(
 
             echo(f"Found backup {backup_info.get('backup_id', 'N/A')}")
 
+    assert download_url is not None  # guaranteed by validation above
     await _download_from_url(download_url, output)
 
 

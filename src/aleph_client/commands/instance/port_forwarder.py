@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Annotated, Optional
+from typing import Annotated, Any, Optional
 
 import typer
 from aiohttp import ClientResponseError
@@ -84,7 +84,7 @@ async def list_ports(
                         continue
 
                     # Fetch mapped ports from CRN execution info
-                    mapped_ports = {}
+                    mapped_ports: dict[str, Any] = {}
                     try:
                         crn_url = await find_crn_of_vm(ih)
                         if crn_url:
