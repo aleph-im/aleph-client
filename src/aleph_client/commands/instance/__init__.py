@@ -62,7 +62,6 @@ from aleph.sdk.utils import (
 )
 from aleph_client.commands import help_strings
 from aleph_client.commands.instance.backup import app as backup_app
-from aleph_client.commands.instance.crn import app as crn_app
 from aleph_client.commands.instance.display import CRNTable, show_instances
 from aleph_client.commands.instance.network import (
     call_program_crn_list,
@@ -1702,5 +1701,4 @@ async def gpu_create(
 
 # Add sub-commands
 app.add_typer(backup_app, name="backup", help="Manage instance backups (create, download, delete, restore)")
-app.add_typer(crn_app, name="crn", help="Debug and inspect Compute Resource Nodes (CRNs)")
 app.add_typer(port_forwarder_app, name="port-forwarder", help="Manage port forwarding for instances")
