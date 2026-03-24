@@ -211,7 +211,7 @@ lint.per-file-ignores."tests/unit/*" = [ "T201" ]
 lint.per-file-ignores."tests/unit/test_instance.py" = [ "S106", "T201" ]
 
 [tool.ruff.lint.isort]
-known-first-party = ["aleph_client"]
+known-first-party = ["aleph_client", "aleph"]
 
 [tool.pytest.ini_options]
 pythonpath = [ "src" ]
