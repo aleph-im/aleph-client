@@ -91,9 +91,7 @@ async def list_ports(
                             executions = await client.crn.get_active_vms(crn_url)
                             execution = executions.root.get(ih)
                             if execution and hasattr(execution, "networking"):
-                                mapped_ports = getattr(
-                                    execution.networking, "mapped_ports", {}
-                                ) or {}
+                                mapped_ports = getattr(execution.networking, "mapped_ports", {}) or {}
                     except Exception as e:
                         logger.debug(f"Could not fetch mapped ports for {ih}: {e}")
 
