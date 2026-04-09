@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Annotated, Optional
 
 import typer
-from aleph_message.models import AlephMessage, Chain, ProgramMessage
+from aleph_message.models import AlephMessage, Chain
 from aleph_message.models.base import MessageType
 from aleph_message.models.item_hash import ItemHash
 from aleph_message.status import MessageStatus
