@@ -1,10 +1,10 @@
 """Tests for the --no-format flag."""
 
 import pytest
-from aleph.sdk.conf import settings
 from aleph_message.status import MessageStatus
 from typer.testing import CliRunner
 
+from aleph.sdk.conf import settings
 from aleph_client.__main__ import app
 from aleph_client.commands.utils import (
     colorful_json,
@@ -18,7 +18,7 @@ runner = CliRunner()
 
 @pytest.fixture(autouse=True)
 def reset_no_format():
-    """Reset no_format flag and revert monkey-patches after each test."""
+    """Reset no_format flag after each test."""
     yield
     set_no_format(False)
 

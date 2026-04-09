@@ -73,6 +73,7 @@ from aleph_client.commands.pricing import PricingEntity, fetch_pricing_aggregate
 from aleph_client.commands.utils import (
     find_sevctl_or_exit,
     get_annotated_constraint,
+    get_console,
     get_or_prompt_volumes,
     setup_logging,
     validate_ssh_pubkey_file,
@@ -165,7 +166,7 @@ async def create(
 ) -> tuple[ItemHash, Optional[str], Chain]:
     """Create and register a new instance on aleph.cloud"""
     setup_logging(debug)
-    console = Console()
+    console = get_console()
 
     # Start CRN list fetch as a background task
     crn_list_future = call_program_crn_list()
@@ -366,7 +367,9 @@ async def create(
         else (
             PricingEntity.INSTANCE_GPU_PREMIUM
             if gpu and premium
-            else PricingEntity.INSTANCE_GPU_STANDARD if gpu else PricingEntity.INSTANCE
+            else PricingEntity.INSTANCE_GPU_STANDARD
+            if gpu
+            else PricingEntity.INSTANCE
         )
     )
 
@@ -1071,7 +1074,7 @@ async def list_instances(
                 }
                 instances_data.append(instance_entry)
 
-            console = Console()
+            console = get_console()
             console.print(json_lib.dumps(instances_data, indent=2, default=str))
 
 
@@ -1133,7 +1136,7 @@ async def reinstall(
 
     setup_logging(debug)
 
-    console = Console()
+    console = get_console()
     if keep_data:
         console.print(
             "[bold yellow]WARNING:[/bold yellow] This will reinstall "
@@ -1430,7 +1433,7 @@ async def confidential_start(
         return 1
     await client.close()
 
-    console = Console()
+    console = get_console()
     infos = [Text.from_markup(f"Your instance [bright_cyan]{vm_id}[/bright_cyan] is currently starting.")]
     if verbose:
         infos += [

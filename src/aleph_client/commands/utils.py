@@ -10,8 +10,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Optional, TypeVar, Union, get_args
 
-import rich.console
-import rich.table
 import typer
 from aiohttp import ClientSession
 from aleph_message.models import (
@@ -30,7 +28,9 @@ from pydantic.fields import FieldInfo
 from pygments import highlight
 from pygments.formatters.terminal256 import Terminal256Formatter
 from pygments.lexers import JsonLexer
+from rich.console import Console
 from rich.prompt import IntPrompt, Prompt, PromptError
+from rich.table import Table
 from typer import Exit, colors, echo, style
 
 from aleph.sdk import AlephHttpClient
@@ -43,82 +43,40 @@ from aleph_client.utils import fetch_json
 
 logger = logging.getLogger(__name__)
 
-_format_state: dict[str, bool] = {"no_format": False}
-
-# Store original implementations so patches can be reversed
-_originals: dict[str, Any] = {}
+_no_format: bool = False
 
 
 def is_no_format() -> bool:
     """Check if formatting is disabled."""
-    return _format_state["no_format"]
+    return _no_format
 
 
 def set_no_format(value: bool):
     """Enable or disable formatting globally."""
-    _format_state["no_format"] = value
-    if value:
-        _apply_no_format_patches()
-    elif _originals:
-        _revert_no_format_patches()
+    global _no_format  # noqa: PLW0603
+    _no_format = value
 
 
-def _apply_no_format_patches():
-    """Monkey-patch Rich and typer to disable all formatting."""
-    from functools import wraps
-
-    if not _originals:
-        _originals["console_init"] = rich.console.Console.__init__
-        _originals["table_init"] = rich.table.Table.__init__
-        _originals["typer_style"] = typer.style
-
-    @wraps(_originals["console_init"])
-    def _patched_console_init(self, *args, **kwargs):
-        kwargs["no_color"] = True
-        kwargs["highlight"] = False
-        _originals["console_init"](self, *args, **kwargs)
-
-    rich.console.Console.__init__ = _patched_console_init  # type: ignore[method-assign]
-
-    @wraps(_originals["table_init"])
-    def _patched_table_init(self, *args, **kwargs):
-        kwargs["box"] = None
-        kwargs["show_edge"] = False
-        kwargs["pad_edge"] = False
-        _originals["table_init"](self, *args, **kwargs)
-
-    rich.table.Table.__init__ = _patched_table_init  # type: ignore[method-assign]
-
-    # Patch typer.style to return plain text
-    def _plain_style(text, **_kwargs):
-        return str(text)
-
-    typer.style = _plain_style  # type: ignore[assignment]
-
-    # Re-create module-level Console instances that were created before the patch
-    from aleph_client.commands import account, credit
-
-    account.console = rich.console.Console()
-    credit.console = rich.console.Console()
+def get_console(**kwargs) -> Console:
+    """Return a Console configured according to the --no-format flag."""
+    if _no_format:
+        kwargs.setdefault("no_color", True)
+        kwargs.setdefault("highlight", False)
+    return Console(**kwargs)
 
 
-def _revert_no_format_patches():
-    """Restore original Rich and typer implementations."""
-    rich.console.Console.__init__ = _originals["console_init"]  # type: ignore[method-assign]
-    rich.table.Table.__init__ = _originals["table_init"]  # type: ignore[method-assign]
-    typer.style = _originals["typer_style"]
-    _originals.clear()
-
-    # Re-create module-level Console instances with original behavior
-    from aleph_client.commands import account, credit
-
-    account.console = rich.console.Console()
-    credit.console = rich.console.Console()
+def get_table(**kwargs) -> Table:
+    """Return a Table configured according to the --no-format flag."""
+    if _no_format:
+        kwargs.setdefault("box", None)
+        kwargs.setdefault("show_edge", False)
+        kwargs.setdefault("pad_edge", False)
+    return Table(**kwargs)
 
 
 def colorful_json(obj: str):
     """Render a JSON string with colors."""
-    if _format_state["no_format"]:
+    if _no_format:
         return obj
     return highlight(
         obj,
@@ -129,7 +87,7 @@ def colorful_json(obj: str):
 
 def colorized_status(status: MessageStatus) -> str:
     """Return a colored status string based on its value."""
-    if _format_state["no_format"]:
+    if _no_format:
         return str(status)
     status_colors = {
         MessageStatus.REJECTED: colors.RED,
@@ -309,8 +267,7 @@ def display_mounted_volumes(message: Union[InstanceMessage, ProgramMessage]) -> 
                 )
             else:
                 volumes += (
-                    f"\n[deep_sky_blue1]• {volume.mount} ➜ [/deep_sky_blue1]"
-                    f"[orchid]persistent: {size_mib} MiB[/orchid]"
+                    f"\n[deep_sky_blue1]• {volume.mount} ➜ [/deep_sky_blue1][orchid]persistent: {size_mib} MiB[/orchid]"
                 )
     return f"\nMounted Volumes: {volumes if volumes else '-'}"
 

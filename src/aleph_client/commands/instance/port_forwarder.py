@@ -9,9 +9,7 @@ from aiohttp import ClientResponseError
 from aleph_message.models import Chain, InstanceMessage, ItemHash
 from aleph_message.status import MessageStatus
 from rich import box
-from rich.console import Console
 from rich.panel import Panel
-from rich.table import Table
 from rich.text import Text
 
 from aleph.sdk import AlephHttpClient, AuthenticatedAlephHttpClient
@@ -20,7 +18,7 @@ from aleph.sdk.exceptions import MessageNotProcessed, NotAuthorize
 from aleph.sdk.types import InstanceManual, PortFlags, Ports
 from aleph_client.commands import help_strings
 from aleph_client.commands.instance.network import find_crn_of_vm
-from aleph_client.commands.utils import setup_logging
+from aleph_client.commands.utils import get_console, get_table, setup_logging
 from aleph_client.utils import AccountTypes, AsyncTyper, load_account
 
 logger = logging.getLogger(__name__)
@@ -60,7 +58,7 @@ async def list_ports(
                 return
 
             # Create a table to display the port forwards
-            table = Table(box=box.HEAVY_EDGE, style="cyan", title="Port Forwards", title_style="bold white on blue")
+            table = get_table(box=box.HEAVY_EDGE, style="cyan", title="Port Forwards", title_style="bold white on blue")
             table.add_column("Item Hash", style="bright_blue")
             table.add_column("Name", style="bright_blue")
             table.add_column("Port", style="bright_green")
@@ -68,7 +66,7 @@ async def list_ports(
             table.add_column("TCP", style="bright_yellow")
             table.add_column("UDP", style="bright_magenta")
 
-            console = Console()
+            console = get_console()
 
             # Process the data for display
             for config in ports_config.data:

@@ -217,13 +217,14 @@ async def amend(
             new_content_dict = json.loads(new_content_json)
             new_content = content_type(**new_content_dict)
 
-            if isinstance(existing_message, ProgramMessage):
+            if "replaces" in type(new_content).model_fields:
                 new_content.replaces = existing_message.item_hash
             else:
                 new_content.ref = existing_message.item_hash
 
             new_content.time = time.time()
-            new_content.type = "amend"
+            if "type" in type(new_content).model_fields:
+                new_content.type = "amend"
 
             typer.echo(new_content)
             async with AuthenticatedAlephHttpClient(account=account, api_server=settings.API_HOST) as account_client:

@@ -11,7 +11,6 @@ import aiohttp
 import typer
 from aleph_message.models import Chain
 from click import echo
-from rich.console import Console
 from rich.progress import (
     BarColumn,
     DownloadColumn,
@@ -26,7 +25,7 @@ from aleph.sdk.client.vm_client import VmClient
 from aleph.sdk.conf import settings
 from aleph_client.commands import help_strings
 from aleph_client.commands.instance.network import find_crn_of_vm
-from aleph_client.commands.utils import setup_logging, yes_no_input
+from aleph_client.commands.utils import get_console, setup_logging, yes_no_input
 from aleph_client.utils import AccountTypes, AsyncTyper, load_account, sanitize_url
 
 logger = logging.getLogger(__name__)
@@ -126,7 +125,7 @@ async def create(
     account: AccountTypes = load_account(private_key, private_key_file, chain=chain)
 
     async with VmClient(account, domain) as manager:
-        console = Console()
+        console = get_console()
 
         status, result = await manager.create_backup(
             vm_id=vm_id,
@@ -206,7 +205,7 @@ async def info(
             echo(json.dumps(backup_info, indent=2))
             return
 
-        console = Console()
+        console = get_console()
         console.print(f"Backup for instance [bold]{vm_id}[/bold]")
         console.print(f"  Backup ID:    [bold]{backup_info.get('backup_id', 'N/A')}[/bold]")
         console.print(f"  Size:         {backup_info.get('size', 'N/A')} bytes")
@@ -401,7 +400,7 @@ async def restore(
         echo(f"Error: file not found: {rootfs_file}")
         raise typer.Exit(1)
 
-    console = Console()
+    console = get_console()
     console.print(
         "[bold yellow]WARNING:[/bold yellow] This will replace the "
         "instance rootfs image.\n"

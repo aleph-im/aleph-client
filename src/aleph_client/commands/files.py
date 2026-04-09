@@ -17,8 +17,6 @@ from aleph_message.models import Chain, ItemHash, ItemType, MessageType, StoreMe
 from aleph_message.status import MessageStatus
 from pydantic import BaseModel, Field
 from rich import box
-from rich.console import Console
-from rich.table import Table
 
 from aleph.sdk import AlephHttpClient, AuthenticatedAlephHttpClient
 from aleph.sdk.conf import settings
@@ -26,7 +24,7 @@ from aleph.sdk.exceptions import InsufficientFundsError
 from aleph.sdk.types import StorageEnum, StoredContent, TokenType
 from aleph.sdk.utils import safe_getattr
 from aleph_client.commands import help_strings
-from aleph_client.commands.utils import setup_logging
+from aleph_client.commands.utils import get_console, get_table, setup_logging
 from aleph_client.utils import (
     AccountTypes,
     AsyncTyper,
@@ -301,14 +299,14 @@ class GetAccountFilesQueryParams(BaseModel):
 
 
 def _show_files(files_data: dict) -> None:
-    table = Table(title="Files Information", box=box.SIMPLE_HEAVY)
+    table = get_table(title="Files Information", box=box.SIMPLE_HEAVY)
     table.add_column("File Hash", style="cyan", no_wrap=True, min_width=None)
     table.add_column("Size (MB)", style="magenta", min_width=None)
     table.add_column("Type", style="green", min_width=None)
     table.add_column("Created", style="blue", min_width=None)
     table.add_column("Item Hash", style="yellow", min_width=None, no_wrap=True)
 
-    console = Console()
+    console = get_console()
 
     # Add files to the table
     for file_info in files_data["files"]:

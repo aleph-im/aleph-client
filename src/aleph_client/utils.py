@@ -208,7 +208,6 @@ def sanitize_url(url: str) -> str:
 
 
 def async_lru_cache(async_function):
-
     @lru_cache(maxsize=0 if "pytest" in sys.modules else 1)
     def cached_async_function(*args, **kwargs):
         return ensure_future(async_function(*args, **kwargs))
