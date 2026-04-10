@@ -301,7 +301,7 @@ async def create(
                 lambda x: len(x) == 64,
             )
         else:
-            rootfs = os_choices[rootfs]
+            rootfs = os_choices[rootfs]  # type: ignore[index]  # guarded by `not rootfs` check above
 
     # Validate rootfs message exist
     async with AlephHttpClient(api_server=settings.API_HOST) as client:
@@ -1097,6 +1097,7 @@ async def reboot(
         or await find_crn_of_vm(vm_id)
         or prompt_ask("URL of the CRN (Compute node) on which the VM is running")
     )
+    assert domain  # prompt_ask always returns a non-empty string
 
     account: AccountTypes = load_account(private_key, private_key_file, chain=chain)
 
@@ -1166,6 +1167,7 @@ async def reinstall(
         or await find_crn_of_vm(vm_id)
         or prompt_ask("URL of the CRN (Compute node) on which the VM is running")
     )
+    assert domain
 
     account: AccountTypes = load_account(private_key, private_key_file, chain=chain)
 
@@ -1203,6 +1205,7 @@ async def allocate(
         or await find_crn_of_vm(vm_id)
         or prompt_ask("URL of the CRN (Compute node) on which the VM will be allocated")
     )
+    assert domain
 
     account: AccountTypes = load_account(private_key, private_key_file, chain=chain)
 
@@ -1231,6 +1234,7 @@ async def logs(
     setup_logging(debug)
 
     domain = (domain and sanitize_url(domain)) or await find_crn_of_vm(vm_id) or prompt_ask(help_strings.PROMPT_CRN_URL)
+    assert domain
 
     account: AccountTypes = load_account(private_key, private_key_file, chain=chain)
 
@@ -1262,6 +1266,7 @@ async def stop(
     setup_logging(debug)
 
     domain = (domain and sanitize_url(domain)) or await find_crn_of_vm(vm_id) or prompt_ask(help_strings.PROMPT_CRN_URL)
+    assert domain
 
     account: AccountTypes = load_account(private_key, private_key_file, chain=chain)
 
@@ -1301,6 +1306,7 @@ async def confidential_init_session(
         or await find_crn_of_vm(vm_id)
         or prompt_ask("URL of the CRN (Compute node) on which the session will be initialized")
     )
+    assert domain
 
     account: AccountTypes = load_account(private_key, private_key_file, chain=chain)
 
@@ -1387,6 +1393,7 @@ async def confidential_start(
         or await find_crn_of_vm(vm_id)
         or prompt_ask("URL of the CRN (Compute node) on which the VM will be started")
     )
+    assert domain
 
     client = VmConfidentialClient(account, sevctl_path, domain)
 
