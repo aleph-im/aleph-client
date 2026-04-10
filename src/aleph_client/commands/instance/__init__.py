@@ -22,7 +22,6 @@ from aleph_message.models.execution.environment import (
 from aleph_message.models.execution.volume import PersistentVolumeSizeMib
 from aleph_message.models.item_hash import ItemHash
 from click import echo
-from rich.console import Console
 from rich.panel import Panel
 from rich.prompt import Prompt
 from rich.text import Text
