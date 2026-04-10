@@ -713,7 +713,9 @@ class CRNTable(App[Union[tuple[CRNInfo, int], list[tuple[CRNInfo, int]]]]):
                 (
                     crn.compatible_available_gpus[gpu_id]["device_name"]
                     if self.only_gpu_model
-                    else "✅" if crn.gpu_support else "✖"
+                    else "✅"
+                    if crn.gpu_support
+                    else "✖"
                 ),
                 crn.display_cpu,
                 crn.display_ram,

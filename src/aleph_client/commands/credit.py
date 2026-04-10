@@ -17,7 +17,6 @@ from aleph_client.utils import AsyncTyper, get_account_and_address
 
 logger = logging.getLogger(__name__)
 app = AsyncTyper(no_args_is_help=True)
-console = get_console()
 
 
 @app.command()
