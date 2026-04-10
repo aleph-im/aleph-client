@@ -6,14 +6,13 @@ import typer
 from aiohttp import ClientResponseError
 from aleph_message.models import Chain
 from rich import box
-from rich.panel import Panel
 from rich.text import Text
 
 from aleph.sdk import AlephHttpClient
 from aleph.sdk.conf import settings
 from aleph.sdk.utils import displayable_amount
 from aleph_client.commands import help_strings
-from aleph_client.commands.utils import get_console, get_table, setup_logging
+from aleph_client.commands.utils import get_console, get_panel, get_table, setup_logging
 from aleph_client.utils import AsyncTyper, get_account_and_address
 
 logger = logging.getLogger(__name__)
@@ -55,7 +54,7 @@ async def show(
                     Text.from_markup(f" {displayable_amount(credit.credit_balance, decimals=2)}"),
                 ]
                 get_console().print(
-                    Panel(
+                    get_panel(
                         Text.assemble(*infos),
                         title="Credits Infos",
                         border_style="blue",
@@ -137,7 +136,7 @@ async def history(
                     Text.from_markup(f"[bold]Address:[/bold] {address}"),
                 ]
                 get_console().print(
-                    Panel(
+                    get_panel(
                         Text.assemble(*infos),
                         title="Credits Info",
                         border_style="blue",

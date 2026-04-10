@@ -25,8 +25,6 @@ from aleph_message.models.item_hash import ItemHash
 from aleph_message.status import MessageStatus
 from click import echo
 from rich import box
-from rich.panel import Panel
-from rich.prompt import Prompt
 from rich.text import Text
 
 from aleph.sdk import AlephHttpClient, AuthenticatedAlephHttpClient
@@ -51,8 +49,10 @@ from aleph_client.commands.utils import (
     get_console,
     get_or_prompt_environment_variables,
     get_or_prompt_volumes,
+    get_panel,
     get_table,
     input_multiline,
+    prompt_ask,
     setup_logging,
     str_to_datetime,
     validated_prompt,
@@ -307,7 +307,7 @@ async def upload(
                 ),
             ]
             console.print(
-                Panel(
+                get_panel(
                     Text.assemble(*infos),
                     title="Program Created",
                     border_style="green",
@@ -423,7 +423,7 @@ async def update(
                 ),
             ]
             console.print(
-                Panel(
+                get_panel(
                     Text.assemble(*infos),
                     title="Program Updated",
                     border_style="orange3",
@@ -660,7 +660,13 @@ async def list_programs(
             ),
         ]
         console.print(
-            Panel(Text.assemble(*infos), title="Infos", border_style="bright_cyan", expand=False, title_align="left")
+            get_panel(
+                Text.assemble(*infos),
+                title="Infos",
+                border_style="bright_cyan",
+                expand=False,
+                title_align="left",
+            )
         )
 
 
@@ -750,7 +756,7 @@ async def persist(
                 ),
             ]
             console.print(
-                Panel(
+                get_panel(
                     Text.assemble(*infos),
                     title="Program: Persist",
                     border_style="orchid",
@@ -847,7 +853,7 @@ async def unpersist(
                 ),
             ]
             console.print(
-                Panel(
+                get_panel(
                     Text.assemble(*infos),
                     title="Program: Unpersist",
                     border_style="orchid",
@@ -878,7 +884,7 @@ async def logs(
     setup_logging(debug)
 
     account = _load_account(private_key, private_key_file, chain=chain)
-    domain_ = sanitize_url(domain or Prompt.ask(help_strings.PROMPT_PROGRAM_CRN_URL))
+    domain_ = sanitize_url(domain or prompt_ask(help_strings.PROMPT_PROGRAM_CRN_URL))
 
     async with VmClient(account, domain_) as client:
         async with client.operate(vm_id=item_hash, operation="logs", method="GET") as response:
@@ -989,5 +995,5 @@ async def runtime_checker(
         color = "green" if bool(re.search(r"\d", version)) else "red"
         infos.append(Text.from_markup(f"\n[bold]{label}:[/bold] [{color}]{version}[/{color}]"))
     console.print(
-        Panel(Text.assemble(*infos), title="Runtime Infos", border_style="violet", expand=False, title_align="left")
+        get_panel(Text.assemble(*infos), title="Runtime Infos", border_style="violet", expand=False, title_align="left")
     )

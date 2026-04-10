@@ -2,6 +2,7 @@
 Aleph Client command-line interface.
 """
 
+import sys
 from typing import Annotated
 
 import typer
@@ -23,14 +24,25 @@ from aleph_client.commands import (
 from aleph_client.commands.utils import set_no_format
 from aleph_client.utils import AsyncTyper
 
-app = AsyncTyper(no_args_is_help=True)
+_no_format_early = "--no-format" in sys.argv
+
+if _no_format_early:
+    set_no_format(True)
+
+app = AsyncTyper(
+    no_args_is_help=True,
+    rich_markup_mode=None if _no_format_early else "rich",
+)
 
 
 @app.callback()
 def main(
     no_format: Annotated[
         bool,
-        typer.Option("--no-format", help="Disable rich formatting (colors, tables, panels)"),
+        typer.Option(
+            "--no-format",
+            help="Disable rich formatting (colors, tables, panels)",
+        ),
     ] = False,
 ):
     """Aleph Cloud command-line interface."""

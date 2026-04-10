@@ -19,13 +19,17 @@ from rich.progress import (
     TimeRemainingColumn,
     TransferSpeedColumn,
 )
-from rich.prompt import Prompt
 
 from aleph.sdk.client.vm_client import VmClient
 from aleph.sdk.conf import settings
 from aleph_client.commands import help_strings
 from aleph_client.commands.instance.network import find_crn_of_vm
-from aleph_client.commands.utils import get_console, setup_logging, yes_no_input
+from aleph_client.commands.utils import (
+    get_console,
+    prompt_ask,
+    setup_logging,
+    yes_no_input,
+)
 from aleph_client.utils import AccountTypes, AsyncTyper, load_account, sanitize_url
 
 logger = logging.getLogger(__name__)
@@ -73,7 +77,7 @@ async def resolve_crn_domain(domain: str | None, vm_id: str) -> str:
     return (
         (domain and sanitize_url(domain))
         or await find_crn_of_vm(vm_id)
-        or Prompt.ask("URL of the CRN (Compute node) on which the VM is running")
+        or prompt_ask("URL of the CRN (Compute node) on which the VM is running")
     )
 
 

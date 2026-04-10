@@ -8,7 +8,6 @@ import typer
 from aleph_message.models.execution.base import PaymentType
 from rich import box
 from rich.console import Group
-from rich.panel import Panel
 from rich.text import Text
 
 from aleph.sdk import AlephHttpClient
@@ -29,6 +28,7 @@ from aleph_client.commands.instance.network import call_program_crn_list
 from aleph_client.commands.utils import (
     colorful_json,
     get_console,
+    get_panel,
     get_table,
     setup_logging,
 )
@@ -292,7 +292,7 @@ class Pricing:
                 price_dict=price, storage=entity == PricingEntity.STORAGE
             )
             self.console.print(
-                Panel(
+                get_panel(
                     displayable_group,
                     title=f"Pricing: {label}",
                     border_style="orchid",
@@ -376,7 +376,7 @@ class Pricing:
             )
 
             self.console.print(
-                Panel(
+                get_panel(
                     displayable_group,
                     title=f"Pricing: {label}",
                     border_style="orchid",

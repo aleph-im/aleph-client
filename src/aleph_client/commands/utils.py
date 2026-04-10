@@ -29,8 +29,10 @@ from pygments import highlight
 from pygments.formatters.terminal256 import Terminal256Formatter
 from pygments.lexers import JsonLexer
 from rich.console import Console
-from rich.prompt import IntPrompt, Prompt, PromptError
+from rich.panel import Panel
+from rich.prompt import Confirm, IntPrompt, Prompt, PromptError
 from rich.table import Table
+from rich.text import Text
 from typer import Exit, colors, echo, style
 
 from aleph.sdk import AlephHttpClient
@@ -60,18 +62,33 @@ def set_no_format(value: bool):
 def get_console(**kwargs) -> Console:
     """Return a Console configured according to the --no-format flag."""
     if _no_format:
-        kwargs.setdefault("no_color", True)
-        kwargs.setdefault("highlight", False)
+        kwargs["no_color"] = True
+        kwargs["highlight"] = False
     return Console(**kwargs)
 
 
 def get_table(**kwargs) -> Table:
     """Return a Table configured according to the --no-format flag."""
     if _no_format:
-        kwargs.setdefault("box", None)
-        kwargs.setdefault("show_edge", False)
-        kwargs.setdefault("pad_edge", False)
+        kwargs["box"] = None
+        kwargs["show_edge"] = False
+        kwargs["pad_edge"] = False
     return Table(**kwargs)
+
+
+def get_panel(content, **kwargs) -> Union[Panel, Text]:
+    """Return a Panel, or plain content when --no-format is active."""
+    if _no_format:
+        title = kwargs.get("title", "")
+        if title:
+            header = Text(f"--- {title} ---\n")
+            if isinstance(content, Text):
+                return Text.assemble(header, content)
+            return Text.assemble(header, Text(str(content)))
+        if isinstance(content, Text):
+            return content
+        return Text(str(content))
+    return Panel(content, **kwargs)
 
 
 def colorful_json(obj: str):
@@ -124,9 +141,24 @@ def setup_logging(debug: bool = False):
     logging.basicConfig(level=level)
 
 
+def prompt_ask(prompt: str, **kwargs) -> str:
+    """Prompt.ask wrapper that respects --no-format."""
+    return Prompt.ask(prompt, console=get_console(), **kwargs)
+
+
+def int_prompt_ask(prompt: str, **kwargs) -> int:
+    """IntPrompt.ask wrapper that respects --no-format."""
+    return IntPrompt.ask(prompt, console=get_console(), **kwargs)
+
+
+def confirm_ask(prompt: str, **kwargs) -> bool:
+    """Confirm.ask wrapper that respects --no-format."""
+    return Confirm.ask(prompt, console=get_console(), **kwargs)
+
+
 def yes_no_input(text: str, default: str | bool) -> bool:
     return (
-        Prompt.ask(text, choices=["y", "n"], default=default if isinstance(default, str) else ("y" if default else "n"))
+        prompt_ask(text, choices=["y", "n"], default=default if isinstance(default, str) else ("y" if default else "n"))
         == "y"
     )
 
@@ -159,7 +191,7 @@ def get_annotated_constraint(annotated_type: type, constraint_name: str) -> Any 
 def prompt_for_volumes():
     while yes_no_input("Add volume?", default=False):
         mount = validated_prompt("Mount path (must be absolute, ex: /opt/data)", is_valid_mount_path)
-        comment = Prompt.ask("Comment (description)")
+        comment = prompt_ask("Comment (description)")
         base_volume = {"mount": mount, "comment": comment}
 
         if yes_no_input("Use an immutable volume?", default=False):
@@ -324,12 +356,12 @@ def validated_prompt(
     while True:
         try:
             value = (
-                Prompt.ask(
+                prompt_ask(
                     prompt,
                     default=default,
                 )
                 if default is not None
-                else Prompt.ask(prompt)
+                else prompt_ask(prompt)
             )
         except PromptError:
             echo(f"Invalid input: {value}\nTry again.")
@@ -350,7 +382,7 @@ def validated_int_prompt(
     value = None
     while True:
         try:
-            value = IntPrompt.ask(
+            value = int_prompt_ask(
                 prompt + f" [orange1]<min: {min_value or '-'}, max: {max_value or '-'}>[/orange1]",
                 default=default,
             )

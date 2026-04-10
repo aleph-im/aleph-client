@@ -12,8 +12,6 @@ import typer
 from aleph_message.models import Chain
 from ledgereth.exceptions import LedgerError
 from rich import box
-from rich.panel import Panel
-from rich.prompt import Prompt
 from rich.text import Text
 from typer.colors import GREEN, RED
 
@@ -40,8 +38,10 @@ from aleph_client.commands import help_strings
 from aleph_client.commands.help_strings import INVALID_KEY_FORMAT
 from aleph_client.commands.utils import (
     get_console,
+    get_panel,
     get_table,
     input_multiline,
+    prompt_ask,
     setup_logging,
     validate_non_interactive_args_config,
     validated_prompt,
@@ -111,7 +111,7 @@ async def create(
     if private_key:
         if not chain:
             chain = Chain(
-                Prompt.ask(
+                prompt_ask(
                     "Select the origin chain of your new private key: ",
                     choices=list(Chain),
                     default=Chain.ETH.value,
@@ -136,7 +136,7 @@ async def create(
     if active:
         if not chain:
             chain = Chain(
-                Prompt.ask(
+                prompt_ask(
                     "Select the active chain: ",
                     choices=list(Chain),
                     default=Chain.ETH.value,
@@ -378,7 +378,7 @@ async def balance(
                 ]
 
             get_console().print(
-                Panel(
+                get_panel(
                     Text.assemble(*infos),
                     title="Account Infos",
                     border_style="bright_cyan",
@@ -515,7 +515,7 @@ async def vouchers(
                     voucher_table.add_row(voucher.name, voucher.description, attr_text.strip())
 
                 get_console().print(
-                    Panel(
+                    get_panel(
                         voucher_table,
                         title="Vouchers",
                         border_style="bright_cyan",
@@ -525,7 +525,7 @@ async def vouchers(
                 )
             else:
                 get_console().print(
-                    Panel(
+                    get_panel(
                         "No vouchers found for this address",
                         title="Vouchers",
                         border_style="bright_cyan",
@@ -599,7 +599,7 @@ async def configure(
 
     if yes_no_input("Do you want to change the account type?", default="n"):
         account_type = AccountType(
-            Prompt.ask("Select new account type", choices=list(AccountType), default=config.type)
+            prompt_ask("Select new account type", choices=list(AccountType), default=config.type)
         )
     else:
         account_type = config.type
@@ -639,7 +639,7 @@ async def configure(
                 acc = _load_account(private_key_str=None, private_key_path=key, chain=chain)
                 get_console().print(f"[{idx}] {key} - {acc.get_address()}")
 
-            key_choice = Prompt.ask("Choose a private key by index")
+            key_choice = prompt_ask("Choose a private key by index")
             if key_choice.isdigit():
                 idx = int(key_choice) - 1
                 if 0 <= idx < len(unlinked_keys):
@@ -665,10 +665,10 @@ async def configure(
             f"[yellow]Keep current derivation path?[/yellow]",
             default="y",
         ):
-            derivation_path = Prompt.ask("Enter new derivation path", default="44'/60'/0'/0/0")
+            derivation_path = prompt_ask("Enter new derivation path", default="44'/60'/0'/0/0")
         elif not current_derivation_path:
             if yes_no_input("Do you want to specify a derivation path?", default="n"):
-                derivation_path = Prompt.ask("Enter derivation path", default="44'/60'/0'/0/0")
+                derivation_path = prompt_ask("Enter derivation path", default="44'/60'/0'/0/0")
             else:
                 derivation_path = None
         else:
@@ -708,7 +708,7 @@ async def configure(
                     for idx, addr in enumerate(addresses, start=1):
                         get_console().print(f"[{idx}] {addr}")
 
-                    key_choice = Prompt.ask("Choose an address by index")
+                    key_choice = prompt_ask("Choose an address by index")
                     if key_choice.isdigit():
                         key_index = int(key_choice) - 1
                         if 0 <= key_index < len(addresses):
@@ -750,7 +750,7 @@ async def configure(
             default="y",
         ):
             chain = Chain(
-                Prompt.ask(
+                prompt_ask(
                     "Select the active chain: ",
                     choices=list(Chain),
                     default=Chain.ETH.value,
