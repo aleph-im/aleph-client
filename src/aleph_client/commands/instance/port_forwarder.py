@@ -27,7 +27,7 @@ app = AsyncTyper(no_args_is_help=True)
 @app.command(name="list")
 async def list_ports(
     address: Annotated[Optional[str], typer.Option(help=help_strings.TARGET_ADDRESS)] = None,
-    item_hash: Annotated[Optional[str], typer.Option(help=help_strings.PORT_FORWARDER_ITEM_HASH)] = None,
+    item_hash: Annotated[Optional[str], typer.Option(help=help_strings.PORT_FORWARDER_VM_ID)] = None,
     private_key: Annotated[Optional[str], typer.Option(help=help_strings.PRIVATE_KEY)] = settings.PRIVATE_KEY_STRING,
     private_key_file: Annotated[
         Optional[Path], typer.Option(help=help_strings.PRIVATE_KEY_FILE)
@@ -151,7 +151,7 @@ async def list_ports(
 
 @app.command()
 async def create(
-    item_hash: Annotated[str, typer.Argument(help=help_strings.PORT_FORWARDER_ITEM_HASH)],
+    item_hash: Annotated[str, typer.Argument(help=help_strings.PORT_FORWARDER_VM_ID)],
     port: Annotated[int, typer.Argument(help=help_strings.PORT_FORWARDER_PORT)],
     tcp: Annotated[bool, typer.Option(help=help_strings.PORT_FORWARDER_TCP)] = True,
     udp: Annotated[bool, typer.Option(help=help_strings.PORT_FORWARDER_UDP)] = False,
@@ -210,7 +210,7 @@ async def create(
 
 @app.command()
 async def update(
-    item_hash: Annotated[str, typer.Argument(help=help_strings.PORT_FORWARDER_ITEM_HASH)],
+    item_hash: Annotated[str, typer.Argument(help=help_strings.PORT_FORWARDER_VM_ID)],
     port: Annotated[int, typer.Argument(help=help_strings.PORT_FORWARDER_PORT)],
     tcp: Annotated[bool, typer.Option(help=help_strings.PORT_FORWARDER_TCP)] = True,
     udp: Annotated[bool, typer.Option(help=help_strings.PORT_FORWARDER_UDP)] = False,
@@ -296,7 +296,7 @@ async def update(
 
 @app.command()
 async def delete(
-    item_hash: Annotated[str, typer.Argument(help=help_strings.PORT_FORWARDER_ITEM_HASH)],
+    item_hash: Annotated[str, typer.Argument(help=help_strings.PORT_FORWARDER_VM_ID)],
     port: Annotated[Optional[int], typer.Option(help=help_strings.PORT_FORWARDER_PORT)] = None,
     private_key: Annotated[Optional[str], typer.Option(help=help_strings.PRIVATE_KEY)] = settings.PRIVATE_KEY_STRING,
     private_key_file: Annotated[
@@ -382,7 +382,7 @@ async def delete(
 
 @app.command(name="refresh")
 async def refresh(
-    item_hash: Annotated[str, typer.Argument(help=help_strings.PORT_FORWARDER_ITEM_HASH)],
+    item_hash: Annotated[str, typer.Argument(help=help_strings.PORT_FORWARDER_VM_ID)],
     chain: Annotated[Optional[Chain], typer.Option(help=help_strings.ADDRESS_CHAIN)] = None,
     private_key: Annotated[Optional[str], typer.Option(help=help_strings.PRIVATE_KEY)] = settings.PRIVATE_KEY_STRING,
     private_key_file: Annotated[
