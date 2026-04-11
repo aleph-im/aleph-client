@@ -55,7 +55,7 @@ def test_colorized_status_no_format():
 
 def test_no_format_flag_on_help():
     """Test that --no-format flag appears in help output."""
-    result = runner.invoke(app, ["--help"])
+    result = runner.invoke(app, ["--no-format", "--help"])
     assert result.exit_code == 0
     assert "--no-format" in result.stdout
 
