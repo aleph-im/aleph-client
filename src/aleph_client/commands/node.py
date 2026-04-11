@@ -10,12 +10,10 @@ from typing import Annotated, Optional
 import aiohttp
 import typer
 from rich import text
-from rich.console import Console
 from rich.markup import escape
-from rich.table import Table
 
 from aleph.sdk.conf import settings
-from aleph_client.commands.utils import setup_logging
+from aleph_client.commands.utils import get_console, get_table, setup_logging
 from aleph_client.utils import AsyncTyper, sanitize_url
 
 logger = logging.getLogger(__name__)
@@ -75,7 +73,7 @@ def _format_status(status):
 
 
 def _show_compute(node_info):
-    table = Table(title="Compute Node Information")
+    table = get_table(title="Compute Node Information")
     table.add_column("Score", style="green", no_wrap=True, justify="right")
     table.add_column("Name", style="#029AFF", justify="left")
     table.add_column("Creation Time", style="#029AFF", justify="center")
@@ -109,7 +107,7 @@ def _show_compute(node_info):
             node_url,
         )
 
-    console = Console()
+    console = get_console()
     console.print(table)
 
 
@@ -155,7 +153,7 @@ def _filter_node(
 
 
 def _show_core(node_info):
-    table = Table(title="Core Channel Node Information")
+    table = get_table(title="Core Channel Node Information")
     table.add_column("Score", style="green", no_wrap=True, justify="right")
     table.add_column("Name", style="#029AFF", justify="left")
     table.add_column("Staked", style="#029AFF", justify="left")
@@ -188,7 +186,7 @@ def _show_core(node_info):
             node_hash,
         )
 
-    console = Console()
+    console = get_console()
     console.print(table)
 
 

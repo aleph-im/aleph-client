@@ -522,7 +522,7 @@ async def test_show_instances():
         mock_builder.build = AsyncMock(return_value=mock_table)
         mock_builder_class.return_value = mock_builder
 
-        with patch("aleph_client.commands.instance.display.Console") as mock_console_class:
+        with patch("aleph_client.commands.instance.display.get_console") as mock_console_class:
             mock_console = MagicMock()
             mock_console_class.return_value = mock_console
 

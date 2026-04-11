@@ -25,10 +25,6 @@ from aleph_message.models.item_hash import ItemHash
 from aleph_message.status import MessageStatus
 from click import echo
 from rich import box
-from rich.console import Console
-from rich.panel import Panel
-from rich.prompt import Prompt
-from rich.table import Table
 from rich.text import Text
 
 from aleph.sdk import AlephHttpClient, AuthenticatedAlephHttpClient
@@ -50,9 +46,13 @@ from aleph_client.commands.pricing import PricingEntity, fetch_pricing_aggregate
 from aleph_client.commands.utils import (
     display_mounted_volumes,
     filter_only_valid_messages,
+    get_console,
     get_or_prompt_environment_variables,
     get_or_prompt_volumes,
+    get_panel,
+    get_table,
     input_multiline,
+    prompt_ask,
     setup_logging,
     str_to_datetime,
     validated_prompt,
@@ -120,7 +120,7 @@ async def upload(
     For more information, see https://docs.aleph.cloud/devhub/compute-resources/"""
 
     setup_logging(debug)
-    console = Console()
+    console = get_console()
     path = path.absolute()
 
     try:
@@ -307,7 +307,7 @@ async def upload(
                 ),
             ]
             console.print(
-                Panel(
+                get_panel(
                     Text.assemble(*infos),
                     title="Program Created",
                     border_style="green",
@@ -404,7 +404,7 @@ async def update(
             hash_base32 = b32encode(b16decode(item_hash.upper())).strip(b"=").lower().decode()
             func_url_1 = f"{settings.VM_URL_PATH.format(hash=item_hash)}"
             func_url_2 = f"{settings.VM_URL_HOST.format(hash_base32=hash_base32)}"
-            console = Console()
+            console = get_console()
             infos = [
                 Text.from_markup(
                     f"Your program [bright_cyan]{item_hash}[/bright_cyan] has been updated to the new source code."
@@ -423,7 +423,7 @@ async def update(
                 ),
             ]
             console.print(
-                Panel(
+                get_panel(
                     Text.assemble(*infos),
                     title="Program Updated",
                     border_style="orange3",
@@ -544,7 +544,7 @@ async def list_programs(
         # Since we filtered on message type, we can safely cast as ProgramMessage.
         messages = cast(list[ProgramMessage], messages)
 
-        table = Table(box=box.ROUNDED, style="blue_violet")
+        table = get_table(box=box.ROUNDED, style="blue_violet")
         table.add_column(f"Programs [{len(messages)}]", style="blue", overflow="fold")
         table.add_column("Specifications", style="blue")
         table.add_column("Configurations", style="blue", overflow="fold")
@@ -646,7 +646,7 @@ async def list_programs(
             table.add_row(program, specifications, config_info)
             table.add_section()
 
-        console = Console()
+        console = get_console()
         console.print(table)
         infos = [
             Text.from_markup(
@@ -660,7 +660,13 @@ async def list_programs(
             ),
         ]
         console.print(
-            Panel(Text.assemble(*infos), title="Infos", border_style="bright_cyan", expand=False, title_align="left")
+            get_panel(
+                Text.assemble(*infos),
+                title="Infos",
+                border_style="bright_cyan",
+                expand=False,
+                title_align="left",
+            )
         )
 
 
@@ -730,7 +736,7 @@ async def persist(
             hash_base32 = b32encode(b16decode(item_hash.upper())).strip(b"=").lower().decode()
             func_url_1 = f"{settings.VM_URL_PATH.format(hash=item_hash)}"
             func_url_2 = f"{settings.VM_URL_HOST.format(hash_base32=hash_base32)}"
-            console = Console()
+            console = get_console()
             infos = [
                 Text.from_markup("Your program is now [green]persistent[/green]. It implies a new item hash."),
                 Text.from_markup(
@@ -750,7 +756,7 @@ async def persist(
                 ),
             ]
             console.print(
-                Panel(
+                get_panel(
                     Text.assemble(*infos),
                     title="Program: Persist",
                     border_style="orchid",
@@ -827,7 +833,7 @@ async def unpersist(
             hash_base32 = b32encode(b16decode(item_hash.upper())).strip(b"=").lower().decode()
             func_url_1 = f"{settings.VM_URL_PATH.format(hash=item_hash)}"
             func_url_2 = f"{settings.VM_URL_HOST.format(hash_base32=hash_base32)}"
-            console = Console()
+            console = get_console()
             infos = [
                 Text.from_markup("Your program is now [red]unpersistent[/red]. It implies a new item hash."),
                 Text.from_markup(
@@ -847,7 +853,7 @@ async def unpersist(
                 ),
             ]
             console.print(
-                Panel(
+                get_panel(
                     Text.assemble(*infos),
                     title="Program: Unpersist",
                     border_style="orchid",
@@ -878,7 +884,7 @@ async def logs(
     setup_logging(debug)
 
     account = _load_account(private_key, private_key_file, chain=chain)
-    domain_ = sanitize_url(domain or Prompt.ask(help_strings.PROMPT_PROGRAM_CRN_URL))
+    domain_ = sanitize_url(domain or prompt_ask(help_strings.PROMPT_PROGRAM_CRN_URL))
 
     async with VmClient(account, domain_) as client:
         async with client.operate(vm_id=item_hash, operation="logs", method="GET") as response:
@@ -899,7 +905,7 @@ async def logs(
             echo("Received logs")
             log_entries = await response.json()
             for log in log_entries:
-                echo(f'{log["__REALTIME_TIMESTAMP"]}>  {log["MESSAGE"]}')
+                echo(f"{log['__REALTIME_TIMESTAMP']}>  {log['MESSAGE']}")
 
 
 @app.command()
@@ -983,11 +989,11 @@ async def runtime_checker(
         echo(f"Failed to delete the runtime checker program: {e}")
         raise typer.Exit(code=1) from e
 
-    console = Console()
+    console = get_console()
     infos = [Text.from_markup(f"[bold]Ref:[/bold] [bright_cyan]{item_hash}[/bright_cyan]")]
     for label, version in versions.items():
         color = "green" if bool(re.search(r"\d", version)) else "red"
         infos.append(Text.from_markup(f"\n[bold]{label}:[/bold] [{color}]{version}[/{color}]"))
     console.print(
-        Panel(Text.assemble(*infos), title="Runtime Infos", border_style="violet", expand=False, title_align="left")
+        get_panel(Text.assemble(*infos), title="Runtime Infos", border_style="violet", expand=False, title_align="left")
     )

@@ -9,9 +9,6 @@ from aiohttp import ClientResponseError
 from aleph_message.models import Chain, InstanceMessage, ItemHash
 from aleph_message.status import MessageStatus
 from rich import box
-from rich.console import Console
-from rich.panel import Panel
-from rich.table import Table
 from rich.text import Text
 
 from aleph.sdk import AlephHttpClient, AuthenticatedAlephHttpClient
@@ -20,7 +17,7 @@ from aleph.sdk.exceptions import MessageNotProcessed, NotAuthorize
 from aleph.sdk.types import InstanceManual, PortFlags, Ports
 from aleph_client.commands import help_strings
 from aleph_client.commands.instance.network import find_crn_of_vm
-from aleph_client.commands.utils import setup_logging
+from aleph_client.commands.utils import get_console, get_panel, get_table, setup_logging
 from aleph_client.utils import AccountTypes, AsyncTyper, load_account
 
 logger = logging.getLogger(__name__)
@@ -30,7 +27,7 @@ app = AsyncTyper(no_args_is_help=True)
 @app.command(name="list")
 async def list_ports(
     address: Annotated[Optional[str], typer.Option(help=help_strings.TARGET_ADDRESS)] = None,
-    item_hash: Annotated[Optional[str], typer.Option(help=help_strings.PORT_FORWARDER_ITEM_HASH)] = None,
+    item_hash: Annotated[Optional[str], typer.Option(help=help_strings.PORT_FORWARDER_VM_ID)] = None,
     private_key: Annotated[Optional[str], typer.Option(help=help_strings.PRIVATE_KEY)] = settings.PRIVATE_KEY_STRING,
     private_key_file: Annotated[
         Optional[Path], typer.Option(help=help_strings.PRIVATE_KEY_FILE)
@@ -60,7 +57,7 @@ async def list_ports(
                 return
 
             # Create a table to display the port forwards
-            table = Table(box=box.HEAVY_EDGE, style="cyan", title="Port Forwards", title_style="bold white on blue")
+            table = get_table(box=box.HEAVY_EDGE, style="cyan", title="Port Forwards", title_style="bold white on blue")
             table.add_column("Item Hash", style="bright_blue")
             table.add_column("Name", style="bright_blue")
             table.add_column("Port", style="bright_green")
@@ -68,7 +65,7 @@ async def list_ports(
             table.add_column("TCP", style="bright_yellow")
             table.add_column("UDP", style="bright_magenta")
 
-            console = Console()
+            console = get_console()
 
             # Process the data for display
             for config in ports_config.data:
@@ -130,9 +127,9 @@ async def list_ports(
                 info.append(Text.from_markup(f"[bold]Item Hash:[/bold] [bright_magenta]{item_hash}[/bright_magenta]"))
 
             console.print(
-                Panel(
+                get_panel(
                     info,
-                    title="[bold]Port Forward Info[/bold]",
+                    title="Port Forward Info",
                     border_style="bright_cyan",
                     expand=False,
                     padding=(1, 2),
@@ -154,7 +151,7 @@ async def list_ports(
 
 @app.command()
 async def create(
-    item_hash: Annotated[str, typer.Argument(help=help_strings.PORT_FORWARDER_ITEM_HASH)],
+    item_hash: Annotated[str, typer.Argument(help=help_strings.PORT_FORWARDER_VM_ID)],
     port: Annotated[int, typer.Argument(help=help_strings.PORT_FORWARDER_PORT)],
     tcp: Annotated[bool, typer.Option(help=help_strings.PORT_FORWARDER_TCP)] = True,
     udp: Annotated[bool, typer.Option(help=help_strings.PORT_FORWARDER_UDP)] = False,
@@ -213,7 +210,7 @@ async def create(
 
 @app.command()
 async def update(
-    item_hash: Annotated[str, typer.Argument(help=help_strings.PORT_FORWARDER_ITEM_HASH)],
+    item_hash: Annotated[str, typer.Argument(help=help_strings.PORT_FORWARDER_VM_ID)],
     port: Annotated[int, typer.Argument(help=help_strings.PORT_FORWARDER_PORT)],
     tcp: Annotated[bool, typer.Option(help=help_strings.PORT_FORWARDER_TCP)] = True,
     udp: Annotated[bool, typer.Option(help=help_strings.PORT_FORWARDER_UDP)] = False,
@@ -299,7 +296,7 @@ async def update(
 
 @app.command()
 async def delete(
-    item_hash: Annotated[str, typer.Argument(help=help_strings.PORT_FORWARDER_ITEM_HASH)],
+    item_hash: Annotated[str, typer.Argument(help=help_strings.PORT_FORWARDER_VM_ID)],
     port: Annotated[Optional[int], typer.Option(help=help_strings.PORT_FORWARDER_PORT)] = None,
     private_key: Annotated[Optional[str], typer.Option(help=help_strings.PRIVATE_KEY)] = settings.PRIVATE_KEY_STRING,
     private_key_file: Annotated[
@@ -385,7 +382,7 @@ async def delete(
 
 @app.command(name="refresh")
 async def refresh(
-    item_hash: Annotated[str, typer.Argument(help=help_strings.PORT_FORWARDER_ITEM_HASH)],
+    item_hash: Annotated[str, typer.Argument(help=help_strings.PORT_FORWARDER_VM_ID)],
     chain: Annotated[Optional[Chain], typer.Option(help=help_strings.ADDRESS_CHAIN)] = None,
     private_key: Annotated[Optional[str], typer.Option(help=help_strings.PRIVATE_KEY)] = settings.PRIVATE_KEY_STRING,
     private_key_file: Annotated[

@@ -6,21 +6,17 @@ import typer
 from aiohttp import ClientResponseError
 from aleph_message.models import Chain
 from rich import box
-from rich.console import Console
-from rich.panel import Panel
-from rich.table import Table
 from rich.text import Text
 
 from aleph.sdk import AlephHttpClient
 from aleph.sdk.conf import settings
 from aleph.sdk.utils import displayable_amount
 from aleph_client.commands import help_strings
-from aleph_client.commands.utils import setup_logging
+from aleph_client.commands.utils import get_console, get_panel, get_table, setup_logging
 from aleph_client.utils import AsyncTyper, get_account_and_address
 
 logger = logging.getLogger(__name__)
 app = AsyncTyper(no_args_is_help=True)
-console = Console()
 
 
 @app.command()
@@ -56,8 +52,8 @@ async def show(
                     Text("Credits:"),
                     Text.from_markup(f" {displayable_amount(credit.credit_balance, decimals=2)}"),
                 ]
-                console.print(
-                    Panel(
+                get_console().print(
+                    get_panel(
                         Text.assemble(*infos),
                         title="Credits Infos",
                         border_style="blue",
@@ -98,7 +94,7 @@ async def history(
             if json:
                 typer.echo(filtered_credits.model_dump_json(indent=4))
             else:
-                table = Table(title="Credits History", border_style="blue", box=box.ROUNDED)
+                table = get_table(title="Credits History", border_style="blue", box=box.ROUNDED)
                 table.add_column("Timestamp")
                 table.add_column("Amount", justify="right")
                 table.add_column("Payment Method")
@@ -132,14 +128,14 @@ async def history(
                 )
                 table.caption = pagination_info
 
-                console.print(table)
+                get_console().print(table)
 
                 # Add summary panel
                 infos = [
                     Text.from_markup(f"[bold]Address:[/bold] {address}"),
                 ]
-                console.print(
-                    Panel(
+                get_console().print(
+                    get_panel(
                         Text.assemble(*infos),
                         title="Credits Info",
                         border_style="blue",

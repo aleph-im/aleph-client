@@ -76,7 +76,7 @@ AGGREGATE_SECURITY_KEY_PROTECTED = (
 INVALID_KEY_FORMAT = "Invalid key format: {}"
 
 # Port Forwarder help strings
-PORT_FORWARDER_ITEM_HASH = "Item hash of the instance, program or IPFS website"
+PORT_FORWARDER_VM_ID = "VM item hash of the instance, program or IPFS website"
 PORT_FORWARDER_PORT = "Port number to forward (1-65535)"
 PORT_FORWARDER_PROTOCOL = "Protocol to forward (tcp, udp, or both)"
 PORT_FORWARDER_TCP = "Enable TCP forwarding for this port"

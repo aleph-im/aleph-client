@@ -263,7 +263,6 @@ def create_mock_auth_client(
     mock_get_balances=None,
     mock_settings_info=None,
 ):
-
     def response_get_program_price(ptype):
         required_tokens = 0.00001527777777777777 if ptype == "superfluid" else 1000
         return MagicMock(
@@ -504,7 +503,6 @@ async def test_create_instance(
         patch("aleph_client.commands.instance.VmClient", mock_vm_client_class),
         patch("aleph_client.commands.instance.display.CRNTable.run_async", AsyncMock(return_value=(None, 0))),
     ):
-
         # Prepare the arguments for create
         all_args = {
             "ssh_pubkey_file": FAKE_PUBKEY_FILE,

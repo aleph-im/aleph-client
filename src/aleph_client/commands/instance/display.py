@@ -8,8 +8,6 @@ from typing import Optional, Union, cast
 from aleph_message.models import InstanceMessage
 from aleph_message.models.execution.base import PaymentType
 from rich import box
-from rich.console import Console
-from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 from textual.app import App
@@ -36,6 +34,7 @@ from aleph_client.commands.files import download
 from aleph_client.commands.help_strings import ALLOCATION_AUTO, ALLOCATION_MANUAL
 from aleph_client.commands.instance.network import build_crn_info
 from aleph_client.commands.node import _format_score
+from aleph_client.commands.utils import get_console, get_panel, get_table
 from aleph_client.models import CRNInfo
 
 logger = logging.getLogger(__name__)
@@ -77,7 +76,7 @@ class InstanceTableBuilder:
         self.messages = messages
         self.allocations = allocations
         self.executions = executions
-        self.console = Console()
+        self.console = get_console()
 
         # Tracking unallocated instances
         self.uninitialized_confidential_found: list[str] = []
@@ -90,7 +89,7 @@ class InstanceTableBuilder:
 
     def _create_table(self) -> Table:
         """Create and initialize the table structure"""
-        table = Table(box=box.ROUNDED, style="blue_violet")
+        table = get_table(box=box.ROUNDED, style="blue_violet")
 
         # Check if executions has a root attribute before accessing it
         num_executions = len(self.executions.root) if hasattr(self.executions, "root") else 0
@@ -184,7 +183,13 @@ class InstanceTableBuilder:
         ]
 
         self.console.print(
-            Panel(Text.assemble(*infos), title="Infos", border_style="bright_cyan", expand=False, title_align="left")
+            get_panel(
+                Text.assemble(*infos),
+                title="Infos",
+                border_style="bright_cyan",
+                expand=False,
+                title_align="left",
+            )
         )
 
 
@@ -868,7 +873,7 @@ async def show_instances(
     table_builder = InstanceTableBuilder(messages, allocations, executions)
     table = await table_builder.build()
 
-    console = Console()
+    console = get_console()
     console.print(table)
 
     table_builder.display_summary_panel()

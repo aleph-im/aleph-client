@@ -22,9 +22,6 @@ from aleph_message.models.execution.environment import (
 from aleph_message.models.execution.volume import PersistentVolumeSizeMib
 from aleph_message.models.item_hash import ItemHash
 from click import echo
-from rich.console import Console
-from rich.panel import Panel
-from rich.prompt import Prompt
 from rich.text import Text
 
 from aleph.sdk import AlephHttpClient, AuthenticatedAlephHttpClient
@@ -73,7 +70,10 @@ from aleph_client.commands.pricing import PricingEntity, fetch_pricing_aggregate
 from aleph_client.commands.utils import (
     find_sevctl_or_exit,
     get_annotated_constraint,
+    get_console,
     get_or_prompt_volumes,
+    get_panel,
+    prompt_ask,
     setup_logging,
     validate_ssh_pubkey_file,
     validated_int_prompt,
@@ -165,7 +165,7 @@ async def create(
 ) -> tuple[ItemHash, Optional[str], Chain]:
     """Create and register a new instance on aleph.cloud"""
     setup_logging(debug)
-    console = Console()
+    console = get_console()
 
     # Start CRN list fetch as a background task
     crn_list_future = call_program_crn_list()
@@ -200,7 +200,7 @@ async def create(
 
     # Populates payment type if not set
     if not payment_type:
-        payment_type = Prompt.ask(
+        payment_type = prompt_ask(
             "Which payment type do you want to use?",
             choices=[ptype.value for ptype in PaymentType] + ["nft"],
             default=PaymentType.superfluid.value,
@@ -218,7 +218,7 @@ async def create(
                 )
 
             payment_chain = Chain(
-                Prompt.ask(
+                prompt_ask(
                     "On which chain did you claim your NFT voucher?",
                     choices=[nft_chain.value for nft_chain in nft_chains],
                     default=Chain.AVAX.value,
@@ -251,7 +251,7 @@ async def create(
                     "Pay-As-You-Go."
                 )
             payment_chain = Chain(
-                Prompt.ask(
+                prompt_ask(
                     "Which chain do you want to use for Pay-As-You-Go?",
                     choices=super_token_chains,
                     default=Chain.AVAX.value,
@@ -265,7 +265,7 @@ async def create(
                 f"[red]{safe_getattr(payment_chain, 'value') or payment_chain}[/red] incompatible with Hold-tier."
             )
         payment_chain = Chain(
-            Prompt.ask(
+            prompt_ask(
                 "Which chain do you want to use for Hold-tier?",
                 choices=hold_chains,
                 default=Chain.ETH.value,
@@ -289,7 +289,7 @@ async def create(
             # Confidential only support custom rootfs
             rootfs = "custom"
         elif not rootfs or rootfs not in os_choices:
-            rootfs = Prompt.ask(
+            rootfs = prompt_ask(
                 "Use a custom rootfs or one of the following prebuilt ones:",
                 default="ubuntu22",
                 choices=[*os_choices, "custom"],
@@ -301,7 +301,7 @@ async def create(
                 lambda x: len(x) == 64,
             )
         else:
-            rootfs = os_choices[rootfs]
+            rootfs = os_choices[rootfs]  # type: ignore[index]  # guarded by `not rootfs` check above
 
     # Validate rootfs message exist
     async with AlephHttpClient(api_server=settings.API_HOST) as client:
@@ -625,7 +625,7 @@ async def create(
                         )
                     gpu_selection = Text.from_markup("\n\n".join(gpu_selection_lines))
                     console.print(
-                        Panel(
+                        get_panel(
                             gpu_selection,
                             title=f"Selected GPUs ({len(selected_gpus)})",
                             border_style="bright_cyan",
@@ -655,7 +655,7 @@ async def create(
                         f"{selected_gpu['model']}\n[orange3]Device[/orange3]: {selected_gpu['device_name']}"
                     )
                     console.print(
-                        Panel(
+                        get_panel(
                             gpu_selection,
                             title="Selected GPU",
                             border_style="bright_cyan",
@@ -823,7 +823,7 @@ async def create(
                         }.items()
                     )
                     console.print(
-                        Panel(
+                        get_panel(
                             Text.from_markup(flow_info),
                             title="Flows Created",
                             border_style="violet",
@@ -898,7 +898,7 @@ async def create(
                     )
                 ]
         console.print(
-            Panel(
+            get_panel(
                 Text.assemble(*infos), title="Instance Created", border_style="green", expand=False, title_align="left"
             )
         )
@@ -1071,7 +1071,7 @@ async def list_instances(
                 }
                 instances_data.append(instance_entry)
 
-            console = Console()
+            console = get_console()
             console.print(json_lib.dumps(instances_data, indent=2, default=str))
 
 
@@ -1095,8 +1095,9 @@ async def reboot(
     domain = (
         (domain and sanitize_url(domain))
         or await find_crn_of_vm(vm_id)
-        or Prompt.ask("URL of the CRN (Compute node) on which the VM is running")
+        or prompt_ask("URL of the CRN (Compute node) on which the VM is running")
     )
+    assert domain  # prompt_ask always returns a non-empty string
 
     account: AccountTypes = load_account(private_key, private_key_file, chain=chain)
 
@@ -1133,7 +1134,7 @@ async def reinstall(
 
     setup_logging(debug)
 
-    console = Console()
+    console = get_console()
     if keep_data:
         console.print(
             "[bold yellow]WARNING:[/bold yellow] This will reinstall "
@@ -1164,8 +1165,9 @@ async def reinstall(
     domain = (
         (domain and sanitize_url(domain))
         or await find_crn_of_vm(vm_id)
-        or Prompt.ask("URL of the CRN (Compute node) on which the VM is running")
+        or prompt_ask("URL of the CRN (Compute node) on which the VM is running")
     )
+    assert domain
 
     account: AccountTypes = load_account(private_key, private_key_file, chain=chain)
 
@@ -1201,8 +1203,9 @@ async def allocate(
     domain = (
         (domain and sanitize_url(domain))
         or await find_crn_of_vm(vm_id)
-        or Prompt.ask("URL of the CRN (Compute node) on which the VM will be allocated")
+        or prompt_ask("URL of the CRN (Compute node) on which the VM will be allocated")
     )
+    assert domain
 
     account: AccountTypes = load_account(private_key, private_key_file, chain=chain)
 
@@ -1230,7 +1233,8 @@ async def logs(
     """Retrieve the logs of an instance"""
     setup_logging(debug)
 
-    domain = (domain and sanitize_url(domain)) or await find_crn_of_vm(vm_id) or Prompt.ask(help_strings.PROMPT_CRN_URL)
+    domain = (domain and sanitize_url(domain)) or await find_crn_of_vm(vm_id) or prompt_ask(help_strings.PROMPT_CRN_URL)
+    assert domain
 
     account: AccountTypes = load_account(private_key, private_key_file, chain=chain)
 
@@ -1261,7 +1265,8 @@ async def stop(
 
     setup_logging(debug)
 
-    domain = (domain and sanitize_url(domain)) or await find_crn_of_vm(vm_id) or Prompt.ask(help_strings.PROMPT_CRN_URL)
+    domain = (domain and sanitize_url(domain)) or await find_crn_of_vm(vm_id) or prompt_ask(help_strings.PROMPT_CRN_URL)
+    assert domain
 
     account: AccountTypes = load_account(private_key, private_key_file, chain=chain)
 
@@ -1299,8 +1304,9 @@ async def confidential_init_session(
     domain = (
         (domain and sanitize_url(domain))
         or await find_crn_of_vm(vm_id)
-        or Prompt.ask("URL of the CRN (Compute node) on which the session will be initialized")
+        or prompt_ask("URL of the CRN (Compute node) on which the session will be initialized")
     )
+    assert domain
 
     account: AccountTypes = load_account(private_key, private_key_file, chain=chain)
 
@@ -1385,8 +1391,9 @@ async def confidential_start(
     domain = (
         (domain and sanitize_url(domain))
         or await find_crn_of_vm(vm_id)
-        or Prompt.ask("URL of the CRN (Compute node) on which the VM will be started")
+        or prompt_ask("URL of the CRN (Compute node) on which the VM will be started")
     )
+    assert domain
 
     client = VmConfidentialClient(account, sevctl_path, domain)
 
@@ -1419,7 +1426,7 @@ async def confidential_start(
         return 1
     echo("Measurement are authentic")
 
-    secret_key = vm_secret or Prompt.ask("Please enter secret to start the VM", password=True)
+    secret_key = vm_secret or prompt_ask("Please enter secret to start the VM", password=True)
 
     encoded_packet_header, encoded_secret = await client.build_secret(tek_path, tik_path, sev_data, secret_key)
     try:
@@ -1430,7 +1437,7 @@ async def confidential_start(
         return 1
     await client.close()
 
-    console = Console()
+    console = get_console()
     infos = [Text.from_markup(f"Your instance [bright_cyan]{vm_id}[/bright_cyan] is currently starting.")]
     if verbose:
         infos += [
@@ -1448,7 +1455,13 @@ async def confidential_start(
             )
         ]
     console.print(
-        Panel(Text.assemble(*infos), title="Instance Started", border_style="green", expand=False, title_align="left")
+        get_panel(
+            Text.assemble(*infos),
+            title="Instance Started",
+            border_style="green",
+            expand=False,
+            title_align="left",
+        )
     )
 
 
@@ -1575,7 +1588,7 @@ async def confidential_create(
                 raise typer.Exit(code=1) from error
 
     crn_url = (
-        (crn_url and sanitize_url(crn_url)) or await find_crn_of_vm(vm_id) or Prompt.ask(help_strings.PROMPT_CRN_URL)
+        (crn_url and sanitize_url(crn_url)) or await find_crn_of_vm(vm_id) or prompt_ask(help_strings.PROMPT_CRN_URL)
     )
 
     if not allocated:

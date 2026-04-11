@@ -471,7 +471,7 @@ def test_account_config_with_ledger(mock_get_accounts):
         with (
             patch("aleph.sdk.conf.settings.CONFIG_FILE", config_file),
             patch("aleph.sdk.conf.settings.CONFIG_HOME", str(config_dir)),
-            patch("aleph_client.commands.account.Prompt.ask", return_value="1"),
+            patch("aleph_client.commands.account.prompt_ask", return_value="1"),
             patch("aleph_client.commands.account.yes_no_input", return_value=True),
             patch("aleph_client.commands.account.save_main_configuration"),
             patch("aleph_client.utils.list_unlinked_keys", return_value=([], None)),

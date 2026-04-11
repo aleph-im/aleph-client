@@ -100,7 +100,7 @@ async def test_list_ports(mock_auth_setup):
     with (
         patch("aleph_client.commands.instance.port_forwarder.load_account", mock_load_account),
         patch("aleph_client.commands.instance.port_forwarder.AlephHttpClient", mock_client_class),
-        patch("aleph_client.commands.instance.port_forwarder.Console", return_value=mock_console),
+        patch("aleph_client.commands.instance.port_forwarder.get_console", return_value=mock_console),
     ):
         # Test with default parameters
         await list_ports()

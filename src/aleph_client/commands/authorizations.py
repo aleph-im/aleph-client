@@ -7,15 +7,13 @@ from typing import Annotated, Optional
 
 import typer
 from aleph_message.models import Chain, MessageType
-from rich.console import Console
-from rich.table import Table
 
 from aleph.sdk.client import AlephHttpClient, AuthenticatedAlephHttpClient
 from aleph.sdk.conf import settings
 from aleph.sdk.types import AuthorizationBuilder
 from aleph.sdk.utils import extended_json_encoder
 from aleph_client.commands import help_strings
-from aleph_client.commands.utils import setup_logging
+from aleph_client.commands.utils import get_console, get_table, setup_logging
 from aleph_client.utils import AccountTypes, AsyncTyper, load_account
 
 logger = logging.getLogger(__name__)
@@ -54,8 +52,8 @@ async def list(
         typer.echo(json_dumps(authorizations, indent=4, default=extended_json_encoder))
         return
 
-    console = Console()
-    table = Table(title=f"Authorizations for {address}")
+    console = get_console()
+    table = get_table(title=f"Authorizations for {address}")
     table.add_column("Delegate", style="cyan")
     table.add_column("Chain", style="magenta")
     table.add_column("Channels", style="green")

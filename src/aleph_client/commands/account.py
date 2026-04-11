@@ -12,10 +12,6 @@ import typer
 from aleph_message.models import Chain
 from ledgereth.exceptions import LedgerError
 from rich import box
-from rich.console import Console
-from rich.panel import Panel
-from rich.prompt import Prompt
-from rich.table import Table
 from rich.text import Text
 from typer.colors import GREEN, RED
 
@@ -41,7 +37,11 @@ from aleph.sdk.wallets.ledger import LedgerETHAccount
 from aleph_client.commands import help_strings
 from aleph_client.commands.help_strings import INVALID_KEY_FORMAT
 from aleph_client.commands.utils import (
+    get_console,
+    get_panel,
+    get_table,
     input_multiline,
+    prompt_ask,
     setup_logging,
     validate_non_interactive_args_config,
     validated_prompt,
@@ -58,7 +58,6 @@ from aleph_client.utils import (
 
 logger = logging.getLogger(__name__)
 app = AsyncTyper(no_args_is_help=True)
-console = Console()
 
 
 class KeyEncoding(str, Enum):
@@ -112,7 +111,7 @@ async def create(
     if private_key:
         if not chain:
             chain = Chain(
-                Prompt.ask(
+                prompt_ask(
                     "Select the origin chain of your new private key: ",
                     choices=list(Chain),
                     default=Chain.ETH.value,
@@ -137,7 +136,7 @@ async def create(
     if active:
         if not chain:
             chain = Chain(
-                Prompt.ask(
+                prompt_ask(
                     "Select the active chain: ",
                     choices=list(Chain),
                     default=Chain.ETH.value,
@@ -176,7 +175,7 @@ def display_active_address(
         sol_address = "Not available (using Ledger device)"
 
     account_type_str = " (Ledger)" if account_type == AccountType.HARDWARE else ""
-    console.print(
+    get_console().print(
         f"✉  [bold italic blue]Addresses for Active Account{account_type_str}[/bold italic blue] ✉\n\n"
         f"[italic]EVM[/italic]: [cyan]{evm_address}[/cyan]\n"
         f"[italic]SOL[/italic]: [magenta]{sol_address}[/magenta]\n"
@@ -212,13 +211,13 @@ def display_active_chain():
     else:
         compatibility = "[red]Only Signing[/red]"
 
-    console.print(f"[italic]Active Chain[/italic]: {chain}\t" + f"[italic]Compatibility[/italic]: {compatibility}")
+    get_console().print(f"[italic]Active Chain[/italic]: {chain}\t[italic]Compatibility[/italic]: {compatibility}")
 
 
 @app.command(name="path")
 def path_directory():
     """Display the directory path where your private keys, config file, and other settings are stored."""
-    console.print(f"Aleph Home directory: [yellow]{settings.CONFIG_HOME}[/yellow]")
+    get_console().print(f"Aleph Home directory: [yellow]{settings.CONFIG_HOME}[/yellow]")
 
 
 @app.command()
@@ -267,7 +266,7 @@ def export_private_key(
     sol_pk = "Not Available"
     if isinstance(sol_account, AccountFromPrivateKey):
         sol_pk = sol_account.export_private_key()
-    console.print(
+    get_console().print(
         "⚠️  [bold italic red]Private Keys for Active Account[/bold italic red] ⚠️\n\n"
         f"[italic]EVM[/italic]: [cyan]{evm_pk}[/cyan]\n"
         f"[italic]SOL[/italic]: [magenta]{sol_pk}[/magenta]\n\n"
@@ -378,8 +377,8 @@ async def balance(
                     Text.from_markup(f"\n [bright_cyan]{', '.join(voucher_names)}[/bright_cyan]"),
                 ]
 
-            console.print(
-                Panel(
+            get_console().print(
+                get_panel(
                     Text.assemble(*infos),
                     title="Account Infos",
                     border_style="bright_cyan",
@@ -404,7 +403,7 @@ async def list_accounts(
     config = load_main_configuration(config_file_path)
     unlinked_keys, _ = await list_unlinked_keys()
 
-    table = Table(title="\n🔑  Found Private Keys 🔑", title_justify="left", show_lines=True)
+    table = get_table(title="\n🔑  Found Private Keys 🔑", title_justify="left", show_lines=True)
     table.add_column("Name", style="cyan", no_wrap=True)
     table.add_column("Address", style="cyan", no_wrap=True)
     table.add_column("Path", style="green")
@@ -430,7 +429,7 @@ async def list_accounts(
         if not ledger_connected:
             table.add_row(f"Ledger ({config.address})", "External (Ledger)", "[bold green]*[/bold green]")
     else:
-        console.print(
+        get_console().print(
             "[red]No private key path selected in the config file.[/red]\nTo set it up, use: [bold "
             "italic cyan]aleph account config[/bold italic cyan]\n"
         )
@@ -472,7 +471,7 @@ async def list_accounts(
         elif config.address and config.type == AccountType.HARDWARE:
             active_address = config.address
 
-    console.print(
+    get_console().print(
         "🌐  [bold italic blue]Chain Infos[/bold italic blue] 🌐\n"
         f"[italic]Chains with Signing[/italic]: [blue]{', '.join(list(Chain))}[/blue]\n"
         f"[italic]Chains with Hold-tier[/italic]: [blue]{', '.join(hold_chains)}[/blue]\n"
@@ -481,7 +480,7 @@ async def list_accounts(
         + (f"[italic]Active Address[/italic]: [bright_cyan]{active_address}[/bright_cyan]" if active_address else "")
     )
     display_active_chain()
-    console.print(table)
+    get_console().print(table)
 
 
 @app.command(name="vouchers")
@@ -503,7 +502,7 @@ async def vouchers(
             async with AlephHttpClient(settings.API_HOST) as client:
                 vouchers = await client.voucher.get_vouchers(address=address)
             if vouchers:
-                voucher_table = Table(title="", show_header=True, box=box.ROUNDED)
+                voucher_table = get_table(title="", show_header=True, box=box.ROUNDED)
                 voucher_table.add_column("Name", style="bright_cyan")
                 voucher_table.add_column("Description", style="green")
                 voucher_table.add_column("Attributes", style="magenta")
@@ -515,8 +514,8 @@ async def vouchers(
 
                     voucher_table.add_row(voucher.name, voucher.description, attr_text.strip())
 
-                console.print(
-                    Panel(
+                get_console().print(
+                    get_panel(
                         voucher_table,
                         title="Vouchers",
                         border_style="bright_cyan",
@@ -525,8 +524,8 @@ async def vouchers(
                     )
                 )
             else:
-                console.print(
-                    Panel(
+                get_console().print(
+                    get_panel(
                         "No vouchers found for this address",
                         title="Vouchers",
                         border_style="bright_cyan",
@@ -594,13 +593,13 @@ async def configure(
         typer.secho(f"Private key file not found: {private_key_file}", fg=typer.colors.RED)
         raise typer.Exit()
 
-    console.print(f"Current account type: [bright_cyan]{config.type}[/bright_cyan] - {current_device}")
+    get_console().print(f"Current account type: [bright_cyan]{config.type}[/bright_cyan] - {current_device}")
     if current_derivation_path:
-        console.print(f"Current derivation path: [bright_cyan]{current_derivation_path}[/bright_cyan]")
+        get_console().print(f"Current derivation path: [bright_cyan]{current_derivation_path}[/bright_cyan]")
 
     if yes_no_input("Do you want to change the account type?", default="n"):
         account_type = AccountType(
-            Prompt.ask("Select new account type", choices=list(AccountType), default=config.type)
+            prompt_ask("Select new account type", choices=list(AccountType), default=config.type)
         )
     else:
         account_type = config.type
@@ -613,7 +612,7 @@ async def configure(
     else:
         address = config.address
 
-    console.print(f"Current address: {address}")
+    get_console().print(f"Current address: {address}")
 
     if account_type == AccountType.IMPORTED:
         # Determine if we need to ask about keeping or picking a key
@@ -622,7 +621,7 @@ async def configure(
         if config.type == AccountType.IMPORTED:
             change_key = not yes_no_input("[yellow]Keep current private key?[/yellow]", default="y")
         else:
-            console.print(
+            get_console().print(
                 "[yellow]Switching from a hardware account to an imported one.[/yellow]\n"
                 "You need to select a private key file to use."
             )
@@ -635,12 +634,12 @@ async def configure(
                 typer.secho("No unlinked private keys found.", fg=typer.colors.YELLOW)
                 raise typer.Exit()
 
-            console.print("[bold cyan]Available unlinked private keys:[/bold cyan]")
+            get_console().print("[bold cyan]Available unlinked private keys:[/bold cyan]")
             for idx, key in enumerate(unlinked_keys, start=1):
                 acc = _load_account(private_key_str=None, private_key_path=key, chain=chain)
-                console.print(f"[{idx}] {key} - {acc.get_address()}")
+                get_console().print(f"[{idx}] {key} - {acc.get_address()}")
 
-            key_choice = Prompt.ask("Choose a private key by index")
+            key_choice = prompt_ask("Choose a private key by index")
             if key_choice.isdigit():
                 idx = int(key_choice) - 1
                 if 0 <= idx < len(unlinked_keys):
@@ -660,16 +659,16 @@ async def configure(
     if account_type == AccountType.HARDWARE:
         # Handle derivation path for hardware wallet
         if derivation_path:
-            console.print(f"Using provided derivation path: [bright_cyan]{derivation_path}[/bright_cyan]")
+            get_console().print(f"Using provided derivation path: [bright_cyan]{derivation_path}[/bright_cyan]")
         elif current_derivation_path and not yes_no_input(
             f"Current derivation path: [bright_cyan]{current_derivation_path}[/bright_cyan]\n"
             f"[yellow]Keep current derivation path?[/yellow]",
             default="y",
         ):
-            derivation_path = Prompt.ask("Enter new derivation path", default="44'/60'/0'/0/0")
+            derivation_path = prompt_ask("Enter new derivation path", default="44'/60'/0'/0/0")
         elif not current_derivation_path:
             if yes_no_input("Do you want to specify a derivation path?", default="n"):
-                derivation_path = Prompt.ask("Enter derivation path", default="44'/60'/0'/0/0")
+                derivation_path = prompt_ask("Enter derivation path", default="44'/60'/0'/0/0")
             else:
                 derivation_path = None
         else:
@@ -680,7 +679,7 @@ async def configure(
             change_address = not yes_no_input("[yellow]Keep current Ledger address?[/yellow]", default="y")
         else:
             # Switching from imported → hardware, must choose an address
-            console.print(
+            get_console().print(
                 "[yellow]Switching from an imported account to a hardware one.[/yellow]\n"
                 "You'll need to select a Ledger address to use."
             )
@@ -692,11 +691,11 @@ async def configure(
                 wait_for_ledger_connection()
 
                 if derivation_path:
-                    console.print(f"Using derivation path: [bright_cyan]{derivation_path}[/bright_cyan]")
+                    get_console().print(f"Using derivation path: [bright_cyan]{derivation_path}[/bright_cyan]")
                     try:
                         ledger_account = LedgerETHAccount.from_path(derivation_path)
                         address = ledger_account.get_address()
-                        console.print(f"Derived address: [bright_cyan]{address}[/bright_cyan]")
+                        get_console().print(f"Derived address: [bright_cyan]{address}[/bright_cyan]")
                     except Exception as e:
                         logger.warning(f"Error getting account from path: {e}")
                         raise typer.Exit(code=1) from e
@@ -705,11 +704,11 @@ async def configure(
                     accounts = LedgerETHAccount.get_accounts(count=ledger_count)
                     addresses = [acc.address for acc in accounts]
 
-                    console.print(f"[bold cyan]Available addresses on {get_first_ledger_name()}:[/bold cyan]")
+                    get_console().print(f"[bold cyan]Available addresses on {get_first_ledger_name()}:[/bold cyan]")
                     for idx, addr in enumerate(addresses, start=1):
-                        console.print(f"[{idx}] {addr}")
+                        get_console().print(f"[{idx}] {addr}")
 
-                    key_choice = Prompt.ask("Choose an address by index")
+                    key_choice = prompt_ask("Choose an address by index")
                     if key_choice.isdigit():
                         key_index = int(key_choice) - 1
                         if 0 <= key_index < len(addresses):
@@ -751,7 +750,7 @@ async def configure(
             default="y",
         ):
             chain = Chain(
-                Prompt.ask(
+                prompt_ask(
                     "Select the active chain: ",
                     choices=list(Chain),
                     default=Chain.ETH.value,
@@ -781,7 +780,7 @@ async def configure(
         else:
             config_details = f"{config.path}"
 
-        console.print(
+        get_console().print(
             f"New Default Configuration: [italic bright_cyan]{config_details}"
             f"[/italic bright_cyan] with [italic bright_cyan]{config.chain}[/italic bright_cyan]",
             style=typer.colors.GREEN,

@@ -28,7 +28,11 @@ from pydantic.fields import FieldInfo
 from pygments import highlight
 from pygments.formatters.terminal256 import Terminal256Formatter
 from pygments.lexers import JsonLexer
-from rich.prompt import IntPrompt, Prompt, PromptError
+from rich.console import Console
+from rich.panel import Panel
+from rich.prompt import Confirm, IntPrompt, Prompt, PromptError
+from rich.table import Table
+from rich.text import Text
 from typer import Exit, colors, echo, style
 
 from aleph.sdk import AlephHttpClient
@@ -41,9 +45,56 @@ from aleph_client.utils import fetch_json
 
 logger = logging.getLogger(__name__)
 
+_no_format: bool = False
+
+
+def is_no_format() -> bool:
+    """Check if formatting is disabled."""
+    return _no_format
+
+
+def set_no_format(value: bool):
+    """Enable or disable formatting globally."""
+    global _no_format  # noqa: PLW0603
+    _no_format = value
+
+
+def get_console(**kwargs) -> Console:
+    """Return a Console configured according to the --no-format flag."""
+    if _no_format:
+        kwargs["no_color"] = True
+        kwargs["highlight"] = False
+    return Console(**kwargs)
+
+
+def get_table(**kwargs) -> Table:
+    """Return a Table configured according to the --no-format flag."""
+    if _no_format:
+        kwargs["box"] = None
+        kwargs["show_edge"] = False
+        kwargs["pad_edge"] = False
+    return Table(**kwargs)
+
+
+def get_panel(content, **kwargs) -> Union[Panel, Text]:
+    """Return a Panel, or plain content when --no-format is active."""
+    if _no_format:
+        title = kwargs.get("title", "")
+        if title:
+            header = Text(f"--- {title} ---\n")
+            if isinstance(content, Text):
+                return Text.assemble(header, content)
+            return Text.assemble(header, Text(str(content)))
+        if isinstance(content, Text):
+            return content
+        return Text(str(content))
+    return Panel(content, **kwargs)
+
 
 def colorful_json(obj: str):
     """Render a JSON string with colors."""
+    if _no_format:
+        return obj
     return highlight(
         obj,
         lexer=JsonLexer(),
@@ -53,6 +104,8 @@ def colorful_json(obj: str):
 
 def colorized_status(status: MessageStatus) -> str:
     """Return a colored status string based on its value."""
+    if _no_format:
+        return str(status)
     status_colors = {
         MessageStatus.REJECTED: colors.RED,
         MessageStatus.PROCESSED: colors.GREEN,
@@ -88,9 +141,24 @@ def setup_logging(debug: bool = False):
     logging.basicConfig(level=level)
 
 
+def prompt_ask(prompt: str, **kwargs) -> str:
+    """Prompt.ask wrapper that respects --no-format."""
+    return Prompt.ask(prompt, console=get_console(), **kwargs)
+
+
+def int_prompt_ask(prompt: str, **kwargs) -> int:
+    """IntPrompt.ask wrapper that respects --no-format."""
+    return IntPrompt.ask(prompt, console=get_console(), **kwargs)
+
+
+def confirm_ask(prompt: str, **kwargs) -> bool:
+    """Confirm.ask wrapper that respects --no-format."""
+    return Confirm.ask(prompt, console=get_console(), **kwargs)
+
+
 def yes_no_input(text: str, default: str | bool) -> bool:
     return (
-        Prompt.ask(text, choices=["y", "n"], default=default if isinstance(default, str) else ("y" if default else "n"))
+        prompt_ask(text, choices=["y", "n"], default=default if isinstance(default, str) else ("y" if default else "n"))
         == "y"
     )
 
@@ -123,7 +191,7 @@ def get_annotated_constraint(annotated_type: type, constraint_name: str) -> Any 
 def prompt_for_volumes():
     while yes_no_input("Add volume?", default=False):
         mount = validated_prompt("Mount path (must be absolute, ex: /opt/data)", is_valid_mount_path)
-        comment = Prompt.ask("Comment (description)")
+        comment = prompt_ask("Comment (description)")
         base_volume = {"mount": mount, "comment": comment}
 
         if yes_no_input("Use an immutable volume?", default=False):
@@ -231,8 +299,7 @@ def display_mounted_volumes(message: Union[InstanceMessage, ProgramMessage]) -> 
                 )
             else:
                 volumes += (
-                    f"\n[deep_sky_blue1]• {volume.mount} ➜ [/deep_sky_blue1]"
-                    f"[orchid]persistent: {size_mib} MiB[/orchid]"
+                    f"\n[deep_sky_blue1]• {volume.mount} ➜ [/deep_sky_blue1][orchid]persistent: {size_mib} MiB[/orchid]"
                 )
     return f"\nMounted Volumes: {volumes if volumes else '-'}"
 
@@ -289,12 +356,12 @@ def validated_prompt(
     while True:
         try:
             value = (
-                Prompt.ask(
+                prompt_ask(
                     prompt,
                     default=default,
                 )
                 if default is not None
-                else Prompt.ask(prompt)
+                else prompt_ask(prompt)
             )
         except PromptError:
             echo(f"Invalid input: {value}\nTry again.")
@@ -315,7 +382,7 @@ def validated_int_prompt(
     value = None
     while True:
         try:
-            value = IntPrompt.ask(
+            value = int_prompt_ask(
                 prompt + f" [orange1]<min: {min_value or '-'}, max: {max_value or '-'}>[/orange1]",
                 default=default,
             )

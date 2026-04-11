@@ -8,9 +8,6 @@ from typing import Annotated, Optional, cast
 import typer
 from aleph_message.models import AggregateMessage, Chain
 from aleph_message.models.base import MessageType
-from rich.console import Console
-from rich.prompt import Confirm, Prompt
-from rich.table import Table
 
 from aleph.sdk.client import AlephHttpClient, AuthenticatedAlephHttpClient
 from aleph.sdk.conf import settings
@@ -24,7 +21,13 @@ from aleph.sdk.domain import (
 from aleph.sdk.exceptions import DomainConfigurationError
 from aleph.sdk.query.filters import MessageFilter
 from aleph_client.commands import help_strings
-from aleph_client.commands.utils import is_environment_interactive
+from aleph_client.commands.utils import (
+    confirm_ask,
+    get_console,
+    get_table,
+    is_environment_interactive,
+    prompt_ask,
+)
 from aleph_client.utils import AccountTypes, AsyncTyper, load_account
 
 logger = logging.getLogger(__name__)
@@ -72,12 +75,12 @@ async def attach_resource(
     interactive = is_environment_interactive() if interactive is None else interactive
 
     domain_info = await get_aggregate_domain_info(account, fqdn)
-    console = Console()
+    console = get_console()
 
     while not item_hash:
-        item_hash = Prompt.ask("Enter Hash reference of the resource to attach")
+        item_hash = prompt_ask("Enter Hash reference of the resource to attach")
 
-    table = Table(title=f"Attach resource to: {fqdn}")
+    table = get_table(title=f"Attach resource to: {fqdn}")
     table.add_column("Current resource", justify="right", style="red", no_wrap=True)
     table.add_column("New resource", justify="right", style="green", no_wrap=True)
     table.add_column("Resource type", style="magenta")
@@ -88,7 +91,7 @@ async def attach_resource(
     resource_type = await get_target_type(fqdn)
 
     if resource_type == TargetType.IPFS and not catch_all_path:
-        catch_all_path = Prompt.ask("Catch all path? ex: /404.html or press [Enter] to ignore", default=None)
+        catch_all_path = prompt_ask("Catch all path? ex: /404.html or press [Enter] to ignore", default=None)
 
     if domain_info is not None and domain_info.get("info"):
         current_resource = domain_info["info"]["message_id"]
@@ -103,11 +106,10 @@ async def attach_resource(
 
     console.print(table)
 
-    if (not interactive) or Confirm.ask("Continue"):
+    if (not interactive) or confirm_ask("Continue"):
         """Create aggregate message"""
 
         async with AuthenticatedAlephHttpClient(account=account, api_server=settings.API_HOST) as client:
-
             options: Optional[dict] = None
             if catch_all_path and catch_all_path.startswith("/"):
                 options = {"catch_all_path": catch_all_path}
@@ -139,9 +141,9 @@ async def detach_resource(account: AccountTypes, fqdn: Hostname, interactive: Op
     domain_info = await get_aggregate_domain_info(account, fqdn)
     interactive = is_environment_interactive() if interactive is None else interactive
 
-    console = Console()
+    console = get_console()
 
-    table = Table(title=f"Detach resource of: {fqdn}")
+    table = get_table(title=f"Detach resource of: {fqdn}")
     table.add_column("Current resource", justify="right", style="red", no_wrap=True)
     table.add_column("New resource", justify="right", style="green", no_wrap=True)
     table.add_column("Resource type", style="magenta")
@@ -156,7 +158,7 @@ async def detach_resource(account: AccountTypes, fqdn: Hostname, interactive: Op
 
     console.print(table)
 
-    if (not interactive) or Confirm.ask("Continue"):
+    if (not interactive) or confirm_ask("Continue"):
         """Update aggregate message"""
 
         async with AuthenticatedAlephHttpClient(account=account, api_server=settings.API_HOST) as client:
@@ -189,20 +191,20 @@ async def add(
     account: AccountTypes = load_account(private_key_str=private_key, private_key_file=private_key_file, chain=chain)
     interactive = False if (not ask) else is_environment_interactive()
 
-    console = Console()
+    console = get_console()
     domain_validator = DomainValidator()
     fqdn = hostname_from_url(fqdn)
 
     while target is None:
         target = TargetType(
-            Prompt.ask(
+            prompt_ask(
                 "Select a target resource type",
                 choices=[TargetType.IPFS, TargetType.PROGRAM, TargetType.INSTANCE],
             )
         )
     selected_target: TargetType = target
 
-    table = Table(title=f"Required DNS entries for: {fqdn}")
+    table = get_table(title=f"Required DNS entries for: {fqdn}")
 
     table.add_column("RECORD ID", justify="right", style="cyan", no_wrap=True)
     table.add_column("DNS TYPE", justify="right", style="cyan", no_wrap=True)
@@ -245,7 +247,7 @@ async def add(
 
             if max_retries == 0:
                 status.stop()
-                continue_ = (not interactive) or Confirm.ask("Continue?")
+                continue_ = (not interactive) or confirm_ask("Continue?")
                 if continue_:
                     status.start()
                     max_retries = 5
@@ -253,7 +255,7 @@ async def add(
                     raise typer.Exit()
 
     """Attach option"""
-    if (not interactive) or Confirm.ask(f"Attach resource to [bold green]{fqdn}"):
+    if (not interactive) or confirm_ask(f"Attach resource to [bold green]{fqdn}"):
         await attach_resource(account, fqdn, item_hash)
 
     raise typer.Exit()
@@ -313,7 +315,7 @@ async def info(
     """Show Custom Domain Details."""
     account: AccountTypes = load_account(private_key_str=private_key, private_key_file=private_key_file, chain=chain)
 
-    console = Console()
+    console = get_console()
     domain_validator = DomainValidator()
 
     domain_info = await get_aggregate_domain_info(account, fqdn)
@@ -321,7 +323,7 @@ async def info(
         console.log(f"Domain: {fqdn} not configured")
         raise typer.Exit()
 
-    table = Table(title=f"Domain info: {fqdn}")
+    table = get_table(title=f"Domain info: {fqdn}")
     table.add_column("Resource type", justify="right", style="cyan", no_wrap=True)
     table.add_column("Attached resource", justify="right", style="cyan", no_wrap=True)
 
