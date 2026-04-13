@@ -27,7 +27,7 @@ app = AsyncTyper(no_args_is_help=True)
 @app.command(name="list")
 async def list_ports(
     address: Annotated[Optional[str], typer.Option(help=help_strings.TARGET_ADDRESS)] = None,
-    item_hash: Annotated[Optional[str], typer.Option(help=help_strings.PORT_FORWARDER_VM_ID)] = None,
+    vm_id: Annotated[Optional[str], typer.Option(help=help_strings.PORT_FORWARDER_VM_ID)] = None,
     private_key: Annotated[Optional[str], typer.Option(help=help_strings.PRIVATE_KEY)] = settings.PRIVATE_KEY_STRING,
     private_key_file: Annotated[
         Optional[Path], typer.Option(help=help_strings.PRIVATE_KEY_FILE)
@@ -77,7 +77,7 @@ async def list_ports(
                     name = await client.instance.get_name_of_executable(item_hash=ItemHash(ih))
 
                     # If an item hash is specified, only show that one
-                    if item_hash and ih != item_hash:
+                    if vm_id and ih != vm_id:
                         continue
 
                     # Fetch mapped ports from CRN execution info
@@ -110,8 +110,8 @@ async def list_ports(
                         table.add_row(item_hash_display, name_display, port_display, ext_port, tcp_check, udp_check)
 
             if table.row_count == 0:
-                if item_hash:
-                    typer.echo(f"No port forwards found for item hash: {item_hash}")
+                if vm_id:
+                    typer.echo(f"No port forwards found for VM: {vm_id}")
                 else:
                     typer.echo(f"No port forwards found for address: {address}")
                 return
@@ -122,9 +122,9 @@ async def list_ports(
             info = Text()
             info.append(Text.from_markup(f"[bold]Address:[/bold] [bright_green]{address}[/bright_green]"))
 
-            if item_hash:
+            if vm_id:
                 info.append("\n")
-                info.append(Text.from_markup(f"[bold]Item Hash:[/bold] [bright_magenta]{item_hash}[/bright_magenta]"))
+                info.append(Text.from_markup(f"[bold]VM ID:[/bold] [bright_magenta]{vm_id}[/bright_magenta]"))
 
             console.print(
                 get_panel(
@@ -151,7 +151,7 @@ async def list_ports(
 
 @app.command()
 async def create(
-    item_hash: Annotated[str, typer.Argument(help=help_strings.PORT_FORWARDER_VM_ID)],
+    vm_id: Annotated[str, typer.Argument(help=help_strings.PORT_FORWARDER_VM_ID)],
     port: Annotated[int, typer.Argument(help=help_strings.PORT_FORWARDER_PORT)],
     tcp: Annotated[bool, typer.Option(help=help_strings.PORT_FORWARDER_TCP)] = True,
     udp: Annotated[bool, typer.Option(help=help_strings.PORT_FORWARDER_UDP)] = False,
@@ -183,7 +183,7 @@ async def create(
         async with AuthenticatedAlephHttpClient(account=account, api_server=settings.API_HOST) as client:
             try:
                 # Fetch existing ports for this item_hash to avoid replacing them
-                existing_ports = await client.port_forwarder.get_ports(item_hash=ItemHash(item_hash))
+                existing_ports = await client.port_forwarder.get_ports(item_hash=ItemHash(vm_id))
                 if existing_ports and existing_ports.ports:
                     merged = dict(existing_ports.ports)
                     merged[port] = port_flags
@@ -191,15 +191,15 @@ async def create(
                 else:
                     ports = Ports(ports={port: port_flags})
 
-                message, status = await client.port_forwarder.create_ports(item_hash=ItemHash(item_hash), ports=ports)
+                message, status = await client.port_forwarder.create_ports(item_hash=ItemHash(vm_id), ports=ports)
                 typer.echo(f"Currents status: {status}")
-                typer.echo(f"Port forward created successfully for {item_hash} on port {port}")
+                typer.echo(f"Port forward created successfully for {vm_id} on port {port}")
                 typer.echo(f"TCP: {'Enabled' if tcp else 'Disabled'}, UDP: {'Enabled' if udp else 'Disabled'}")
             except MessageNotProcessed as e:
-                typer.echo(f"Error: Item hash {item_hash} message not processed. Status: {e.status}")
+                typer.echo(f"Error: VM {vm_id} message not processed. Status: {e.status}")
                 raise typer.Exit(code=1) from e
             except NotAuthorize as e:
-                typer.echo(f"Error: Not authorized to create port forward for {item_hash}")
+                typer.echo(f"Error: Not authorized to create port forward for {vm_id}")
                 typer.echo(f"Target address: {e.target_address}, Your address: {e.current_address}")
                 raise typer.Exit(code=1) from e
 
@@ -210,7 +210,7 @@ async def create(
 
 @app.command()
 async def update(
-    item_hash: Annotated[str, typer.Argument(help=help_strings.PORT_FORWARDER_VM_ID)],
+    vm_id: Annotated[str, typer.Argument(help=help_strings.PORT_FORWARDER_VM_ID)],
     port: Annotated[int, typer.Argument(help=help_strings.PORT_FORWARDER_PORT)],
     tcp: Annotated[bool, typer.Option(help=help_strings.PORT_FORWARDER_TCP)] = True,
     udp: Annotated[bool, typer.Option(help=help_strings.PORT_FORWARDER_UDP)] = False,
@@ -239,13 +239,11 @@ async def update(
     async with AlephHttpClient(api_server=settings.API_HOST) as client:
         try:
             existing_config = await client.port_forwarder.get_ports(
-                address=account.get_address(), item_hash=ItemHash(item_hash)
+                address=account.get_address(), item_hash=ItemHash(vm_id)
             )
 
             if not existing_config or port not in existing_config.ports:
-                typer.echo(
-                    f"Port forward for {item_hash} on port {port} does not exist. Use 'create' to create a new one."
-                )
+                typer.echo(f"Port forward for {vm_id} on port {port} does not exist. Use 'create' to create a new one.")
                 raise typer.Exit(code=1)
         except ClientResponseError as e:
             if e.status == 404:
@@ -272,20 +270,20 @@ async def update(
         async with AuthenticatedAlephHttpClient(account=account, api_server=settings.API_HOST) as client:
             try:
                 message, status = await client.port_forwarder.update_ports(
-                    item_hash=ItemHash(item_hash), ports=updated_ports
+                    item_hash=ItemHash(vm_id), ports=updated_ports
                 )
 
                 if status == MessageStatus.PROCESSED:
-                    typer.echo(f"Port forward updated successfully for {item_hash} on port {port}")
+                    typer.echo(f"Port forward updated successfully for {vm_id} on port {port}")
                     typer.echo(f"TCP: {'Enabled' if tcp else 'Disabled'}, UDP: {'Enabled' if udp else 'Disabled'}")
                 else:
                     typer.echo(f"Port forward update request was accepted but not yet processed. Status: {status}")
 
             except MessageNotProcessed as e:
-                typer.echo(f"Error: Item hash {item_hash} message not processed. Status: {e.status}")
+                typer.echo(f"Error: VM {vm_id} message not processed. Status: {e.status}")
                 raise typer.Exit(code=1) from e
             except NotAuthorize as e:
-                typer.echo(f"Error: Not authorized to update port forward for {item_hash}")
+                typer.echo(f"Error: Not authorized to update port forward for {vm_id}")
                 typer.echo(f"Target address: {e.target_address}, Your address: {e.current_address}")
                 raise typer.Exit(code=1) from e
 
@@ -296,7 +294,7 @@ async def update(
 
 @app.command()
 async def delete(
-    item_hash: Annotated[str, typer.Argument(help=help_strings.PORT_FORWARDER_VM_ID)],
+    vm_id: Annotated[str, typer.Argument(help=help_strings.PORT_FORWARDER_VM_ID)],
     port: Annotated[Optional[int], typer.Option(help=help_strings.PORT_FORWARDER_PORT)] = None,
     private_key: Annotated[Optional[str], typer.Option(help=help_strings.PRIVATE_KEY)] = settings.PRIVATE_KEY_STRING,
     private_key_file: Annotated[
@@ -319,15 +317,15 @@ async def delete(
     async with AlephHttpClient(api_server=settings.API_HOST) as client:
         try:
             existing_config = await client.port_forwarder.get_ports(
-                address=account.get_address(), item_hash=ItemHash(item_hash)
+                address=account.get_address(), item_hash=ItemHash(vm_id)
             )
 
             if not existing_config or not existing_config.ports:
-                typer.echo(f"No port forwards found for {item_hash}")
+                typer.echo(f"No port forwards found for {vm_id}")
                 raise typer.Exit(code=1)
 
             if port and port not in existing_config.ports:
-                typer.echo(f"Port forward for {item_hash} on port {port} does not exist")
+                typer.echo(f"Port forward for {vm_id} on port {port} does not exist")
                 raise typer.Exit(code=1)
         except ClientResponseError as e:
             if e.status == 404:
@@ -347,31 +345,30 @@ async def delete(
                             updated_ports.ports[p] = flags
 
                     if not updated_ports.ports:
-                        message, status = await client.port_forwarder.delete_ports(item_hash=ItemHash(item_hash))
+                        message, status = await client.port_forwarder.delete_ports(item_hash=ItemHash(vm_id))
                     else:
                         message, status = await client.port_forwarder.update_ports(
-                            item_hash=ItemHash(item_hash), ports=updated_ports
+                            item_hash=ItemHash(vm_id), ports=updated_ports
                         )
 
                     if status == MessageStatus.PROCESSED:
-                        typer.echo(f"Port forward deleted successfully for {item_hash} on port {port}")
+                        typer.echo(f"Port forward deleted successfully for {vm_id} on port {port}")
                     else:
                         typer.echo(f"Port forward delete request was accepted but not yet processed. Status: {status}")
 
                 else:
-                    # Delete all port forwards for the item hash
-                    message, status = await client.port_forwarder.delete_ports(item_hash=ItemHash(item_hash))
+                    message, status = await client.port_forwarder.delete_ports(item_hash=ItemHash(vm_id))
 
                     if status == MessageStatus.PROCESSED:
-                        typer.echo(f"All port forwards deleted successfully for {item_hash}")
+                        typer.echo(f"All port forwards deleted successfully for {vm_id}")
                     else:
                         typer.echo(f"Port forwards delete request was accepted but not yet processed. Status: {status}")
 
             except MessageNotProcessed as e:
-                typer.echo(f"Error: Item hash {item_hash} message not processed. Status: {e.status}")
+                typer.echo(f"Error: VM {vm_id} message not processed. Status: {e.status}")
                 raise typer.Exit(code=1) from e
             except NotAuthorize as e:
-                typer.echo(f"Error: Not authorized to delete port forward for {item_hash}")
+                typer.echo(f"Error: Not authorized to delete port forward for {vm_id}")
                 typer.echo(f"Target address: {e.target_address}, Your address: {e.current_address}")
                 raise typer.Exit(code=1) from e
 
@@ -382,7 +379,7 @@ async def delete(
 
 @app.command(name="refresh")
 async def refresh(
-    item_hash: Annotated[str, typer.Argument(help=help_strings.PORT_FORWARDER_VM_ID)],
+    vm_id: Annotated[str, typer.Argument(help=help_strings.PORT_FORWARDER_VM_ID)],
     chain: Annotated[Optional[Chain], typer.Option(help=help_strings.ADDRESS_CHAIN)] = None,
     private_key: Annotated[Optional[str], typer.Option(help=help_strings.PRIVATE_KEY)] = settings.PRIVATE_KEY_STRING,
     private_key_file: Annotated[
@@ -400,7 +397,7 @@ async def refresh(
 
     try:
         async with AuthenticatedAlephHttpClient(api_server=settings.API_HOST, account=account) as client:
-            instance: InstanceMessage = await client.get_message(item_hash=item_hash, message_type=InstanceMessage)
+            instance: InstanceMessage = await client.get_message(item_hash=vm_id, message_type=InstanceMessage)
             crn_list = await client.crn.get_crns_list()
             _, allocation = await client.instance.get_instance_allocation_info(instance, crn_list)
 
@@ -410,7 +407,7 @@ async def refresh(
 
             crn_url = allocation.crn_url if isinstance(allocation, InstanceManual) else allocation.allocations.node.url
 
-            result = await client.crn.update_instance_config(crn_address=crn_url, item_hash=item_hash)
+            result = await client.crn.update_instance_config(crn_address=crn_url, item_hash=vm_id)
             typer.echo(result)
     except Exception as e:
         typer.echo(f"An error occurred: {e}")

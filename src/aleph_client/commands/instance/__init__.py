@@ -907,7 +907,7 @@ async def create(
 
 @app.command()
 async def delete(
-    item_hash: Annotated[str, typer.Argument(help="Instance item hash to forget")],
+    vm_id: Annotated[str, typer.Argument(help="VM item hash to delete")],
     reason: Annotated[str, typer.Option(help="Reason for deleting the instance")] = "User deletion",
     chain: Annotated[
         Optional[Chain], typer.Option(help=help_strings.PAYMENT_CHAIN_USED, metavar=metavar_valid_chains)
@@ -931,7 +931,7 @@ async def delete(
     async with AuthenticatedAlephHttpClient(account=account, api_server=settings.API_HOST) as client:
         try:
             existing_message: InstanceMessage = await client.get_message(
-                item_hash=ItemHash(item_hash), message_type=InstanceMessage
+                item_hash=ItemHash(vm_id), message_type=InstanceMessage
             )
         except MessageNotFoundError:
             echo("Instance does not exist")
@@ -944,7 +944,7 @@ async def delete(
             raise typer.Exit(code=1)
 
         try:
-            await client.port_forwarder.delete_ports(item_hash=ItemHash(item_hash))
+            await client.port_forwarder.delete_ports(item_hash=ItemHash(vm_id))
         except aiohttp.ClientResponseError:
             echo("No ports found")
 
@@ -953,7 +953,7 @@ async def delete(
         payment: Optional[Payment] = existing_message.content.payment
         price: Optional[PriceResponse] = None
         if safe_getattr(payment, "type") == PaymentType.superfluid:
-            price = await client.get_program_price(item_hash)
+            price = await client.get_program_price(vm_id)
 
         # Ensure correct chain
         chain = existing_message.content.payment.chain  # type: ignore
@@ -963,11 +963,11 @@ async def delete(
         instance_info = info.root.get(existing_message.item_hash)
 
         if isinstance(instance_info, InstanceWithScheduler):
-            echo(f"Instance {item_hash} was auto-scheduled, VM will be erased automatically.")
+            echo(f"Instance {vm_id} was auto-scheduled, VM will be erased automatically.")
         elif instance_info is not None and hasattr(instance_info, "crn_url") and instance_info.crn_url:
             try:
                 async with VmClient(account, instance_info.crn_url) as manager:
-                    status, _ = await manager.erase_instance(vm_id=item_hash)
+                    status, _ = await manager.erase_instance(vm_id=vm_id)
                     if status == 200:
                         echo(f"VM erased on CRN: {instance_info.crn_url}")
                     else:
@@ -1021,10 +1021,10 @@ async def delete(
                 else:
                     echo("No flow to delete. Skipping...")
 
-        message, status = await client.forget(hashes=[ItemHash(item_hash)], reason=reason)
+        message, status = await client.forget(hashes=[ItemHash(vm_id)], reason=reason)
         if print_message:
             echo(f"{message.model_dump_json(indent=4)}")
-        echo(f"Instance {item_hash} has been deleted.")
+        echo(f"Instance {vm_id} has been deleted.")
 
 
 @app.command(name="list")

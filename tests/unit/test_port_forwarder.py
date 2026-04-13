@@ -124,8 +124,8 @@ async def test_list_ports(mock_auth_setup):
         patch("aleph_client.commands.instance.port_forwarder.typer.Exit", side_effect=SystemExit),
     ):
         try:
-            # Test with specific item_hash
-            await list_ports(item_hash=FAKE_VM_HASH)
+            # Test with specific vm_id
+            await list_ports(vm_id=FAKE_VM_HASH)
         except SystemExit:
             pass
 
@@ -147,7 +147,7 @@ async def test_create_port(mock_auth_setup):
         patch("aleph_client.commands.instance.port_forwarder.typer.echo") as mock_echo,
     ):
         # Test with TCP only
-        await create(item_hash=FAKE_VM_HASH, port=22, tcp=True, udp=False)
+        await create(vm_id=FAKE_VM_HASH, port=22, tcp=True, udp=False)
 
         # Check function calls
         mock_load_account.assert_called_once()
@@ -182,7 +182,7 @@ async def test_update_port(mock_auth_setup):
         patch("aleph_client.commands.instance.port_forwarder.AuthenticatedAlephHttpClient", mock_client_class),
         patch("aleph_client.commands.instance.port_forwarder.typer.echo") as mock_echo,
     ):
-        await update(item_hash=FAKE_VM_HASH, port=22, tcp=True, udp=True)
+        await update(vm_id=FAKE_VM_HASH, port=22, tcp=True, udp=True)
 
         mock_load_account.assert_called_once()
         mock_client.port_forwarder.get_ports.assert_called_once()
@@ -217,7 +217,7 @@ async def test_delete_port(mock_auth_setup):
         patch("aleph_client.commands.instance.port_forwarder.typer.echo") as mock_echo,
     ):
         # Test deleting a specific port
-        await delete(item_hash=FAKE_VM_HASH, port=22)
+        await delete(vm_id=FAKE_VM_HASH, port=22)
 
         mock_load_account.assert_called_once()
         mock_client.port_forwarder.get_ports.assert_called_once()
@@ -241,7 +241,7 @@ async def test_delete_port(mock_auth_setup):
         patch("aleph_client.commands.instance.port_forwarder.AuthenticatedAlephHttpClient", mock_client_class),
         patch("aleph_client.commands.instance.port_forwarder.typer.echo") as mock_echo,
     ):
-        await delete(item_hash=FAKE_VM_HASH, port=None)
+        await delete(vm_id=FAKE_VM_HASH, port=None)
 
         mock_load_account.assert_called_once()
         mock_client.port_forwarder.get_ports.assert_called_once()
@@ -273,7 +273,7 @@ async def test_delete_port_last_port(mock_auth_setup):
         patch("aleph_client.commands.instance.port_forwarder.AuthenticatedAlephHttpClient", mock_client_class),
         patch("aleph_client.commands.instance.port_forwarder.typer.echo") as mock_echo,
     ):
-        await delete(item_hash=FAKE_VM_HASH, port=22)
+        await delete(vm_id=FAKE_VM_HASH, port=22)
 
         # Check function calls
         mock_load_account.assert_called_once()
@@ -314,7 +314,7 @@ async def test_refresh_port(mock_auth_setup):
         patch("aleph_client.commands.instance.port_forwarder.AuthenticatedAlephHttpClient", mock_client_class),
         patch("aleph_client.commands.instance.port_forwarder.typer.echo") as mock_echo,
     ):
-        await refresh(item_hash=FAKE_VM_HASH)
+        await refresh(vm_id=FAKE_VM_HASH)
 
         # Check function calls
         mock_load_account.assert_called_once()
@@ -346,7 +346,7 @@ async def test_refresh_port_no_allocation(mock_auth_setup):
         patch("aleph_client.commands.instance.port_forwarder.typer.Exit", side_effect=SystemExit),
     ):
         with pytest.raises(SystemExit):
-            await refresh(item_hash=FAKE_VM_HASH)
+            await refresh(vm_id=FAKE_VM_HASH)
 
         mock_load_account.assert_called_once()
         mock_client.get_message.assert_called_once_with(item_hash=FAKE_VM_HASH, message_type=InstanceMessage)
@@ -380,7 +380,7 @@ async def test_refresh_port_scheduler_allocation(mock_auth_setup):
         patch("aleph_client.commands.instance.port_forwarder.AuthenticatedAlephHttpClient", mock_client_class),
         patch("aleph_client.commands.instance.port_forwarder.typer.echo") as mock_echo,
     ):
-        await refresh(item_hash=FAKE_VM_HASH)
+        await refresh(vm_id=FAKE_VM_HASH)
 
         mock_load_account.assert_called_once()
         mock_client.get_message.assert_called_once_with(item_hash=FAKE_VM_HASH, message_type=InstanceMessage)
@@ -424,7 +424,7 @@ async def test_non_processed_message_statuses():
         port_forwarder_mock.update_ports = AsyncMock(return_value=("mock_message", MessageStatus.PENDING))
         mock_auth_client.port_forwarder = port_forwarder_mock
 
-        await update(item_hash=FAKE_VM_HASH, port=22, tcp=True, udp=True)
+        await update(vm_id=FAKE_VM_HASH, port=22, tcp=True, udp=True)
 
         mock_echo.assert_any_call(
             f"Port forward update request was accepted but not yet processed. Status: {MessageStatus.PENDING}"
@@ -442,7 +442,7 @@ async def test_non_processed_message_statuses():
         port_forwarder_mock.delete_ports = AsyncMock(return_value=("mock_message", MessageStatus.PENDING))
         mock_auth_client.port_forwarder = port_forwarder_mock
 
-        await delete(item_hash=FAKE_VM_HASH, port=22)
+        await delete(vm_id=FAKE_VM_HASH, port=22)
 
         mock_echo.assert_any_call(
             f"Port forward delete request was accepted but not yet processed. Status: {MessageStatus.PENDING}"
@@ -460,7 +460,7 @@ async def test_non_processed_message_statuses():
         port_forwarder_mock.delete_ports = AsyncMock(return_value=("mock_message", MessageStatus.PENDING))
         mock_auth_client.port_forwarder = port_forwarder_mock
 
-        await delete(item_hash=FAKE_VM_HASH, port=None)
+        await delete(vm_id=FAKE_VM_HASH, port=None)
 
         mock_echo.assert_any_call(
             f"Port forwards delete request was accepted but not yet processed. Status: {MessageStatus.PENDING}"
