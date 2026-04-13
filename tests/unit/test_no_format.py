@@ -1,5 +1,7 @@
 """Tests for the --no-format flag."""
 
+import re
+
 import pytest
 from aleph_message.status import MessageStatus
 from typer.testing import CliRunner
@@ -55,9 +57,10 @@ def test_colorized_status_no_format():
 
 def test_no_format_flag_on_help():
     """Test that --no-format flag appears in help output."""
-    result = runner.invoke(app, ["--no-format", "--help"])
+    result = runner.invoke(app, ["--help"])
     assert result.exit_code == 0
-    assert "--no-format" in result.stdout
+    plain = re.sub(r"\x1b\[[0-9;]*m", "", result.stdout)
+    assert "--no-format" in plain
 
 
 def test_no_format_flag_with_account_path():
