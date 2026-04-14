@@ -36,6 +36,20 @@ logger = logging.getLogger(__name__)
 app = AsyncTyper(no_args_is_help=True)
 
 
+def _parse_metadata(metadata: Optional[list[str]]) -> Optional[dict]:
+    """Parse --metadata key=value options into extra_fields dict."""
+    if not metadata:
+        return None
+    meta_dict: dict[str, str] = {}
+    for entry in metadata:
+        if "=" not in entry:
+            typer.echo(f"Invalid metadata format: '{entry}'. Expected key=value")
+            raise typer.Exit(code=1)
+        key, value = entry.split("=", 1)
+        meta_dict[key] = value
+    return {"metadata": meta_dict}
+
+
 @app.command()
 async def pin(
     item_hash: Annotated[str, typer.Argument(help="IPFS hash to pin on Aleph Cloud")],
@@ -47,6 +61,10 @@ async def pin(
     chain: Annotated[Optional[Chain], typer.Option(help=help_strings.ADDRESS_CHAIN)] = None,
     ref: Annotated[Optional[str], typer.Option(help=help_strings.REF)] = None,
     address: Annotated[Optional[str], typer.Option(help="Address")] = None,
+    metadata: Annotated[
+        Optional[list[str]],
+        typer.Option(help="Metadata key=value pairs stored with the file"),
+    ] = None,
     debug: Annotated[bool, typer.Option()] = False,
 ):
     """Persist a file from IPFS on Aleph Cloud."""
@@ -55,6 +73,8 @@ async def pin(
 
     account: AccountTypes = load_account(private_key_str=private_key, private_key_file=private_key_file, chain=chain)
     address = address or settings.ADDRESS_TO_USE or account.get_address()
+
+    extra_fields = _parse_metadata(metadata)
 
     async with AuthenticatedAlephHttpClient(account=account, api_server=settings.API_HOST) as client:
         result: StoreMessage
@@ -65,6 +85,7 @@ async def pin(
             storage_engine=StorageEnum.ipfs,
             channel=channel,
             ref=ref,
+            extra_fields=extra_fields,
         )
         logger.debug("Upload finished")
         typer.echo(f"{result.model_dump_json(indent=4)}")
@@ -82,6 +103,10 @@ async def upload(
     chain: Annotated[Optional[Chain], typer.Option(help=help_strings.ADDRESS_CHAIN)] = None,
     ref: Annotated[Optional[str], typer.Option(help=help_strings.REF)] = None,
     address: Annotated[Optional[str], typer.Option(help="Address")] = None,
+    metadata: Annotated[
+        Optional[list[str]],
+        typer.Option(help="Metadata key=value pairs stored with the file"),
+    ] = None,
     debug: Annotated[bool, typer.Option()] = False,
 ):
     """Upload and store a file or directory on Aleph Cloud."""
@@ -90,6 +115,8 @@ async def upload(
 
     account: AccountTypes = load_account(private_key_str=private_key, private_key_file=private_key_file, chain=chain)
     address = address or settings.ADDRESS_TO_USE or account.get_address()
+
+    extra_fields = _parse_metadata(metadata)
 
     async with AuthenticatedAlephHttpClient(account=account, api_server=settings.API_HOST) as client:
 
@@ -152,6 +179,7 @@ async def upload(
                         channel=channel,
                         guess_mime_type=True,
                         ref=ref,
+                        extra_fields=extra_fields,
                     )
                     logger.debug("Upload finished")
                     typer.echo(f"{result.model_dump_json(indent=4)}")
@@ -202,7 +230,7 @@ async def upload(
             if not cid:
                 typer.echo("CID not found in response.")
                 typer.Exit(code=1)
-            await pin(cid, channel, private_key, private_key_file, chain, ref, address, debug)
+            await pin(cid, channel, private_key, private_key_file, chain, ref, address, metadata, debug)
         else:
             typer.echo(f"Error: File not found: '{path}'")
             raise typer.Exit(code=1)
@@ -210,7 +238,7 @@ async def upload(
 
 @app.command()
 async def download(
-    hash: Annotated[str, typer.Argument(help="hash to download from aleph.")],
+    item_hash: Annotated[str, typer.Argument(help="File hash to download from Aleph Cloud")],
     use_ipfs: Annotated[bool, typer.Option(help="Download using IPFS instead of storage")] = False,
     output_path: Annotated[Path, typer.Option(help="Output directory path")] = Path("."),
     file_name: Annotated[Optional[str], typer.Option(help="Output file name (without extension)")] = None,
@@ -226,23 +254,23 @@ async def download(
     if not only_info:
         output_path.mkdir(parents=True, exist_ok=True)
 
-        file_name = file_name if file_name else hash
+        file_name = file_name if file_name else item_hash
         file_extension = file_extension if file_extension else ""
 
         output_file_path = output_path / f"{file_name}{file_extension}"
 
         async with AlephHttpClient(api_server=settings.API_HOST) as client:
-            logger.info(f"Downloading {hash} ...")
+            logger.info(f"Downloading {item_hash} ...")
             with open(output_file_path, "wb") as fd:
                 if not use_ipfs:
-                    await client.download_file_to_buffer(hash, fd)
+                    await client.download_file_to_buffer(item_hash, fd)
                 else:
-                    await client.download_file_ipfs_to_buffer(hash, fd)
+                    await client.download_file_ipfs_to_buffer(item_hash, fd)
 
             logger.debug("File downloaded successfully.")
     else:
         async with AlephHttpClient(api_server=settings.API_HOST) as client:
-            content = await client.get_stored_content(hash)
+            content = await client.get_stored_content(item_hash)
             if verbose:
                 typer.echo(
                     f"Filename: {content.filename}\nHash: {content.hash}\nURL: {content.url}"
@@ -261,7 +289,7 @@ async def forget(
             help="Hash(es) to forget. Must be a comma separated list. Example: `123...abc` or `123...abc,456...xyz`"
         ),
     ],
-    reason: Annotated[str, typer.Argument(help="reason to forget")] = "User deletion",
+    reason: Annotated[str, typer.Option(help="Reason for forgetting the file")] = "User deletion",
     channel: Annotated[Optional[str], typer.Option(help=help_strings.CHANNEL)] = settings.DEFAULT_CHANNEL,
     private_key: Annotated[Optional[str], typer.Option(help=help_strings.PRIVATE_KEY)] = settings.PRIVATE_KEY_STRING,
     private_key_file: Annotated[
