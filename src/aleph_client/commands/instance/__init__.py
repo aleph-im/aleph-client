@@ -28,6 +28,7 @@ from aleph.sdk import AlephHttpClient, AuthenticatedAlephHttpClient
 from aleph.sdk.chains.ethereum import BaseEthAccount
 from aleph.sdk.client.services.crn import NetworkGPUS
 from aleph.sdk.client.services.pricing import Price
+from aleph.sdk.client.services.runtimes import RuntimeType
 from aleph.sdk.client.vm_client import VmClient
 from aleph.sdk.client.vm_confidential_client import VmConfidentialClient
 from aleph.sdk.conf import load_main_configuration, settings
@@ -73,6 +74,7 @@ from aleph_client.commands.utils import (
     get_console,
     get_or_prompt_volumes,
     get_panel,
+    int_prompt_ask,
     prompt_ask,
     setup_logging,
     validate_ssh_pubkey_file,
@@ -1276,6 +1278,110 @@ async def stop(
             echo(f"Status : {status}")
             return 1
         echo(f"VM stopped on CRN: {domain}")
+
+
+@app.command()
+async def rescue(
+    vm_id: Annotated[str, typer.Argument(help="VM item hash to boot in rescue mode")],
+    domain: Annotated[Optional[str], typer.Option(help="CRN domain on which the VM is running")] = None,
+    rescue_hash: Annotated[
+        Optional[str],
+        typer.Option(help="Rescue runtime item_hash to use (CRN picks default if omitted)"),
+    ] = None,
+    choose_runtime: Annotated[
+        bool,
+        typer.Option("--choose-runtime", help="Browse and select from available rescue runtimes"),
+    ] = False,
+    chain: Annotated[Optional[Chain], typer.Option(help=help_strings.PAYMENT_CHAIN_USED)] = None,
+    private_key: Annotated[Optional[str], typer.Option(help=help_strings.PRIVATE_KEY)] = settings.PRIVATE_KEY_STRING,
+    private_key_file: Annotated[
+        Optional[Path], typer.Option(help=help_strings.PRIVATE_KEY_FILE)
+    ] = settings.PRIVATE_KEY_FILE,
+    debug: Annotated[bool, typer.Option(help="Enable debug logging")] = False,
+):
+    """Boot an instance in rescue mode.
+
+    The original rootfs is attached as /dev/vdb (read-write).
+    Use 'aleph instance rescue-exit' to restore normal boot.
+    """
+
+    setup_logging(debug)
+
+    if choose_runtime and not rescue_hash:
+        console = get_console()
+        async with AlephHttpClient(api_server=settings.API_HOST) as client:
+            rescue_runtimes = await client.runtimes.get_runtimes(runtime_type=RuntimeType.RESCUE)
+
+        if not rescue_runtimes:
+            echo("No rescue runtimes found in the runtimes aggregate.")
+            raise typer.Exit(code=1)
+
+        default_idx = 0
+        console.print("\nAvailable rescue runtimes:")
+        for i, r in enumerate(rescue_runtimes):
+            marker = " [green](default)[/green]" if r.default else ""
+            console.print(f"  [bold]{i}[/bold]) [cyan]{r.name}[/cyan] — {r.item_hash[:16]}...{marker}")
+            if r.default:
+                default_idx = i
+
+        choice = int_prompt_ask(
+            "Select rescue runtime",
+            default=default_idx,
+        )
+        if choice < 0 or choice >= len(rescue_runtimes):
+            echo(f"Invalid selection: {choice}")
+            raise typer.Exit(code=1)
+        rescue_hash = rescue_runtimes[choice].item_hash
+        console.print(f"Using: [cyan]{rescue_runtimes[choice].name}[/cyan]")
+
+    domain = (domain and sanitize_url(domain)) or await find_crn_of_vm(vm_id) or prompt_ask(help_strings.PROMPT_CRN_URL)
+    assert domain
+
+    account: AccountTypes = load_account(private_key, private_key_file, chain=chain)
+
+    async with VmClient(account, domain) as manager:
+        status, result = await manager.enter_rescue(vm_id=vm_id, item_hash=rescue_hash)
+        if status == 200:
+            echo(f"Instance {vm_id} booted in rescue mode on {domain}")
+            echo("Original rootfs available as /dev/vdb inside the rescue environment.")
+        elif status == 409:
+            echo(f"Conflict: {result}")
+        elif status == 501:
+            echo("Rescue mode not available: no rescue runtime configured on this CRN.")
+        else:
+            echo(f"Error ({status}): {result}")
+            raise typer.Exit(code=1)
+
+
+@app.command(name="rescue-exit")
+async def rescue_exit(
+    vm_id: Annotated[str, typer.Argument(help="VM item hash to exit rescue mode")],
+    domain: Annotated[Optional[str], typer.Option(help="CRN domain on which the VM is running")] = None,
+    chain: Annotated[Optional[Chain], typer.Option(help=help_strings.PAYMENT_CHAIN_USED)] = None,
+    private_key: Annotated[Optional[str], typer.Option(help=help_strings.PRIVATE_KEY)] = settings.PRIVATE_KEY_STRING,
+    private_key_file: Annotated[
+        Optional[Path], typer.Option(help=help_strings.PRIVATE_KEY_FILE)
+    ] = settings.PRIVATE_KEY_FILE,
+    debug: Annotated[bool, typer.Option(help="Enable debug logging")] = False,
+):
+    """Exit rescue mode and restore normal boot."""
+
+    setup_logging(debug)
+
+    domain = (domain and sanitize_url(domain)) or await find_crn_of_vm(vm_id) or prompt_ask(help_strings.PROMPT_CRN_URL)
+    assert domain
+
+    account: AccountTypes = load_account(private_key, private_key_file, chain=chain)
+
+    async with VmClient(account, domain) as manager:
+        status, result = await manager.exit_rescue(vm_id=vm_id)
+        if status == 200:
+            echo(f"Instance {vm_id} restored to normal boot on {domain}")
+        elif status == 409:
+            echo(f"Conflict: {result}")
+        else:
+            echo(f"Error ({status}): {result}")
+            raise typer.Exit(code=1)
 
 
 @app.command()
