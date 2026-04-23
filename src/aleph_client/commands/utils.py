@@ -91,6 +91,17 @@ def get_panel(content, **kwargs) -> Union[Panel, Text]:
     return Panel(content, **kwargs)
 
 
+def ipfs_cid_v0_to_v1(cid_v0: str) -> str:
+    """Convert an IPFS CID v0 (base58, Qm...) to CID v1 (base32)."""
+    import base58
+    import multibase
+    import multicodec
+
+    decoded = base58.b58decode(cid_v0)
+    cid_v1_bytes = multicodec.add_prefix(multicodec.get_codec("cidv1"), decoded)
+    return multibase.encode("base32lower", cid_v1_bytes).decode()
+
+
 def colorful_json(obj: str):
     """Render a JSON string with colors."""
     if _no_format:
