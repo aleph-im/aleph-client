@@ -28,6 +28,8 @@ from aleph_client.commands.instance import (
     list_instances,
     logs,
     reboot,
+    rescue,
+    rescue_exit,
     stop,
 )
 from aleph_client.commands.instance.network import fetch_crn_info
@@ -340,6 +342,8 @@ def create_mock_vm_client():
         erase_instance=AsyncMock(return_value=[200, MagicMock()]),
         reboot_instance=AsyncMock(return_value=[200, MagicMock()]),
         stop_instance=AsyncMock(return_value=[200, MagicMock()]),
+        enter_rescue=AsyncMock(return_value=(200, {"success": True})),
+        exit_rescue=AsyncMock(return_value=(200, {"success": True})),
         get_logs=MagicMock(return_value=MockAsyncIteratorLogs()),
     )
     mock_vm_client_class = MagicMock()
@@ -1063,3 +1067,77 @@ async def test_gpu_create_no_gpus_available(
             )
 
     await gpu_instance_no_gpus()
+
+
+@pytest.mark.asyncio
+async def test_rescue_instance():
+    mock_load_account = create_mock_load_account()
+    mock_account = mock_load_account.return_value
+    mock_auth_client_class, mock_auth_client = create_mock_auth_client(mock_account, mock_crn_list_obj=[])
+    mock_vm_client_class, mock_vm_client = create_mock_vm_client()
+
+    @patch("aleph_client.commands.instance.load_account", mock_load_account)
+    @patch("aleph_client.commands.instance.network.AlephHttpClient", mock_auth_client_class)
+    @patch("aleph_client.commands.instance.VmClient", mock_vm_client_class)
+    async def run():
+        print()
+        await rescue(FAKE_VM_HASH, domain=FAKE_CRN_BASIC_URL)
+        mock_vm_client.enter_rescue.assert_called_once_with(vm_id=FAKE_VM_HASH, item_hash=None)
+
+    await run()
+
+
+@pytest.mark.asyncio
+async def test_rescue_instance_conflict():
+    mock_load_account = create_mock_load_account()
+    mock_account = mock_load_account.return_value
+    mock_auth_client_class, mock_auth_client = create_mock_auth_client(mock_account, mock_crn_list_obj=[])
+    mock_vm_client_class, mock_vm_client = create_mock_vm_client()
+    mock_vm_client.enter_rescue = AsyncMock(return_value=(409, "Instance already in rescue mode"))
+
+    @patch("aleph_client.commands.instance.load_account", mock_load_account)
+    @patch("aleph_client.commands.instance.network.AlephHttpClient", mock_auth_client_class)
+    @patch("aleph_client.commands.instance.VmClient", mock_vm_client_class)
+    async def run():
+        print()
+        await rescue(FAKE_VM_HASH, domain=FAKE_CRN_BASIC_URL)
+        mock_vm_client.enter_rescue.assert_called_once()
+
+    await run()
+
+
+@pytest.mark.asyncio
+async def test_rescue_instance_not_available():
+    mock_load_account = create_mock_load_account()
+    mock_account = mock_load_account.return_value
+    mock_auth_client_class, mock_auth_client = create_mock_auth_client(mock_account, mock_crn_list_obj=[])
+    mock_vm_client_class, mock_vm_client = create_mock_vm_client()
+    mock_vm_client.enter_rescue = AsyncMock(return_value=(501, "No rescue runtime configured"))
+
+    @patch("aleph_client.commands.instance.load_account", mock_load_account)
+    @patch("aleph_client.commands.instance.network.AlephHttpClient", mock_auth_client_class)
+    @patch("aleph_client.commands.instance.VmClient", mock_vm_client_class)
+    async def run():
+        print()
+        await rescue(FAKE_VM_HASH, domain=FAKE_CRN_BASIC_URL)
+        mock_vm_client.enter_rescue.assert_called_once()
+
+    await run()
+
+
+@pytest.mark.asyncio
+async def test_rescue_exit_instance():
+    mock_load_account = create_mock_load_account()
+    mock_account = mock_load_account.return_value
+    mock_auth_client_class, mock_auth_client = create_mock_auth_client(mock_account, mock_crn_list_obj=[])
+    mock_vm_client_class, mock_vm_client = create_mock_vm_client()
+
+    @patch("aleph_client.commands.instance.load_account", mock_load_account)
+    @patch("aleph_client.commands.instance.network.AlephHttpClient", mock_auth_client_class)
+    @patch("aleph_client.commands.instance.VmClient", mock_vm_client_class)
+    async def run():
+        print()
+        await rescue_exit(FAKE_VM_HASH, domain=FAKE_CRN_BASIC_URL)
+        mock_vm_client.exit_rescue.assert_called_once_with(vm_id=FAKE_VM_HASH)
+
+    await run()

@@ -1307,6 +1307,9 @@ async def rescue(
 
     setup_logging(debug)
 
+    if choose_runtime and rescue_hash:
+        echo("Warning: --choose-runtime is ignored when --rescue-hash is provided.")
+
     if choose_runtime and not rescue_hash:
         console = get_console()
         async with AlephHttpClient(api_server=settings.API_HOST) as client:
@@ -1316,17 +1319,18 @@ async def rescue(
             echo("No rescue runtimes found in the runtimes aggregate.")
             raise typer.Exit(code=1)
 
-        default_idx = 0
+        default_idx = next((i for i, r in enumerate(rescue_runtimes) if r.default), None)
+        if default_idx is None:
+            echo("Warning: no rescue runtime is marked as default.")
+
         console.print("\nAvailable rescue runtimes:")
         for i, r in enumerate(rescue_runtimes):
             marker = " [green](default)[/green]" if r.default else ""
             console.print(f"  [bold]{i}[/bold]) [cyan]{r.name}[/cyan] — {r.item_hash[:16]}...{marker}")
-            if r.default:
-                default_idx = i
 
         choice = int_prompt_ask(
             "Select rescue runtime",
-            default=default_idx,
+            default=default_idx if default_idx is not None else 0,
         )
         if choice < 0 or choice >= len(rescue_runtimes):
             echo(f"Invalid selection: {choice}")
