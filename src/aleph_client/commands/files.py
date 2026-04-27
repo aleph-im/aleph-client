@@ -3,7 +3,7 @@ from __future__ import annotations
 import json as json_lib
 import logging
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal
 from hashlib import sha256
 from pathlib import Path
@@ -21,6 +21,7 @@ from rich import box
 from aleph.sdk import AlephHttpClient, AuthenticatedAlephHttpClient
 from aleph.sdk.conf import settings
 from aleph.sdk.exceptions import InsufficientFundsError
+from aleph.sdk.query.filters import MessageFilter
 from aleph.sdk.types import StorageEnum, StoredContent, TokenType
 from aleph.sdk.utils import safe_getattr
 from aleph_client.commands import help_strings
@@ -298,6 +299,49 @@ class GetAccountFilesQueryParams(BaseModel):
     )
 
 
+def _normalize_files_data_from_messages(address: str, messages_data) -> dict:
+    files = []
+    total_size = 0
+
+    for message in messages_data.messages:
+        content = getattr(message, "content", None)
+        if not content:
+            continue
+
+        file_hash = getattr(content, "item_hash", None)
+        message_hash = getattr(message, "item_hash", None)
+        if not file_hash or not message_hash:
+            continue
+
+        size = getattr(content, "size", None) or 0
+        try:
+            size_int = int(size)
+        except (TypeError, ValueError):
+            size_int = 0
+
+        total_size += size_int
+        created = datetime.fromtimestamp(message.time, tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f%z")
+
+        files.append(
+            {
+                "file_hash": str(file_hash),
+                "size": str(size_int),
+                "type": str(getattr(content, "item_type", "file")),
+                "created": created,
+                "item_hash": str(message_hash),
+            }
+        )
+
+    return {
+        "files": files,
+        "pagination_page": messages_data.pagination_page,
+        "pagination_total": messages_data.pagination_total,
+        "pagination_per_page": messages_data.pagination_per_page,
+        "address": address,
+        "total_size": str(total_size),
+    }
+
+
 def _show_files(files_data: dict) -> None:
     table = get_table(title="Files Information", box=box.SIMPLE_HEAVY)
     table.add_column("File Hash", style="cyan", no_wrap=True, min_width=None)
@@ -373,16 +417,31 @@ async def list_files(
         query_params = GetAccountFilesQueryParams(pagination=pagination, page=page, sort_order=sort_order)
 
         uri = f"{settings.API_HOST}/api/v0/addresses/{address}/files"
+        files_data = None
         async with aiohttp.ClientSession() as session:
             response = await session.get(uri, params=query_params.model_dump())
             if response.status == 200:
                 files_data = await response.json()
-                formatted_files_data = json_lib.dumps(files_data, indent=4)
-                if not json:
-                    _show_files(files_data)
-                else:
-                    typer.echo(formatted_files_data)
-            else:
+            elif response.status != 404:
                 typer.echo(f"Failed to retrieve files for address {address}. Status code: {response.status}")
+                return
+
+        if files_data is None:
+            async with AlephHttpClient(api_server=settings.API_HOST) as client:
+                messages_data = await client.get_messages(
+                    page_size=pagination,
+                    page=page,
+                    message_filter=MessageFilter(
+                        message_types=[MessageType.store],
+                        addresses=[address],
+                    ),
+                )
+            files_data = _normalize_files_data_from_messages(address=address, messages_data=messages_data)
+
+        formatted_files_data = json_lib.dumps(files_data, indent=4)
+        if not json:
+            _show_files(files_data)
+        else:
+            typer.echo(formatted_files_data)
     else:
         typer.echo("Error: Please provide either a private key, private key file, or an address.")

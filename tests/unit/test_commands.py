@@ -1,6 +1,7 @@
 import hashlib
 import json
 from pathlib import Path
+from types import SimpleNamespace
 from tempfile import NamedTemporaryFile
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -956,7 +957,7 @@ def test_file_list(mock_aiohttp_client_session):
     assert "0dd9bb810b7a31cc50c8ad1e6569905" in result.stdout
 
 
-def test_file_list_error(mocker):
+def test_file_list_error():
     """Test error handling in the file list command when API returns an error."""
     # Create a mock response with error status
     mock_response = AsyncMock()
@@ -967,7 +968,58 @@ def test_file_list_error(mocker):
     mock_session.__aenter__.return_value = mock_session
     mock_session.get.return_value = mock_response
 
-    # Patch aiohttp.ClientSession to return our mock
+    mock_messages = SimpleNamespace(
+        pagination_page=1,
+        pagination_total=1,
+        pagination_per_page=100,
+        messages=[
+            SimpleNamespace(
+                time=1738837907,
+                item_hash=FAKE_STORE_HASH,
+                content=SimpleNamespace(
+                    item_hash="QmXSEnpQCnUfeGFoSjY1XAK1Cuad5CtAaqyachGTtsFSuA",
+                    item_type="ipfs",
+                    size=1024,
+                ),
+            )
+        ],
+    )
+
+    with (
+        patch("aiohttp.ClientSession", return_value=mock_session),
+        patch("aleph_client.commands.files.AlephHttpClient", autospec=True) as mock_client_class,
+    ):
+        mock_client = mock_client_class.return_value
+        mock_client.__aenter__.return_value = mock_client
+        mock_client.__aexit__.return_value = None
+        mock_client.get_messages = AsyncMock(return_value=mock_messages)
+
+        result = runner.invoke(
+            app,
+            [
+                "file",
+                "list",
+                "--address",
+                "0xe0aaF578B287de16852dbc54Ae34a263FF2F4b9E",
+            ],
+        )
+
+    # The command should fall back to STORE messages when the legacy files endpoint is unavailable.
+    assert result.exit_code == 0
+    assert "Address:" in result.stdout
+    assert "Total Item: 1" in result.stdout
+    assert "Failed to retrieve files for address" not in result.stdout
+
+
+def test_file_list_non_404_error():
+    """Test that non-404 errors are still surfaced directly."""
+    mock_response = AsyncMock()
+    mock_response.status = 500
+
+    mock_session = AsyncMock()
+    mock_session.__aenter__.return_value = mock_session
+    mock_session.get.return_value = mock_response
+
     with patch("aiohttp.ClientSession", return_value=mock_session):
         result = runner.invoke(
             app,
@@ -979,7 +1031,6 @@ def test_file_list_error(mocker):
             ],
         )
 
-    # The command should run without crashing but report the error
     assert result.exit_code == 0
     assert "Failed to retrieve files for address" in result.stdout
-    assert "Status code: 404" in result.stdout
+    assert "Status code: 500" in result.stdout
