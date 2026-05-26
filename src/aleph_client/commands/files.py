@@ -250,7 +250,7 @@ async def upload(
             cid = await upload_directory(path)
             if not cid:
                 typer.echo("CID not found in response.")
-                typer.Exit(code=1)
+                raise typer.Exit(code=1)
             await pin(cid, channel, private_key, private_key_file, chain, ref, address, metadata, debug)
         else:
             typer.echo(f"Error: File not found: '{path}'")
