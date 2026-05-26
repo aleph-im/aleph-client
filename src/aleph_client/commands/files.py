@@ -195,30 +195,51 @@ async def upload(
             typer.echo(f"Upload directory {path}...")
 
             async def upload_directory(directory: Path):
+                # Kubo's /api/v0/add expects each entry as a multipart part named "file";
+                # the filename (with slashes) encodes the relative path, so the directory
+                # tree must be flattened into individual parts rather than a dict of paths.
                 params = {"recursive": "true", "wrap-with-directory": "true"}
+                form = aiohttp.FormData()
+                file_handles: list = []
 
-                files = {}
-                for _path in directory.rglob("*"):
-                    if _path.is_file():
-                        relative_path = _path.relative_to(directory)
-                        files[str(relative_path)] = open(_path, "rb")
+                for _path in sorted(directory.rglob("*")):
+                    relative_path = _path.relative_to(directory)
+                    if _path.is_dir():
+                        form.add_field(
+                            "file",
+                            b"",
+                            filename=str(relative_path),
+                            content_type="application/x-directory",
+                        )
+                    elif _path.is_file():
+                        fh = open(_path, "rb")
+                        file_handles.append(fh)
+                        form.add_field(
+                            "file",
+                            fh,
+                            filename=str(relative_path),
+                            content_type="application/octet-stream",
+                        )
 
                 url = urlparse(settings.IPFS_GATEWAY)._replace(path="/api/v0/add").geturl()
-                async with aiohttp.ClientSession() as session:
-                    response = await session.post(url, params=params, data=files)
-                    response.raise_for_status()
+                try:
+                    async with aiohttp.ClientSession() as session:
+                        response = await session.post(url, params=params, data=form)
+                        response.raise_for_status()
 
-                    # Parse the response line-by-line
-                    cid_v0 = None
-                    data = await response.text()
-                    for line in data.strip().splitlines():
-                        entry = json_lib.loads(line)
-                        cid_v0 = entry.get("Hash")
+                        cid_v0 = None
+                        data = await response.text()
+                        for line in data.strip().splitlines():
+                            entry = json_lib.loads(line)
+                            cid_v0 = entry.get("Hash")
 
-                    if not cid_v0:
-                        return None
+                        if not cid_v0:
+                            return None
 
-                    return cid_v0
+                        return cid_v0
+                finally:
+                    for fh in file_handles:
+                        fh.close()
 
             total_size = 0
             for fp in path.rglob("*"):
