@@ -611,18 +611,18 @@ async def test_create_instance_precheck_failures(
         patch("aleph_client.commands.instance.VmClient", mock_vm_client_class),
         patch("aleph_client.commands.instance.display.CRNTable.run_async", AsyncMock(return_value=(None, 0))),
     ):
-        call_args = dict(
-            payment_type="superfluid",
-            payment_chain=Chain.AVAX,
-            rootfs="debian12",
-            crn_url=FAKE_CRN_BASIC_URL,
-            ssh_pubkey_file=FAKE_PUBKEY_FILE,
-            name="mock_instance",
-            compute_units=1,
-            rootfs_size=0,
-            skip_volume=True,
-            crn_auto_tac=True,
-        )
+        call_args = {
+            "payment_type": "superfluid",
+            "payment_chain": Chain.AVAX,
+            "rootfs": "debian12",
+            "crn_url": FAKE_CRN_BASIC_URL,
+            "ssh_pubkey_file": FAKE_PUBKEY_FILE,
+            "name": "mock_instance",
+            "compute_units": 1,
+            "rootfs_size": 0,
+            "skip_volume": True,
+            "crn_auto_tac": True,
+        }
 
         if expects_exit:
             with pytest.raises(typer.Exit) as exc_info:
