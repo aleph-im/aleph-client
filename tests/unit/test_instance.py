@@ -340,6 +340,7 @@ def create_mock_vm_client():
         erase_instance=AsyncMock(return_value=[200, MagicMock()]),
         reboot_instance=AsyncMock(return_value=[200, MagicMock()]),
         stop_instance=AsyncMock(return_value=[200, MagicMock()]),
+        reserve_resources=AsyncMock(return_value=(200, {"success": True})),
         get_logs=MagicMock(return_value=MockAsyncIteratorLogs()),
     )
     mock_vm_client_class = MagicMock()
