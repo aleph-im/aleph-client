@@ -756,7 +756,7 @@ async def create(
                 echo(f"CRN rejected the request: {precheck_result}")
                 raise typer.Exit(code=1)
             if precheck_status != 200:
-                echo(f"[yellow]Warning:[/yellow] capacity pre-check returned " f"{precheck_status}: {precheck_result}")
+                echo(f"[yellow]Warning:[/yellow] capacity pre-check returned {precheck_status}: {precheck_result}")
                 echo("Proceeding anyway, but allocation may fail.")
 
     async with AuthenticatedAlephHttpClient(account=account, api_server=settings.API_HOST) as client:
