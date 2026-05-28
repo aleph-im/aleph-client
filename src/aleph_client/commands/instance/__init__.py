@@ -742,6 +742,23 @@ async def create(
             echo(e)
             raise typer.Exit(code=1) from e
 
+    # CRN capacity pre-check: dry-run admission control before paying/publishing
+    if crn_info and crn_info.url and (is_stream or confidential or gpu or is_credit):
+        async with VmClient(account, crn_info.url) as crn_client:
+            precheck_status, precheck_result = await crn_client.reserve_resources(
+                content.model_dump(mode="json", exclude_none=True)
+            )
+            if precheck_status == 503:
+                echo(f"[red]Selected CRN does not have available capacity:[/red] {crn_info.url}")
+                echo("Try another CRN.")
+                raise typer.Exit(code=1)
+            if precheck_status == 400:
+                echo(f"CRN rejected the request: {precheck_result}")
+                raise typer.Exit(code=1)
+            if precheck_status != 200:
+                echo(f"[yellow]Warning:[/yellow] capacity pre-check returned {precheck_status}: {precheck_result}")
+                echo("Proceeding anyway, but allocation may fail.")
+
     async with AuthenticatedAlephHttpClient(account=account, api_server=settings.API_HOST) as client:
         try:
             message, status = await client.create_instance(
