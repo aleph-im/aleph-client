@@ -541,8 +541,101 @@ async def test_create_instance(
         ):
             mock_wait_for_processed_instance.assert_called_once()
             mock_vm_client.start_instance.assert_called_once()
+            mock_vm_client.reserve_resources.assert_called_once()
 
         assert returned == expected
+
+
+@pytest.mark.parametrize(
+    "precheck_status, expects_exit, expects_create_call",
+    [
+        (503, True, False),
+        (400, True, False),
+        (500, False, True),
+    ],
+    ids=["no_capacity_503", "bad_request_400", "warning_pass_through"],
+)
+@pytest.mark.asyncio
+async def test_create_instance_precheck_failures(
+    precheck_status,
+    expects_exit,
+    expects_create_call,
+    mock_crn_list_obj,
+    mock_pricing_info_response,
+    mock_get_balances,
+    mock_settings_info,
+):
+    """Cover precheck branches: 503 and 400 abort; other non-200 warns and proceeds."""
+    mock_validate_ssh_pubkey_file = create_mock_validate_ssh_pubkey_file()
+    mock_load_account = create_mock_load_account()
+    mock_account = mock_load_account.return_value
+    mock_client_class, mock_client = create_mock_client(
+        mock_crn_list_obj,
+        mock_pricing_info_response,
+        mock_get_balances,
+        mock_settings_info,
+        payment_type="superfluid",
+    )
+    mock_auth_client_class, mock_auth_client = create_mock_auth_client(
+        mock_account,
+        payment_type="superfluid",
+        mock_crn_list_obj=mock_crn_list_obj,
+        mock_get_balances=mock_get_balances,
+    )
+    mock_vm_client_class, mock_vm_client = create_mock_vm_client()
+    mock_vm_client.reserve_resources = AsyncMock(return_value=(precheck_status, {"detail": "test"}))
+
+    mock_validated_prompt = MagicMock(return_value="1")
+    mock_validated_int_prompt = MagicMock(return_value=20480)
+    mock_yes_no_input = MagicMock(side_effect=[False, True, True])
+    mock_wait_for_processed_instance = AsyncMock()
+    mock_wait_for_confirmed_flow = AsyncMock()
+
+    with (
+        patch("aleph_client.commands.instance.validate_ssh_pubkey_file", mock_validate_ssh_pubkey_file),
+        patch("aleph_client.commands.instance.load_account", mock_load_account),
+        patch("aleph_client.commands.instance.AlephHttpClient", mock_client_class),
+        patch("aleph_client.commands.pricing.AlephHttpClient", mock_client_class),
+        patch("aleph_client.commands.instance.AuthenticatedAlephHttpClient", mock_auth_client_class),
+        patch("aleph_client.commands.instance.network.AlephHttpClient", mock_client_class),
+        patch(
+            "aleph_client.commands.instance.network.call_program_crn_list",
+            AsyncMock(return_value=mock_crn_list_obj),
+        ),
+        patch("aleph_client.commands.instance.network.fetch_settings", AsyncMock(return_value=mock_settings_info)),
+        patch("aleph_client.commands.instance.yes_no_input", mock_yes_no_input),
+        patch("aleph_client.commands.utils.validated_prompt", mock_validated_prompt),
+        patch("aleph_client.commands.utils.validated_int_prompt", mock_validated_int_prompt),
+        patch("aleph_client.commands.instance.wait_for_processed_instance", mock_wait_for_processed_instance),
+        patch("aleph_client.commands.instance.wait_for_confirmed_flow", mock_wait_for_confirmed_flow),
+        patch("aleph_client.commands.instance.VmClient", mock_vm_client_class),
+        patch("aleph_client.commands.instance.display.CRNTable.run_async", AsyncMock(return_value=(None, 0))),
+    ):
+        call_args = dict(
+            payment_type="superfluid",
+            payment_chain=Chain.AVAX,
+            rootfs="debian12",
+            crn_url=FAKE_CRN_BASIC_URL,
+            ssh_pubkey_file=FAKE_PUBKEY_FILE,
+            name="mock_instance",
+            compute_units=1,
+            rootfs_size=0,
+            skip_volume=True,
+            crn_auto_tac=True,
+        )
+
+        if expects_exit:
+            with pytest.raises(typer.Exit) as exc_info:
+                await create(**call_args)
+            assert exc_info.value.exit_code == 1
+        else:
+            await create(**call_args)
+
+        mock_vm_client.reserve_resources.assert_called_once()
+        if expects_create_call:
+            mock_auth_client.create_instance.assert_called_once()
+        else:
+            mock_auth_client.create_instance.assert_not_called()
 
 
 @pytest.mark.asyncio
