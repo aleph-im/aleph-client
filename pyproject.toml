@@ -37,7 +37,7 @@ dependencies = [
   "py-sr25519-bindings==0.2",    # Needed for DOT signatures
   "pydantic>=2",
   "pygments==2.19.1",
-  "pynacl==1.5",                 # Needed now as default with _load_account changement
+  "pynacl==1.6.2",                 # Needed now as default with _load_account changement
   "python-magic==0.4.27",
   "rich==13.9.*",
   "setuptools>=65.5",
@@ -50,8 +50,8 @@ optional-dependencies.docs = [ "sphinxcontrib-plantuml==0.30" ]
 optional-dependencies.ethereum = [ "eth-account>=0.4" ]
 optional-dependencies.nuls2 = [ "aleph-nuls2==0.1" ]
 optional-dependencies.polkadot = [ "substrate-interface==1.7.11" ]
-optional-dependencies.solana = [ "base58==2.1.1", "pynacl==1.5" ]
-optional-dependencies.tezos = [ "aleph-pytezos==3.13.4", "pynacl==1.5" ]
+optional-dependencies.solana = [ "base58==2.1.1", "pynacl==1.6.2" ]
+optional-dependencies.tezos = [ "aleph-pytezos==3.13.4", "pynacl==1.6.2" ]
 urls.Discussions = "https://community.aleph.cloud/"
 urls.Documentation = "https://docs.aleph.cloud/devhub/sdks-and-tools/aleph-cli/"
 urls.Issues = "https://github.com/aleph-im/aleph-client/issues"
