@@ -1,5 +1,14 @@
 # aleph-client
 
+> [!WARNING]
+> **This repository is archived and no longer maintained.**
+>
+> `aleph-client` has been superseded by the new Rust-based CLI, which is the actively developed and supported command-line interface for Aleph Cloud going forward. Please migrate to it:
+>
+> 👉 **[aleph-im/aleph-rs](https://github.com/aleph-im/aleph-rs)**
+>
+> This repository remains available for reference only. No further releases, bug fixes, or feature work will happen here.
+
 The official command-line interface (CLI) for [Aleph Cloud](https://www.aleph.cloud) — a decentralized cloud computing platform.
 
 ## What is Aleph Cloud?
