@@ -849,9 +849,11 @@ async def create(
                         )
                     )
 
-            # Notify CRN
+            # Notify CRN: this is the initial allocation, not a restart, so
+            # call the allocation endpoint directly rather than
+            # start_instance, which targets the owner's start route.
             async with VmClient(account, crn_info.url) as crn_client:
-                status, result = await crn_client.start_instance(vm_id=item_hash)
+                status, result = await crn_client.notify_allocation(vm_id=item_hash)
                 logger.debug(status, result)
                 if int(status) != 200:
                     echo(f"Could not allocate instance {item_hash} on CRN.")
