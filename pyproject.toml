@@ -119,6 +119,8 @@ dependencies = [
 
   "types-requests==2.32.0.20240602",
   "types-setuptools==70.0.0.20240524",
+  "types-PyYAML",
+  "types-ujson",
   "typing_extensions==4.12.2",
 ]
 [tool.hatch.envs.linting.scripts]
@@ -287,6 +289,17 @@ warn_unused_ignores = true
 warn_no_return = true
 # Shows a warning when returning a value with type Any from a function declared with a non- Any return type.
 warn_return_any = false
+
+# These dependencies ship py.typed code that uses syntax newer than
+# python_version = "3.9" (match statements), which mypy treats as a
+# fatal syntax error. Skipping them leaves their types as Any.
+[[tool.mypy.overrides]]
+module = "filelock.*"
+follow_imports = "skip"
+
+[[tool.mypy.overrides]]
+module = "anyio.*"
+follow_imports = "skip"
 
 [tool.sphinx]
 source-dir = "docs"

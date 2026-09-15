@@ -337,6 +337,7 @@ def create_mock_vm_client():
 
     mock_vm_client = AsyncMock(
         start_instance=AsyncMock(return_value=[200, MagicMock()]),
+        notify_allocation=AsyncMock(return_value=[200, MagicMock()]),
         erase_instance=AsyncMock(return_value=[200, MagicMock()]),
         reboot_instance=AsyncMock(return_value=[200, MagicMock()]),
         stop_instance=AsyncMock(return_value=[200, MagicMock()]),
@@ -540,7 +541,7 @@ async def test_create_instance(
             or args.get("gpu")
         ):
             mock_wait_for_processed_instance.assert_called_once()
-            mock_vm_client.start_instance.assert_called_once()
+            mock_vm_client.notify_allocation.assert_called_once()
             mock_vm_client.reserve_resources.assert_called_once()
 
         assert returned == expected
